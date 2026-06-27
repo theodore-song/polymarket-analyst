@@ -3,127 +3,310 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Polymarket Analyst & AI Paper Trader</title>
+<title>Polymarket Analyst — AI Market Intelligence & Paper Trader</title>
+<meta name="description" content="Daily AI analysis of Polymarket prediction markets with an autonomous paper-trading agent. Runs entirely in your browser." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
 <style>
 :root{
-  --bg:#0c1018;--panel:#151b27;--panel-2:#1d2433;--border:#283044;--text:#e7ecf3;
-  --muted:#8a96ab;--green:#2ec27e;--red:#ff5d6c;--yellow:#ffce5c;--accent:#6c8cff;
+  --bg:#070b14;--bg2:#0b1120;--panel:rgba(22,29,46,.66);--panel-solid:#161d2e;
+  --panel-2:rgba(36,45,68,.6);--border:rgba(255,255,255,.09);--border-strong:rgba(255,255,255,.16);
+  --text:#eef2f9;--muted:#94a1bb;--green:#34d399;--red:#fb7185;--yellow:#fbbf24;
+  --accent:#7c8cff;--accent2:#a878ff;--cyan:#38d2e6;
+  --shadow:0 18px 50px -20px rgba(0,0,0,.7);
 }
 *{box-sizing:border-box}
-body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-  background:var(--bg);color:var(--text);line-height:1.45}
-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;
-  padding:22px 28px;border-bottom:1px solid var(--border);
-  background:linear-gradient(180deg,#121826,#0c1018)}
-.brand h1{margin:0;font-size:24px}
-.tag{margin:4px 0 0;color:var(--muted);font-size:14px}
-.actions{display:flex;gap:10px;align-items:center}
-.btn{border:1px solid var(--border);border-radius:8px;padding:10px 16px;font-size:14px;
-  cursor:pointer;background:var(--panel-2);color:var(--text);transition:.15s}
-.btn:hover{border-color:var(--accent)}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
-.btn.primary:hover{filter:brightness(1.1)}
-.btn:disabled{opacity:.5;cursor:wait}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  background:var(--bg);color:var(--text);line-height:1.5;-webkit-font-smoothing:antialiased;
+  min-height:100vh;overflow-x:hidden}
+h1,h2,h3,.brand-name{font-family:'Space Grotesk','Inter',sans-serif}
+
+/* ---------- layered background imagery ---------- */
+.bg{position:fixed;inset:0;z-index:-2;overflow:hidden;
+  background:
+    radial-gradient(1200px 700px at 80% -10%, rgba(124,140,255,.18), transparent 60%),
+    radial-gradient(900px 600px at 5% 10%, rgba(168,120,255,.16), transparent 55%),
+    radial-gradient(1000px 800px at 50% 110%, rgba(56,210,230,.12), transparent 60%),
+    linear-gradient(180deg,#070b14,#0a1020 40%,#070b14)}
+.bg::before{content:"";position:absolute;inset:0;opacity:.5;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='44' height='44'%3E%3Cpath d='M44 0H0V44' fill='none' stroke='%23ffffff' stroke-opacity='0.035' stroke-width='1'/%3E%3C/svg%3E")}
+.bg .orb{position:absolute;border-radius:50%;filter:blur(70px);opacity:.55;animation:float 18s ease-in-out infinite}
+.orb.a{width:480px;height:480px;left:-120px;top:-80px;background:radial-gradient(circle,#5b6cff,transparent 70%)}
+.orb.b{width:520px;height:520px;right:-140px;top:140px;background:radial-gradient(circle,#a878ff,transparent 70%);animation-delay:-6s}
+.orb.c{width:440px;height:440px;left:35%;bottom:-180px;background:radial-gradient(circle,#21b6c9,transparent 70%);animation-delay:-12s}
+@keyframes float{0%,100%{transform:translate(0,0)}50%{transform:translate(40px,-30px)}}
+/* decorative skyline/chart silhouette pinned to bottom */
+.bg .chartline{position:absolute;left:0;right:0;bottom:0;width:100%;height:240px;opacity:.5}
+
+/* ---------- app shell ---------- */
+.app{max-width:1240px;margin:0 auto;padding:0 22px 60px}
+.topnav{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+  padding:14px 18px;margin:14px 0 8px;border:1px solid var(--border);border-radius:18px;
+  background:rgba(10,15,28,.72);backdrop-filter:blur(16px);box-shadow:var(--shadow)}
+.brand{display:flex;align-items:center;gap:11px}
+.logo{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-size:20px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 6px 20px -6px var(--accent)}
+.brand-name{font-size:18px;font-weight:700;letter-spacing:-.2px;line-height:1}
+.brand-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.tabs{display:flex;gap:4px;background:rgba(255,255,255,.04);padding:4px;border-radius:12px;
+  border:1px solid var(--border)}
+.tab{appearance:none;border:0;background:transparent;color:var(--muted);font-family:inherit;
+  font-size:13.5px;font-weight:600;padding:8px 15px;border-radius:9px;cursor:pointer;transition:.18s;white-space:nowrap}
+.tab:hover{color:var(--text)}
+.tab.active{color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2));
+  box-shadow:0 6px 18px -8px var(--accent)}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.status{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);
+  padding:6px 11px;border-radius:9px;background:rgba(255,255,255,.04);border:1px solid var(--border)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--muted);box-shadow:0 0 0 0 rgba(52,211,153,.5)}
+.dot.live{background:var(--green);animation:pulse 1.6s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(52,211,153,.5)}70%{box-shadow:0 0 0 7px rgba(52,211,153,0)}100%{box-shadow:0 0 0 0 rgba(52,211,153,0)}}
+.btn{border:1px solid var(--border-strong);border-radius:10px;padding:9px 15px;font-size:13.5px;
+  font-weight:600;font-family:inherit;cursor:pointer;background:rgba(255,255,255,.05);color:var(--text);transition:.16s}
+.btn:hover{border-color:var(--accent);transform:translateY(-1px)}
+.btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));border-color:transparent;color:#fff;
+  box-shadow:0 8px 22px -10px var(--accent)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn:disabled{opacity:.55;cursor:wait;transform:none}
 .btn.ghost{background:transparent}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;padding:22px 28px}
-.stat{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px 18px}
-.stat .label{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px}
-.stat .value{font-size:26px;font-weight:700;margin-top:6px}
-main{display:grid;grid-template-columns:1fr 1fr;gap:22px;padding:0 28px 28px}
-@media (max-width:950px){main{grid-template-columns:1fr}}
-.col h2{font-size:18px;margin:6px 0 14px}
-.muted{color:var(--muted);font-weight:400;font-size:13px}
-.card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px}
-.card h3{margin:0 0 12px;font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
-.sug{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;
-  margin-bottom:14px;border-left:4px solid var(--accent)}
-.sug .q{font-weight:600;font-size:15px}
-.sug .event{color:var(--muted);font-size:12px;margin:2px 0 10px}
-.sug-row{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
-.pill{font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px}
-.pill.YES{background:rgba(46,194,126,.15);color:var(--green)}
-.pill.NO{background:rgba(255,93,108,.15);color:var(--red)}
-.conv-bar{flex:1;min-width:120px;height:7px;background:var(--panel-2);border-radius:999px;overflow:hidden}
-.conv-bar>span{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--green))}
-.rationale{font-size:13px;color:#c4cde0;margin:8px 0}
-.drivers{display:flex;gap:6px;flex-wrap:wrap}
-.driver{font-size:11px;background:var(--panel-2);border:1px solid var(--border);padding:2px 8px;border-radius:6px;color:var(--muted)}
-.metrics{display:flex;gap:18px;font-size:12px;color:var(--muted);margin-top:8px;flex-wrap:wrap}
-.metrics b{color:var(--text)}
-a.market-link{color:var(--accent);text-decoration:none;font-size:12px}
-a.market-link:hover{text-decoration:underline}
-.pos{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)}
-.pos:last-child{border-bottom:none}
-.pos .pq{font-size:13px;max-width:60%}
-.pos .sub{color:var(--muted);font-size:11px}
-.pnl.pos-val{color:var(--green)}
-.pnl.neg-val{color:var(--red)}
-.right{text-align:right}
-.log-item{font-size:12px;padding:7px 0;border-bottom:1px solid var(--border);color:#c4cde0}
-.log-item:last-child{border-bottom:none}
-.log-item .badge{font-weight:700;font-size:10px;padding:1px 6px;border-radius:4px;margin-right:6px}
-.badge.OPEN{background:rgba(108,140,255,.18);color:var(--accent)}
-.badge.CLOSE{background:rgba(255,206,92,.18);color:var(--yellow)}
-.log-date{color:var(--muted)}
-#chart{width:100%;height:200px;display:block}
-.chart-meta{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:8px}
-.empty{color:var(--muted);font-size:13px;padding:8px 0}
-footer{padding:18px 28px;border-top:1px solid var(--border);color:var(--muted);font-size:12px}
-.toast{position:fixed;bottom:22px;right:22px;background:var(--panel-2);border:1px solid var(--accent);
-  padding:12px 18px;border-radius:10px;font-size:14px;opacity:0;transform:translateY(10px);
-  transition:.25s;pointer-events:none;max-width:340px}
-.toast.show{opacity:1;transform:translateY(0)}
-.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--muted);margin-right:6px}
-.dot.live{background:var(--green)}
-.filterbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
-.chip{font-size:13px;padding:6px 13px;border-radius:999px;cursor:pointer;
-  background:var(--panel-2);border:1px solid var(--border);color:var(--muted);transition:.15s;user-select:none}
+
+/* ---------- hero ---------- */
+.hero{position:relative;border:1px solid var(--border);border-radius:22px;padding:34px 32px;margin:14px 0 22px;
+  overflow:hidden;background:linear-gradient(120deg,rgba(124,140,255,.16),rgba(168,120,255,.08) 50%,rgba(56,210,230,.10));
+  box-shadow:var(--shadow)}
+.hero-art{position:absolute;right:-10px;top:-10px;bottom:-10px;width:46%;opacity:.85;pointer-events:none}
+.hero h1{margin:0 0 10px;font-size:34px;letter-spacing:-.8px;line-height:1.08;max-width:640px}
+.hero h1 .grad{background:linear-gradient(100deg,#a9b6ff,#d9b4ff 50%,#8fe8f3);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{margin:0;color:#c3cce0;font-size:15.5px;max-width:560px}
+.hero .badges{display:flex;gap:9px;flex-wrap:wrap;margin-top:18px}
+.hbadge{font-size:12px;font-weight:600;color:#dfe6f5;padding:6px 12px;border-radius:999px;
+  background:rgba(255,255,255,.07);border:1px solid var(--border)}
+
+/* ---------- panels & cards ---------- */
+.tabpanel{display:none;animation:fade .35s ease}
+.tabpanel.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.grid2{display:grid;grid-template-columns:1.05fr .95fr;gap:20px}
+@media (max-width:920px){.grid2{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:20px 22px;
+  margin-bottom:20px;backdrop-filter:blur(14px);box-shadow:var(--shadow)}
+.card.hoverable{transition:.2s}
+.card.hoverable:hover{border-color:var(--border-strong);transform:translateY(-2px)}
+.card-h{display:flex;align-items:center;justify-content:space-between;margin:0 0 16px}
+.card-h h3{margin:0;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:600}
+.section-title{display:flex;align-items:center;gap:11px;font-size:20px;margin:6px 0 16px;font-weight:700}
+.section-title::before{content:"";width:5px;height:22px;border-radius:3px;background:linear-gradient(var(--accent),var(--accent2))}
+.muted{color:var(--muted)}.small{font-size:12.5px}
+
+/* ---------- stat cards ---------- */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:14px;margin-bottom:20px}
+.stat{position:relative;background:var(--panel);border:1px solid var(--border);border-radius:16px;
+  padding:18px;overflow:hidden;backdrop-filter:blur(14px);transition:.2s}
+.stat:hover{transform:translateY(-2px);border-color:var(--border-strong)}
+.stat::after{content:"";position:absolute;left:0;top:0;height:3px;width:100%;
+  background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.stat .ic{font-size:18px;opacity:.9}
+.stat .label{color:var(--muted);font-size:11.5px;text-transform:uppercase;letter-spacing:.6px;margin-top:8px}
+.stat .value{font-size:27px;font-weight:700;margin-top:4px;font-family:'Space Grotesk',sans-serif;letter-spacing:-.5px}
+.pos-val{color:var(--green)}.neg-val{color:var(--red)}
+
+/* ---------- equity chart ---------- */
+#chart{width:100%;height:230px;display:block}
+.chart-meta{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:10px}
+
+/* ---------- suggestions ---------- */
+.filterbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.chip{font-size:13px;font-weight:600;padding:7px 14px;border-radius:999px;cursor:pointer;
+  background:rgba(255,255,255,.05);border:1px solid var(--border);color:var(--muted);transition:.16s;user-select:none}
 .chip:hover{border-color:var(--accent);color:var(--text)}
-.chip.active{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
-.chip .ct{opacity:.7;font-size:11px;margin-left:4px}
-.cat-badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;
-  padding:2px 8px;border-radius:6px;background:rgba(108,140,255,.16);color:var(--accent)}
+.chip.active{background:linear-gradient(135deg,var(--accent),var(--accent2));border-color:transparent;color:#fff}
+.chip .ct{opacity:.75;font-size:11px;margin-left:5px}
+.sug-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:760px){.sug-grid{grid-template-columns:1fr}}
+.sug{position:relative;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px;
+  border-left:4px solid var(--accent);backdrop-filter:blur(14px);transition:.2s}
+.sug:hover{transform:translateY(-3px);border-color:var(--border-strong);box-shadow:var(--shadow)}
+.sug .q{font-weight:600;font-size:15px;line-height:1.35;margin-top:6px}
+.sug .event{color:var(--muted);font-size:12px;margin:3px 0 12px}
+.sug-row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:9px}
+.cat-badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:3px 9px;border-radius:7px}
+.pill{font-size:12px;font-weight:700;padding:4px 11px;border-radius:999px}
+.pill.YES{background:rgba(52,211,153,.16);color:var(--green)}
+.pill.NO{background:rgba(251,113,133,.16);color:var(--red)}
+.conv-bar{flex:1;min-width:90px;height:7px;background:rgba(255,255,255,.07);border-radius:999px;overflow:hidden}
+.conv-bar>span{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--green))}
+.rationale{font-size:13px;color:#cdd6e8;margin:10px 0}
+.drivers{display:flex;gap:6px;flex-wrap:wrap}
+.driver{font-size:11px;background:rgba(255,255,255,.05);border:1px solid var(--border);padding:3px 9px;border-radius:7px;color:var(--muted)}
+.metrics{display:flex;gap:16px;font-size:12px;color:var(--muted);margin-top:12px;flex-wrap:wrap}
+.metrics b{color:var(--text)}
+a.market-link{color:var(--accent);text-decoration:none;font-size:12px;font-weight:600}
+a.market-link:hover{text-decoration:underline}
+
+/* ---------- positions / log ---------- */
+.pos{display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-bottom:1px solid var(--border)}
+.pos:last-child{border-bottom:none}
+.pos .pq{font-size:13.5px;max-width:62%;font-weight:500}
+.pos .sub{color:var(--muted);font-size:11.5px;margin-top:3px}
+.right{text-align:right}
+.log-item{font-size:12.5px;padding:9px 0;border-bottom:1px solid var(--border);color:#cdd6e8}
+.log-item:last-child{border-bottom:none}
+.badge{font-weight:700;font-size:10px;padding:2px 7px;border-radius:5px;margin-right:7px}
+.badge.OPEN{background:rgba(124,140,255,.2);color:var(--accent)}
+.badge.CLOSE{background:rgba(251,191,36,.2);color:var(--yellow)}
+.log-date{color:var(--muted)}
+.empty{color:var(--muted);font-size:13.5px;padding:14px 0;text-align:center}
+
+/* ---------- about ---------- */
+.about-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px;margin-bottom:8px}
+.feature{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;backdrop-filter:blur(14px)}
+.feature .fic{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-size:20px;margin-bottom:12px;
+  background:linear-gradient(135deg,rgba(124,140,255,.25),rgba(168,120,255,.18));border:1px solid var(--border)}
+.feature h4{margin:0 0 7px;font-size:15px}
+.feature p{margin:0;font-size:13px;color:var(--muted);line-height:1.55}
+.steps{counter-reset:s;list-style:none;padding:0;margin:0}
+.steps li{position:relative;padding:0 0 16px 44px;font-size:14px;color:#cdd6e8}
+.steps li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:-2px;width:30px;height:30px;
+  border-radius:9px;display:grid;place-items:center;font-weight:700;font-size:13px;color:#fff;
+  background:linear-gradient(135deg,var(--accent),var(--accent2))}
+.disclaimer{border:1px solid rgba(251,191,36,.3);background:rgba(251,191,36,.07);border-radius:14px;padding:16px 18px;
+  font-size:13px;color:#e6dcc2;margin-top:8px}
+
+/* ---------- misc ---------- */
+.toast{position:fixed;bottom:24px;right:24px;z-index:100;background:rgba(18,24,40,.92);border:1px solid var(--accent);
+  padding:13px 19px;border-radius:13px;font-size:14px;opacity:0;transform:translateY(12px);transition:.28s;
+  pointer-events:none;max-width:360px;backdrop-filter:blur(12px);box-shadow:var(--shadow)}
+.toast.show{opacity:1;transform:translateY(0)}
+footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color:var(--muted);font-size:12.5px;text-align:center}
+::-webkit-scrollbar{width:11px;height:11px}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:6px;border:3px solid transparent;background-clip:padding-box}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.2);background-clip:padding-box}
 </style>
 </head>
 <body>
-<header>
-  <div class="brand">
-    <h1>📊 Polymarket Analyst</h1>
-    <p class="tag">Daily AI-driven market analysis &amp; an autonomous paper-trading agent · runs entirely in your browser</p>
-  </div>
-  <div class="actions">
-    <span class="muted"><span class="dot" id="statusDot"></span><span id="statusText">idle</span></span>
-    <button id="runBtn" class="btn primary">Run daily cycle now</button>
-    <button id="resetBtn" class="btn ghost">Reset portfolio</button>
-  </div>
-</header>
 
-<section class="stats" id="stats"></section>
+<div class="bg" aria-hidden="true">
+  <div class="orb a"></div><div class="orb b"></div><div class="orb c"></div>
+  <svg class="chartline" viewBox="0 0 1440 240" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+    <defs><linearGradient id="cl" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#7c8cff" stop-opacity="0.28"/><stop offset="100%" stop-color="#7c8cff" stop-opacity="0"/>
+    </linearGradient></defs>
+    <path d="M0,170 C120,150 180,110 300,120 C420,130 470,70 600,90 C720,108 800,40 940,70 C1080,100 1160,150 1280,120 C1360,100 1410,130 1440,120 L1440,240 L0,240 Z" fill="url(#cl)"/>
+    <path d="M0,170 C120,150 180,110 300,120 C420,130 470,70 600,90 C720,108 800,40 940,70 C1080,100 1160,150 1280,120 C1360,100 1410,130 1440,120" fill="none" stroke="#7c8cff" stroke-opacity="0.5" stroke-width="2"/>
+  </svg>
+</div>
 
-<main>
-  <div class="col">
-    <h2>🤖 Agent Portfolio</h2>
-    <div class="card chart-card">
-      <h3>Equity curve</h3>
-      <svg id="chart" viewBox="0 0 600 200" preserveAspectRatio="none"></svg>
-      <div class="chart-meta" id="chartMeta"></div>
+<div class="app">
+  <nav class="topnav">
+    <div class="brand">
+      <div class="logo">📊</div>
+      <div><div class="brand-name">Polymarket Analyst</div><div class="brand-sub">AI market intelligence · paper trader</div></div>
     </div>
-    <div class="card"><h3>Open positions</h3><div id="positions"></div></div>
-    <div class="card"><h3>Activity log</h3><div id="history"></div></div>
-  </div>
-  <div class="col">
-    <h2>💡 Today's Suggestions <span id="sugDate" class="muted"></span></h2>
-    <div class="filterbar" id="filterbar"></div>
-    <div class="muted" id="focusNote" style="margin-bottom:10px"></div>
-    <div id="suggestions"></div>
-  </div>
-</main>
+    <div class="tabs" id="tabs">
+      <button class="tab" data-tab="overview">Overview</button>
+      <button class="tab" data-tab="suggestions">Suggestions</button>
+      <button class="tab" data-tab="portfolio">Portfolio</button>
+      <button class="tab" data-tab="about">About</button>
+    </div>
+    <div class="nav-right">
+      <span class="status"><span class="dot" id="statusDot"></span><span id="statusText">idle</span></span>
+      <button id="runBtn" class="btn primary">Run cycle</button>
+      <button id="resetBtn" class="btn ghost">Reset</button>
+    </div>
+  </nav>
 
-<footer>
-  <p>Paper trading only — no real money. Live prices from Polymarket's public Gamma API.
-  Analysis is a deterministic heuristic, not financial advice. Your portfolio is saved in this
-  browser's local storage.</p>
-</footer>
+  <!-- ============ OVERVIEW ============ -->
+  <section class="tabpanel" data-tab="overview">
+    <div class="hero">
+      <svg class="hero-art" viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs><linearGradient id="ha" x1="0" y1="1" x2="1" y2="0">
+          <stop offset="0" stop-color="#7c8cff" stop-opacity=".0"/><stop offset="1" stop-color="#a878ff" stop-opacity=".5"/></linearGradient></defs>
+        <g fill="none" stroke="#a9b6ff" stroke-opacity=".5" stroke-width="2">
+          <path d="M20,250 L120,170 L200,210 L290,90 L380,40"/>
+        </g>
+        <path d="M20,250 L120,170 L200,210 L290,90 L380,40 L380,290 L20,290 Z" fill="url(#ha)" opacity=".5"/>
+        <g fill="#d9b4ff"><circle cx="120" cy="170" r="5"/><circle cx="200" cy="210" r="5"/><circle cx="290" cy="90" r="5"/><circle cx="380" cy="40" r="6"/></g>
+        <g opacity=".6">
+          <rect x="60" y="200" width="14" height="50" rx="3" fill="#34d399"/>
+          <rect x="160" y="220" width="14" height="40" rx="3" fill="#fb7185"/>
+          <rect x="250" y="150" width="14" height="80" rx="3" fill="#34d399"/>
+          <rect x="330" y="120" width="14" height="60" rx="3" fill="#34d399"/>
+        </g>
+      </svg>
+      <h1>Trade smarter on <span class="grad">prediction markets</span></h1>
+      <p>Every day, an AI scores live Polymarket markets for mispricing, momentum and liquidity — then an autonomous agent paper-trades the best ideas and tracks its own P&amp;L.</p>
+      <div class="badges">
+        <span class="hbadge">🔴 Live Polymarket data</span>
+        <span class="hbadge">🧠 Rule-based AI scoring</span>
+        <span class="hbadge">🤖 Autonomous paper agent</span>
+        <span class="hbadge">🗂️ Category filters</span>
+      </div>
+    </div>
+
+    <div class="stats" id="stats"></div>
+
+    <div class="grid2">
+      <div class="card hoverable">
+        <div class="card-h"><h3>Equity Curve</h3><span class="small muted" id="lastRun"></span></div>
+        <svg id="chart" viewBox="0 0 600 230" preserveAspectRatio="none"></svg>
+        <div class="chart-meta" id="chartMeta"></div>
+      </div>
+      <div class="card hoverable">
+        <div class="card-h"><h3>Top Picks Today</h3><span class="small muted">highest conviction</span></div>
+        <div id="topPicks"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SUGGESTIONS ============ -->
+  <section class="tabpanel" data-tab="suggestions">
+    <div class="section-title">💡 Daily Suggestions <span class="small muted" id="sugDate" style="font-weight:400"></span></div>
+    <div class="card">
+      <div class="filterbar" id="filterbar"></div>
+      <div class="small muted" id="focusNote" style="margin-top:6px"></div>
+    </div>
+    <div class="sug-grid" id="suggestions"></div>
+  </section>
+
+  <!-- ============ PORTFOLIO ============ -->
+  <section class="tabpanel" data-tab="portfolio">
+    <div class="section-title">🤖 Agent Portfolio</div>
+    <div class="stats" id="statsPf"></div>
+    <div class="grid2">
+      <div class="card"><div class="card-h"><h3>Open Positions</h3></div><div id="positions"></div></div>
+      <div class="card"><div class="card-h"><h3>Activity Log</h3></div><div id="history"></div></div>
+    </div>
+  </section>
+
+  <!-- ============ ABOUT ============ -->
+  <section class="tabpanel" data-tab="about">
+    <div class="section-title">ℹ️ How it works</div>
+    <div class="about-grid">
+      <div class="feature"><div class="fic">🔴</div><h4>Live market data</h4><p>Pulls the most active open binary markets straight from Polymarket's public Gamma API — no keys, no backend.</p></div>
+      <div class="feature"><div class="fic">🧮</div><h4>Four-signal model</h4><p>Each market is scored on liquidity, 24h momentum, a fair-value mispricing estimate, and time-to-resolution.</p></div>
+      <div class="feature"><div class="fic">🤖</div><h4>Autonomous agent</h4><p>Sizes positions with a capped fractional-Kelly rule, marks them to market daily, and settles resolved ones.</p></div>
+      <div class="feature"><div class="fic">🗂️</div><h4>Category focus</h4><p>Filter Politics, Sports, Crypto, Economy &amp; more — and steer the agent to trade only your chosen category.</p></div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <div class="card-h"><h3>The daily cycle</h3></div>
+      <ol class="steps">
+        <li><b>Fetch</b> — page through hundreds of live markets and tag each by category.</li>
+        <li><b>Score</b> — rank every market 0–100 by conviction and estimate its edge vs. a fair-value model.</li>
+        <li><b>Suggest</b> — surface the strongest picks per category with a plain-English rationale.</li>
+        <li><b>Trade</b> — the agent opens sized paper positions, marks existing ones to market, and snapshots equity.</li>
+      </ol>
+    </div>
+    <div class="disclaimer">⚠️ <b>Paper trading only — not financial advice.</b> Nothing here places real orders or moves money. The analysis is a transparent heuristic. Your portfolio lives in this browser's local storage (each device keeps its own).</div>
+  </section>
+
+  <footer>
+    Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
+  </footer>
+</div>
 
 <script>
 "use strict";
@@ -139,6 +322,9 @@ const STORE_KEY = "pma_portfolio_v1";
 const SUG_KEY = "pma_suggestions_v1";
 const FOCUS_KEY = "pma_focus_v1";
 const CATEGORIES = ["All","Politics","Sports","Crypto","Economy","Pop Culture","Other"];
+const CAT_COLORS = {Politics:"#fb7185",Sports:"#34d399",Crypto:"#fbbf24",Economy:"#7c8cff",
+  "Pop Culture":"#c77dff",Other:"#94a1bb",All:"#7c8cff"};
+const catColor = (c) => CAT_COLORS[c] || CAT_COLORS.Other;
 const getFocus = () => localStorage.getItem(FOCUS_KEY) || "All";
 const setFocus = (c) => localStorage.setItem(FOCUS_KEY, c);
 
@@ -174,8 +360,7 @@ function daysUntil(iso){
   if(isNaN(dt)) return null;
   return (dt-new Date())/86400000;
 }
-/* Map Polymarket tag slugs/labels to a top-level category.
-   Checked in priority order; first match wins. */
+/* Map Polymarket tag slugs/labels to a top-level category. */
 const CATEGORY_RULES=[
   ["Politics",["politics","election","elections","us-politics","geopolitics","trump",
     "world-leaders","government","congress","policy","biden","2026-election","democrats","republicans"]],
@@ -222,8 +407,6 @@ function normalizeMarket(raw){
   };
 }
 async function fetchMarkets(pages=4,perPage=100){
-  // The Gamma API caps each response near 100 markets, so page through a few
-  // to get enough breadth for category filters (crypto/economy/politics).
   const all=[];
   for(let i=0;i<pages;i++){
     const params=new URLSearchParams({closed:"false",active:"true",archived:"false",
@@ -245,11 +428,10 @@ async function fetchMarketPrice(id){
   }catch(e){return null;}
 }
 
-/* ---------- Analysis engine (ported 1:1 from the Python model) ---------- */
+/* ---------- Analysis engine ---------- */
 const W={LIQ:0.25,MOM:0.25,MIS:0.30,TIME:0.20};
 const MIN_VOLUME=20000;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
-
 function liquiditySignal(m){
   const vol=Math.min(1,Math.log10(m.volume+1)/6.0);
   const liq=Math.min(1,Math.log10(m.liquidity+1)/5.3);
@@ -304,8 +486,6 @@ function analyzeMarket(m){
 }
 const pct=(x)=>Math.round(x*100)+"%";
 function generateSuggestions(markets,perCategory=10){
-  // Keep the top picks *within each category* so every filter chip has its
-  // best ideas, instead of letting high-volume sports crowd everything out.
   const actionable=markets.map(analyzeMarket).filter(Boolean).filter(a=>a.side!=="HOLD")
     .sort((a,b)=>b.conviction-a.conviction);
   const byCat={}; const out=[];
@@ -317,7 +497,7 @@ function generateSuggestions(markets,perCategory=10){
   return out.sort((a,b)=>b.conviction-a.conviction);
 }
 
-/* ---------- Portfolio store (localStorage) ---------- */
+/* ---------- Portfolio store ---------- */
 function defaultPortfolio(){
   return {cash:STARTING_BALANCE,starting_balance:STARTING_BALANCE,
     positions:[],closed:[],history:[],snapshots:[],last_run:null};
@@ -344,7 +524,6 @@ function kellyFraction(conv,edge){
   return Math.min(MAX_POS_FRAC,0.25*base);
 }
 const hasPosition=(p,id)=>p.positions.some(x=>x.market_id===id);
-
 async function markToMarket(p){
   const notes=[],stillOpen=[];
   for(const pos of p.positions){
@@ -386,7 +565,7 @@ function openPositions(p,sugs,focus){
     p.cash=+(p.cash-cost).toFixed(2);
     p.positions.push({market_id:s.market_id,question:s.question,side:s.side,shares,
       entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,
-      unrealized_pnl:0,conviction:s.conviction,rationale:s.rationale,opened_at:nowIso(),url:s.url||""});
+      unrealized_pnl:0,conviction:s.conviction,rationale:s.rationale,opened_at:nowIso(),url:s.url||"",category:s.category});
     p.history.push({date:todayStr(),action:"OPEN",market_id:s.market_id,question:s.question,side:s.side,
       detail:`Bought ${shares} ${s.side} @ ${pct(entry)} for ${fmtUSD(cost)} (conviction ${s.conviction})`});
     notes.push(`Opened ${s.side} on '${s.question.slice(0,50)}' (${fmtUSD(cost)})`);
@@ -420,7 +599,45 @@ async function runDailyCycle(){
 }
 
 /* ---------- Rendering ---------- */
-function renderAll(){renderPortfolio();renderSuggestions();}
+function renderAll(){renderStats();renderChart(loadPortfolio().snapshots);renderTopPicks();
+  renderSuggestions();renderPositions(loadPortfolio().positions);
+  renderHistory(loadPortfolio().history.slice(-50).reverse());}
+
+function statCards(){
+  const p=loadPortfolio(), eq=equity(p), pnl=eq-p.starting_balance;
+  return [
+    {ic:"💰",label:"Equity",value:fmtUSD(eq)},
+    {ic:"💵",label:"Cash",value:fmtUSD(p.cash)},
+    {ic:"📈",label:"Total P&L",value:fmtUSD(pnl),cls:signClass(pnl)},
+    {ic:"🎯",label:"Return",value:fmtPct((eq/p.starting_balance-1)*100),cls:signClass(pnl)},
+    {ic:"📂",label:"Open positions",value:p.positions.length},
+  ];
+}
+function renderStats(){
+  const html=statCards().map(s=>
+    `<div class="stat"><div class="ic">${s.ic}</div><div class="label">${s.label}</div>
+     <div class="value ${s.cls||""}">${s.value}</div></div>`).join("");
+  $("stats").innerHTML=html;
+  const pf=$("statsPf"); if(pf) pf.innerHTML=html;
+  const p=loadPortfolio();
+  if(p.last_run){const d=new Date(p.last_run);$("lastRun").textContent="updated "+d.toLocaleString();}
+}
+function renderTopPicks(){
+  const root=$("topPicks"); if(!root) return;
+  const all=(loadSuggestions().suggestions)||[];
+  const top=all.slice(0,4);
+  if(!top.length){root.innerHTML=`<div class="empty">Run a cycle to see top picks.</div>`;return;}
+  root.innerHTML=top.map(s=>`
+    <div class="pos">
+      <div>
+        <div class="pq">${esc(s.question.slice(0,60))}${s.question.length>60?"…":""}</div>
+        <div class="sub"><span class="cat-badge" style="background:${catColor(s.category)}22;color:${catColor(s.category)}">${esc(s.category)}</span>
+          &nbsp;BUY ${s.side} @ ${Math.round(s.entry_price*100)}¢</div>
+      </div>
+      <div class="right"><div style="font-family:'Space Grotesk';font-weight:700">${Math.round(s.conviction)}</div>
+        <div class="sub">conviction</div></div>
+    </div>`).join("");
+}
 function renderFilterBar(all){
   const focus=getFocus();
   const counts={}; CATEGORIES.forEach(c=>counts[c]=0);
@@ -442,29 +659,30 @@ function renderSuggestions(){
   const root=$("suggestions");
   renderFilterBar(all);
   if(!all.length){
-    root.innerHTML=`<div class="empty">No suggestions yet. Click "Run daily cycle now".</div>`;
+    root.innerHTML=`<div class="empty" style="grid-column:1/-1">No suggestions yet. Click "Run cycle".</div>`;
     $("focusNote").textContent="";return;}
   const focus=getFocus();
   const filtered=(focus==="All"?all:all.filter(s=>s.category===focus)).slice(0,12);
   $("focusNote").textContent=focus==="All"
-    ? "Agent trades the strongest picks across all categories."
+    ? "The agent trades the strongest picks across all categories."
     : `Filtered to ${focus} — the agent will only open new ${focus} positions while this is selected.`;
   if(!filtered.length){
-    root.innerHTML=`<div class="empty">No ${esc(focus)} suggestions in today's batch.</div>`;return;}
+    root.innerHTML=`<div class="empty" style="grid-column:1/-1">No ${esc(focus)} suggestions in today's batch.</div>`;return;}
   root.innerHTML=filtered.map(s=>{
+    const col=catColor(s.category);
     const drivers=s.drivers.map(d=>`<span class="driver">${d}</span>`).join("");
     const days=s.days_to_resolution!=null?`${s.days_to_resolution}d`:"—";
-    return `<div class="sug">
-      <div class="sug-row" style="margin-bottom:6px">
-        <span class="cat-badge">${esc(s.category||"Other")}</span>
+    return `<div class="sug" style="border-left-color:${col}">
+      <div class="sug-row" style="margin-bottom:2px">
+        <span class="cat-badge" style="background:${col}22;color:${col}">${esc(s.category||"Other")}</span>
       </div>
       <div class="q">${esc(s.question)}</div>
       <div class="event">${esc(s.event||"")}</div>
       <div class="sug-row">
         <span class="pill ${s.side}">BUY ${s.side}</span>
-        <span class="muted">@ ${Math.round(s.entry_price*100)}¢</span>
+        <span class="muted small">@ ${Math.round(s.entry_price*100)}¢</span>
         <div class="conv-bar"><span style="width:${s.conviction}%"></span></div>
-        <span class="muted">${Math.round(s.conviction)} conviction</span>
+        <span class="muted small">${Math.round(s.conviction)}</span>
       </div>
       <div class="rationale">${esc(s.rationale)}</div>
       <div class="drivers">${drivers}</div>
@@ -476,61 +694,57 @@ function renderSuggestions(){
       </div></div>`;
   }).join("");
 }
-function renderPortfolio(){
-  const p=loadPortfolio();
-  const eq=equity(p);
-  const stats=[
-    {label:"Equity",value:fmtUSD(eq)},
-    {label:"Cash",value:fmtUSD(p.cash)},
-    {label:"Total P&L",value:fmtUSD(eq-p.starting_balance),cls:signClass(eq-p.starting_balance)},
-    {label:"Return",value:fmtPct((eq/p.starting_balance-1)*100),cls:signClass(eq-p.starting_balance)},
-    {label:"Open positions",value:p.positions.length},
-  ];
-  $("stats").innerHTML=stats.map(s=>
-    `<div class="stat"><div class="label">${s.label}</div><div class="value ${s.cls||""}">${s.value}</div></div>`).join("");
-  renderChart(p.snapshots);
-  renderPositions(p.positions);
-  renderHistory(p.history.slice(-50).reverse());
-}
 function renderChart(snaps){
   const svg=$("chart");
-  if(!snaps||!snaps.length){svg.innerHTML="";$("chartMeta").textContent="No history yet.";return;}
+  if(!snaps||!snaps.length){svg.innerHTML="";$("chartMeta").textContent="No history yet — run a cycle.";return;}
   const pts=snaps.map(s=>s.equity);
-  const W=600,H=200,pad=6;
+  const W=600,H=230,pad=8;
   const min=Math.min(...pts,snaps[0].equity)*0.999, max=Math.max(...pts)*1.001, span=(max-min)||1;
   const x=(i)=>snaps.length===1?W/2:pad+(i/(snaps.length-1))*(W-2*pad);
   const y=(v)=>H-pad-((v-min)/span)*(H-2*pad);
   const line=snaps.map((s,i)=>`${i===0?"M":"L"}${x(i).toFixed(1)},${y(s.equity).toFixed(1)}`).join(" ");
   const area=`${line} L${x(snaps.length-1).toFixed(1)},${H-pad} L${x(0).toFixed(1)},${H-pad} Z`;
-  const up=pts[pts.length-1]>=snaps[0].equity, color=up?"#2ec27e":"#ff5d6c";
+  const up=pts[pts.length-1]>=snaps[0].equity, color=up?"#34d399":"#fb7185";
   svg.innerHTML=`<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
     <stop offset="0%" stop-color="${color}" stop-opacity="0.35"/>
     <stop offset="100%" stop-color="${color}" stop-opacity="0"/></linearGradient></defs>
-    <path d="${area}" fill="url(#g)"/><path d="${line}" fill="none" stroke="${color}" stroke-width="2"/>`;
+    <path d="${area}" fill="url(#g)"/><path d="${line}" fill="none" stroke="${color}" stroke-width="2.5"/>`;
   const last=snaps[snaps.length-1];
   $("chartMeta").innerHTML=`<span>${snaps[0].date}</span><span>${snaps.length} day(s) · ${fmtPct(last.return_pct)}</span><span>${last.date}</span>`;
 }
 function renderPositions(positions){
-  const root=$("positions");
+  const root=$("positions"); if(!root) return;
   if(!positions.length){root.innerHTML=`<div class="empty">No open positions yet.</div>`;return;}
   root.innerHTML=positions.map(p=>{
-    const pnl=p.unrealized_pnl||0;
+    const pnl=p.unrealized_pnl||0, col=catColor(p.category);
     return `<div class="pos"><div>
       <div class="pq">${esc(p.question)}</div>
-      <div class="sub">${p.shares} ${p.side} @ ${Math.round(p.entry_price*100)}¢ → ${Math.round(p.current_price*100)}¢ · conv ${p.conviction}</div>
+      <div class="sub">${p.category?`<span class="cat-badge" style="background:${col}22;color:${col}">${esc(p.category)}</span> `:""}${p.shares} ${p.side} @ ${Math.round(p.entry_price*100)}¢ → ${Math.round(p.current_price*100)}¢ · conv ${p.conviction}</div>
     </div><div class="right">
       <div>${fmtUSD(p.value)}</div>
-      <div class="pnl ${signClass(pnl)}">${pnl>=0?"+":""}${fmtUSD(pnl)}</div>
+      <div class="${signClass(pnl)}">${pnl>=0?"+":""}${fmtUSD(pnl)}</div>
     </div></div>`;
   }).join("");
 }
 function renderHistory(history){
-  const root=$("history");
+  const root=$("history"); if(!root) return;
   if(!history.length){root.innerHTML=`<div class="empty">No activity yet.</div>`;return;}
   root.innerHTML=history.map(h=>
     `<div class="log-item"><span class="badge ${h.action}">${h.action}</span><span class="log-date">${h.date}</span> — ${esc(h.detail)}</div>`).join("");
 }
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+
+/* ---------- Tab routing (deep-linkable via #hash) ---------- */
+const TABS=["overview","suggestions","portfolio","about"];
+function showTab(name){
+  if(!TABS.includes(name)) name="overview";
+  document.querySelectorAll(".tabpanel").forEach(p=>p.classList.toggle("active",p.dataset.tab===name));
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.tab===name));
+  if(location.hash.slice(1)!==name) history.replaceState(null,"","#"+name);
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>showTab(t.dataset.tab)));
+window.addEventListener("hashchange",()=>showTab(location.hash.slice(1)));
 
 /* ---------- Wire up ---------- */
 $("runBtn").addEventListener("click",async()=>{
@@ -540,7 +754,7 @@ $("runBtn").addEventListener("click",async()=>{
     toast(`Cycle done · ${r.suggestions} suggestions · equity ${fmtUSD(r.equity)}`);
     renderAll();
   }catch(e){toast("Run failed: "+e.message);setStatus("error",false);}
-  btn.disabled=false;btn.textContent="Run daily cycle now";
+  btn.disabled=false;btn.textContent="Run cycle";
 });
 $("resetBtn").addEventListener("click",()=>{
   if(!confirm("Reset the paper portfolio to its starting balance?")) return;
@@ -548,15 +762,16 @@ $("resetBtn").addEventListener("click",()=>{
   toast("Portfolio reset.");renderAll();
 });
 
-/* On load: render, then auto-run once per day. */
+/* On load: route to tab, render, then auto-run once per day. */
 (async function init(){
+  showTab(location.hash.slice(1)||"overview");
   renderAll();
   const sug=loadSuggestions();
   if(sug.date!==todayStr()){
     const btn=$("runBtn");btn.disabled=true;btn.textContent="Running…";
     try{await runDailyCycle();renderAll();toast("Fresh daily analysis ready.");}
     catch(e){setStatus("error — click Run to retry",false);}
-    btn.disabled=false;btn.textContent="Run daily cycle now";
+    btn.disabled=false;btn.textContent="Run cycle";
   }else{setStatus("up to date",false);}
 })();
 </script>
