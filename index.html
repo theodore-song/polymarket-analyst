@@ -121,7 +121,7 @@ h1,h2,h3,.brand-name{font-family:'Space Grotesk','Inter',sans-serif}
 .medal{font-size:20px;min-width:26px}
 .lb-emoji{font-size:24px}
 .lb-name{font-weight:700;font-size:15px;font-family:'Space Grotesk'}
-.lb-blurb{font-size:11.5px;color:var(--muted);line-height:1.4;margin-top:2px}
+.lb-blurb{font-size:11.5px;color:var(--muted);line-height:1.4;margin-top:2px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .lb-mid{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px}
 .lb-eq{font-size:26px;font-weight:700;font-family:'Space Grotesk';letter-spacing:-.5px}
 .lb-ret{font-size:15px;font-weight:700;font-family:'Space Grotesk'}
@@ -397,35 +397,35 @@ const setFocus = (c) => localStorage.setItem(FOCUS_KEY, c);
    Each shares the same daily suggestions but ranks/sizes them differently. */
 const AGENTS = [
   {id:"value", name:"Value Hunter", emoji:"🎯", color:"#7c8cff", kind:"strategy",
-   blurb:"Backs the biggest model edge — the most mispriced markets.",
+   blurb:"Looks for the widest gap between the model's fair value and the current market price. It prefers trades where the crowd appears too pessimistic or too optimistic, then sizes positions moderately so one bad read does not dominate the portfolio.",
    rank:(s)=>[...s].sort((a,b)=>b.conviction-a.conviction),
    maxNew:4, maxFrac:0.10, minConv:45, kelly:0.25},
   {id:"momentum", name:"Momentum Chaser", emoji:"🚀", color:"#34d399", kind:"strategy",
-   blurb:"Follows the fresh money — favors 24h volume surges.",
+   blurb:"Chases markets where attention is accelerating. It weights conviction by fresh 24-hour volume, so it tends to enter fast-moving events with strong liquidity and recent trader interest.",
    rank:(s)=>[...s].sort((a,b)=>(b.volume_24hr*(b.conviction+20))-(a.volume_24hr*(a.conviction+20))),
    maxNew:5, maxFrac:0.12, minConv:40, kelly:0.30},
   {id:"favorite", name:"Favorite Backer", emoji:"🛡️", color:"#38d2e6", kind:"strategy",
-   blurb:"Low-variance grinder — backs strong favorites likely to hit.",
+   blurb:"A lower-drama agent that only considers outcomes already priced as favorites. It tries to grind out steadier returns by backing high-probability markets when the model still sees a useful edge.",
    rank:(s)=>[...s].filter(x=>x.entry_price>=0.6).sort((a,b)=>b.entry_price-a.entry_price||b.conviction-a.conviction),
    maxNew:4, maxFrac:0.14, minConv:38, kelly:0.40},
   {id:"longshot", name:"Longshot Hunter", emoji:"🎰", color:"#fbbf24", kind:"strategy",
-   blurb:"High-variance contrarian — hunts cheap, underpriced longshots.",
+   blurb:"The swing-for-upside strategy. It hunts cheaper contracts that the model thinks are being ignored, accepting more volatility in exchange for the chance that one mispriced longshot rerates sharply.",
    rank:(s)=>[...s].filter(x=>x.entry_price<=0.4).sort((a,b)=>a.entry_price-b.entry_price||b.conviction-a.conviction),
    maxNew:5, maxFrac:0.08, minConv:38, kelly:0.20},
   {id:"diversifier", name:"The Diversifier", emoji:"🌐", color:"#c77dff", kind:"strategy",
-   blurb:"Spreads many small equal-weight bets across the whole board.",
+   blurb:"Builds a broad basket instead of making a few concentrated bets. It spreads smaller, flatter positions across many high-conviction ideas to reduce single-market risk and show how the whole suggestion pool performs.",
    rank:(s)=>[...s].sort((a,b)=>b.conviction-a.conviction),
    maxNew:8, maxFrac:0.05, minConv:35, kelly:0.15, flat:true},
   {id:"copycat", name:"The Copycat", emoji:"🐒", color:"#ec4899", kind:"copycat",
-   blurb:"Shadows whichever in-house strategy is currently winning."},
+   blurb:"A meta-agent that does not pick markets directly. It watches the in-house strategies, identifies the current leader, and mirrors that leader's open book so the site can test whether copying the winner keeps working."},
   {id:"whale1", name:"Whale Shadow α", emoji:"🐋", color:"#2dd4bf", kind:"whale", slot:0,
-   blurb:"Mirrors the live positions of a top Polymarket trader."},
+   blurb:"Copies one of the highest-profit real Polymarket traders discovered from the public leaderboard. It mirrors that trader's largest live positions, then applies the same paper-trading risk rules as the other agents."},
   {id:"whale2", name:"Whale Shadow β", emoji:"🐳", color:"#fb923c", kind:"whale", slot:1,
-   blurb:"Mirrors the live positions of a top Polymarket trader."},
+   blurb:"Tracks a second leaderboard trader so the race is not dependent on a single whale. Its portfolio shows how another successful wallet's live exposure would behave inside the same $10,000 paper bankroll."},
   {id:"whale3", name:"Whale Shadow γ", emoji:"🦈", color:"#a3e635", kind:"whale", slot:2,
-   blurb:"Mirrors the live positions of a top Polymarket trader."},
+   blurb:"Follows a third high-profit trader with a separate set of live holdings. This agent is useful for comparing whether different whale styles cluster around the same markets or take totally different risks."},
   {id:"whale4", name:"Whale Shadow δ", emoji:"🐡", color:"#60a5fa", kind:"whale", slot:3,
-   blurb:"Mirrors the live positions of a top Polymarket trader."},
+   blurb:"Rounds out the whale bench by mirroring a fourth public leaderboard trader. It gives the competition another real-world reference point alongside the model-driven strategies."},
 ];
 const agentById = (id) => AGENTS.find(a=>a.id===id) || AGENTS[0];
 
@@ -975,8 +975,8 @@ function miniSpark(snaps,color){
   return `<svg width="${W}" height="${H}"><path d="${d}" fill="none" stroke="${color}" stroke-width="2"/></svg>`;
 }
 function agentBlurb(cfg,st){
-  if(cfg.kind==="whale"){const w=st.whales[cfg.id];return w?`🐋 Mirrors <b>${esc(w.name)}</b>${w.profit?` · $${(w.profit/1e6).toFixed(1)}M profit`:""}`:"Mirrors a top Polymarket trader (found on first run).";}
-  if(cfg.kind==="copycat"){const L=AGENTS.find(a=>a.id===st.copycatLeader);return `🐒 Copying <b>${L?esc(L.name):"the leader"}</b>`;}
+  if(cfg.kind==="whale"){const w=st.whales[cfg.id];return w?`🐋 Mirrors <b>${esc(w.name)}</b>${w.profit?` · $${(w.profit/1e6).toFixed(1)}M profit`:""}. ${esc(cfg.blurb)}`:`${esc(cfg.blurb)} The trader is selected on the first successful run.`;}
+  if(cfg.kind==="copycat"){const L=AGENTS.find(a=>a.id===st.copycatLeader);return `🐒 Currently copying <b>${L?esc(L.name):"the leader"}</b>. ${esc(cfg.blurb)}`;}
   return cfg.blurb;
 }
 function agentPlainBlurb(cfg,st){
