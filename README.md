@@ -1,14 +1,14 @@
 # 📊 Polymarket Analyst — standalone website
 
 A **single-file website**. Everything (fetching live Polymarket data, the
-analysis engine, and the AI paper-trading agent) runs in your browser. The
+analysis engine, and the ten AI paper-trading agents) runs in your browser. The
 paper portfolio is saved in your browser's local storage. No server, no keys.
 
 ## Just look at it now
 Double-click **`index.html`** — it opens in your browser and works immediately.
 On first open it fetches live markets, generates today's suggestions, and the
-agent makes its first trades. It auto-refreshes once per day; the **Run daily
-cycle now** button forces a refresh anytime.
+agents run a seven-day backtest, then begin live tracking. It auto-refreshes
+once per day; the **Run cycle** button forces a refresh anytime.
 
 ## Put it online (free) so you can reach it from any device
 
@@ -22,11 +22,11 @@ Pick one — all give you a public URL:
 **Option B — GitHub Pages**
 1. Create a new GitHub repo and upload `index.html`.
 2. Repo → Settings → Pages → Branch: `main`, folder: `/root` → Save.
-3. Your site appears at `https://<you>.github.io/<repo>/`.
+3. Your site appears at `https://theodore-song.github.io/<repo>/`.
 
 **Option C — Vercel**
-1. <https://vercel.com> → Add New → Project → import the folder (or `vercel`
-   CLI in this folder) → Deploy.
+1. <https://vercel.com> → Add New → Project → import this GitHub repo under the
+   `theodore_song` Vercel account (or use the `vercel` CLI in this folder) → Deploy.
 
 ## Notes
 - Paper trading only — no real money, nothing places real orders.

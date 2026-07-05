@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Polymarket Analyst — 5 AI Agents Compete to Trade Prediction Markets</title>
-<meta name="description" content="Daily AI analysis of Polymarket with five competing autonomous paper-trading agents and a live leaderboard. Runs entirely in your browser." />
+<title>Polymarket Analyst — 10 AI Agents Compete to Trade Prediction Markets</title>
+<meta name="description" content="Daily AI analysis of Polymarket with ten competing autonomous paper-trading agents, whale-copy portfolios, and a live leaderboard. Runs entirely in your browser." />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
@@ -45,19 +45,20 @@ h1,h2,h3,.brand-name{font-family:'Space Grotesk','Inter',sans-serif}
 .topnav{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:18px;flex-wrap:wrap;
   padding:14px 18px;margin:14px 0 8px;border:1px solid var(--border);border-radius:18px;
   background:rgba(10,15,28,.72);backdrop-filter:blur(16px);box-shadow:var(--shadow)}
-.brand{display:flex;align-items:center;gap:11px}
+.brand{display:flex;align-items:center;gap:11px;min-width:0}
 .logo{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-size:20px;
   background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 6px 20px -6px var(--accent)}
 .brand-name{font-size:18px;font-weight:700;letter-spacing:-.2px;line-height:1}
 .brand-sub{font-size:11px;color:var(--muted);margin-top:2px}
-.tabs{display:flex;gap:4px;background:rgba(255,255,255,.04);padding:4px;border-radius:12px;border:1px solid var(--border)}
+.tabs{display:flex;gap:4px;background:rgba(255,255,255,.04);padding:4px;border-radius:12px;border:1px solid var(--border);max-width:100%;overflow-x:auto}
 .tab{appearance:none;border:0;background:transparent;color:var(--muted);font-family:inherit;
   font-size:13.5px;font-weight:600;padding:8px 14px;border-radius:9px;cursor:pointer;transition:.18s;white-space:nowrap}
 .tab:hover{color:var(--text)}
 .tab.active{color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 6px 18px -8px var(--accent)}
-.nav-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:10px;min-width:0}
 .status{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);
-  padding:6px 11px;border-radius:9px;background:rgba(255,255,255,.04);border:1px solid var(--border)}
+  padding:6px 11px;border-radius:9px;background:rgba(255,255,255,.04);border:1px solid var(--border);min-width:0}
+#statusText{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
 .dot.live{background:var(--green);animation:pulse 1.6s infinite}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(52,211,153,.5)}70%{box-shadow:0 0 0 7px rgba(52,211,153,0)}100%{box-shadow:0 0 0 0 rgba(52,211,153,0)}}
@@ -134,6 +135,22 @@ h1,h2,h3,.brand-name{font-family:'Space Grotesk','Inter',sans-serif}
 .segbtn:hover{color:var(--text);border-color:var(--border-strong)}
 .segbtn.active{color:#fff;border-color:transparent}
 
+.agent-brief{display:grid;grid-template-columns:1.2fr repeat(4,minmax(110px,.55fr));gap:14px;margin-bottom:18px}
+.brief-main{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px;backdrop-filter:blur(14px)}
+.brief-title{display:flex;align-items:center;gap:10px;font-family:'Space Grotesk';font-weight:700;font-size:18px;margin-bottom:7px}
+.brief-main p{margin:0;color:#cdd6e8;font-size:13.5px}
+.brief-mini{background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:14px;padding:14px}
+.brief-mini .k{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+.brief-mini .v{margin-top:5px;font-size:14px;font-weight:700}
+.card-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.select{appearance:none;border:1px solid var(--border);border-radius:9px;background:rgba(255,255,255,.05);color:var(--text);
+  font:600 12.5px 'Inter',sans-serif;padding:7px 28px 7px 10px;cursor:pointer}
+.select:focus{outline:1px solid var(--accent)}
+.loading-empty{display:grid;gap:10px;place-items:center;padding:28px 12px;text-align:center}
+.loading-ring{width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,.12);border-top-color:var(--accent);animation:spin .9s linear infinite}
+.empty-copy{max-width:420px;color:var(--muted);font-size:13.5px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
 /* ---------- suggestions ---------- */
 .filterbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
 .chip{font-size:13px;font-weight:600;padding:7px 14px;border-radius:999px;cursor:pointer;background:rgba(255,255,255,.05);border:1px solid var(--border);color:var(--muted);transition:.16s;user-select:none}
@@ -172,8 +189,27 @@ a.market-link:hover{text-decoration:underline}
 .badge{font-weight:700;font-size:10px;padding:2px 7px;border-radius:5px;margin-right:7px}
 .badge.OPEN{background:rgba(124,140,255,.2);color:var(--accent)}
 .badge.CLOSE{background:rgba(251,191,36,.2);color:var(--yellow)}
+.badge.STOP{background:rgba(251,113,133,.2);color:var(--red)}
 .log-date{color:var(--muted)}
 .empty{color:var(--muted);font-size:13.5px;padding:14px 0;text-align:center}
+
+@media (max-width:700px){
+  .app{padding:0 10px 42px;max-width:100%;overflow:hidden}
+  .topnav{display:grid;grid-template-columns:1fr;gap:12px;padding:14px;margin:10px 0 8px;border-radius:14px}
+  .brand-sub{white-space:normal}
+  .tabs{width:100%;padding-bottom:5px}
+  .tab{padding:8px 12px}
+  .nav-right{width:100%;margin-left:0;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px}
+  #statusText{max-width:none;white-space:normal}
+  .status{align-items:flex-start}
+  .btn{padding:9px 11px}
+  .section-title{font-size:19px}
+  .stats{grid-template-columns:1fr;gap:12px}
+  .agent-brief{grid-template-columns:1fr}
+  .pos{align-items:flex-start;gap:12px}
+  .pos .pq{max-width:none}
+  .right{min-width:92px}
+}
 
 /* ---------- about ---------- */
 .about-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px;margin-bottom:8px}
@@ -292,9 +328,16 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <section class="tabpanel" data-tab="portfolio">
     <div class="section-title">🤖 Agent Portfolios</div>
     <div class="seg" id="agentSel"></div>
+    <div class="agent-brief" id="agentBrief"></div>
     <div class="stats" id="statsPf"></div>
     <div class="grid2">
-      <div class="card"><div class="card-h"><h3>Open Positions</h3></div><div id="positions"></div></div>
+      <div class="card"><div class="card-h"><h3>Open Positions</h3><div class="card-tools"><select class="select" id="positionSort" aria-label="Sort open positions">
+        <option value="pnl_desc">Best P&amp;L</option>
+        <option value="pnl_asc">Worst P&amp;L</option>
+        <option value="value_desc">Largest Value</option>
+        <option value="newest">Newest</option>
+        <option value="category">Category</option>
+      </select></div></div><div id="positions" aria-live="polite"></div></div>
       <div class="card"><div class="card-h"><h3>Activity Log</h3></div><div id="history"></div></div>
     </div>
   </section>
@@ -310,7 +353,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
         <li><b>Fetch</b> — page through hundreds of live markets and tag each by category.</li>
         <li><b>Score</b> — rank every market 0–100 by conviction and estimate its edge vs. a fair-value model.</li>
         <li><b>Suggest</b> — surface the strongest picks per category with a plain-English rationale.</li>
-        <li><b>Compete</b> — all five agents trade the same suggestions their own way, then snapshot equity for the leaderboard.</li>
+        <li><b>Compete</b> — the strategy agents trade the same suggestions their own way, stop-loss weak positions, then every agent snapshots equity for the leaderboard.</li>
       </ol>
     </div>
     <div class="disclaimer">⚠️ <b>Paper trading only — not financial advice.</b> Nothing here places real orders or moves money. The analysis is a transparent heuristic. All portfolios live in this browser's local storage (each device keeps its own).</div>
@@ -326,16 +369,18 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
 "use strict";
 /* ============================================================
    Polymarket Arena — fully client-side.
-   Fetches live markets, scores them, and runs FIVE competing
+   Fetches live markets, scores them, and runs ten competing
    paper-trading agents. State persists in localStorage.
 ============================================================ */
 
 const GAMMA = "https://gamma-api.polymarket.com";
 const STARTING_BALANCE = 10000;
+const STOP_LOSS_PCT = 0.18;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v2";
 const FOCUS_KEY = "pma_focus_v1";
 const VIEW_KEY = "pma_view_v1";
+const PF_SORT_KEY = "pma_portfolio_sort_v1";
 const CATEGORIES = ["All","Politics","Sports","Crypto","Economy","Pop Culture","Other"];
 const CAT_COLORS = {Politics:"#fb7185",Sports:"#34d399",Crypto:"#fbbf24",Economy:"#7c8cff",
   "Pop Culture":"#c77dff",Other:"#94a1bb",All:"#7c8cff",Copy:"#22d3ee"};
@@ -346,7 +391,7 @@ const catColor = (c) => CAT_COLORS[c] || CAT_COLORS.Other;
 const getFocus = () => localStorage.getItem(FOCUS_KEY) || "All";
 const setFocus = (c) => localStorage.setItem(FOCUS_KEY, c);
 
-/* ---------- the five competing agents ----------
+/* ---------- the ten competing agents ----------
    Each shares the same daily suggestions but ranks/sizes them differently. */
 const AGENTS = [
   {id:"value", name:"Value Hunter", emoji:"🎯", color:"#7c8cff", kind:"strategy",
@@ -490,12 +535,15 @@ function generateSuggestions(markets,perCategory=12){
 }
 
 /* ---------- Multi-agent store ---------- */
-function defaultPortfolio(){return {cash:STARTING_BALANCE,starting_balance:STARTING_BALANCE,positions:[],closed:[],history:[],snapshots:[]};}
+function defaultPortfolio(){return {cash:STARTING_BALANCE,starting_balance:STARTING_BALANCE,positions:[],closed:[],history:[],snapshots:[],stopped:{}};}
 function defaultState(){const agents={};AGENTS.forEach(a=>agents[a.id]=defaultPortfolio());return {date:null,last_run:null,agents,whales:{},copycatLeader:null,seeded:false};}
 function loadState(){
   let st; try{st=JSON.parse(localStorage.getItem(AGENTS_KEY));}catch(e){st=null;}
   if(!st||!st.agents)st=defaultState();
-  AGENTS.forEach(a=>{if(!st.agents[a.id])st.agents[a.id]=defaultPortfolio();});
+  AGENTS.forEach(a=>{
+    if(!st.agents[a.id])st.agents[a.id]=defaultPortfolio();
+    if(!st.agents[a.id].stopped)st.agents[a.id].stopped={};
+  });
   if(!st.whales)st.whales={};
   return st;
 }
@@ -506,6 +554,26 @@ function saveSuggestions(sugs){const p={date:todayStr(),generated_at:nowIso(),su
 /* ---------- Agent mechanics ---------- */
 const equity=(p)=>p.cash+p.positions.reduce((s,x)=>s+x.shares*x.current_price,0);
 const hasPosition=(p,id)=>p.positions.some(x=>x.market_id===id);
+const stopKey=(posOrId)=>typeof posOrId==="string"?posOrId:String(posOrId.asset||posOrId.market_id||"");
+const hasStoppedToday=(p,posOrId)=>p.stopped&&p.stopped[stopKey(posOrId)]===logDay();
+function rememberStop(p,pos){
+  if(!p.stopped)p.stopped={};
+  const key=stopKey(pos);
+  if(key)p.stopped[key]=logDay();
+}
+function shouldStopLoss(pos){
+  if(!pos.cost||pos.cost<=0)return false;
+  return (pos.value||0)<=pos.cost*(1-STOP_LOSS_PCT);
+}
+function stopOutPosition(p,pos){
+  const proceeds=+(pos.shares*pos.current_price).toFixed(2);
+  p.cash=+(p.cash+proceeds).toFixed(2);
+  pos.exit_price=pos.current_price;pos.closed_at=nowIso();
+  pos.realized_pnl=+(proceeds-pos.cost).toFixed(2);
+  p.closed.push(pos);rememberStop(p,pos);
+  p.history.push({date:logDay(),action:"STOP",question:pos.question,side:pos.side,
+    detail:`Stop-loss sold '${pos.question.slice(0,40)}' at ${pct(pos.current_price)} for ${fmtUSD(proceeds)} (P&L ${fmtUSD(pos.realized_pnl)})`});
+}
 function markToMarket(p,priceMap){
   const stillOpen=[];
   for(const pos of p.positions){
@@ -521,13 +589,15 @@ function markToMarket(p,priceMap){
     }
     const price=pos.side==="YES"?fresh.yes_price:fresh.no_price;
     pos.current_price=+price.toFixed(4);pos.value=+(pos.shares*price).toFixed(2);
-    pos.unrealized_pnl=+(pos.value-pos.cost).toFixed(2);stillOpen.push(pos);
+    pos.unrealized_pnl=+(pos.value-pos.cost).toFixed(2);
+    if(shouldStopLoss(pos)){stopOutPosition(p,pos);continue;}
+    stillOpen.push(pos);
   }
   p.positions=stillOpen;
 }
 function openPositions(p,cfg,rankedSugs,focus){
   const cands=rankedSugs.filter(s=>(s.side==="YES"||s.side==="NO")&&s.conviction>=cfg.minConv
-    &&!hasPosition(p,s.market_id)&&(focus==="All"||!focus||s.category===focus));
+    &&!hasPosition(p,s.market_id)&&!hasStoppedToday(p,s.market_id)&&(focus==="All"||!focus||s.category===focus));
   let opened=0;
   for(const s of cands){
     if(opened>=cfg.maxNew)break;
@@ -603,7 +673,9 @@ async function runWhaleAgent(p,wallet){
   const held=new Set(tps.map(t=>t.asset));
   const keep=[];
   for(const pos of p.positions){
-    if(!held.has(pos.asset)){
+    if(shouldStopLoss(pos)){
+      stopOutPosition(p,pos);
+    }else if(!held.has(pos.asset)){
       const proceeds=pos.shares*pos.current_price;p.cash+=proceeds;
       pos.exit_price=pos.current_price;pos.realized_pnl=+(proceeds-pos.cost).toFixed(2);p.closed.push(pos);
       p.history.push({date:logDay(),action:"CLOSE",question:pos.question,side:pos.side,
@@ -614,7 +686,7 @@ async function runWhaleAgent(p,wallet){
   const targets=[...tps].sort((a,b)=>b.value-a.value).slice(0,12); // copy their biggest 12 bets
   const book=targets.reduce((s,t)=>s+t.value,0)||1;
   for(const t of targets){
-    if(hasAsset(p,t.asset))continue;
+    if(hasAsset(p,t.asset)||hasStoppedToday(p,t.asset))continue;
     const eq=equity(p),investable=p.cash-eq*0.05; if(investable<=50)break;
     const weight=t.value/book;
     const stake=Math.min(eq*Math.min(0.34,weight),investable);
@@ -646,7 +718,7 @@ function runCopycat(p,leader,priceMap){
   p.positions=keep;
   const book=leader.positions.reduce((s,x)=>s+(x.value||x.cost),0)||1;
   for(const lp of [...leader.positions].sort((a,b)=>(b.value||b.cost)-(a.value||a.cost))){
-    if(hasPosition(p,lp.market_id))continue;
+    if(hasPosition(p,lp.market_id)||hasStoppedToday(p,lp.market_id))continue;
     const eq=equity(p),investable=p.cash-eq*0.05; if(investable<=50)break;
     const weight=(lp.value||lp.cost)/book;
     const stake=Math.min(eq*Math.min(0.2,weight),investable);
@@ -882,6 +954,32 @@ function agentBlurb(cfg,st){
   if(cfg.kind==="copycat"){const L=AGENTS.find(a=>a.id===st.copycatLeader);return `🐒 Copying <b>${L?esc(L.name):"the leader"}</b>`;}
   return cfg.blurb;
 }
+function agentPlainBlurb(cfg,st){
+  return agentBlurb(cfg,st).replace(/<[^>]*>/g,"");
+}
+function bestAndWorst(p){
+  const open=p.positions||[];
+  if(!open.length)return {best:"No open trades yet",worst:"No drawdowns yet"};
+  const sorted=[...open].sort((a,b)=>(b.unrealized_pnl||0)-(a.unrealized_pnl||0));
+  const label=x=>`${x.question.slice(0,34)}${x.question.length>34?"...":""} (${(x.unrealized_pnl||0)>=0?"+":""}${fmtUSD(x.unrealized_pnl||0)})`;
+  return {best:label(sorted[0]),worst:label(sorted[sorted.length-1])};
+}
+function renderAgentBrief(cfg,p,st){
+  const root=$("agentBrief"); if(!root)return;
+  const bw=bestAndWorst(p);
+  const risk=cfg.kind==="whale"?"Mirror risk":cfg.kind==="copycat"?"Adaptive":cfg.maxFrac>=0.12?"Higher risk":cfg.maxFrac<=0.05?"Lower risk":"Balanced";
+  const cadence=cfg.kind==="whale"?"Copies biggest live holdings":cfg.kind==="copycat"?"Follows current strategy leader":`${cfg.maxNew||0} new trades max`;
+  const thesis=agentPlainBlurb(cfg,st);
+  root.innerHTML=`
+    <div class="brief-main" style="border-top:3px solid ${cfg.color}">
+      <div class="brief-title"><span>${cfg.emoji}</span><span>${cfg.name}</span></div>
+      <p>${esc(thesis)}</p>
+    </div>
+    <div class="brief-mini"><div class="k">Style</div><div class="v">${esc(risk)}</div></div>
+    <div class="brief-mini"><div class="k">Trade Rule</div><div class="v">${esc(cadence)}</div></div>
+    <div class="brief-mini"><div class="k">Stop Loss</div><div class="v">${Math.round(STOP_LOSS_PCT*100)}% drawdown</div></div>
+    <div class="brief-mini"><div class="k">Best / Worst</div><div class="v"><span class="pos-val">${esc(bw.best)}</span><br><span class="neg-val">${esc(bw.worst)}</span></div></div>`;
+}
 function renderLeaderboard(){
   const b=board(); const st=loadState();
   $("lbSub").textContent="· "+b[0].c.name+" leads";
@@ -966,12 +1064,14 @@ function renderSuggestions(){
 function renderPortfolioTab(){
   const st=loadState();
   let viewId=localStorage.getItem(VIEW_KEY); if(!AGENTS.some(a=>a.id===viewId))viewId="value";
+  const cfg=agentById(viewId);
   $("agentSel").innerHTML=AGENTS.map(a=>{
     const active=a.id===viewId;
     const style=active?`background:linear-gradient(135deg,${a.color},${a.color});border-color:transparent`:"";
     return `<span class="segbtn ${active?"active":""}" data-agent="${a.id}" style="${style}">${a.emoji} ${a.name}</span>`;}).join("");
   document.querySelectorAll("#agentSel .segbtn").forEach(el=>el.addEventListener("click",()=>{localStorage.setItem(VIEW_KEY,el.dataset.agent);renderPortfolioTab();}));
   const p=st.agents[viewId]||defaultPortfolio();const eq=equity(p),pnl=eq-p.starting_balance;
+  renderAgentBrief(cfg,p,st);
   const stats=[
     {ic:"💰",label:"Equity",value:fmtUSD(eq)},
     {ic:"💵",label:"Cash",value:fmtUSD(p.cash)},
@@ -980,13 +1080,33 @@ function renderPortfolioTab(){
     {ic:"📂",label:"Open",value:p.positions.length},
   ];
   $("statsPf").innerHTML=stats.map(s=>`<div class="stat"><div class="ic">${s.ic}</div><div class="label">${s.label}</div><div class="value ${s.cls||""}">${s.value}</div></div>`).join("");
+  const sort=$("positionSort");
+  if(sort){
+    sort.value=localStorage.getItem(PF_SORT_KEY)||"pnl_desc";
+    sort.onchange=()=>{localStorage.setItem(PF_SORT_KEY,sort.value);renderPositions(p.positions);};
+  }
   renderPositions(p.positions);
   renderHistory((p.history||[]).slice(-50).reverse());
 }
 function renderPositions(positions){
   const root=$("positions");if(!root)return;
-  if(!positions.length){root.innerHTML=`<div class="empty">No open positions.</div>`;return;}
-  root.innerHTML=positions.map(p=>{const pnl=p.unrealized_pnl||0,col=catColor(p.category);
+  if(!positions.length){
+    const st=loadState();
+    const isBacktesting=!st.seeded&&(($("statusText")&&$("statusText").textContent)||"").includes("backtest");
+    root.innerHTML=isBacktesting
+      ? `<div class="loading-empty"><div class="loading-ring"></div><div><b>Building agent portfolios...</b><div class="empty-copy">The app is replaying the past week, finding top traders, and marking positions to real Polymarket prices. This fills in automatically when the backtest finishes.</div></div></div>`
+      : `<div class="empty">No open positions yet. Run a cycle to let this agent shop today's suggestions.</div>`;
+    return;
+  }
+  const sort=localStorage.getItem(PF_SORT_KEY)||"pnl_desc";
+  const ordered=[...positions].sort((a,b)=>{
+    if(sort==="pnl_asc")return (a.unrealized_pnl||0)-(b.unrealized_pnl||0);
+    if(sort==="value_desc")return (b.value||0)-(a.value||0);
+    if(sort==="newest")return String(b.opened_at||"").localeCompare(String(a.opened_at||""));
+    if(sort==="category")return String(a.category||"").localeCompare(String(b.category||""))||((b.unrealized_pnl||0)-(a.unrealized_pnl||0));
+    return (b.unrealized_pnl||0)-(a.unrealized_pnl||0);
+  });
+  root.innerHTML=ordered.map(p=>{const pnl=p.unrealized_pnl||0,col=catColor(p.category);
     return `<div class="pos"><div>
       <div class="pq">${esc(p.question)}</div>
       <div class="sub">${p.category?`<span class="cat-badge" style="background:${col}22;color:${col}">${esc(p.category)}</span> `:""}${p.shares} ${p.side} @ ${Math.round(p.entry_price*100)}¢ → ${Math.round(p.current_price*100)}¢</div>
@@ -1025,7 +1145,7 @@ $("runBtn").addEventListener("click",async()=>{
   btn.disabled=false;btn.textContent="Run cycle";
 });
 $("resetBtn").addEventListener("click",()=>{
-  if(!confirm("Reset all five agents to their $10,000 starting balance?"))return;
+  if(!confirm("Reset all ten agents to their $10,000 starting balance?"))return;
   saveState(defaultState());localStorage.removeItem(SUG_KEY);toast("All agents reset.");renderAll();
 });
 
