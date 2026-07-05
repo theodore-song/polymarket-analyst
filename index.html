@@ -135,7 +135,7 @@ h1,h2,h3,.brand-name{font-family:'Space Grotesk','Inter',sans-serif}
 .segbtn:hover{color:var(--text);border-color:var(--border-strong)}
 .segbtn.active{color:#fff;border-color:transparent}
 
-.agent-brief{display:grid;grid-template-columns:1.2fr repeat(4,minmax(110px,.55fr));gap:14px;margin-bottom:18px}
+.agent-brief{display:grid;grid-template-columns:1.2fr repeat(5,minmax(105px,.5fr));gap:14px;margin-bottom:18px}
 .brief-main{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px;backdrop-filter:blur(14px)}
 .brief-title{display:flex;align-items:center;gap:10px;font-family:'Space Grotesk';font-weight:700;font-size:18px;margin-bottom:7px}
 .brief-main p{margin:0;color:#cdd6e8;font-size:13.5px}
@@ -190,6 +190,7 @@ a.market-link:hover{text-decoration:underline}
 .badge.OPEN{background:rgba(124,140,255,.2);color:var(--accent)}
 .badge.CLOSE{background:rgba(251,191,36,.2);color:var(--yellow)}
 .badge.STOP{background:rgba(251,113,133,.2);color:var(--red)}
+.badge.GAIN{background:rgba(52,211,153,.18);color:var(--green)}
 .log-date{color:var(--muted)}
 .empty{color:var(--muted);font-size:13.5px;padding:14px 0;text-align:center}
 
@@ -353,7 +354,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
         <li><b>Fetch</b> — page through hundreds of live markets and tag each by category.</li>
         <li><b>Score</b> — rank every market 0–100 by conviction and estimate its edge vs. a fair-value model.</li>
         <li><b>Suggest</b> — surface the strongest picks per category with a plain-English rationale.</li>
-        <li><b>Compete</b> — the strategy agents trade the same suggestions their own way, stop-loss weak positions, then every agent snapshots equity for the leaderboard.</li>
+        <li><b>Compete</b> — the strategy agents trade the same suggestions their own way, stop-loss weak positions, cash in half of 2x winners, then snapshot equity.</li>
       </ol>
     </div>
     <div class="disclaimer">⚠️ <b>Paper trading only — not financial advice.</b> Nothing here places real orders or moves money. The analysis is a transparent heuristic. All portfolios live in this browser's local storage (each device keeps its own).</div>
@@ -376,6 +377,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
 const GAMMA = "https://gamma-api.polymarket.com";
 const STARTING_BALANCE = 10000;
 const STOP_LOSS_PCT = 0.18;
+const TAKE_PROFIT_MULT = 2;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v2";
 const FOCUS_KEY = "pma_focus_v1";
@@ -565,6 +567,10 @@ function shouldStopLoss(pos){
   if(!pos.cost||pos.cost<=0)return false;
   return (pos.value||0)<=pos.cost*(1-STOP_LOSS_PCT);
 }
+function shouldTakeProfit(pos){
+  if(pos.took_profit_at||!pos.cost||pos.cost<=0)return false;
+  return (pos.value||0)>=pos.cost*TAKE_PROFIT_MULT;
+}
 function stopOutPosition(p,pos){
   const proceeds=+(pos.shares*pos.current_price).toFixed(2);
   p.cash=+(p.cash+proceeds).toFixed(2);
@@ -573,6 +579,21 @@ function stopOutPosition(p,pos){
   p.closed.push(pos);rememberStop(p,pos);
   p.history.push({date:logDay(),action:"STOP",question:pos.question,side:pos.side,
     detail:`Stop-loss sold '${pos.question.slice(0,40)}' at ${pct(pos.current_price)} for ${fmtUSD(proceeds)} (P&L ${fmtUSD(pos.realized_pnl)})`});
+}
+function takeProfitPosition(p,pos){
+  const soldShares=+(pos.shares/2).toFixed(2);
+  if(soldShares<=0)return;
+  const proceeds=+(soldShares*pos.current_price).toFixed(2);
+  const realizedCost=+(pos.cost/2).toFixed(2);
+  const realizedPnl=+(proceeds-realizedCost).toFixed(2);
+  p.cash=+(p.cash+proceeds).toFixed(2);
+  pos.shares=+(pos.shares-soldShares).toFixed(2);
+  pos.cost=+(pos.cost-realizedCost).toFixed(2);
+  pos.value=+(pos.shares*pos.current_price).toFixed(2);
+  pos.unrealized_pnl=+(pos.value-pos.cost).toFixed(2);
+  pos.took_profit_at=nowIso();
+  p.history.push({date:logDay(),action:"GAIN",question:pos.question,side:pos.side,
+    detail:`Gain stop sold half of '${pos.question.slice(0,40)}' at ${pct(pos.current_price)} for ${fmtUSD(proceeds)} (realized ${fmtUSD(realizedPnl)})`});
 }
 function markToMarket(p,priceMap){
   const stillOpen=[];
@@ -591,6 +612,7 @@ function markToMarket(p,priceMap){
     pos.current_price=+price.toFixed(4);pos.value=+(pos.shares*price).toFixed(2);
     pos.unrealized_pnl=+(pos.value-pos.cost).toFixed(2);
     if(shouldStopLoss(pos)){stopOutPosition(p,pos);continue;}
+    if(shouldTakeProfit(pos))takeProfitPosition(p,pos);
     stillOpen.push(pos);
   }
   p.positions=stillOpen;
@@ -680,7 +702,10 @@ async function runWhaleAgent(p,wallet){
       pos.exit_price=pos.current_price;pos.realized_pnl=+(proceeds-pos.cost).toFixed(2);p.closed.push(pos);
       p.history.push({date:logDay(),action:"CLOSE",question:pos.question,side:pos.side,
         detail:`Trader exited '${pos.question.slice(0,36)}' — settled ${fmtUSD(proceeds)} (P&L ${fmtUSD(pos.realized_pnl)})`});
-    }else keep.push(pos);
+    }else{
+      if(shouldTakeProfit(pos))takeProfitPosition(p,pos);
+      keep.push(pos);
+    }
   }
   p.positions=keep;
   const targets=[...tps].sort((a,b)=>b.value-a.value).slice(0,12); // copy their biggest 12 bets
@@ -978,6 +1003,7 @@ function renderAgentBrief(cfg,p,st){
     <div class="brief-mini"><div class="k">Style</div><div class="v">${esc(risk)}</div></div>
     <div class="brief-mini"><div class="k">Trade Rule</div><div class="v">${esc(cadence)}</div></div>
     <div class="brief-mini"><div class="k">Stop Loss</div><div class="v">${Math.round(STOP_LOSS_PCT*100)}% drawdown</div></div>
+    <div class="brief-mini"><div class="k">Gain Stop</div><div class="v">${TAKE_PROFIT_MULT}x: sell half</div></div>
     <div class="brief-mini"><div class="k">Best / Worst</div><div class="v"><span class="pos-val">${esc(bw.best)}</span><br><span class="neg-val">${esc(bw.worst)}</span></div></div>`;
 }
 function renderLeaderboard(){
