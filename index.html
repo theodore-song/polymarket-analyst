@@ -257,7 +257,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
         <div class="card-h"><h3>The Equity Race</h3><span class="small muted" id="lastRun"></span></div>
         <svg id="chart" viewBox="0 0 600 240" preserveAspectRatio="none"></svg>
         <div class="legend" id="comboLegend"></div>
-        <div class="small muted" style="margin-top:10px">Past week is a backtest — current holdings marked against real Polymarket price history. Live tracking takes over from today.</div>
+        <div class="small muted" style="margin-top:10px">Past week is a day-by-day backtest: agents re-ran their strategy on each day's real historical prices; whales are replayed from their on-chain trade history. (Volume/liquidity signals use current values — Polymarket doesn't expose historical volume.) Live tracking begins today.</div>
       </div>
       <div class="card hoverable">
         <div class="card-h"><h3>Top Picks Today</h3><span class="small muted">highest conviction</span></div>
@@ -389,6 +389,8 @@ const fmtPct = (n) => (n>=0?"+":"") + Number(n).toFixed(2) + "%";
 const signClass = (n) => (n>0?"pos-val":n<0?"neg-val":"");
 const todayStr = () => new Date().toISOString().slice(0,10);
 const nowIso = () => new Date().toISOString();
+let SIM_DAY = null;                       // set during backtest so logs/snapshots use the simulated date
+const logDay = () => SIM_DAY || todayStr();
 function toast(msg){
   let t=document.querySelector(".toast");
   if(!t){t=document.createElement("div");t.className="toast";document.body.appendChild(t);}
@@ -513,7 +515,7 @@ function markToMarket(p,priceMap){
       pos.exit_price=pos.current_price;pos.closed_at=nowIso();
       pos.realized_pnl=+(proceeds-pos.cost).toFixed(2);
       p.closed.push(pos);
-      p.history.push({date:todayStr(),action:"CLOSE",question:pos.question,side:pos.side,
+      p.history.push({date:logDay(),action:"CLOSE",question:pos.question,side:pos.side,
         detail:`Settled '${pos.question.slice(0,40)}' for ${fmtUSD(proceeds)} (P&L ${fmtUSD(pos.realized_pnl)})`});
       continue;
     }
@@ -544,14 +546,14 @@ function openPositions(p,cfg,rankedSugs,focus){
       token_id:(s.side==="YES"?s.clob_yes:s.clob_no)||null,
       entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,
       unrealized_pnl:0,conviction:s.conviction,category:s.category,opened_at:nowIso(),url:s.url||""});
-    p.history.push({date:todayStr(),action:"OPEN",question:s.question,side:s.side,
+    p.history.push({date:logDay(),action:"OPEN",question:s.question,side:s.side,
       detail:`Bought ${shares} ${s.side} '${s.question.slice(0,40)}' @ ${pct(entry)} for ${fmtUSD(cost)}`});
     opened++;
   }
 }
 function recordSnapshot(p){
   const eq=equity(p);
-  const snap={date:todayStr(),timestamp:nowIso(),cash:+p.cash.toFixed(2),
+  const snap={date:logDay(),timestamp:(SIM_DAY?new Date(SIM_DAY+"T12:00:00Z").toISOString():nowIso()),cash:+p.cash.toFixed(2),
     equity:+eq.toFixed(2),pnl:+(eq-p.starting_balance).toFixed(2),
     return_pct:+((eq/p.starting_balance-1)*100).toFixed(2),open_positions:p.positions.length};
   p.snapshots=p.snapshots.filter(s=>s.date!==snap.date);
@@ -604,7 +606,7 @@ async function runWhaleAgent(p,wallet){
     if(!held.has(pos.asset)){
       const proceeds=pos.shares*pos.current_price;p.cash+=proceeds;
       pos.exit_price=pos.current_price;pos.realized_pnl=+(proceeds-pos.cost).toFixed(2);p.closed.push(pos);
-      p.history.push({date:todayStr(),action:"CLOSE",question:pos.question,side:pos.side,
+      p.history.push({date:logDay(),action:"CLOSE",question:pos.question,side:pos.side,
         detail:`Trader exited '${pos.question.slice(0,36)}' — settled ${fmtUSD(proceeds)} (P&L ${fmtUSD(pos.realized_pnl)})`});
     }else keep.push(pos);
   }
@@ -622,7 +624,7 @@ async function runWhaleAgent(p,wallet){
     p.cash=+(p.cash-cost).toFixed(2);
     p.positions.push({asset:t.asset,token_id:t.asset,market_id:t.conditionId,question:t.title,side:t.side,category:"Copy",
       shares,entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,unrealized_pnl:0,conviction:null});
-    p.history.push({date:todayStr(),action:"OPEN",question:t.title,side:t.side,
+    p.history.push({date:logDay(),action:"OPEN",question:t.title,side:t.side,
       detail:`Copied trade — ${shares} ${t.side} '${t.title.slice(0,36)}' @ ${pct(entry)} for ${fmtUSD(cost)}`});
   }
   recordSnapshot(p);
@@ -637,7 +639,7 @@ function runCopycat(p,leader,priceMap){
     if(!held.has(pos.market_id)){
       const proceeds=pos.shares*pos.current_price;p.cash+=proceeds;
       pos.exit_price=pos.current_price;pos.realized_pnl=+(proceeds-pos.cost).toFixed(2);p.closed.push(pos);
-      p.history.push({date:todayStr(),action:"CLOSE",question:pos.question,side:pos.side,
+      p.history.push({date:logDay(),action:"CLOSE",question:pos.question,side:pos.side,
         detail:`Leader exited '${pos.question.slice(0,36)}' — settled ${fmtUSD(proceeds)}`});
     }else keep.push(pos);
   }
@@ -655,7 +657,7 @@ function runCopycat(p,leader,priceMap){
     p.cash=+(p.cash-cost).toFixed(2);
     p.positions.push({market_id:lp.market_id,token_id:lp.token_id||null,question:lp.question,side:lp.side,category:lp.category,
       shares,entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,unrealized_pnl:0,conviction:lp.conviction});
-    p.history.push({date:todayStr(),action:"OPEN",question:lp.question,side:lp.side,
+    p.history.push({date:logDay(),action:"OPEN",question:lp.question,side:lp.side,
       detail:`Copied leader — ${shares} ${lp.side} '${lp.question.slice(0,36)}' @ ${pct(entry)}`});
   }
   recordSnapshot(p);
@@ -681,31 +683,104 @@ function priceOnDay(map,day,fallback){
   if(best!=null)return best;
   const ks=Object.keys(map).sort();return ks.length?map[ks[0]]:fallback;
 }
-async function seedWeekInto(st){
-  // 1) make sure every open position knows its CLOB token id
-  for(const a of AGENTS)for(const pos of st.agents[a.id].positions){
-    if(pos.token_id)continue;
-    if(pos.asset){pos.token_id=pos.asset;continue;}
-    if(pos.market_id){const t=await fetchClobTokens(pos.market_id);if(t)pos.token_id=(pos.side==="YES")?t[0]:t[1];}
-  }
-  // 2) pull 7-day price history for each unique token once
-  const ids=new Set();
-  for(const a of AGENTS)for(const pos of st.agents[a.id].positions)if(pos.token_id)ids.add(pos.token_id);
-  const hist={};
-  for(const id of ids)hist[id]=await fetchPriceHistory(id);
-  // 3) rebuild each agent's snapshots across the past week
-  const dates=lastNDates(7);
-  for(const a of AGENTS){
-    const p=st.agents[a.id];
+async function fetchTraderActivity(wallet){
+  try{const r=await fetch(`${DATA_API}/activity?user=${wallet}&limit=500&type=TRADE`);
+    if(!r.ok)return [];const d=await r.json();
+    return d.filter(x=>x.asset&&(x.side==="BUY"||x.side==="SELL"))
+      .map(x=>({asset:String(x.asset),side:x.side,size:+x.size||0,ts:x.timestamp}));}catch(e){return [];}
+}
+async function fetchTraderPositionsRaw(wallet){
+  try{const r=await fetch(`${DATA_API}/positions?user=${wallet}&sizeThreshold=1&limit=100`);
+    if(!r.ok)return [];const d=await r.json();
+    return d.filter(p=>(p.outcome==="Yes"||p.outcome==="No")&&!p.redeemable&&p.curPrice>0.02&&p.curPrice<0.98)
+      .map(p=>({asset:String(p.asset),size:+p.size||0,curPrice:+p.curPrice,title:p.title||""}));}catch(e){return [];}
+}
+/* Replay each whale by reconstructing its past holdings from on-chain trade
+   activity (current size minus net trades after each day), valued at real
+   historical token prices — then scaled to the $10k paper bankroll. */
+async function backtestWhales(st,dates){
+  for(const a of AGENTS.filter(x=>x.kind==="whale")){
+    const p=st.agents[a.id], wh=st.whales[a.id];
+    const flat=()=>{for(const d of dates){SIM_DAY=d;recordSnapshot(p);}SIM_DAY=null;};
+    if(!wh){flat();continue;}
+    setStatus(`backtest: replaying ${wh.name}…`,true);
+    let cur=[],acts=[];
+    try{cur=await fetchTraderPositionsRaw(wh.wallet);}catch(e){}
+    try{acts=await fetchTraderActivity(wh.wallet);}catch(e){}
+    cur.sort((x,y)=>y.size*y.curPrice-x.size*x.curPrice);
+    const top=cur.slice(0,12);
+    if(!top.length){flat();continue;}
+    const histA={};
+    for(const t of top)histA[t.asset]=await fetchPriceHistory(t.asset);
+    const dayVal={};
+    for(const day of dates){
+      const endTs=Math.floor(new Date(day+"T23:59:59Z").getTime()/1000);
+      let v=0;
+      for(const t of top){
+        let netAfter=0;
+        for(const ac of acts)if(ac.asset===t.asset&&ac.ts>endTs)netAfter+=(ac.side==="BUY"?ac.size:-ac.size);
+        const holdings=Math.max(0,t.size-netAfter);
+        v+=holdings*priceOnDay(histA[t.asset],day,t.curPrice);
+      }
+      dayVal[day]=v;
+    }
+    const anchor=dayVal[dates[dates.length-1]]||1;
     p.snapshots=dates.map(day=>{
-      let pv=0;
-      for(const pos of p.positions){pv+=pos.shares*priceOnDay(hist[pos.token_id],day,pos.entry_price);}
-      const eq=p.cash+pv;
-      return {date:day,timestamp:new Date(day+"T12:00:00Z").toISOString(),cash:+p.cash.toFixed(2),
-        equity:+eq.toFixed(2),pnl:+(eq-p.starting_balance).toFixed(2),
-        return_pct:+((eq/p.starting_balance-1)*100).toFixed(2),open_positions:p.positions.length,seeded:true};
+      const eq=10000*(dayVal[day]/(anchor||1));
+      return {date:day,timestamp:new Date(day+"T12:00:00Z").toISOString(),cash:0,
+        equity:+eq.toFixed(2),pnl:+(eq-10000).toFixed(2),return_pct:+((eq/10000-1)*100).toFixed(2),
+        open_positions:top.length,seeded:true};
     });
   }
+  SIM_DAY=null;
+}
+/* Full day-by-day backtest: for each of the past 7 days, rebuild every market's
+   state from that day's real price (+ correct time-to-resolution), re-run the
+   scoring engine, and step every strategy agent through a day of trading.
+   NOTE: volume/liquidity signals use current values as a proxy — Polymarket
+   does not expose historical volume. Price & timing are truly historical. */
+async function backtestWeek(st){
+  const dates=lastNDates(7), start=dates[0];
+  AGENTS.forEach(a=>{st.agents[a.id]=defaultPortfolio();});
+  if(AGENTS.some(a=>a.kind==="whale"&&!st.whales[a.id])){
+    setStatus("backtest: finding top Polymarket traders…",true);
+    const picked=await discoverWhales();
+    AGENTS.filter(a=>a.kind==="whale").forEach(a=>{if(!st.whales[a.id]&&picked[a.slot])st.whales[a.id]=picked[a.slot];});
+  }
+  setStatus("backtest: loading markets…",true);
+  const markets=await fetchMarkets(2,100);
+  const uni=markets.filter(m=>m.clob_token_ids&&m.clob_token_ids.length===2&&(!m.end_date||m.end_date>=start)).slice(0,100);
+  const hist={}; let n=0;
+  for(const m of uni){setStatus(`backtest: price history ${++n}/${uni.length}…`,true);hist[m.id]=await fetchPriceHistory(m.clob_token_ids[0]);}
+  const focus=getFocus();
+  for(const day of dates){
+    SIM_DAY=day;
+    setStatus(`backtest: simulating ${day}…`,true);
+    const snaps=[];
+    for(const m of uni){
+      const yp=priceOnDay(hist[m.id],day,null);
+      if(yp==null||yp<=0.02||yp>=0.98)continue;
+      const dtr=m.end_date?(new Date(m.end_date)-new Date(day+"T12:00:00Z"))/86400000:null;
+      if(dtr!=null&&dtr<-0.5)continue;
+      snaps.push(Object.assign({},m,{yes_price:+yp.toFixed(4),no_price:+(1-yp).toFixed(4),days_to_resolution:dtr}));
+    }
+    const sugs=generateSuggestions(snaps,12);
+    const priceMap={}; snaps.forEach(s=>priceMap[s.id]={yes_price:s.yes_price,no_price:s.no_price});
+    for(const cfg of AGENTS.filter(a=>a.kind==="strategy")){
+      const p=st.agents[cfg.id];
+      markToMarket(p,priceMap);
+      openPositions(p,cfg,cfg.rank(sugs),focus);
+      recordSnapshot(p);
+    }
+    const leaderId=AGENTS.filter(a=>a.kind==="strategy").map(a=>({id:a.id,eq:equity(st.agents[a.id])})).sort((x,y)=>y.eq-x.eq)[0].id;
+    st.copycatLeader=leaderId;
+    runCopycat(st.agents.copycat,st.agents[leaderId],priceMap);
+    if(day===dates[dates.length-1])saveSuggestions(sugs); // today's live-ish board for the Suggestions tab
+  }
+  SIM_DAY=null;
+  await backtestWhales(st,dates);
+  // establish today's actual whale paper positions so live tracking continues
+  for(const a of AGENTS.filter(x=>x.kind==="whale")){const wh=st.whales[a.id];if(wh){try{await runWhaleAgent(st.agents[a.id],wh.wallet);}catch(e){}}}
   st.seeded=true;
 }
 
@@ -750,7 +825,6 @@ async function runDailyCycle(){
     try{await runWhaleAgent(st.agents[a.id],wh.wallet);}
     catch(e){recordSnapshot(st.agents[a.id]);}
   }
-  if(!st.seeded){setStatus("reconstructing past week…",true);await seedWeekInto(st);}
   st.date=todayStr();st.last_run=nowIso();
   saveState(st);
   setStatus("up to date",false);
@@ -955,24 +1029,24 @@ $("resetBtn").addEventListener("click",()=>{
   saveState(defaultState());localStorage.removeItem(SUG_KEY);toast("All agents reset.");renderAll();
 });
 
-/* On load: route, render, auto-run once per day. */
+/* On load: first visit runs a 7-day backtest; afterwards a live daily update. */
 (async function init(){
   showTab(location.hash.slice(1)||"overview");
   renderAll();
-  const sug=loadSuggestions();
-  if(sug.date!==todayStr()){
-    const btn=$("runBtn");btn.disabled=true;btn.textContent="Running…";
-    try{await runDailyCycle();renderAll();toast("Fresh daily competition ready.");}
+  const st=loadState();
+  const btn=$("runBtn");
+  if(!st.seeded){
+    btn.disabled=true;btn.textContent="Backtesting…";
+    try{await backtestWeek(st);st.date=todayStr();st.last_run=nowIso();saveState(st);renderAll();
+      toast("7-day backtest complete — live tracking begins today.");}
+    catch(e){setStatus("backtest error — click Run",false);}
+    btn.disabled=false;btn.textContent="Run cycle";
+  }else if(st.date!==todayStr()){
+    btn.disabled=true;btn.textContent="Running…";
+    try{await runDailyCycle();renderAll();toast("Daily update ready.");}
     catch(e){setStatus("error — click Run to retry",false);}
     btn.disabled=false;btn.textContent="Run cycle";
   }else{setStatus("up to date",false);}
-  // If a cycle already ran today but we haven't seeded the past week yet, do it now.
-  const stx=loadState();
-  if(!stx.seeded && AGENTS.some(a=>stx.agents[a.id].positions.length)){
-    setStatus("reconstructing past week…",true);
-    try{await seedWeekInto(stx);saveState(stx);renderAll();toast("Backfilled the past week of history.");}catch(e){}
-    setStatus("up to date",false);
-  }
 })();
 </script>
 </body>
