@@ -111,6 +111,11 @@ h1,h2,h3,.brand-name{font-family:'Space Grotesk','Inter',sans-serif}
 .legend{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:14px}
 .leg{display:flex;align-items:center;gap:7px;font-size:12.5px;color:#cdd6e8}
 .legdot{width:10px;height:10px;border-radius:3px;display:inline-block}
+.rangebar{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}
+.rangebtn{appearance:none;border:1px solid var(--border);background:rgba(255,255,255,.04);color:var(--muted);
+  font:700 11px 'Inter',sans-serif;padding:5px 8px;border-radius:8px;cursor:pointer}
+.rangebtn:hover{color:var(--text);border-color:var(--border-strong)}
+.rangebtn.active{color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2));border-color:transparent}
 
 /* ---------- leaderboard ---------- */
 .lb-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(225px,1fr));gap:16px;margin-bottom:20px}
@@ -291,10 +296,10 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
 
     <div class="grid2">
       <div class="card hoverable">
-        <div class="card-h"><h3>The Equity Race</h3><span class="small muted" id="lastRun"></span></div>
+        <div class="card-h"><h3>Agent Returns</h3><div><span class="small muted" id="lastRun"></span><div class="rangebar" data-chart-ranges></div></div></div>
         <svg id="chart" viewBox="0 0 600 240" preserveAspectRatio="none"></svg>
         <div class="legend" id="comboLegend"></div>
-        <div class="small muted" style="margin-top:10px">Past week is a day-by-day backtest: agents re-ran their strategy on each day's real historical prices; whales are replayed from their on-chain trade history. (Volume/liquidity signals use current values — Polymarket doesn't expose historical volume.) Live tracking begins today.</div>
+        <div class="small muted" style="margin-top:10px">Use the range buttons to zoom from one week to all history. New live points are added whenever you click "Run cycle"; the dashed line tracks the average agent return.</div>
       </div>
       <div class="card hoverable">
         <div class="card-h"><h3>Top Picks Today</h3><span class="small muted">highest conviction</span></div>
@@ -308,10 +313,10 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
     <div class="section-title">🏆 Leaderboard <span class="small muted" id="lbSub" style="font-weight:400"></span></div>
     <div class="lb-grid" id="leaderboard"></div>
     <div class="card">
-      <div class="card-h"><h3>Equity Race — all agents</h3><span class="small muted">$10,000 start each</span></div>
+      <div class="card-h"><h3>Returns — all agents</h3><div><span class="small muted">$10,000 start each</span><div class="rangebar" data-chart-ranges></div></div></div>
       <svg id="chart2" viewBox="0 0 600 240" preserveAspectRatio="none"></svg>
       <div class="legend" id="comboLegend2"></div>
-      <div class="small muted" style="margin-top:10px">Past week is a backtest — current holdings marked against real Polymarket price history. Live tracking takes over from today.</div>
+      <div class="small muted" style="margin-top:10px">Past week is a backtest. After that, each manual or daily run adds another return snapshot for every agent.</div>
     </div>
   </section>
 
@@ -383,6 +388,7 @@ const SUG_KEY = "pma_suggestions_v2";
 const FOCUS_KEY = "pma_focus_v1";
 const VIEW_KEY = "pma_view_v1";
 const PF_SORT_KEY = "pma_portfolio_sort_v1";
+const CHART_RANGE_KEY = "pma_chart_range_v1";
 const CATEGORIES = ["All","Politics","Sports","Crypto","Economy","Pop Culture","Other"];
 const CAT_COLORS = {Politics:"#fb7185",Sports:"#34d399",Crypto:"#fbbf24",Economy:"#7c8cff",
   "Pop Culture":"#c77dff",Other:"#94a1bb",All:"#7c8cff",Copy:"#22d3ee"};
@@ -437,6 +443,7 @@ const signClass = (n) => (n>0?"pos-val":n<0?"neg-val":"");
 const todayStr = () => new Date().toISOString().slice(0,10);
 const nowIso = () => new Date().toISOString();
 let SIM_DAY = null;                       // set during backtest so logs/snapshots use the simulated date
+let SNAP_TS = null;                       // set during a live cycle so every agent gets the same chart x-value
 const logDay = () => SIM_DAY || todayStr();
 function toast(msg){
   let t=document.querySelector(".toast");
@@ -645,11 +652,11 @@ function openPositions(p,cfg,rankedSugs,focus){
 }
 function recordSnapshot(p){
   const eq=equity(p);
-  const snap={date:logDay(),timestamp:(SIM_DAY?new Date(SIM_DAY+"T12:00:00Z").toISOString():nowIso()),cash:+p.cash.toFixed(2),
+  const snap={date:logDay(),timestamp:(SIM_DAY?new Date(SIM_DAY+"T12:00:00Z").toISOString():(SNAP_TS||nowIso())),cash:+p.cash.toFixed(2),
     equity:+eq.toFixed(2),pnl:+(eq-p.starting_balance).toFixed(2),
     return_pct:+((eq/p.starting_balance-1)*100).toFixed(2),open_positions:p.positions.length};
-  p.snapshots=p.snapshots.filter(s=>s.date!==snap.date);
-  p.snapshots.push(snap);p.snapshots.sort((a,b)=>a.date<b.date?-1:1);
+  p.snapshots=SIM_DAY?p.snapshots.filter(s=>s.date!==snap.date):p.snapshots.filter(s=>s.timestamp!==snap.timestamp);
+  p.snapshots.push(snap);p.snapshots.sort((a,b)=>new Date(a.timestamp||a.date)-new Date(b.timestamp||b.date));
 }
 /* ---------- Copy-trading: Polymarket leaders ---------- */
 const hasAsset=(p,a)=>p.positions.some(x=>x.asset===a);
@@ -882,50 +889,53 @@ async function backtestWeek(st){
 }
 
 async function runDailyCycle(){
+  SNAP_TS=nowIso();
   setStatus("fetching markets…",true);
-  const markets=await fetchMarkets(4,100);
-  setStatus("analyzing…",true);
-  const sugs=generateSuggestions(markets,12);
-  saveSuggestions(sugs);
-  const st=loadState();
-  const focus=getFocus();
-  // Price map for suggestion-market positions (strategy + copycat only).
-  const ids=new Set();
-  AGENTS.filter(a=>a.kind==="strategy"||a.kind==="copycat").forEach(a=>
-    (st.agents[a.id].positions||[]).forEach(pos=>{if(pos.market_id)ids.add(pos.market_id);}));
-  setStatus("marking positions…",true);
-  const priceMap={};
-  for(const id of ids){priceMap[id]=await fetchMarketPrice(id);}
-  // 1) in-house strategy agents
-  setStatus("strategy agents trading…",true);
-  for(const cfg of AGENTS.filter(a=>a.kind==="strategy")){
-    const p=st.agents[cfg.id];
-    markToMarket(p,priceMap);
-    openPositions(p,cfg,cfg.rank(sugs),focus);
-    recordSnapshot(p);
-  }
-  // 2) copycat shadows the leading strategy agent
-  const stratBoard=AGENTS.filter(a=>a.kind==="strategy")
-    .map(a=>({id:a.id,eq:equity(st.agents[a.id])})).sort((x,y)=>y.eq-x.eq);
-  st.copycatLeader=stratBoard[0].id;
-  runCopycat(st.agents["copycat"],st.agents[st.copycatLeader],priceMap);
-  // 3) whale-copy agents mirror top Polymarket traders
-  if(AGENTS.some(a=>a.kind==="whale"&&!st.whales[a.id])){
-    setStatus("finding top Polymarket traders…",true);
-    const picked=await discoverWhales();
-    AGENTS.filter(a=>a.kind==="whale").forEach(a=>{if(!st.whales[a.id]&&picked[a.slot])st.whales[a.id]=picked[a.slot];});
-  }
-  for(const a of AGENTS.filter(x=>x.kind==="whale")){
-    const wh=st.whales[a.id];
-    if(!wh){recordSnapshot(st.agents[a.id]);continue;}
-    setStatus(`copying ${wh.name}…`,true);
-    try{await runWhaleAgent(st.agents[a.id],wh.wallet);}
-    catch(e){recordSnapshot(st.agents[a.id]);}
-  }
-  st.date=todayStr();st.last_run=nowIso();
-  saveState(st);
-  setStatus("up to date",false);
-  return {suggestions:sugs.length};
+  try{
+    const markets=await fetchMarkets(4,100);
+    setStatus("analyzing…",true);
+    const sugs=generateSuggestions(markets,12);
+    saveSuggestions(sugs);
+    const st=loadState();
+    const focus=getFocus();
+    // Price map for suggestion-market positions (strategy + copycat only).
+    const ids=new Set();
+    AGENTS.filter(a=>a.kind==="strategy"||a.kind==="copycat").forEach(a=>
+      (st.agents[a.id].positions||[]).forEach(pos=>{if(pos.market_id)ids.add(pos.market_id);}));
+    setStatus("marking positions…",true);
+    const priceMap={};
+    for(const id of ids){priceMap[id]=await fetchMarketPrice(id);}
+    // 1) in-house strategy agents
+    setStatus("strategy agents trading…",true);
+    for(const cfg of AGENTS.filter(a=>a.kind==="strategy")){
+      const p=st.agents[cfg.id];
+      markToMarket(p,priceMap);
+      openPositions(p,cfg,cfg.rank(sugs),focus);
+      recordSnapshot(p);
+    }
+    // 2) copycat shadows the leading strategy agent
+    const stratBoard=AGENTS.filter(a=>a.kind==="strategy")
+      .map(a=>({id:a.id,eq:equity(st.agents[a.id])})).sort((x,y)=>y.eq-x.eq);
+    st.copycatLeader=stratBoard[0].id;
+    runCopycat(st.agents["copycat"],st.agents[st.copycatLeader],priceMap);
+    // 3) whale-copy agents mirror top Polymarket traders
+    if(AGENTS.some(a=>a.kind==="whale"&&!st.whales[a.id])){
+      setStatus("finding top Polymarket traders…",true);
+      const picked=await discoverWhales();
+      AGENTS.filter(a=>a.kind==="whale").forEach(a=>{if(!st.whales[a.id]&&picked[a.slot])st.whales[a.id]=picked[a.slot];});
+    }
+    for(const a of AGENTS.filter(x=>x.kind==="whale")){
+      const wh=st.whales[a.id];
+      if(!wh){recordSnapshot(st.agents[a.id]);continue;}
+      setStatus(`copying ${wh.name}…`,true);
+      try{await runWhaleAgent(st.agents[a.id],wh.wallet);}
+      catch(e){recordSnapshot(st.agents[a.id]);}
+    }
+    st.date=todayStr();st.last_run=SNAP_TS;
+    saveState(st);
+    setStatus("up to date",false);
+    return {suggestions:sugs.length};
+  }finally{SNAP_TS=null;}
 }
 
 /* ---------- Leaderboard helpers ---------- */
@@ -1022,26 +1032,71 @@ function renderLeaderboard(){
   });
   drawCombo("chart2","comboLegend2");
 }
+const CHART_RANGES=[
+  {id:"1w",label:"1W",days:7},
+  {id:"1m",label:"1M",days:30},
+  {id:"3m",label:"3M",days:90},
+  {id:"6m",label:"6M",days:180},
+  {id:"1y",label:"1Y",days:365},
+  {id:"5y",label:"5Y",days:1825},
+  {id:"all",label:"ALL",days:null},
+];
+function chartRange(){const r=localStorage.getItem(CHART_RANGE_KEY)||"1w";return CHART_RANGES.some(x=>x.id===r)?r:"1w";}
+function renderChartRanges(){
+  const active=chartRange();
+  document.querySelectorAll("[data-chart-ranges]").forEach(root=>{
+    root.innerHTML=CHART_RANGES.map(r=>`<button class="rangebtn ${r.id===active?"active":""}" data-range="${r.id}" type="button">${r.label}</button>`).join("");
+  });
+  document.querySelectorAll(".rangebtn").forEach(btn=>btn.onclick=()=>{localStorage.setItem(CHART_RANGE_KEY,btn.dataset.range);renderAll();});
+}
+const snapTime=(s)=>new Date(s.timestamp||`${s.date}T12:00:00Z`).getTime();
+function rangeFilteredTimes(times){
+  const range=CHART_RANGES.find(r=>r.id===chartRange())||CHART_RANGES[0];
+  if(!range.days)return times;
+  const newest=Math.max(...times);
+  const cutoff=newest-range.days*86400000;
+  const filtered=times.filter(t=>t>=cutoff);
+  return filtered.length?filtered:times.slice(-1);
+}
 function drawCombo(svgId,legendId){
   const st=loadState();
-  const series=AGENTS.map(c=>({c,snaps:(st.agents[c.id]&&st.agents[c.id].snapshots)||[]}));
-  const allDates=[...new Set(series.flatMap(s=>s.snaps.map(x=>x.date)))].sort();
+  renderChartRanges();
+  const series=AGENTS.map(c=>({c,snaps:((st.agents[c.id]&&st.agents[c.id].snapshots)||[])
+    .filter(s=>Number.isFinite(snapTime(s))).sort((a,b)=>snapTime(a)-snapTime(b))}));
+  const allTimes=rangeFilteredTimes([...new Set(series.flatMap(s=>s.snaps.map(snapTime)))].sort((a,b)=>a-b));
   const svg=$(svgId); if(!svg)return;
-  if(!allDates.length){svg.innerHTML="";if($(legendId))$(legendId).innerHTML=`<span class="muted small">No history yet — click "Run cycle".</span>`;return;}
-  const W=600,H=240,pad=10; const vals=[STARTING_BALANCE];
-  const lines=series.map(s=>{let last=STARTING_BALANCE;const pts=allDates.map(d=>{const snap=s.snaps.find(x=>x.date===d);if(snap)last=snap.equity;vals.push(last);return last;});return {c:s.c,pts};});
-  const min=Math.min(...vals)*0.999,max=Math.max(...vals)*1.001,span=(max-min)||1;
-  const x=i=>allDates.length===1?W/2:pad+(i/(allDates.length-1))*(W-2*pad);
+  if(!allTimes.length){svg.innerHTML="";if($(legendId))$(legendId).innerHTML=`<span class="muted small">No history yet — click "Run cycle".</span>`;return;}
+  const W=600,H=240,pad=14; const vals=[0];
+  const lines=series.map(s=>{
+    let last=0,idx=0;
+    const pts=allTimes.map(t=>{
+      while(idx<s.snaps.length&&snapTime(s.snaps[idx])<=t){
+        last=Number.isFinite(s.snaps[idx].return_pct)?s.snaps[idx].return_pct:((s.snaps[idx].equity||STARTING_BALANCE)/STARTING_BALANCE-1)*100;
+        idx++;
+      }
+      vals.push(last);return last;
+    });
+    return {c:s.c,pts};
+  });
+  const avgPts=allTimes.map((_,i)=>+(lines.reduce((sum,l)=>sum+l.pts[i],0)/Math.max(1,lines.length)).toFixed(2));
+  vals.push(...avgPts);
+  const min=Math.min(...vals,0),max=Math.max(...vals,0),span=(max-min)||1;
+  const x=i=>allTimes.length===1?W/2:pad+(i/(allTimes.length-1))*(W-2*pad);
   const y=v=>H-pad-((v-min)/span)*(H-2*pad);
-  let inner="";
+  const zeroY=y(0).toFixed(1);
+  let inner=`<line x1="${pad}" x2="${W-pad}" y1="${zeroY}" y2="${zeroY}" stroke="rgba(255,255,255,.18)" stroke-width="1"/>`;
   for(const ln of lines){
     const d=ln.pts.map((v,i)=>`${i===0?"M":"L"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
-    const dot=allDates.length===1?`<circle cx="${x(0).toFixed(1)}" cy="${y(ln.pts[0]).toFixed(1)}" r="4" fill="${ln.c.color}"/>`:"";
+    const dot=allTimes.length===1?`<circle cx="${x(0).toFixed(1)}" cy="${y(ln.pts[0]).toFixed(1)}" r="4" fill="${ln.c.color}"/>`:"";
     inner+=`<path d="${d}" fill="none" stroke="${ln.c.color}" stroke-width="2.4" opacity=".95"/>${dot}`;
   }
+  const avgD=avgPts.map((v,i)=>`${i===0?"M":"L"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  inner+=`<path d="${avgD}" fill="none" stroke="#ffffff" stroke-width="2.7" stroke-dasharray="7 6" opacity=".78"/>`;
   svg.innerHTML=inner;
   if($(legendId)){
-    $(legendId).innerHTML=board().map(r=>`<span class="leg"><span class="legdot" style="background:${r.c.color}"></span>${r.c.emoji} ${r.c.name} <b class="${signClass(r.pnl)}">${fmtPct(r.ret)}</b></span>`).join("");
+    const b=board();const avg=b.reduce((s,r)=>s+r.ret,0)/b.length;
+    $(legendId).innerHTML=`<span class="leg"><span class="legdot" style="background:#fff"></span>Average <b class="${signClass(avg)}">${fmtPct(avg)}</b></span>`+
+      b.map(r=>`<span class="leg"><span class="legdot" style="background:${r.c.color}"></span>${r.c.emoji} ${r.c.name} <b class="${signClass(r.pnl)}">${fmtPct(r.ret)}</b></span>`).join("");
   }
 }
 function renderFilterBar(all){
