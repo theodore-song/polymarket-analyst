@@ -190,6 +190,8 @@ h1,h2,h3,.brand-name{font-family:'Space Grotesk','Inter',sans-serif}
 .metrics b{color:var(--text)}
 a.market-link{color:var(--accent);text-decoration:none;font-size:12px;font-weight:600}
 a.market-link:hover{text-decoration:underline}
+a.market-title{color:var(--text);text-decoration:none}
+a.market-title:hover{color:#fff;text-decoration:underline;text-decoration-color:var(--accent)}
 
 /* ---------- positions / log ---------- */
 .pos{display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-bottom:1px solid var(--border)}
@@ -363,7 +365,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <!-- ============ ABOUT ============ -->
   <section class="tabpanel" data-tab="about">
     <div class="section-title">ℹ️ The competition</div>
-    <p class="muted" style="margin-top:-6px;max-width:820px">Every agent starts with <b>$10,000</b> in paper money. The five in-house strategies trade the same daily suggestions their own way; the <b>Copycat</b> shadows whichever strategy is winning; and the four <b>Whale Shadow</b> agents mirror the live positions of the highest-profit real traders on Polymarket (auto-discovered from its public leaderboard). All mark to market daily and climb — or sink — the board.</p>
+    <p class="muted" style="margin-top:-6px;max-width:820px">Every agent starts with <b>$10,000</b> in paper money. The five in-house strategies trade the same daily suggestions their own way; the <b>Copycat</b> shadows whichever strategy is winning; and the four leading-account copy agents mirror live positions from high-profit real traders on Polymarket (auto-discovered from its public leaderboard). All mark to market daily and climb — or sink — the board.</p>
     <div class="about-grid" id="aboutAgents"></div>
     <div class="card" style="margin-top:16px">
       <div class="card-h"><h3>The daily cycle</h3></div>
@@ -436,13 +438,13 @@ const AGENTS = [
    maxNew:8, maxFrac:0.05, minConv:35, kelly:0.15, flat:true},
   {id:"copycat", name:"The Copycat", emoji:"🐒", color:"#ec4899", kind:"copycat",
    blurb:"A meta-agent that does not pick markets directly. It watches the in-house strategies, identifies the current leader, and mirrors that leader's open book so the site can test whether copying the winner keeps working."},
-  {id:"whale1", name:"Whale Shadow α", emoji:"🐋", color:"#2dd4bf", kind:"whale", slot:0,
+  {id:"whale1", name:"Apex Mirror", emoji:"🐋", color:"#2dd4bf", kind:"whale", slot:0,
    blurb:"Copies one of the highest-profit real Polymarket traders discovered from the public leaderboard. It mirrors that trader's largest live positions, then applies the same paper-trading risk rules as the other agents."},
-  {id:"whale2", name:"Whale Shadow β", emoji:"🐳", color:"#fb923c", kind:"whale", slot:1,
+  {id:"whale2", name:"Deepwater Echo", emoji:"🐳", color:"#fb923c", kind:"whale", slot:1,
    blurb:"Tracks a second leaderboard trader so the race is not dependent on a single whale. Its portfolio shows how another successful wallet's live exposure would behave inside the same $10,000 paper bankroll."},
-  {id:"whale3", name:"Whale Shadow γ", emoji:"🦈", color:"#a3e635", kind:"whale", slot:2,
+  {id:"whale3", name:"Signal Shark", emoji:"🦈", color:"#a3e635", kind:"whale", slot:2,
    blurb:"Follows a third high-profit trader with a separate set of live holdings. This agent is useful for comparing whether different whale styles cluster around the same markets or take totally different risks."},
-  {id:"whale4", name:"Whale Shadow δ", emoji:"🐡", color:"#60a5fa", kind:"whale", slot:3,
+  {id:"whale4", name:"Tide Rider", emoji:"🐡", color:"#60a5fa", kind:"whale", slot:3,
    blurb:"Rounds out the whale bench by mirroring a fourth public leaderboard trader. It gives the competition another real-world reference point alongside the model-driven strategies."},
 ];
 const agentById = (id) => AGENTS.find(a=>a.id===id) || AGENTS[0];
@@ -984,7 +986,7 @@ function renderTopPicks(){
   const top=((loadSuggestions().suggestions)||[]).slice(0,5);
   if(!top.length){root.innerHTML=`<div class="empty">Run a cycle to see top picks.</div>`;return;}
   root.innerHTML=top.map(s=>`<div class="pos"><div>
-    <div class="pq">${esc(s.question.slice(0,58))}${s.question.length>58?"…":""}</div>
+    <div class="pq">${s.url?`<a class="market-title" href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.question.slice(0,58))}${s.question.length>58?"…":""}</a>`:`${esc(s.question.slice(0,58))}${s.question.length>58?"…":""}`}</div>
     <div class="sub"><span class="cat-badge" style="background:${catColor(s.category)}22;color:${catColor(s.category)}">${esc(s.category)}</span> BUY ${s.side} @ ${Math.round(s.entry_price*100)}¢</div>
   </div><div class="right"><div style="font-family:'Space Grotesk';font-weight:700">${Math.round(s.conviction)}</div><div class="sub">conviction</div></div></div>`).join("");
 }
@@ -1138,7 +1140,7 @@ function renderSuggestions(){
     const days=s.days_to_resolution!=null?`${s.days_to_resolution}d`:"—";
     return `<div class="sug" style="border-left-color:${col}">
       <div class="sug-row" style="margin-bottom:2px"><span class="cat-badge" style="background:${col}22;color:${col}">${esc(s.category||"Other")}</span></div>
-      <div class="q">${esc(s.question)}</div>
+      <div class="q">${s.url?`<a class="market-title" href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.question)}</a>`:esc(s.question)}</div>
       <div class="event">${esc(s.event||"")}</div>
       <div class="sug-row">
         <span class="pill ${s.side}">BUY ${s.side}</span>
@@ -1150,7 +1152,7 @@ function renderSuggestions(){
       <div class="drivers">${drivers}</div>
       <div class="metrics">
         <span>Vol <b>${fmtUSD(s.volume)}</b></span><span>24h <b>${fmtUSD(s.volume_24hr)}</b></span><span>Resolves <b>${days}</b></span>
-        ${s.url?`<a class="market-link" href="${s.url}" target="_blank" rel="noopener">View ↗</a>`:""}
+        ${s.url?`<a class="market-link" href="${esc(s.url)}" target="_blank" rel="noopener">Open on Polymarket ↗</a>`:""}
       </div></div>`;
   }).join("");
 }
