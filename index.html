@@ -558,7 +558,7 @@ function generateSuggestions(markets,perCategory=12){
 }
 
 /* ---------- Multi-agent store ---------- */
-function defaultPortfolio(){return {cash:STARTING_BALANCE,starting_balance:STARTING_BALANCE,positions:[],closed:[],history:[],snapshots:[],stopped:{}};}
+function defaultPortfolio(){return {cash:STARTING_BALANCE,starting_balance:STARTING_BALANCE,positions:[],closed:[],history:[],snapshots:[],stopped:{},lastDecision:null};}
 function defaultState(){const agents={};AGENTS.forEach(a=>agents[a.id]=defaultPortfolio());return {date:null,last_run:null,agents,whales:{},copycatLeader:null,seeded:false};}
 function loadState(){
   let st; try{st=JSON.parse(localStorage.getItem(AGENTS_KEY));}catch(e){st=null;}
@@ -566,6 +566,7 @@ function loadState(){
   AGENTS.forEach(a=>{
     if(!st.agents[a.id])st.agents[a.id]=defaultPortfolio();
     if(!st.agents[a.id].stopped)st.agents[a.id].stopped={};
+    if(!("lastDecision" in st.agents[a.id]))st.agents[a.id].lastDecision=null;
   });
   if(!st.whales)st.whales={};
   return st;
@@ -577,6 +578,33 @@ function saveSuggestions(sugs){const p={date:todayStr(),generated_at:nowIso(),su
 /* ---------- Agent mechanics ---------- */
 const equity=(p)=>p.cash+p.positions.reduce((s,x)=>s+x.shares*x.current_price,0);
 const hasPosition=(p,id)=>p.positions.some(x=>x.market_id===id);
+function recentReturnDelta(p){
+  const snaps=(p.snapshots||[]).slice(-3);
+  if(snaps.length<2)return 0;
+  return (snaps[snaps.length-1].return_pct||0)-(snaps[0].return_pct||0);
+}
+function adaptiveDecision(cfg,p,rank,total,leaderEq){
+  const eq=equity(p),ret=(eq/p.starting_balance-1)*100,trail=((leaderEq||eq)-eq)/p.starting_balance*100;
+  const trend=recentReturnDelta(p);
+  let minConv=cfg.minConv??0,maxNew=cfg.maxNew??12,maxFrac=cfg.maxFrac??0.34,reserve=0.05,mode="Balanced",reason="following its base strategy while watching the leaderboard.";
+  if(rank===1){
+    mode="Defend";minConv+=5;maxNew=Math.max(1,maxNew-1);maxFrac*=0.82;reserve=0.09;
+    reason="leading the race, so it raises standards and protects cash instead of overtrading.";
+  }else if(trail>6){
+    mode="Chase";minConv-=5;maxNew+=1;maxFrac*=1.18;reserve=0.035;
+    reason="far behind the leader, so it accepts a little more risk to find catch-up trades.";
+  }else if(trend>1.5){
+    mode="Press";minConv-=2;maxNew+=1;maxFrac*=1.08;reserve=0.04;
+    reason="recent momentum is positive, so it leans into its edge while the tape is friendly.";
+  }
+  if(ret<-5){
+    mode="Recover";minConv+=6;maxNew=Math.max(1,maxNew-1);maxFrac*=0.72;reserve=0.08;
+    reason="in drawdown, so it tightens entries, shrinks bets, and waits for stronger confirmation.";
+  }
+  if((p.cash/Math.max(eq,1))<0.12){maxNew=Math.max(1,Math.min(maxNew,2));reason+=" Cash is tight, so new entries are rationed.";}
+  const maxCap=cfg.kind==="whale"?0.34:0.18;
+  return {mode,reason,minConv:Math.max(0,Math.round(minConv)),maxNew:Math.max(1,Math.round(maxNew)),maxFrac:+Math.min(maxCap,Math.max(0.02,maxFrac)).toFixed(3),reserve};
+}
 const stopKey=(posOrId)=>typeof posOrId==="string"?posOrId:String(posOrId.asset||posOrId.market_id||"");
 const hasStoppedToday=(p,posOrId)=>p.stopped&&p.stopped[stopKey(posOrId)]===logDay();
 function rememberStop(p,pos){
@@ -638,17 +666,19 @@ function markToMarket(p,priceMap){
   }
   p.positions=stillOpen;
 }
-function openPositions(p,cfg,rankedSugs,focus){
-  const cands=rankedSugs.filter(s=>(s.side==="YES"||s.side==="NO")&&s.conviction>=cfg.minConv
+function openPositions(p,cfg,rankedSugs,focus,decision){
+  const d=decision||{minConv:cfg.minConv,maxNew:cfg.maxNew,maxFrac:cfg.maxFrac,reserve:0.05};
+  p.lastDecision=decision||null;
+  const cands=rankedSugs.filter(s=>(s.side==="YES"||s.side==="NO")&&s.conviction>=d.minConv
     &&!hasPosition(p,s.market_id)&&!hasStoppedToday(p,s.market_id)&&(focus==="All"||!focus||s.category===focus));
   let opened=0;
   for(const s of cands){
-    if(opened>=cfg.maxNew)break;
-    const eq=equity(p),investable=p.cash-eq*0.05;
+    if(opened>=d.maxNew)break;
+    const eq=equity(p),investable=p.cash-eq*d.reserve;
     if(investable<=50)break;
     let frac;
-    if(cfg.flat){frac=cfg.maxFrac;}
-    else{const base=(s.conviction/100)*Math.min(1,Math.abs(s.edge)/0.10);frac=Math.min(cfg.maxFrac,cfg.kelly*base);}
+    if(cfg.flat){frac=d.maxFrac;}
+    else{const base=(s.conviction/100)*Math.min(1,Math.abs(s.edge)/0.10);frac=Math.min(d.maxFrac,cfg.kelly*base);}
     let stake=Math.min(eq*frac,investable);
     if(stake<50)continue;
     const entry=s.entry_price; if(entry<=0||entry>=1)continue;
@@ -660,7 +690,7 @@ function openPositions(p,cfg,rankedSugs,focus){
       entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,
       unrealized_pnl:0,conviction:s.conviction,category:s.category,opened_at:nowIso(),url:s.url||""});
     p.history.push({date:logDay(),action:"OPEN",question:s.question,side:s.side,
-      detail:`Bought ${shares} ${s.side} '${s.question.slice(0,40)}' @ ${pct(entry)} for ${fmtUSD(cost)}`});
+      detail:`${decision?decision.mode+" mode — ":""}Bought ${shares} ${s.side} '${s.question.slice(0,40)}' @ ${pct(entry)} for ${fmtUSD(cost)}`});
     opened++;
   }
 }
@@ -706,7 +736,9 @@ async function discoverWhales(){
   }catch(e){}
   return picked;
 }
-async function runWhaleAgent(p,wallet){
+async function runWhaleAgent(p,wallet,decision){
+  const d=decision||{maxNew:12,maxFrac:0.34,reserve:0.05};
+  p.lastDecision=decision||null;
   // mark existing copied positions to market via CLOB token price
   for(const pos of p.positions){
     const pr=await fetchTokenPrice(pos.asset);
@@ -729,13 +761,13 @@ async function runWhaleAgent(p,wallet){
     }
   }
   p.positions=keep;
-  const targets=[...tps].sort((a,b)=>b.value-a.value).slice(0,12); // copy their biggest 12 bets
+  const targets=[...tps].sort((a,b)=>b.value-a.value).slice(0,d.maxNew); // copy their biggest bets, adapted by stance
   const book=targets.reduce((s,t)=>s+t.value,0)||1;
   for(const t of targets){
     if(hasAsset(p,t.asset)||hasStoppedToday(p,t.asset))continue;
-    const eq=equity(p),investable=p.cash-eq*0.05; if(investable<=50)break;
+    const eq=equity(p),investable=p.cash-eq*d.reserve; if(investable<=50)break;
     const weight=t.value/book;
-    const stake=Math.min(eq*Math.min(0.34,weight),investable);
+    const stake=Math.min(eq*Math.min(d.maxFrac,weight),investable);
     if(stake<40)continue;
     const entry=t.curPrice; const shares=+(stake/entry).toFixed(2),cost=+(shares*entry).toFixed(2);
     if(cost>p.cash)continue;
@@ -750,6 +782,7 @@ async function runWhaleAgent(p,wallet){
 
 /* ---------- Copycat: shadow the leading in-house strategy ---------- */
 function runCopycat(p,leader,priceMap){
+  p.lastDecision={mode:"Adaptive",reason:"watching the strategy leaderboard and rotating toward the in-house agent with the strongest current equity.",minConv:0,maxNew:leader.positions.length,maxFrac:0.2,reserve:0.05};
   markToMarket(p,priceMap);
   const held=new Set(leader.positions.map(x=>x.market_id));
   const keep=[];
@@ -921,10 +954,14 @@ async function runDailyCycle(){
     for(const id of ids){priceMap[id]=await fetchMarketPrice(id);}
     // 1) in-house strategy agents
     setStatus("strategy agents trading…",true);
+    const preBoard=AGENTS.filter(a=>a.kind==="strategy").map(a=>({id:a.id,eq:equity(st.agents[a.id])})).sort((x,y)=>y.eq-x.eq);
+    const leaderEq=preBoard[0]?preBoard[0].eq:STARTING_BALANCE;
     for(const cfg of AGENTS.filter(a=>a.kind==="strategy")){
       const p=st.agents[cfg.id];
       markToMarket(p,priceMap);
-      openPositions(p,cfg,cfg.rank(sugs),focus);
+      const rank=preBoard.findIndex(x=>x.id===cfg.id)+1||preBoard.length;
+      const decision=adaptiveDecision(cfg,p,rank,preBoard.length,leaderEq);
+      openPositions(p,cfg,cfg.rank(sugs),focus,decision);
       recordSnapshot(p);
     }
     // 2) copycat shadows the leading strategy agent
@@ -942,7 +979,10 @@ async function runDailyCycle(){
       const wh=st.whales[a.id];
       if(!wh){recordSnapshot(st.agents[a.id]);continue;}
       setStatus(`copying ${wh.name}…`,true);
-      try{await runWhaleAgent(st.agents[a.id],wh.wallet);}
+      const allBoard=AGENTS.map(c=>({id:c.id,eq:equity(st.agents[c.id])})).sort((x,y)=>y.eq-x.eq);
+      const rank=allBoard.findIndex(x=>x.id===a.id)+1||allBoard.length;
+      const decision=adaptiveDecision(a,st.agents[a.id],rank,allBoard.length,allBoard[0]?allBoard[0].eq:STARTING_BALANCE);
+      try{await runWhaleAgent(st.agents[a.id],wh.wallet,decision);}
       catch(e){recordSnapshot(st.agents[a.id]);}
     }
     st.date=todayStr();st.last_run=SNAP_TS;
@@ -1013,6 +1053,11 @@ function bestAndWorst(p){
   const label=x=>`${x.question.slice(0,34)}${x.question.length>34?"...":""} (${(x.unrealized_pnl||0)>=0?"+":""}${fmtUSD(x.unrealized_pnl||0)})`;
   return {best:label(sorted[0]),worst:label(sorted[sorted.length-1])};
 }
+function decisionSummary(p){
+  const d=p.lastDecision;
+  if(!d)return "No live adaptation yet; this agent is still using its base rulebook.";
+  return `${d.mode} mode: ${d.reason} Limits now: ${d.maxNew} new trade${d.maxNew===1?"":"s"}, max ${(d.maxFrac*100).toFixed(1)}% per position${d.minConv?`, conviction ${d.minConv}+`:""}.`;
+}
 function renderAgentBrief(cfg,p,st){
   const root=$("agentBrief"); if(!root)return;
   const bw=bestAndWorst(p);
@@ -1023,6 +1068,7 @@ function renderAgentBrief(cfg,p,st){
     <div class="brief-main" style="border-top:3px solid ${cfg.color}">
       <div class="brief-title"><span>${cfg.emoji}</span><span>${cfg.name}</span></div>
       <p>${esc(thesis)}</p>
+      <p style="margin-top:9px"><b>Adaptation:</b> ${esc(decisionSummary(p))}</p>
     </div>
     <div class="brief-mini"><div class="k">Style</div><div class="v">${esc(risk)}</div></div>
     <div class="brief-mini"><div class="k">Trade Rule</div><div class="v">${esc(cadence)}</div></div>
@@ -1214,6 +1260,7 @@ function renderAgentReports(){
     return `<article class="report" style="border-top-color:${row.c.color}">
       <div class="report-title"><div class="report-name">${row.c.emoji} ${row.c.name}</div><div class="report-rank">#${rank} · ${ret}</div></div>
       <p><b>Strategy:</b> ${esc(thesis)}</p>
+      <p><b>Adaptation:</b> ${esc(decisionSummary(row.p))}</p>
       <p><b>Status:</b> ${open} open position${open===1?"":"s"} with ${fmtUSD(row.eq)} equity. ${esc(line)}</p>
       <p><b>${esc(plan)}</b></p>
     </article>`;
