@@ -215,7 +215,8 @@ a.market-title:hover{color:#fff;text-decoration:underline;text-decoration-color:
   .brand-sub{white-space:normal}
   .tabs{width:100%;padding-bottom:5px}
   .tab{padding:8px 12px}
-  .nav-right{width:100%;margin-left:0;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px}
+  .nav-right{width:100%;margin-left:0;display:flex;align-items:stretch;flex-wrap:wrap;gap:8px}
+  .nav-right .status{flex:1 1 100%}
   #statusText{max-width:none;white-space:normal}
   .status{align-items:flex-start}
   .btn{padding:9px 11px}
@@ -276,6 +277,8 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
     <div class="nav-right">
       <span class="status"><span class="dot" id="statusDot"></span><span id="statusText">idle</span></span>
       <button id="runBtn" class="btn primary">Run cycle</button>
+      <button id="copyStateBtn" class="btn ghost">Copy Sync</button>
+      <button id="importStateBtn" class="btn ghost">Import Sync</button>
       <button id="resetBtn" class="btn ghost">Reset</button>
     </div>
   </nav>
@@ -376,6 +379,10 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
         <li><b>Compete</b> — the strategy agents trade the same suggestions their own way, stop-loss weak positions, cash in half of 2x winners, then snapshot equity.</li>
       </ol>
     </div>
+    <div class="card">
+      <div class="card-h"><h3>Device sync</h3></div>
+      <p class="muted" style="margin:0">Portfolios, returns, reports, suggestions, and chart history are saved in this browser. To make another device match, click <b>Copy Sync</b> here, then open the site on the other device and use <b>Import Sync</b>.</p>
+    </div>
     <div class="disclaimer">⚠️ <b>Paper trading only — not financial advice.</b> Nothing here places real orders or moves money. The analysis is a transparent heuristic. All portfolios live in this browser's local storage (each device keeps its own).</div>
   </section>
 
@@ -404,6 +411,7 @@ const VIEW_KEY = "pma_view_v1";
 const PF_SORT_KEY = "pma_portfolio_sort_v1";
 const CHART_RANGE_KEY = "pma_chart_range_v1";
 const CATEGORIES = ["All","Politics","Sports","Crypto","Economy","Pop Culture","Other"];
+const SYNC_KEYS=[AGENTS_KEY,SUG_KEY,FOCUS_KEY,VIEW_KEY,PF_SORT_KEY,CHART_RANGE_KEY];
 const CAT_COLORS = {Politics:"#fb7185",Sports:"#34d399",Crypto:"#fbbf24",Economy:"#7c8cff",
   "Pop Culture":"#c77dff",Other:"#94a1bb",All:"#7c8cff",Copy:"#22d3ee"};
 const DATA_API = "https://data-api.polymarket.com";
@@ -1321,6 +1329,35 @@ $("runBtn").addEventListener("click",async()=>{
   try{const r=await runDailyCycle();const b=board();toast(`Cycle done · ${r.suggestions} ideas · ${b[0].c.emoji} ${b[0].c.name} leads`);renderAll();}
   catch(e){toast("Run failed: "+e.message);setStatus("error",false);}
   btn.disabled=false;btn.textContent="Run cycle";
+});
+const b64Encode=(s)=>btoa(Array.from(new TextEncoder().encode(s),b=>String.fromCharCode(b)).join(""));
+const b64Decode=(s)=>new TextDecoder().decode(Uint8Array.from(atob(s),c=>c.charCodeAt(0)));
+function buildSyncCode(){
+  const data={version:1,exported_at:nowIso(),items:{}};
+  SYNC_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!=null)data.items[k]=v;});
+  return "PMA1."+b64Encode(JSON.stringify(data));
+}
+async function readClipboardOrPrompt(){
+  try{if(navigator.clipboard&&navigator.clipboard.readText)return (await navigator.clipboard.readText()).trim();}
+  catch(e){}
+  return (prompt("Paste your Polymarket Arena sync code:")||"").trim();
+}
+$("copyStateBtn").addEventListener("click",async()=>{
+  const code=buildSyncCode();
+  try{await navigator.clipboard.writeText(code);toast("Sync code copied. Paste it on the other device with Import Sync.");}
+  catch(e){prompt("Copy this sync code:",code);}
+});
+$("importStateBtn").addEventListener("click",async()=>{
+  const code=await readClipboardOrPrompt();
+  if(!code)return;
+  try{
+    const payload=JSON.parse(b64Decode(code.replace(/^PMA1\./,"")));
+    if(!payload||payload.version!==1||!payload.items)throw new Error("Bad sync code");
+    if(!confirm("Import this sync state and replace this device's current local portfolio data?"))return;
+    SYNC_KEYS.forEach(k=>{if(payload.items[k]!=null)localStorage.setItem(k,payload.items[k]);});
+    toast("Sync imported. This device now matches the copied state.");
+    renderAll();showTab(location.hash.slice(1)||"portfolio");
+  }catch(e){toast("Import failed. Check that the sync code was copied fully.");}
 });
 $("resetBtn").addEventListener("click",()=>{
   if(!confirm("Reset all ten agents to their $10,000 starting balance?"))return;
