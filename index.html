@@ -257,6 +257,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
         <div class="card-h"><h3>The Equity Race</h3><span class="small muted" id="lastRun"></span></div>
         <svg id="chart" viewBox="0 0 600 240" preserveAspectRatio="none"></svg>
         <div class="legend" id="comboLegend"></div>
+        <div class="small muted" style="margin-top:10px">Past week is a backtest — current holdings marked against real Polymarket price history. Live tracking takes over from today.</div>
       </div>
       <div class="card hoverable">
         <div class="card-h"><h3>Top Picks Today</h3><span class="small muted">highest conviction</span></div>
@@ -273,6 +274,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
       <div class="card-h"><h3>Equity Race — all agents</h3><span class="small muted">$10,000 start each</span></div>
       <svg id="chart2" viewBox="0 0 600 240" preserveAspectRatio="none"></svg>
       <div class="legend" id="comboLegend2"></div>
+      <div class="small muted" style="margin-top:10px">Past week is a backtest — current holdings marked against real Polymarket price history. Live tracking takes over from today.</div>
     </div>
   </section>
 
@@ -421,6 +423,7 @@ function normalizeMarket(raw){
   const tags=Array.isArray(raw.tags)?raw.tags:[];
   return {category:classifyCategory(tags),tags:tags.map(t=>t.label).filter(Boolean).slice(0,4),
     id:String(raw.id),question:(raw.question||"").trim(),event:(ev.title||"").trim(),
+    clob_token_ids:parseJsonField(raw.clobTokenIds).map(String),
     yes_price:+yes.toFixed(4),no_price:+prices[1].toFixed(4),
     volume:toNum(raw.volumeNum||raw.volume),volume_24hr:toNum(raw.volume24hr),volume_1wk:toNum(raw.volume1wk),
     liquidity:toNum(raw.liquidityNum||raw.liquidity),end_date:raw.endDateIso||raw.endDate,
@@ -471,6 +474,7 @@ function analyzeMarket(m){
   if(mis>0.4)drivers.push("notable price/value gap");
   if(!drivers.length)drivers.push("thin signal");
   return {market_id:m.id,question:m.question,event:m.event,url:m.url,category:m.category,tags:m.tags,
+    clob_yes:(m.clob_token_ids||[])[0]||null,clob_no:(m.clob_token_ids||[])[1]||null,
     yes_price:p,no_price:m.no_price,fair_value:+fair.toFixed(4),edge:+edgeYes.toFixed(4),
     side,entry_price:+entry.toFixed(4),conviction,volume:m.volume,volume_24hr:m.volume_24hr,
     days_to_resolution:m.days_to_resolution!=null?+m.days_to_resolution.toFixed(1):null,drivers,rationale};
@@ -485,7 +489,7 @@ function generateSuggestions(markets,perCategory=12){
 
 /* ---------- Multi-agent store ---------- */
 function defaultPortfolio(){return {cash:STARTING_BALANCE,starting_balance:STARTING_BALANCE,positions:[],closed:[],history:[],snapshots:[]};}
-function defaultState(){const agents={};AGENTS.forEach(a=>agents[a.id]=defaultPortfolio());return {date:null,last_run:null,agents,whales:{},copycatLeader:null};}
+function defaultState(){const agents={};AGENTS.forEach(a=>agents[a.id]=defaultPortfolio());return {date:null,last_run:null,agents,whales:{},copycatLeader:null,seeded:false};}
 function loadState(){
   let st; try{st=JSON.parse(localStorage.getItem(AGENTS_KEY));}catch(e){st=null;}
   if(!st||!st.agents)st=defaultState();
@@ -537,6 +541,7 @@ function openPositions(p,cfg,rankedSugs,focus){
     if(cost>p.cash)continue;
     p.cash=+(p.cash-cost).toFixed(2);
     p.positions.push({market_id:s.market_id,question:s.question,side:s.side,shares,
+      token_id:(s.side==="YES"?s.clob_yes:s.clob_no)||null,
       entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,
       unrealized_pnl:0,conviction:s.conviction,category:s.category,opened_at:nowIso(),url:s.url||""});
     p.history.push({date:todayStr(),action:"OPEN",question:s.question,side:s.side,
@@ -615,7 +620,7 @@ async function runWhaleAgent(p,wallet){
     const entry=t.curPrice; const shares=+(stake/entry).toFixed(2),cost=+(shares*entry).toFixed(2);
     if(cost>p.cash)continue;
     p.cash=+(p.cash-cost).toFixed(2);
-    p.positions.push({asset:t.asset,market_id:t.conditionId,question:t.title,side:t.side,category:"Copy",
+    p.positions.push({asset:t.asset,token_id:t.asset,market_id:t.conditionId,question:t.title,side:t.side,category:"Copy",
       shares,entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,unrealized_pnl:0,conviction:null});
     p.history.push({date:todayStr(),action:"OPEN",question:t.title,side:t.side,
       detail:`Copied trade — ${shares} ${t.side} '${t.title.slice(0,36)}' @ ${pct(entry)} for ${fmtUSD(cost)}`});
@@ -648,12 +653,60 @@ function runCopycat(p,leader,priceMap){
     const shares=+(stake/entry).toFixed(2),cost=+(shares*entry).toFixed(2);
     if(cost>p.cash)continue;
     p.cash=+(p.cash-cost).toFixed(2);
-    p.positions.push({market_id:lp.market_id,question:lp.question,side:lp.side,category:lp.category,
+    p.positions.push({market_id:lp.market_id,token_id:lp.token_id||null,question:lp.question,side:lp.side,category:lp.category,
       shares,entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,unrealized_pnl:0,conviction:lp.conviction});
     p.history.push({date:todayStr(),action:"OPEN",question:lp.question,side:lp.side,
       detail:`Copied leader — ${shares} ${lp.side} '${lp.question.slice(0,36)}' @ ${pct(entry)}`});
   }
   recordSnapshot(p);
+}
+
+/* ---------- Trailing-week backtest seeding ----------
+   Marks each agent's CURRENT holdings against real Polymarket price history
+   so the equity curves show a plausible past week instead of a flat line. */
+function lastNDates(n){const out=[];const now=new Date();for(let i=n-1;i>=0;i--){const x=new Date(now);x.setUTCDate(now.getUTCDate()-i);out.push(x.toISOString().slice(0,10));}return out;}
+async function fetchPriceHistory(tokenId){
+  try{const r=await fetch(`${CLOB}/prices-history?market=${tokenId}&interval=1w&fidelity=1440`);
+    if(!r.ok)return null;const d=await r.json();const map={};
+    (d.history||[]).forEach(h=>{map[new Date(h.t*1000).toISOString().slice(0,10)]=h.p;});
+    return Object.keys(map).length?map:null;}catch(e){return null;}
+}
+async function fetchClobTokens(marketId){
+  try{const r=await fetch(`${GAMMA}/markets/${marketId}`);if(!r.ok)return null;const d=await r.json();
+    const t=parseJsonField(d.clobTokenIds).map(String);return t.length===2?t:null;}catch(e){return null;}
+}
+function priceOnDay(map,day,fallback){
+  if(!map)return fallback;let best=null,bd=null;
+  for(const dt in map){if(dt<=day&&(bd===null||dt>bd)){bd=dt;best=map[dt];}}
+  if(best!=null)return best;
+  const ks=Object.keys(map).sort();return ks.length?map[ks[0]]:fallback;
+}
+async function seedWeekInto(st){
+  // 1) make sure every open position knows its CLOB token id
+  for(const a of AGENTS)for(const pos of st.agents[a.id].positions){
+    if(pos.token_id)continue;
+    if(pos.asset){pos.token_id=pos.asset;continue;}
+    if(pos.market_id){const t=await fetchClobTokens(pos.market_id);if(t)pos.token_id=(pos.side==="YES")?t[0]:t[1];}
+  }
+  // 2) pull 7-day price history for each unique token once
+  const ids=new Set();
+  for(const a of AGENTS)for(const pos of st.agents[a.id].positions)if(pos.token_id)ids.add(pos.token_id);
+  const hist={};
+  for(const id of ids)hist[id]=await fetchPriceHistory(id);
+  // 3) rebuild each agent's snapshots across the past week
+  const dates=lastNDates(7);
+  for(const a of AGENTS){
+    const p=st.agents[a.id];
+    p.snapshots=dates.map(day=>{
+      let pv=0;
+      for(const pos of p.positions){pv+=pos.shares*priceOnDay(hist[pos.token_id],day,pos.entry_price);}
+      const eq=p.cash+pv;
+      return {date:day,timestamp:new Date(day+"T12:00:00Z").toISOString(),cash:+p.cash.toFixed(2),
+        equity:+eq.toFixed(2),pnl:+(eq-p.starting_balance).toFixed(2),
+        return_pct:+((eq/p.starting_balance-1)*100).toFixed(2),open_positions:p.positions.length,seeded:true};
+    });
+  }
+  st.seeded=true;
 }
 
 async function runDailyCycle(){
@@ -697,6 +750,7 @@ async function runDailyCycle(){
     try{await runWhaleAgent(st.agents[a.id],wh.wallet);}
     catch(e){recordSnapshot(st.agents[a.id]);}
   }
+  if(!st.seeded){setStatus("reconstructing past week…",true);await seedWeekInto(st);}
   st.date=todayStr();st.last_run=nowIso();
   saveState(st);
   setStatus("up to date",false);
@@ -912,6 +966,13 @@ $("resetBtn").addEventListener("click",()=>{
     catch(e){setStatus("error — click Run to retry",false);}
     btn.disabled=false;btn.textContent="Run cycle";
   }else{setStatus("up to date",false);}
+  // If a cycle already ran today but we haven't seeded the past week yet, do it now.
+  const stx=loadState();
+  if(!stx.seeded && AGENTS.some(a=>stx.agents[a.id].positions.length)){
+    setStatus("reconstructing past week…",true);
+    try{await seedWeekInto(stx);saveState(stx);renderAll();toast("Backfilled the past week of history.");}catch(e){}
+    setStatus("up to date",false);
+  }
 })();
 </script>
 </body>
