@@ -155,6 +155,14 @@ h1,h2,h3,.brand-name{font-family:'Space Grotesk','Inter',sans-serif}
 .loading-ring{width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,.12);border-top-color:var(--accent);animation:spin .9s linear infinite}
 .empty-copy{max-width:420px;color:var(--muted);font-size:13.5px}
 @keyframes spin{to{transform:rotate(360deg)}}
+.report-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(255px,1fr));gap:14px}
+.report{background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:15px;padding:16px;border-top:3px solid var(--accent)}
+.report-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.report-name{font-family:'Space Grotesk';font-weight:700}
+.report-rank{font-size:11px;color:var(--muted);border:1px solid var(--border);border-radius:999px;padding:3px 8px;white-space:nowrap}
+.report p{margin:0 0 9px;color:#cdd6e8;font-size:13px;line-height:1.5}
+.report p:last-child{margin-bottom:0}
+.report b{color:var(--text)}
 
 /* ---------- suggestions ---------- */
 .filterbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
@@ -345,6 +353,10 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
         <option value="category">Category</option>
       </select></div></div><div id="positions" aria-live="polite"></div></div>
       <div class="card"><div class="card-h"><h3>Activity Log</h3></div><div id="history"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h3>Daily Agent Reports</h3><span class="small muted" id="reportDate"></span></div>
+      <div class="report-grid" id="agentReports"></div>
     </div>
   </section>
 
@@ -1168,6 +1180,42 @@ function renderPortfolioTab(){
   }
   renderPositions(p.positions);
   renderHistory((p.history||[]).slice(-50).reverse());
+  renderAgentReports();
+}
+function agentCompetitionPlan(cfg,row,rank,leader){
+  if(rank===1)return "Plan: defend the lead, keep sizing disciplined, and let risk controls protect gains instead of forcing new trades.";
+  if(cfg.kind==="copycat")return `Plan: keep shadowing ${leader.c.name}, then rotate automatically if another in-house strategy takes the crown.`;
+  if(cfg.kind==="whale")return "Plan: stay close to the copied trader's largest live positions while using the stop-loss and gain-stop rules to avoid blindly riding every swing.";
+  if(cfg.id==="value")return "Plan: close the gap by waiting for the cleanest model-versus-market mispricings and avoiding crowded trades without enough edge.";
+  if(cfg.id==="momentum")return "Plan: attack fast-moving markets where fresh volume confirms attention, hoping speed beats slower value strategies.";
+  if(cfg.id==="favorite")return "Plan: grind upward through high-probability favorites, aiming to outlast more volatile agents during choppy markets.";
+  if(cfg.id==="longshot")return "Plan: keep risk small but search for one underpriced outsider that can reprice sharply and leapfrog the leaderboard.";
+  if(cfg.id==="diversifier")return "Plan: spread bets broadly, reduce single-market damage, and try to win through consistency rather than one heroic call.";
+  return "Plan: keep following its rulebook and use fresh market data to pressure the leaderboard.";
+}
+function reportPositionLine(p){
+  if(!p.positions.length)return "No open positions yet, so today's focus is finding entries that fit the strategy.";
+  const best=[...p.positions].sort((a,b)=>(b.unrealized_pnl||0)-(a.unrealized_pnl||0))[0];
+  const worst=[...p.positions].sort((a,b)=>(a.unrealized_pnl||0)-(b.unrealized_pnl||0))[0];
+  if(best===worst)return `Current focus: ${best.question.slice(0,58)}${best.question.length>58?"...":""}, marked ${best.unrealized_pnl>=0?"+":""}${fmtUSD(best.unrealized_pnl||0)}.`;
+  return `Best mark: ${best.question.slice(0,42)}${best.question.length>42?"...":""} (${best.unrealized_pnl>=0?"+":""}${fmtUSD(best.unrealized_pnl||0)}). Watch item: ${worst.question.slice(0,42)}${worst.question.length>42?"...":""} (${fmtUSD(worst.unrealized_pnl||0)}).`;
+}
+function renderAgentReports(){
+  const root=$("agentReports"); if(!root)return;
+  const b=board(); const st=loadState(); const leader=b[0];
+  if($("reportDate"))$("reportDate").textContent=`${st.last_run?new Date(st.last_run).toLocaleString():todayStr()}`;
+  root.innerHTML=b.map((row,i)=>{
+    const rank=i+1, ret=fmtPct(row.ret), open=row.p.positions.length;
+    const thesis=agentPlainBlurb(row.c,st);
+    const plan=agentCompetitionPlan(row.c,row,rank,leader);
+    const line=reportPositionLine(row.p);
+    return `<article class="report" style="border-top-color:${row.c.color}">
+      <div class="report-title"><div class="report-name">${row.c.emoji} ${row.c.name}</div><div class="report-rank">#${rank} · ${ret}</div></div>
+      <p><b>Strategy:</b> ${esc(thesis)}</p>
+      <p><b>Status:</b> ${open} open position${open===1?"":"s"} with ${fmtUSD(row.eq)} equity. ${esc(line)}</p>
+      <p><b>${esc(plan)}</b></p>
+    </article>`;
+  }).join("");
 }
 function renderPositions(positions){
   const root=$("positions");if(!root)return;
