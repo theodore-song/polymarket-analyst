@@ -596,10 +596,7 @@ function cloudShouldReplaceLocal(cloud,local){
   const remote=stateFromSyncItems(cloud&&cloud.items);
   if(!remote)return false;
   const remoteDepth=stateDepth(remote), localDepth=stateDepth(local);
-  if(remoteDepth!==localDepth)return remoteDepth>localDepth;
-  const remoteTime=Date.parse(remote.last_run||cloud.updated_at||0)||0;
-  const localTime=Date.parse(local&&local.last_run||0)||0;
-  return remoteTime>localTime;
+  return remoteDepth>localDepth;
 }
 async function pushCloudState(){
   try{
