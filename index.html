@@ -381,9 +381,9 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
     </div>
     <div class="card">
       <div class="card-h"><h3>Device sync</h3></div>
-      <p class="muted" style="margin:0">Portfolios, returns, reports, suggestions, and chart history are saved in this browser. To make another device match, click <b>Copy Sync</b> here, then open the site on the other device and use <b>Import Sync</b>.</p>
+      <p class="muted" style="margin:0">Portfolios, returns, reports, suggestions, and chart history now sync through the site automatically. <b>Copy Sync</b> and <b>Import Sync</b> remain as a fallback for moving the exact state between devices.</p>
     </div>
-    <div class="disclaimer">⚠️ <b>Paper trading only — not financial advice.</b> Nothing here places real orders or moves money. The analysis is a transparent heuristic. All portfolios live in this browser's local storage (each device keeps its own).</div>
+    <div class="disclaimer">⚠️ <b>Paper trading only — not financial advice.</b> Nothing here places real orders or moves money. The analysis is a transparent heuristic. Portfolios sync through the site when cloud state is available, with this browser keeping a local backup.</div>
   </section>
 
   <footer>
@@ -397,7 +397,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
 /* ============================================================
    Polymarket Arena — fully client-side.
    Fetches live markets, scores them, and runs ten competing
-   paper-trading agents. State persists in localStorage.
+   paper-trading agents. State syncs through /api/state when configured and uses localStorage as the on-device cache.
 ============================================================ */
 
 const GAMMA = "https://gamma-api.polymarket.com";
@@ -582,6 +582,24 @@ function loadState(){
 function saveState(st){localStorage.setItem(AGENTS_KEY,JSON.stringify(st));}
 function loadSuggestions(){try{const s=localStorage.getItem(SUG_KEY);return s?JSON.parse(s):{date:null,suggestions:[]};}catch(e){return {date:null,suggestions:[]};}}
 function saveSuggestions(sugs){const p={date:todayStr(),generated_at:nowIso(),suggestions:sugs};localStorage.setItem(SUG_KEY,JSON.stringify(p));return p;}
+function collectSyncItems(){const items={};SYNC_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!=null)items[k]=v;});return items;}
+function applySyncItems(items){if(!items||typeof items!=="object")return false;SYNC_KEYS.forEach(k=>{if(items[k]!=null)localStorage.setItem(k,items[k]);});return true;}
+async function pushCloudState(){
+  try{
+    const r=await fetch("/api/state",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({items:collectSyncItems()})});
+    if(!r.ok)throw new Error("cloud sync unavailable");
+    return true;
+  }catch(e){return false;}
+}
+async function pullCloudState(){
+  try{
+    const r=await fetch("/api/state",{cache:"no-store"});
+    if(!r.ok)return false;
+    const d=await r.json();
+    if(d&&d.state&&applySyncItems(d.state.items)){toast("Cloud state loaded for this device.");return true;}
+  }catch(e){}
+  return false;
+}
 
 /* ---------- Agent mechanics ---------- */
 const equity=(p)=>p.cash+p.positions.reduce((s,x)=>s+x.shares*x.current_price,0);
@@ -995,6 +1013,7 @@ async function runDailyCycle(){
     }
     st.date=todayStr();st.last_run=SNAP_TS;
     saveState(st);
+    await pushCloudState();
     setStatus("up to date",false);
     return {suggestions:sugs.length};
   }finally{SNAP_TS=null;}
@@ -1333,8 +1352,7 @@ $("runBtn").addEventListener("click",async()=>{
 const b64Encode=(s)=>btoa(Array.from(new TextEncoder().encode(s),b=>String.fromCharCode(b)).join(""));
 const b64Decode=(s)=>new TextDecoder().decode(Uint8Array.from(atob(s),c=>c.charCodeAt(0)));
 function buildSyncCode(){
-  const data={version:1,exported_at:nowIso(),items:{}};
-  SYNC_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!=null)data.items[k]=v;});
+  const data={version:1,exported_at:nowIso(),items:collectSyncItems()};
   return "PMA1."+b64Encode(JSON.stringify(data));
 }
 async function readClipboardOrPrompt(){
@@ -1354,25 +1372,27 @@ $("importStateBtn").addEventListener("click",async()=>{
     const payload=JSON.parse(b64Decode(code.replace(/^PMA1\./,"")));
     if(!payload||payload.version!==1||!payload.items)throw new Error("Bad sync code");
     if(!confirm("Import this sync state and replace this device's current local portfolio data?"))return;
-    SYNC_KEYS.forEach(k=>{if(payload.items[k]!=null)localStorage.setItem(k,payload.items[k]);});
+    applySyncItems(payload.items);
+    await pushCloudState();
     toast("Sync imported. This device now matches the copied state.");
     renderAll();showTab(location.hash.slice(1)||"portfolio");
   }catch(e){toast("Import failed. Check that the sync code was copied fully.");}
 });
 $("resetBtn").addEventListener("click",()=>{
   if(!confirm("Reset all ten agents to their $10,000 starting balance?"))return;
-  saveState(defaultState());localStorage.removeItem(SUG_KEY);toast("All agents reset.");renderAll();
+  saveState(defaultState());localStorage.removeItem(SUG_KEY);pushCloudState();toast("All agents reset.");renderAll();
 });
 
 /* On load: first visit runs a 7-day backtest; afterwards a live daily update. */
 (async function init(){
   showTab(location.hash.slice(1)||"overview");
+  const cloudLoaded=await pullCloudState();
   renderAll();
   const st=loadState();
   const btn=$("runBtn");
   if(!st.seeded){
     btn.disabled=true;btn.textContent="Backtesting…";
-    try{await backtestWeek(st);st.date=todayStr();st.last_run=nowIso();saveState(st);renderAll();
+    try{await backtestWeek(st);st.date=todayStr();st.last_run=nowIso();saveState(st);await pushCloudState();renderAll();
       toast("7-day backtest complete — live tracking begins today.");}
     catch(e){setStatus("backtest error — click Run",false);}
     btn.disabled=false;btn.textContent="Run cycle";
@@ -1381,7 +1401,7 @@ $("resetBtn").addEventListener("click",()=>{
     try{await runDailyCycle();renderAll();toast("Daily update ready.");}
     catch(e){setStatus("error — click Run to retry",false);}
     btn.disabled=false;btn.textContent="Run cycle";
-  }else{setStatus("up to date",false);}
+  }else{setStatus("up to date",false);if(!cloudLoaded)pushCloudState();}
 })();
 </script>
 </body>
