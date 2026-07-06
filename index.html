@@ -584,6 +584,23 @@ function loadSuggestions(){try{const s=localStorage.getItem(SUG_KEY);return s?JS
 function saveSuggestions(sugs){const p={date:todayStr(),generated_at:nowIso(),suggestions:sugs};localStorage.setItem(SUG_KEY,JSON.stringify(p));return p;}
 function collectSyncItems(){const items={};SYNC_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!=null)items[k]=v;});return items;}
 function applySyncItems(items){if(!items||typeof items!=="object")return false;SYNC_KEYS.forEach(k=>{if(items[k]!=null)localStorage.setItem(k,items[k]);});return true;}
+function stateFromSyncItems(items){
+  try{return items&&items[AGENTS_KEY]?JSON.parse(items[AGENTS_KEY]):null;}
+  catch(e){return null;}
+}
+function stateDepth(st){
+  if(!st||!st.seeded||!Array.isArray(st.agents))return 0;
+  return st.agents.reduce((n,a)=>n+(a.history?a.history.length:0)+(a.reports?a.reports.length:0)+(a.positions?a.positions.length:0),0);
+}
+function cloudShouldReplaceLocal(cloud,local){
+  const remote=stateFromSyncItems(cloud&&cloud.items);
+  if(!remote)return false;
+  const remoteDepth=stateDepth(remote), localDepth=stateDepth(local);
+  if(remoteDepth!==localDepth)return remoteDepth>localDepth;
+  const remoteTime=Date.parse(remote.last_run||cloud.updated_at||0)||0;
+  const localTime=Date.parse(local&&local.last_run||0)||0;
+  return remoteTime>localTime;
+}
 async function pushCloudState(){
   try{
     const r=await fetch("/api/state",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({items:collectSyncItems()})});
@@ -596,9 +613,9 @@ async function pullCloudState(){
     const r=await fetch("/api/state",{cache:"no-store"});
     if(!r.ok)return false;
     const d=await r.json();
-    if(d&&d.state&&applySyncItems(d.state.items)){toast("Cloud state loaded for this device.");return true;}
+    if(d&&d.state)return d.state;
   }catch(e){}
-  return false;
+  return null;
 }
 
 /* ---------- Agent mechanics ---------- */
@@ -1386,9 +1403,16 @@ $("resetBtn").addEventListener("click",()=>{
 /* On load: first visit runs a 7-day backtest; afterwards a live daily update. */
 (async function init(){
   showTab(location.hash.slice(1)||"overview");
-  const cloudLoaded=await pullCloudState();
+  const cloudState=await pullCloudState();
+  let st=loadState();
+  if(cloudShouldReplaceLocal(cloudState,st)){
+    applySyncItems(cloudState.items);
+    st=loadState();
+    toast("Cloud state loaded for this device.");
+  }else if(st.seeded){
+    pushCloudState();
+  }
   renderAll();
-  const st=loadState();
   const btn=$("runBtn");
   if(!st.seeded){
     btn.disabled=true;btn.textContent="Backtesting…";
@@ -1401,7 +1425,7 @@ $("resetBtn").addEventListener("click",()=>{
     try{await runDailyCycle();renderAll();toast("Daily update ready.");}
     catch(e){setStatus("error — click Run to retry",false);}
     btn.disabled=false;btn.textContent="Run cycle";
-  }else{setStatus("up to date",false);if(!cloudLoaded)pushCloudState();}
+  }else{setStatus("up to date",false);}
 })();
 </script>
 </body>
