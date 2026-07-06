@@ -527,6 +527,9 @@ async function fetchMarketPrice(id){
 /* ---------- Analysis engine ---------- */
 const W={LIQ:0.25,MOM:0.25,MIS:0.30,TIME:0.20};
 const MIN_VOLUME=20000;
+const SUGGESTION_TOTAL=40;
+const SUGGESTION_PER_CATEGORY=10;
+const VISIBLE_SUGGESTIONS=30;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function liquiditySignal(m){const vol=Math.min(1,Math.log10(m.volume+1)/6.0);const liq=Math.min(1,Math.log10(m.liquidity+1)/5.3);return 0.6*vol+0.4*liq;}
 function momentumSignal(m){const da=m.volume_1wk?m.volume_1wk/7:0;if(da<=0)return m.volume_24hr>0?0.3:0;return clamp((m.volume_24hr/da-0.5)/2.0,0,1);}
@@ -558,10 +561,23 @@ function analyzeMarket(m){
     days_to_resolution:m.days_to_resolution!=null?+m.days_to_resolution.toFixed(1):null,drivers,rationale};
 }
 const pct=(x)=>Math.round(x*100)+"%";
-function generateSuggestions(markets,perCategory=12){
+function suggestionBand(s){
+  if(s.entry_price<0.35)return "longshot";
+  if(s.entry_price>0.65)return "favorite";
+  return "balanced";
+}
+function generateSuggestions(markets,total=SUGGESTION_TOTAL,perCategory=SUGGESTION_PER_CATEGORY){
   const actionable=markets.map(analyzeMarket).filter(Boolean).filter(a=>a.side!=="HOLD").sort((a,b)=>b.conviction-a.conviction);
-  const byCat={}; const out=[];
-  for(const a of actionable){const c=a.category||"Other";byCat[c]=(byCat[c]||0)+1;if(byCat[c]<=perCategory)out.push(a);}
+  const byCat={},byBucket={},seen=new Set(),out=[];
+  const add=(a,bucketCap=3)=>{
+    if(out.length>=total||seen.has(a.market_id))return false;
+    const c=a.category||"Other",bucket=`${c}:${a.side}:${suggestionBand(a)}`;
+    if((byCat[c]||0)>=perCategory||(byBucket[bucket]||0)>=bucketCap)return false;
+    byCat[c]=(byCat[c]||0)+1;byBucket[bucket]=(byBucket[bucket]||0)+1;seen.add(a.market_id);out.push(a);
+    return true;
+  };
+  for(const a of actionable)add(a,3);      // first pass: category, side, and price-band diversity
+  for(const a of actionable)add(a,999);    // second pass: fill remaining slots with the best leftovers
   return out.sort((a,b)=>b.conviction-a.conviction);
 }
 
@@ -589,8 +605,8 @@ function stateFromSyncItems(items){
   catch(e){return null;}
 }
 function stateDepth(st){
-  if(!st||!st.seeded||!Array.isArray(st.agents))return 0;
-  return st.agents.reduce((n,a)=>n+(a.history?a.history.length:0)+(a.reports?a.reports.length:0)+(a.positions?a.positions.length:0),0);
+  if(!st||!st.seeded||!st.agents)return 0;
+  return Object.values(st.agents).reduce((n,a)=>n+(a.history?a.history.length:0)+(a.reports?a.reports.length:0)+(a.positions?a.positions.length:0),0);
 }
 function cloudShouldReplaceLocal(cloud,local){
   const remote=stateFromSyncItems(cloud&&cloud.items);
@@ -706,13 +722,15 @@ function markToMarket(p,priceMap){
   }
   p.positions=stillOpen;
 }
-function openPositions(p,cfg,rankedSugs,focus,decision){
+function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds){
   const d=decision||{minConv:cfg.minConv,maxNew:cfg.maxNew,maxFrac:cfg.maxFrac,reserve:0.05};
   p.lastDecision=decision||null;
   const cands=rankedSugs.filter(s=>(s.side==="YES"||s.side==="NO")&&s.conviction>=d.minConv
     &&!hasPosition(p,s.market_id)&&!hasStoppedToday(p,s.market_id)&&(focus==="All"||!focus||s.category===focus));
-  let opened=0;
-  for(const s of cands){
+  const avoid=avoidMarketIds||new Set();
+  const ordered=cands.filter(s=>!avoid.has(s.market_id)).concat(cands.filter(s=>avoid.has(s.market_id)));
+  let opened=0,openedIds=[];
+  for(const s of ordered){
     if(opened>=d.maxNew)break;
     const eq=equity(p),investable=p.cash-eq*d.reserve;
     if(investable<=50)break;
@@ -731,8 +749,9 @@ function openPositions(p,cfg,rankedSugs,focus,decision){
       unrealized_pnl:0,conviction:s.conviction,category:s.category,opened_at:nowIso(),url:s.url||""});
     p.history.push({date:logDay(),action:"OPEN",question:s.question,side:s.side,
       detail:`${decision?decision.mode+" mode — ":""}Bought ${shares} ${s.side} '${s.question.slice(0,40)}' @ ${pct(entry)} for ${fmtUSD(cost)}`});
-    opened++;
+    opened++;openedIds.push(s.market_id);
   }
+  return openedIds;
 }
 function recordSnapshot(p){
   const eq=equity(p);
@@ -955,12 +974,13 @@ async function backtestWeek(st){
       if(dtr!=null&&dtr<-0.5)continue;
       snaps.push(Object.assign({},m,{yes_price:+yp.toFixed(4),no_price:+(1-yp).toFixed(4),days_to_resolution:dtr}));
     }
-    const sugs=generateSuggestions(snaps,12);
+    const sugs=generateSuggestions(snaps);
     const priceMap={}; snaps.forEach(s=>priceMap[s.id]={yes_price:s.yes_price,no_price:s.no_price});
+    const claimedMarkets=new Set();
     for(const cfg of AGENTS.filter(a=>a.kind==="strategy")){
       const p=st.agents[cfg.id];
       markToMarket(p,priceMap);
-      openPositions(p,cfg,cfg.rank(sugs),focus);
+      openPositions(p,cfg,cfg.rank(sugs),focus,null,claimedMarkets).forEach(id=>claimedMarkets.add(id));
       recordSnapshot(p);
     }
     const leaderId=AGENTS.filter(a=>a.kind==="strategy").map(a=>({id:a.id,eq:equity(st.agents[a.id])})).sort((x,y)=>y.eq-x.eq)[0].id;
@@ -981,7 +1001,7 @@ async function runDailyCycle(){
   try{
     const markets=await fetchMarkets(4,100);
     setStatus("analyzing…",true);
-    const sugs=generateSuggestions(markets,12);
+    const sugs=generateSuggestions(markets);
     saveSuggestions(sugs);
     const st=loadState();
     const focus=getFocus();
@@ -996,12 +1016,13 @@ async function runDailyCycle(){
     setStatus("strategy agents trading…",true);
     const preBoard=AGENTS.filter(a=>a.kind==="strategy").map(a=>({id:a.id,eq:equity(st.agents[a.id])})).sort((x,y)=>y.eq-x.eq);
     const leaderEq=preBoard[0]?preBoard[0].eq:STARTING_BALANCE;
+    const claimedMarkets=new Set();
     for(const cfg of AGENTS.filter(a=>a.kind==="strategy")){
       const p=st.agents[cfg.id];
       markToMarket(p,priceMap);
       const rank=preBoard.findIndex(x=>x.id===cfg.id)+1||preBoard.length;
       const decision=adaptiveDecision(cfg,p,rank,preBoard.length,leaderEq);
-      openPositions(p,cfg,cfg.rank(sugs),focus,decision);
+      openPositions(p,cfg,cfg.rank(sugs),focus,decision,claimedMarkets).forEach(id=>claimedMarkets.add(id));
       recordSnapshot(p);
     }
     // 2) copycat shadows the leading strategy agent
@@ -1216,9 +1237,9 @@ function renderSuggestions(){
   renderFilterBar(all);
   if(!all.length){root.innerHTML=`<div class="empty" style="grid-column:1/-1">No suggestions yet. Click "Run cycle".</div>`;$("focusNote").textContent="";return;}
   const focus=getFocus();
-  const filtered=(focus==="All"?all:all.filter(s=>s.category===focus)).slice(0,12);
+  const filtered=(focus==="All"?all:all.filter(s=>s.category===focus)).slice(0,VISIBLE_SUGGESTIONS);
   $("focusNote").textContent=focus==="All"
-    ? "All five agents trade from this pool — each in its own style."
+    ? "All five agents trade from this wider pool — each now tries fresh markets first to reduce overlap."
     : `Filtered to ${focus} — agents will only open new ${focus} positions while this is selected.`;
   if(!filtered.length){root.innerHTML=`<div class="empty" style="grid-column:1/-1">No ${esc(focus)} suggestions in today's batch.</div>`;return;}
   root.innerHTML=filtered.map(s=>{
