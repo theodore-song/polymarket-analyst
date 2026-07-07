@@ -672,9 +672,25 @@ function shouldStopLoss(pos){
   if(!pos.cost||pos.cost<=0)return false;
   return (pos.value||0)<=pos.cost*(1-STOP_LOSS_PCT);
 }
+function gainStopTarget(pos){
+  const entry=Number(pos.entry_price);
+  if(Number.isFinite(entry)&&entry>0)return +(entry*TAKE_PROFIT_MULT).toFixed(4);
+  if(pos.shares>0&&pos.cost>0)return +((pos.cost/pos.shares)*TAKE_PROFIT_MULT).toFixed(4);
+  return null;
+}
 function shouldTakeProfit(pos){
   if(pos.took_profit_at||!pos.cost||pos.cost<=0)return false;
+  const target=gainStopTarget(pos);
+  if(target!=null&&target<=1)return (pos.current_price||0)>=target;
   return (pos.value||0)>=pos.cost*TAKE_PROFIT_MULT;
+}
+function gainStopLabel(pos){
+  if(pos.took_profit_at)return "Gain stop cashed: sold half";
+  const target=gainStopTarget(pos);
+  if(target==null)return "Gain stop: waiting for 2x";
+  if(target>1)return `Gain stop: 2x unreachable from ${pct(pos.entry_price)} entry`;
+  const gap=Math.max(0,target-(pos.current_price||0));
+  return `Gain stop: sell half at ${pct(target)}${gap>0?` (${(gap*100).toFixed(1)}c away)`:" — armed"}`;
 }
 function stopOutPosition(p,pos){
   const proceeds=+(pos.shares*pos.current_price).toFixed(2);
@@ -746,7 +762,8 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds){
     p.positions.push({market_id:s.market_id,question:s.question,side:s.side,shares,
       token_id:(s.side==="YES"?s.clob_yes:s.clob_no)||null,
       entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,
-      unrealized_pnl:0,conviction:s.conviction,category:s.category,opened_at:nowIso(),url:s.url||""});
+      unrealized_pnl:0,conviction:s.conviction,category:s.category,opened_at:nowIso(),url:s.url||"",
+      gain_stop_target:gainStopTarget({entry_price:entry})});
     p.history.push({date:logDay(),action:"OPEN",question:s.question,side:s.side,
       detail:`${decision?decision.mode+" mode — ":""}Bought ${shares} ${s.side} '${s.question.slice(0,40)}' @ ${pct(entry)} for ${fmtUSD(cost)}`});
     opened++;openedIds.push(s.market_id);
@@ -832,7 +849,8 @@ async function runWhaleAgent(p,wallet,decision){
     if(cost>p.cash)continue;
     p.cash=+(p.cash-cost).toFixed(2);
     p.positions.push({asset:t.asset,token_id:t.asset,market_id:t.conditionId,question:t.title,side:t.side,category:"Copy",
-      shares,entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,unrealized_pnl:0,conviction:null});
+      shares,entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,unrealized_pnl:0,conviction:null,
+      gain_stop_target:gainStopTarget({entry_price:entry})});
     p.history.push({date:logDay(),action:"OPEN",question:t.title,side:t.side,
       detail:`Copied trade — ${shares} ${t.side} '${t.title.slice(0,36)}' @ ${pct(entry)} for ${fmtUSD(cost)}`});
   }
@@ -866,7 +884,8 @@ function runCopycat(p,leader,priceMap){
     if(cost>p.cash)continue;
     p.cash=+(p.cash-cost).toFixed(2);
     p.positions.push({market_id:lp.market_id,token_id:lp.token_id||null,question:lp.question,side:lp.side,category:lp.category,
-      shares,entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,unrealized_pnl:0,conviction:lp.conviction});
+      shares,entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,unrealized_pnl:0,conviction:lp.conviction,
+      gain_stop_target:gainStopTarget({entry_price:entry})});
     p.history.push({date:logDay(),action:"OPEN",question:lp.question,side:lp.side,
       detail:`Copied leader — ${shares} ${lp.side} '${lp.question.slice(0,36)}' @ ${pct(entry)}`});
   }
@@ -1387,6 +1406,7 @@ function renderPositions(positions){
     return `<div class="pos"><div>
       <div class="pq">${esc(p.question)}</div>
       <div class="sub">${p.category?`<span class="cat-badge" style="background:${col}22;color:${col}">${esc(p.category)}</span> `:""}${p.shares} ${p.side} @ ${Math.round(p.entry_price*100)}¢ → ${Math.round(p.current_price*100)}¢</div>
+      <div class="sub">${esc(gainStopLabel(p))}</div>
     </div><div class="right"><div>${fmtUSD(p.value)}</div><div class="${signClass(pnl)}">${pnl>=0?"+":""}${fmtUSD(pnl)}</div></div></div>`;}).join("");
 }
 function renderHistory(history){
