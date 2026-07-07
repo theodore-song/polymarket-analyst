@@ -1172,6 +1172,24 @@ function renderChartRanges(){
   document.querySelectorAll(".rangebtn").forEach(btn=>btn.onclick=()=>{localStorage.setItem(CHART_RANGE_KEY,btn.dataset.range);renderAll();});
 }
 const snapTime=(s)=>new Date(s.timestamp||`${s.date}T12:00:00Z`).getTime();
+function chartDateLabel(t,compact=false){
+  const d=new Date(t);
+  if(isNaN(d))return "";
+  const sameYear=d.getUTCFullYear()===new Date().getUTCFullYear();
+  return d.toLocaleDateString("en-US",compact
+    ? {month:"short",day:"numeric"}
+    : (sameYear?{month:"short",day:"numeric"}:{month:"short",day:"numeric",year:"2-digit"}));
+}
+function chartTicks(times,maxTicks=5){
+  if(!times.length)return [];
+  if(times.length===1)return [{i:0,t:times[0]}];
+  const count=Math.min(maxTicks,times.length),seen=new Set(),ticks=[];
+  for(let n=0;n<count;n++){
+    const i=Math.round(n*(times.length-1)/(count-1));
+    if(!seen.has(i)){seen.add(i);ticks.push({i,t:times[i]});}
+  }
+  return ticks;
+}
 function rangeFilteredTimes(times){
   const range=CHART_RANGES.find(r=>r.id===chartRange())||CHART_RANGES[0];
   if(!range.days)return times;
@@ -1188,7 +1206,7 @@ function drawCombo(svgId,legendId){
   const allTimes=rangeFilteredTimes([...new Set(series.flatMap(s=>s.snaps.map(snapTime)))].sort((a,b)=>a-b));
   const svg=$(svgId); if(!svg)return;
   if(!allTimes.length){svg.innerHTML="";if($(legendId))$(legendId).innerHTML=`<span class="muted small">No history yet — click "Run cycle".</span>`;return;}
-  const W=600,H=240,pad=14; const vals=[0];
+  const W=600,H=240,padL=42,padR=18,padT=18,padB=38; const vals=[0];
   const lines=series.map(s=>{
     let last=0,idx=0;
     const pts=allTimes.map(t=>{
@@ -1203,10 +1221,27 @@ function drawCombo(svgId,legendId){
   const avgPts=allTimes.map((_,i)=>+(lines.reduce((sum,l)=>sum+l.pts[i],0)/Math.max(1,lines.length)).toFixed(2));
   vals.push(...avgPts);
   const min=Math.min(...vals,0),max=Math.max(...vals,0),span=(max-min)||1;
-  const x=i=>allTimes.length===1?W/2:pad+(i/(allTimes.length-1))*(W-2*pad);
-  const y=v=>H-pad-((v-min)/span)*(H-2*pad);
+  const x=i=>allTimes.length===1?(padL+(W-padR))/2:padL+(i/(allTimes.length-1))*(W-padL-padR);
+  const y=v=>H-padB-((v-min)/span)*(H-padT-padB);
+  const yTicks=[...new Set([min,(min+max)/2,max].map(v=>+v.toFixed(1)))];
   const zeroY=y(0).toFixed(1);
-  let inner=`<line x1="${pad}" x2="${W-pad}" y1="${zeroY}" y2="${zeroY}" stroke="rgba(255,255,255,.18)" stroke-width="1"/>`;
+  let inner=`<defs>
+    <linearGradient id="${svgId}-fade" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="rgba(124,140,255,.14)"/><stop offset="100%" stop-color="rgba(124,140,255,0)"/>
+    </linearGradient>
+  </defs>`;
+  inner+=`<rect x="${padL}" y="${padT}" width="${W-padL-padR}" height="${H-padT-padB}" rx="10" fill="url(#${svgId}-fade)" opacity=".7"/>`;
+  for(const v of yTicks){
+    const yy=y(v).toFixed(1);
+    inner+=`<line x1="${padL}" x2="${W-padR}" y1="${yy}" y2="${yy}" stroke="rgba(255,255,255,.08)" stroke-width="1"/>`;
+    inner+=`<text x="${padL-8}" y="${(+yy+4).toFixed(1)}" text-anchor="end" fill="rgba(224,234,255,.62)" font-size="10" font-family="Inter, sans-serif">${fmtPct(v)}</text>`;
+  }
+  inner+=`<line x1="${padL}" x2="${W-padR}" y1="${zeroY}" y2="${zeroY}" stroke="rgba(255,255,255,.24)" stroke-width="1"/>`;
+  for(const tick of chartTicks(allTimes,5)){
+    const xx=x(tick.i).toFixed(1);
+    inner+=`<line x1="${xx}" x2="${xx}" y1="${padT}" y2="${H-padB}" stroke="rgba(255,255,255,.07)" stroke-width="1"/>`;
+    inner+=`<text x="${xx}" y="${H-14}" text-anchor="middle" fill="rgba(224,234,255,.72)" font-size="10.5" font-family="Inter, sans-serif">${chartDateLabel(tick.t,true)}</text>`;
+  }
   for(const ln of lines){
     const d=ln.pts.map((v,i)=>`${i===0?"M":"L"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
     const dot=allTimes.length===1?`<circle cx="${x(0).toFixed(1)}" cy="${y(ln.pts[0]).toFixed(1)}" r="4" fill="${ln.c.color}"/>`:"";
@@ -1214,6 +1249,8 @@ function drawCombo(svgId,legendId){
   }
   const avgD=avgPts.map((v,i)=>`${i===0?"M":"L"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
   inner+=`<path d="${avgD}" fill="none" stroke="#ffffff" stroke-width="2.7" stroke-dasharray="7 6" opacity=".78"/>`;
+  inner+=`<text x="${padL}" y="13" fill="rgba(224,234,255,.58)" font-size="10.5" font-family="Inter, sans-serif">${chartDateLabel(allTimes[0])}</text>`;
+  inner+=`<text x="${W-padR}" y="13" text-anchor="end" fill="rgba(224,234,255,.58)" font-size="10.5" font-family="Inter, sans-serif">${chartDateLabel(allTimes[allTimes.length-1])}</text>`;
   svg.innerHTML=inner;
   if($(legendId)){
     const b=board();const avg=b.reduce((s,r)=>s+r.ret,0)/b.length;
