@@ -206,6 +206,7 @@ a.market-title:hover{color:#fff;text-decoration:underline;text-decoration-color:
 .badge.CLOSE{background:rgba(251,191,36,.2);color:var(--yellow)}
 .badge.STOP{background:rgba(251,113,133,.2);color:var(--red)}
 .badge.GAIN{background:rgba(52,211,153,.18);color:var(--green)}
+.badge.EXIT{background:rgba(251,191,36,.18);color:var(--yellow)}
 .log-date{color:var(--muted)}
 .empty{color:var(--muted);font-size:13.5px;padding:14px 0;text-align:center}
 
@@ -376,7 +377,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
         <li><b>Fetch</b> — page through hundreds of live markets and tag each by category.</li>
         <li><b>Score</b> — rank every market 0–100 by conviction and estimate its edge vs. a fair-value model.</li>
         <li><b>Suggest</b> — surface the strongest picks per category with a plain-English rationale.</li>
-        <li><b>Compete</b> — the strategy agents trade the same suggestions their own way, stop-loss weak positions, cash in half of 2x winners, then snapshot equity.</li>
+        <li><b>Compete</b> — the strategy agents trade the same suggestions their own way, stop-loss weak positions, cash in half of 2x winners, exit stale or fading trades, then snapshot equity.</li>
       </ol>
     </div>
     <div class="card">
@@ -404,6 +405,8 @@ const GAMMA = "https://gamma-api.polymarket.com";
 const STARTING_BALANCE = 10000;
 const STOP_LOSS_PCT = 0.18;
 const TAKE_PROFIT_MULT = 2;
+const EXIT_STALE_DAYS = 14;
+const EXIT_RESOLUTION_DAYS = 2;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v2";
 const FOCUS_KEY = "pma_focus_v1";
@@ -464,6 +467,7 @@ const fmtPct = (n) => (n>=0?"+":"") + Number(n).toFixed(2) + "%";
 const signClass = (n) => (n>0?"pos-val":n<0?"neg-val":"");
 const todayStr = () => new Date().toISOString().slice(0,10);
 const nowIso = () => new Date().toISOString();
+const cycleIso = () => SIM_DAY ? new Date(SIM_DAY+"T12:00:00Z").toISOString() : nowIso();
 let SIM_DAY = null;                       // set during backtest so logs/snapshots use the simulated date
 let SNAP_TS = null;                       // set during a live cycle so every agent gets the same chart x-value
 const logDay = () => SIM_DAY || todayStr();
@@ -695,11 +699,20 @@ function gainStopLabel(pos){
 function stopOutPosition(p,pos){
   const proceeds=+(pos.shares*pos.current_price).toFixed(2);
   p.cash=+(p.cash+proceeds).toFixed(2);
-  pos.exit_price=pos.current_price;pos.closed_at=nowIso();
+  pos.exit_price=pos.current_price;pos.closed_at=cycleIso();
   pos.realized_pnl=+(proceeds-pos.cost).toFixed(2);
   p.closed.push(pos);rememberStop(p,pos);
   p.history.push({date:logDay(),action:"STOP",question:pos.question,side:pos.side,
     detail:`Stop-loss sold '${pos.question.slice(0,40)}' at ${pct(pos.current_price)} for ${fmtUSD(proceeds)} (P&L ${fmtUSD(pos.realized_pnl)})`});
+}
+function closePosition(p,pos,reason,action="CLOSE"){
+  const proceeds=+(pos.shares*pos.current_price).toFixed(2);
+  p.cash=+(p.cash+proceeds).toFixed(2);
+  pos.exit_price=pos.current_price;pos.closed_at=cycleIso();
+  pos.realized_pnl=+(proceeds-pos.cost).toFixed(2);
+  p.closed.push(pos);
+  p.history.push({date:logDay(),action,question:pos.question,side:pos.side,
+    detail:`${reason} '${pos.question.slice(0,40)}' at ${pct(pos.current_price)} for ${fmtUSD(proceeds)} (P&L ${fmtUSD(pos.realized_pnl)})`});
 }
 function takeProfitPosition(p,pos){
   const soldShares=+(pos.shares/2).toFixed(2);
@@ -712,21 +725,32 @@ function takeProfitPosition(p,pos){
   pos.cost=+(pos.cost-realizedCost).toFixed(2);
   pos.value=+(pos.shares*pos.current_price).toFixed(2);
   pos.unrealized_pnl=+(pos.value-pos.cost).toFixed(2);
-  pos.took_profit_at=nowIso();
+  pos.took_profit_at=cycleIso();
   p.history.push({date:logDay(),action:"GAIN",question:pos.question,side:pos.side,
     detail:`Gain stop sold half of '${pos.question.slice(0,40)}' at ${pct(pos.current_price)} for ${fmtUSD(proceeds)} (realized ${fmtUSD(realizedPnl)})`});
 }
-function markToMarket(p,priceMap){
+function daysHeld(pos){
+  if(!pos.opened_at)return 0;
+  const start=new Date(pos.opened_at).getTime(),end=new Date(cycleIso()).getTime();
+  if(!Number.isFinite(start)||!Number.isFinite(end))return 0;
+  return Math.max(0,(end-start)/86400000);
+}
+function exitReason(pos,fresh,analysis,cfg){
+  if(!analysis)return "Model can no longer score";
+  if(fresh.days_to_resolution!=null&&fresh.days_to_resolution<=EXIT_RESOLUTION_DAYS)return `Close before resolution (${fresh.days_to_resolution.toFixed(1)}d left)`;
+  if(daysHeld(pos)>=EXIT_STALE_DAYS)return `Stale exit after ${Math.floor(daysHeld(pos))} days`;
+  if(analysis.side==="HOLD")return "Edge faded";
+  if(analysis.side&&analysis.side!==pos.side)return `Model flipped to ${analysis.side}`;
+  const minExit=Math.max(25,(cfg&&cfg.minConv?cfg.minConv:35)-10);
+  if(analysis.conviction<minExit)return `Conviction faded to ${Math.round(analysis.conviction)}`;
+  return null;
+}
+function markToMarket(p,priceMap,cfg=null,{policyExits=false}={}){
   const stillOpen=[];
   for(const pos of p.positions){
     const fresh=priceMap[pos.market_id];
     if(fresh==null){
-      const proceeds=pos.shares*pos.current_price; p.cash+=proceeds;
-      pos.exit_price=pos.current_price;pos.closed_at=nowIso();
-      pos.realized_pnl=+(proceeds-pos.cost).toFixed(2);
-      p.closed.push(pos);
-      p.history.push({date:logDay(),action:"CLOSE",question:pos.question,side:pos.side,
-        detail:`Settled '${pos.question.slice(0,40)}' for ${fmtUSD(proceeds)} (P&L ${fmtUSD(pos.realized_pnl)})`});
+      closePosition(p,pos,"Settled/removed market");
       continue;
     }
     const price=pos.side==="YES"?fresh.yes_price:fresh.no_price;
@@ -734,6 +758,10 @@ function markToMarket(p,priceMap){
     pos.unrealized_pnl=+(pos.value-pos.cost).toFixed(2);
     if(shouldStopLoss(pos)){stopOutPosition(p,pos);continue;}
     if(shouldTakeProfit(pos))takeProfitPosition(p,pos);
+    if(policyExits){
+      const reason=exitReason(pos,fresh,analyzeMarket(fresh),cfg);
+      if(reason){closePosition(p,pos,reason,"EXIT");continue;}
+    }
     stillOpen.push(pos);
   }
   p.positions=stillOpen;
@@ -762,7 +790,7 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds){
     p.positions.push({market_id:s.market_id,question:s.question,side:s.side,shares,
       token_id:(s.side==="YES"?s.clob_yes:s.clob_no)||null,
       entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,
-      unrealized_pnl:0,conviction:s.conviction,category:s.category,opened_at:nowIso(),url:s.url||"",
+      unrealized_pnl:0,conviction:s.conviction,category:s.category,opened_at:cycleIso(),url:s.url||"",
       gain_stop_target:gainStopTarget({entry_price:entry})});
     p.history.push({date:logDay(),action:"OPEN",question:s.question,side:s.side,
       detail:`${decision?decision.mode+" mode — ":""}Bought ${shares} ${s.side} '${s.question.slice(0,40)}' @ ${pct(entry)} for ${fmtUSD(cost)}`});
@@ -827,10 +855,7 @@ async function runWhaleAgent(p,wallet,decision){
     if(shouldStopLoss(pos)){
       stopOutPosition(p,pos);
     }else if(!held.has(pos.asset)){
-      const proceeds=pos.shares*pos.current_price;p.cash+=proceeds;
-      pos.exit_price=pos.current_price;pos.realized_pnl=+(proceeds-pos.cost).toFixed(2);p.closed.push(pos);
-      p.history.push({date:logDay(),action:"CLOSE",question:pos.question,side:pos.side,
-        detail:`Trader exited '${pos.question.slice(0,36)}' — settled ${fmtUSD(proceeds)} (P&L ${fmtUSD(pos.realized_pnl)})`});
+      closePosition(p,pos,"Copied trader exited");
     }else{
       if(shouldTakeProfit(pos))takeProfitPosition(p,pos);
       keep.push(pos);
@@ -849,7 +874,7 @@ async function runWhaleAgent(p,wallet,decision){
     if(cost>p.cash)continue;
     p.cash=+(p.cash-cost).toFixed(2);
     p.positions.push({asset:t.asset,token_id:t.asset,market_id:t.conditionId,question:t.title,side:t.side,category:"Copy",
-      shares,entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,unrealized_pnl:0,conviction:null,
+      shares,entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,unrealized_pnl:0,conviction:null,opened_at:cycleIso(),
       gain_stop_target:gainStopTarget({entry_price:entry})});
     p.history.push({date:logDay(),action:"OPEN",question:t.title,side:t.side,
       detail:`Copied trade — ${shares} ${t.side} '${t.title.slice(0,36)}' @ ${pct(entry)} for ${fmtUSD(cost)}`});
@@ -865,10 +890,7 @@ function runCopycat(p,leader,priceMap){
   const keep=[];
   for(const pos of p.positions){
     if(!held.has(pos.market_id)){
-      const proceeds=pos.shares*pos.current_price;p.cash+=proceeds;
-      pos.exit_price=pos.current_price;pos.realized_pnl=+(proceeds-pos.cost).toFixed(2);p.closed.push(pos);
-      p.history.push({date:logDay(),action:"CLOSE",question:pos.question,side:pos.side,
-        detail:`Leader exited '${pos.question.slice(0,36)}' — settled ${fmtUSD(proceeds)}`});
+      closePosition(p,pos,"Leader exited");
     }else keep.push(pos);
   }
   p.positions=keep;
@@ -884,7 +906,7 @@ function runCopycat(p,leader,priceMap){
     if(cost>p.cash)continue;
     p.cash=+(p.cash-cost).toFixed(2);
     p.positions.push({market_id:lp.market_id,token_id:lp.token_id||null,question:lp.question,side:lp.side,category:lp.category,
-      shares,entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,unrealized_pnl:0,conviction:lp.conviction,
+      shares,entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,unrealized_pnl:0,conviction:lp.conviction,opened_at:cycleIso(),
       gain_stop_target:gainStopTarget({entry_price:entry})});
     p.history.push({date:logDay(),action:"OPEN",question:lp.question,side:lp.side,
       detail:`Copied leader — ${shares} ${lp.side} '${lp.question.slice(0,36)}' @ ${pct(entry)}`});
@@ -998,7 +1020,7 @@ async function backtestWeek(st){
     const claimedMarkets=new Set();
     for(const cfg of AGENTS.filter(a=>a.kind==="strategy")){
       const p=st.agents[cfg.id];
-      markToMarket(p,priceMap);
+      markToMarket(p,priceMap,cfg,{policyExits:true});
       openPositions(p,cfg,cfg.rank(sugs),focus,null,claimedMarkets).forEach(id=>claimedMarkets.add(id));
       recordSnapshot(p);
     }
@@ -1038,7 +1060,7 @@ async function runDailyCycle(){
     const claimedMarkets=new Set();
     for(const cfg of AGENTS.filter(a=>a.kind==="strategy")){
       const p=st.agents[cfg.id];
-      markToMarket(p,priceMap);
+      markToMarket(p,priceMap,cfg,{policyExits:true});
       const rank=preBoard.findIndex(x=>x.id===cfg.id)+1||preBoard.length;
       const decision=adaptiveDecision(cfg,p,rank,preBoard.length,leaderEq);
       openPositions(p,cfg,cfg.rank(sugs),focus,decision,claimedMarkets).forEach(id=>claimedMarkets.add(id));
@@ -1144,6 +1166,7 @@ function renderAgentBrief(cfg,p,st){
   const bw=bestAndWorst(p);
   const risk=cfg.kind==="whale"?"Mirror risk":cfg.kind==="copycat"?"Adaptive":cfg.maxFrac>=0.12?"Higher risk":cfg.maxFrac<=0.05?"Lower risk":"Balanced";
   const cadence=cfg.kind==="whale"?"Copies biggest live holdings":cfg.kind==="copycat"?"Follows current strategy leader":`${cfg.maxNew||0} new trades max`;
+  const exitRule=cfg.kind==="strategy"?`Exit if edge fades, conviction weakens, <${EXIT_RESOLUTION_DAYS}d to resolve, or ${EXIT_STALE_DAYS}d stale`:cfg.kind==="copycat"?"Exit when leader exits":"Exit when copied trader exits";
   const thesis=agentPlainBlurb(cfg,st);
   root.innerHTML=`
     <div class="brief-main" style="border-top:3px solid ${cfg.color}">
@@ -1155,6 +1178,7 @@ function renderAgentBrief(cfg,p,st){
     <div class="brief-mini"><div class="k">Trade Rule</div><div class="v">${esc(cadence)}</div></div>
     <div class="brief-mini"><div class="k">Stop Loss</div><div class="v">${Math.round(STOP_LOSS_PCT*100)}% drawdown</div></div>
     <div class="brief-mini"><div class="k">Gain Stop</div><div class="v">${TAKE_PROFIT_MULT}x: sell half</div></div>
+    <div class="brief-mini"><div class="k">Policy Exit</div><div class="v">${esc(exitRule)}</div></div>
     <div class="brief-mini"><div class="k">Best / Worst</div><div class="v"><span class="pos-val">${esc(bw.best)}</span><br><span class="neg-val">${esc(bw.worst)}</span></div></div>`;
 }
 function renderLeaderboard(){
