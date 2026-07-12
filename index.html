@@ -107,7 +107,8 @@ h1,h2,h3,.brand-name{font-family:'Space Grotesk','Inter',sans-serif}
 .pos-val{color:var(--green)}.neg-val{color:var(--red)}
 
 /* ---------- charts ---------- */
-#chart,#chart2{width:100%;height:300px;display:block;margin-top:6px;overflow:visible}
+.chart-wrap{width:min(100%,1120px);margin:10px auto 0}
+#chart,#chart2{width:100%;height:auto;display:block;overflow:visible}
 .legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px 12px;margin-top:14px}
 .leg{display:flex;align-items:center;gap:8px;font-size:12px;color:#cdd6e8;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:7px 9px;min-width:0}
 .leg b{margin-left:auto;font-family:'Space Grotesk',sans-serif}
@@ -224,7 +225,7 @@ a.market-title:hover{color:#fff;text-decoration:underline;text-decoration-color:
   .btn{padding:9px 11px}
   .section-title{font-size:19px}
   .stats{grid-template-columns:1fr;gap:12px}
-  #chart,#chart2{height:280px}
+  .chart-wrap{width:100%;margin-top:8px}
   .legend{grid-template-columns:1fr}
   .agent-brief{grid-template-columns:1fr}
   .pos{align-items:flex-start;gap:12px}
@@ -314,7 +315,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
     <div class="grid2">
       <div class="card hoverable">
         <div class="card-h"><h3>Agent Returns</h3><div><span class="small muted" id="lastRun"></span><div class="rangebar" data-chart-ranges></div></div></div>
-        <svg id="chart" viewBox="0 0 720 300" preserveAspectRatio="none"></svg>
+        <div class="chart-wrap"><svg id="chart" viewBox="0 0 960 320" preserveAspectRatio="xMidYMid meet"></svg></div>
         <div class="legend" id="comboLegend"></div>
         <div class="small muted" style="margin-top:10px">Use the range buttons to zoom from one week to all history. New live points are added whenever you click "Run cycle"; the dashed line tracks the average agent return.</div>
       </div>
@@ -331,7 +332,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
     <div class="lb-grid" id="leaderboard"></div>
     <div class="card">
       <div class="card-h"><h3>Returns — all agents</h3><div><span class="small muted">$10,000 start each</span><div class="rangebar" data-chart-ranges></div></div></div>
-      <svg id="chart2" viewBox="0 0 720 300" preserveAspectRatio="none"></svg>
+      <div class="chart-wrap"><svg id="chart2" viewBox="0 0 960 320" preserveAspectRatio="xMidYMid meet"></svg></div>
       <div class="legend" id="comboLegend2"></div>
       <div class="small muted" style="margin-top:10px">Past week is a backtest. After that, each manual or daily run adds another return snapshot for every agent.</div>
     </div>
@@ -1300,7 +1301,7 @@ function drawCombo(svgId,legendId){
   const allTimes=rangeFilteredTimes([...new Set(series.flatMap(s=>s.snaps.map(snapTime)))].sort((a,b)=>a-b));
   const svg=$(svgId); if(!svg)return;
   if(!allTimes.length){svg.innerHTML="";if($(legendId))$(legendId).innerHTML=`<span class="muted small">No history yet — click "Run cycle".</span>`;return;}
-  const W=720,H=300,padL=58,padR=28,padT=34,padB=50; const vals=[0];
+  const W=960,H=320,padL=72,padR=36,padT=36,padB=54; const vals=[0];
   const lines=series.map(s=>{
     let last=0,idx=0;
     const pts=allTimes.map(t=>{
