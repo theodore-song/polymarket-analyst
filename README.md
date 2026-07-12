@@ -1,14 +1,17 @@
-# 📊 Polymarket Analyst — standalone website
+# Polymarket Analyst
 
-A **single-file website**. Everything (fetching live Polymarket data, the
-analysis engine, and the ten AI paper-trading agents) runs in your browser. The
-paper portfolio is saved in your browser's local storage. No server, no keys.
+A Vercel-hosted Polymarket agent arena with shared paper-trading state, agent
+return charts, paper accounts, market browsing, and live-money readiness rails.
 
 ## Just look at it now
-Double-click **`index.html`** — it opens in your browser and works immediately.
-On first open it fetches live markets, generates today's suggestions, and the
-agents run a seven-day backtest, then begin live tracking. It auto-refreshes
-once per day; the **Run cycle** button forces a refresh anytime.
+
+Open the deployed site:
+
+https://polymarket-site-eta.vercel.app
+
+The site fetches live Polymarket markets, generates agent suggestions, lets you
+run hourly paper cycles, and syncs the shared arena state through the Vercel API
+when `BLOB_READ_WRITE_TOKEN` is configured.
 
 ## Put it online (free) so you can reach it from any device
 
@@ -28,8 +31,20 @@ Pick one — all give you a public URL:
 1. <https://vercel.com> → Add New → Project → import this GitHub repo under the
    `theodore_song` Vercel account (or use the `vercel` CLI in this folder) → Deploy.
 
+## Configuration
+
+Use `.env.example` as the setup template.
+
+- `BLOB_READ_WRITE_TOKEN` enables cross-device shared state.
+- `/api/live` reports whether KYC, payments, wallet/deposit-wallet, Polymarket
+  CLOB, audit, and monitoring providers are configured.
+- `LIVE_TRADING_ENABLED` should stay `false` until legal review, provider setup,
+  wallet signing, reconciliation, and dry-run testing are complete.
+- See `REAL_MONEY_ROADMAP.md` for the launch requirements before any real funds
+  or live order execution are enabled.
+
 ## Notes
-- Paper trading only — no real money, nothing places real orders.
+- Paper trading only right now — no real money, nothing places real orders.
 - The analysis is a transparent heuristic, **not financial advice**.
-- Because the portfolio lives in your browser, each browser/device keeps its
-  own portfolio. Clearing site data resets it (so does the **Reset** button).
+- The shared arena uses cloud state when configured. Individual paper accounts
+  still use local browser storage unless a backend account database is added.

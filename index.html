@@ -2259,8 +2259,9 @@ function renderLiveBackendStatus(){
   const root=$("liveBackendStatus");if(!root)return;
   const s=LIVE_BACKEND_STATUS;
   if(!s){root.innerHTML="Checking backend readiness...";return;}
-  const providers=(s.providers||[]).map(p=>`<div class="leader-row"><span>${esc(p.label)}</span><b class="${p.configured?"pos-val":"neg-val"}">${p.configured?"configured":"missing"}</b></div>`).join("");
-  root.innerHTML=`<b>${s.live_trading_enabled?"Live trading unlocked":"Live trading locked"}</b><div class="small muted" style="margin:6px 0">${esc(s.locked_reason||"All required backend providers are configured.")}</div>${providers}`;
+  const providers=(s.providers||[]).map(p=>`<div class="leader-row"><span>${esc(p.label)}${p.expected?`<div class="small muted">${esc(p.expected)}</div>`:""}</span><b class="${p.configured?"pos-val":"neg-val"}">${p.configured?"configured":"missing"}</b></div>`).join("");
+  const next=(s.next_required||[]).slice(0,8).map(x=>`<li>${esc(x)}</li>`).join("");
+  root.innerHTML=`<b>${s.live_trading_enabled?"Live trading unlocked":"Live trading locked"}</b><div class="small muted" style="margin:6px 0">${esc(s.locked_reason||"All required backend providers are configured.")}</div>${providers}${next?`<div class="locked-panel" style="margin-top:10px"><b>Next setup items</b><ul>${next}</ul></div>`:""}<div class="small muted" style="margin-top:8px">Live execution stays disabled until every provider is configured and final approval flips LIVE_TRADING_ENABLED=true.</div>`;
 }
 async function dryRunLiveOrderIntent(){
   const s=loadLiveState();
