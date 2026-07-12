@@ -569,6 +569,14 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
     <div class="grid2">
       <div class="card">
         <div class="card-h"><h3>Execution console</h3><span class="small muted">locked until backend exists</span></div>
+        <div id="liveBackendStatus" class="locked-panel">Checking backend readiness...</div>
+        <div class="account-row">
+          <select class="select" id="liveIntentAgent"></select>
+          <input class="input" id="liveIntentMarket" placeholder="Market ID" />
+          <select class="select" id="liveIntentSide"><option>YES</option><option>NO</option></select>
+          <input class="input" id="liveIntentAmount" type="number" min="1" step="25" placeholder="Max amount" />
+          <button class="btn" id="dryRunOrderBtn">Dry-run order intent</button>
+        </div>
         <ol class="steps">
           <li><b>Wallet signature</b> — user signs EIP-712 orders; the site never signs unauthorized trades.</li>
           <li><b>CLOB router</b> — backend submits, cancels, and tracks orders through authenticated Polymarket APIs.</li>
@@ -578,6 +586,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
       </div>
       <div class="card">
         <div class="card-h"><h3>Audit trail preview</h3><span class="small muted">required for real money</span></div>
+        <div id="liveOrderDryRun"></div>
         <div id="liveAuditTrail"></div>
       </div>
     </div>
@@ -661,6 +670,7 @@ const CLOB = "https://clob.polymarket.com";
 let PAPER_SEARCH_RESULTS = null;
 let PAPER_MARKET_OFFSET = 0;
 let PAPER_MARKET_QUERY = "";
+let LIVE_BACKEND_STATUS = null;
 const catColor = (c) => CAT_COLORS[c] || CAT_COLORS.Other;
 const getFocus = () => localStorage.getItem(FOCUS_KEY) || "All";
 const setFocus = (c) => localStorage.setItem(FOCUS_KEY, c);
@@ -2236,6 +2246,42 @@ function saveLiveState(s,detail){
   localStorage.setItem(LIVE_KEY,JSON.stringify(s));
   pushCloudState();
 }
+async function fetchLiveBackendStatus(){
+  try{
+    const r=await fetch("/api/live",{cache:"no-store"});
+    LIVE_BACKEND_STATUS=await r.json();
+  }catch(e){
+    LIVE_BACKEND_STATUS={ok:false,locked_reason:"Live backend status endpoint is unavailable.",providers:[]};
+  }
+  renderLiveBackendStatus();
+}
+function renderLiveBackendStatus(){
+  const root=$("liveBackendStatus");if(!root)return;
+  const s=LIVE_BACKEND_STATUS;
+  if(!s){root.innerHTML="Checking backend readiness...";return;}
+  const providers=(s.providers||[]).map(p=>`<div class="leader-row"><span>${esc(p.label)}</span><b class="${p.configured?"pos-val":"neg-val"}">${p.configured?"configured":"missing"}</b></div>`).join("");
+  root.innerHTML=`<b>${s.live_trading_enabled?"Live trading unlocked":"Live trading locked"}</b><div class="small muted" style="margin:6px 0">${esc(s.locked_reason||"All required backend providers are configured.")}</div>${providers}`;
+}
+async function dryRunLiveOrderIntent(){
+  const s=loadLiveState();
+  const intent={
+    user_id:"local-readiness-user",
+    wallet_address:s.walletAddress,
+    agent_id:$("liveIntentAgent").value,
+    market_id:$("liveIntentMarket").value.trim(),
+    side:$("liveIntentSide").value,
+    max_amount:Number($("liveIntentAmount").value||0),
+    execution_mode:"manual_approval",
+  };
+  try{
+    const r=await fetch("/api/live",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({intent})});
+    const d=await r.json();
+    $("liveOrderDryRun").innerHTML=`<div class="locked-panel"><b>Order intent dry-run</b><div class="small muted">${esc(d.error||"Accepted dry-run.")}</div><pre style="white-space:pre-wrap;font-size:11px;color:#cdd6e8">${esc(JSON.stringify(d.audit_event||d,null,2))}</pre></div>`;
+    saveLiveState(s,`Dry-ran ${intent.side} order intent for ${intent.agent_id} on ${intent.market_id}`);
+  }catch(e){
+    toast("Order dry-run failed.");
+  }
+}
 function renderLiveMoneyTab(){
   const root=$("liveChecklist");if(!root)return;
   const s=loadLiveState(),done=LIVE_CHECKS.filter(([k])=>s.checks[k]).length;
@@ -2247,6 +2293,9 @@ function renderLiveMoneyTab(){
   $("liveJurisdiction").value=s.jurisdiction||"";
   $("liveDepositLimit").value=s.depositLimit||"";
   $("liveWithdrawReserve").value=s.withdrawReserve||"";
+  const intentAgent=$("liveIntentAgent");
+  if(intentAgent)intentAgent.innerHTML=AGENTS.map(a=>`<option value="${a.id}">${a.emoji} ${esc(a.name)}</option>`).join("");
+  renderLiveBackendStatus();
   $("liveAgentPermissions").innerHTML=AGENTS.map(a=>{const p=s.agents[a.id];
     return `<div class="invest-agent" style="border-left:3px solid ${a.color};padding-left:12px">
       <div class="lb-emoji">${a.emoji}</div>
@@ -2360,6 +2409,7 @@ $("saveLiveProfileBtn").addEventListener("click",()=>{
   saveLiveState(s,"Updated live-money wallet/funds profile");
   renderLiveMoneyTab();toast("Live-money readiness profile saved.");
 });
+$("dryRunOrderBtn").addEventListener("click",()=>dryRunLiveOrderIntent());
 window.addEventListener("focus",()=>refreshFromCloudAndRender(true));
 document.addEventListener("visibilitychange",()=>{
   if(!document.hidden)refreshFromCloudAndRender(true);
@@ -2368,6 +2418,7 @@ document.addEventListener("visibilitychange",()=>{
 /* On load: first visit runs a 7-day backtest; afterwards the shared portfolio advances once per hour. */
 (async function init(){
   showTab(location.hash.slice(1)||"overview");
+  fetchLiveBackendStatus();
   const cloud=await loadAuthoritativeCloudState();
   let st=loadState();
   if(cloud.loaded){
