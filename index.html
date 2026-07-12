@@ -634,7 +634,8 @@ async function pushCloudState(force=false){
       const d=await r.json().catch(()=>null);
       if(d&&d.state&&d.state.items)applySyncItems(d.state.items);
       else await loadAuthoritativeCloudState();
-      toast("This hour already ran on another device. Loaded the shared result.");
+      toast("Loaded the newer shared cloud result.");
+      renderAll();
       return false;
     }
     if(!r.ok)throw new Error("cloud sync unavailable");
@@ -644,19 +645,33 @@ async function pushCloudState(force=false){
 async function pullCloudState(){
   try{
     const r=await fetch("/api/state",{cache:"no-store"});
-    if(!r.ok)return false;
+    if(!r.ok)return {ok:false,state:null};
     const d=await r.json();
-    if(d&&d.state)return d.state;
+    return {ok:true,state:(d&&d.state)||null};
   }catch(e){}
-  return null;
+  return {ok:false,state:null};
 }
 async function loadAuthoritativeCloudState(){
-  const cloudState=await pullCloudState();
+  const cloud=await pullCloudState();
+  if(!cloud.ok)return {ok:false,loaded:false};
+  const cloudState=cloud.state;
   if(cloudState&&cloudState.items&&stateFromSyncItems(cloudState.items)){
     applySyncItems(cloudState.items);
-    return true;
+    return {ok:true,loaded:true};
   }
-  return false;
+  return {ok:true,loaded:false};
+}
+async function refreshFromCloudAndRender(silent=true){
+  const cloud=await loadAuthoritativeCloudState();
+  if(cloud.loaded){
+    renderAll();
+    setStatus("cloud synced",false);
+    if(!silent)toast("Shared cloud state refreshed.");
+  }else if(!cloud.ok){
+    setStatus("cloud sync unavailable",false);
+    if(!silent)toast("Cloud sync is unavailable. Results may be stale until it reconnects.");
+  }
+  return cloud;
 }
 
 /* ---------- Agent mechanics ---------- */
@@ -1086,7 +1101,8 @@ async function backtestWeek(st){
 }
 
 async function runDailyCycle(){
-  await loadAuthoritativeCloudState();
+  const cloud=await loadAuthoritativeCloudState();
+  if(!cloud.ok)throw new Error("Cloud sync unavailable. Refusing to run a local-only cycle.");
   let st=loadState();
   const hour=currentCycleHour();
   if(st.seeded&&st.last_cycle_hour===hour){
@@ -1579,22 +1595,32 @@ $("resetBtn").addEventListener("click",()=>{
   if(!confirm("Reset all ten agents to their $10,000 starting balance?"))return;
   saveState(defaultState());localStorage.removeItem(SUG_KEY);pushCloudState(true);toast("All agents reset.");renderAll();
 });
+window.addEventListener("focus",()=>refreshFromCloudAndRender(true));
+document.addEventListener("visibilitychange",()=>{
+  if(!document.hidden)refreshFromCloudAndRender(true);
+});
 
 /* On load: first visit runs a 7-day backtest; afterwards the shared portfolio advances once per hour. */
 (async function init(){
   showTab(location.hash.slice(1)||"overview");
-  const cloudLoaded=await loadAuthoritativeCloudState();
+  const cloud=await loadAuthoritativeCloudState();
   let st=loadState();
-  if(cloudLoaded){
+  if(cloud.loaded){
     toast("Cloud state loaded for this device.");
-  }else if(st.seeded){
+  }else if(cloud.ok&&st.seeded){
     pushCloudState();
+  }else if(!cloud.ok){
+    setStatus("cloud sync unavailable",false);
   }
   renderAll();
   const btn=$("runBtn");
+  if(!cloud.ok){
+    toast("Cloud sync is unavailable. Reconnect before running a cycle.");
+    return;
+  }
   if(!st.seeded){
     btn.disabled=true;btn.textContent="Backtesting…";
-    try{await backtestWeek(st);st.date=todayStr();st.last_run=nowIso();st.last_cycle_hour=currentCycleHour();saveState(st);await pushCloudState();renderAll();
+    try{await backtestWeek(st);st.date=todayStr();st.last_run=nowIso();st.last_cycle_hour=currentCycleHour();saveState(st);if(!(await pushCloudState()))throw new Error("Cloud sync unavailable");renderAll();
       toast("7-day backtest complete — live tracking begins today.");}
     catch(e){setStatus("backtest error — click Run",false);}
     btn.disabled=false;btn.textContent="Run cycle";

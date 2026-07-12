@@ -19,6 +19,10 @@ function agentStateFromItems(items) {
   }
 }
 
+function conflictResponse(res, error, current) {
+  return res.status(409).json({ ok: false, error, state: current });
+}
+
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   try {
@@ -38,11 +42,19 @@ export default async function handler(req, res) {
       const current = await readJsonBlob();
       const currentAgents = agentStateFromItems(current && current.items);
       const incomingAgents = agentStateFromItems(body.items);
-      if (!body.force && currentAgents && incomingAgents) {
-        const sameHour = currentAgents.last_cycle_hour && currentAgents.last_cycle_hour === incomingAgents.last_cycle_hour;
+      if (!body.force && currentAgents) {
+        const currentHour = currentAgents.last_cycle_hour || "";
+        const incomingHour = incomingAgents && incomingAgents.last_cycle_hour ? incomingAgents.last_cycle_hour : "";
+        if (currentHour && (!incomingAgents || !incomingHour)) {
+          return conflictResponse(res, "Cloud already has a cycle result; refusing unscheduled local state", current);
+        }
+        if (currentHour && incomingHour && incomingHour < currentHour) {
+          return conflictResponse(res, "Incoming state is older than the shared cloud result", current);
+        }
+        const sameHour = currentHour && currentHour === incomingHour;
         const differentRun = currentAgents.last_run && incomingAgents.last_run && currentAgents.last_run !== incomingAgents.last_run;
         if (sameHour && differentRun) {
-          return res.status(409).json({ ok: false, error: "This cycle hour already has a cloud result", state: current });
+          return conflictResponse(res, "This cycle hour already has a cloud result", current);
         }
       }
       const state = { version: 1, updated_at: new Date().toISOString(), items: body.items };
