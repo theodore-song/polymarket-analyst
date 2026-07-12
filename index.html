@@ -377,7 +377,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
         <li><b>Fetch</b> — page through hundreds of live markets and tag each by category.</li>
         <li><b>Score</b> — rank every market 0–100 by conviction and estimate its edge vs. a fair-value model.</li>
         <li><b>Suggest</b> — surface the strongest picks per category with a plain-English rationale.</li>
-        <li><b>Compete</b> — the strategy agents trade the same suggestions their own way, stop-loss weak positions, cash in half of 2x winners, exit stale or fading trades, then snapshot equity.</li>
+        <li><b>Compete</b> — the strategy agents trade the same suggestions their own way, stop-loss weak positions, scale out through gain-stop tiers, exit stale or fading trades, then snapshot equity.</li>
       </ol>
     </div>
     <div class="card">
@@ -404,7 +404,11 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
 const GAMMA = "https://gamma-api.polymarket.com";
 const STARTING_BALANCE = 10000;
 const STOP_LOSS_PCT = 0.18;
-const TAKE_PROFIT_MULT = 2;
+const GAIN_STOP_TIERS = [
+  {id:"75",gain:0.75,multiple:1.75,sellFrac:0.25,label:"+75%"},
+  {id:"150",gain:1.50,multiple:2.50,sellFrac:0.25,label:"+150%"},
+  {id:"300",gain:3.00,multiple:4.00,sellFrac:0.25,label:"+300%"},
+];
 const EXIT_STALE_DAYS = 14;
 const EXIT_RESOLUTION_DAYS = 2;
 const AGENTS_KEY = "pma_agents_v2";
@@ -676,25 +680,44 @@ function shouldStopLoss(pos){
   if(!pos.cost||pos.cost<=0)return false;
   return (pos.value||0)<=pos.cost*(1-STOP_LOSS_PCT);
 }
-function gainStopTarget(pos){
+function doneGainStops(pos){
+  const done=pos.gain_stops&&typeof pos.gain_stops==="object"?Object.assign({},pos.gain_stops):{};
+  if(pos.took_profit_at&&!done["75"]&&!done["150"]){
+    done["75"]=pos.took_profit_at;
+    done["150"]=pos.took_profit_at;
+  }
+  return done;
+}
+function gainStopTarget(pos,tier){
   const entry=Number(pos.entry_price);
-  if(Number.isFinite(entry)&&entry>0)return +(entry*TAKE_PROFIT_MULT).toFixed(4);
-  if(pos.shares>0&&pos.cost>0)return +((pos.cost/pos.shares)*TAKE_PROFIT_MULT).toFixed(4);
+  if(Number.isFinite(entry)&&entry>0)return +(entry*tier.multiple).toFixed(4);
+  if(pos.shares>0&&pos.cost>0)return +((pos.cost/pos.shares)*tier.multiple).toFixed(4);
   return null;
 }
-function shouldTakeProfit(pos){
-  if(pos.took_profit_at||!pos.cost||pos.cost<=0)return false;
-  const target=gainStopTarget(pos);
-  if(target!=null&&target<=1)return (pos.current_price||0)>=target;
-  return (pos.value||0)>=pos.cost*TAKE_PROFIT_MULT;
+function nextGainStop(pos){
+  if(!pos.cost||pos.cost<=0)return null;
+  const done=doneGainStops(pos);
+  return GAIN_STOP_TIERS.find(t=>!done[t.id])||null;
+}
+function triggeredGainStops(pos){
+  if(!pos.cost||pos.cost<=0)return [];
+  const done=doneGainStops(pos);
+  return GAIN_STOP_TIERS.filter(t=>{
+    if(done[t.id])return false;
+    const target=gainStopTarget(pos,t);
+    return target!=null&&target<=1&&(pos.current_price||0)>=target;
+  });
 }
 function gainStopLabel(pos){
-  if(pos.took_profit_at)return "Gain stop cashed: sold half";
-  const target=gainStopTarget(pos);
-  if(target==null)return "Gain stop: waiting for 2x";
-  if(target>1)return `Gain stop: 2x unreachable from ${pct(pos.entry_price)} entry`;
+  const done=doneGainStops(pos),doneCount=GAIN_STOP_TIERS.filter(t=>done[t.id]).length;
+  const tier=nextGainStop(pos);
+  if(!tier)return "Gain stop: 75% sold, 25% left riding";
+  const target=gainStopTarget(pos,tier);
+  const prefix=doneCount?`Gain stop: ${doneCount*25}% sold; next `:"Gain stop: ";
+  if(target==null)return `${prefix}waiting for ${tier.label}`;
+  if(target>1)return `${prefix}${tier.label} unreachable from ${pct(pos.entry_price)} entry`;
   const gap=Math.max(0,target-(pos.current_price||0));
-  return `Gain stop: sell half at ${pct(target)}${gap>0?` (${(gap*100).toFixed(1)}c away)`:" — armed"}`;
+  return `${prefix}sell 25% at ${pct(target)} (${tier.label})${gap>0?` — ${(gap*100).toFixed(1)}c away`:" — armed"}`;
 }
 function stopOutPosition(p,pos){
   const proceeds=+(pos.shares*pos.current_price).toFixed(2);
@@ -714,20 +737,26 @@ function closePosition(p,pos,reason,action="CLOSE"){
   p.history.push({date:logDay(),action,question:pos.question,side:pos.side,
     detail:`${reason} '${pos.question.slice(0,40)}' at ${pct(pos.current_price)} for ${fmtUSD(proceeds)} (P&L ${fmtUSD(pos.realized_pnl)})`});
 }
-function takeProfitPosition(p,pos){
-  const soldShares=+(pos.shares/2).toFixed(2);
+function takeProfitPosition(p,pos,tier){
+  const legacyMultiplier=pos.took_profit_at&&!pos.original_shares?2:1;
+  const originalShares=+(pos.original_shares||pos.shares*legacyMultiplier).toFixed(2);
+  const originalCost=+(pos.original_cost||pos.cost*legacyMultiplier).toFixed(2);
+  pos.original_shares=originalShares;
+  pos.original_cost=originalCost;
+  const soldShares=+Math.min(pos.shares,originalShares*tier.sellFrac).toFixed(2);
   if(soldShares<=0)return;
   const proceeds=+(soldShares*pos.current_price).toFixed(2);
-  const realizedCost=+(pos.cost/2).toFixed(2);
+  const realizedCost=+Math.min(pos.cost,originalCost*tier.sellFrac).toFixed(2);
   const realizedPnl=+(proceeds-realizedCost).toFixed(2);
   p.cash=+(p.cash+proceeds).toFixed(2);
   pos.shares=+(pos.shares-soldShares).toFixed(2);
   pos.cost=+(pos.cost-realizedCost).toFixed(2);
   pos.value=+(pos.shares*pos.current_price).toFixed(2);
   pos.unrealized_pnl=+(pos.value-pos.cost).toFixed(2);
-  pos.took_profit_at=cycleIso();
+  pos.gain_stops=doneGainStops(pos);
+  pos.gain_stops[tier.id]=cycleIso();
   p.history.push({date:logDay(),action:"GAIN",question:pos.question,side:pos.side,
-    detail:`Gain stop sold half of '${pos.question.slice(0,40)}' at ${pct(pos.current_price)} for ${fmtUSD(proceeds)} (realized ${fmtUSD(realizedPnl)})`});
+    detail:`Gain stop ${tier.label} sold 25% of '${pos.question.slice(0,40)}' at ${pct(pos.current_price)} for ${fmtUSD(proceeds)} (realized ${fmtUSD(realizedPnl)})`});
 }
 function daysHeld(pos){
   if(!pos.opened_at)return 0;
@@ -757,7 +786,7 @@ function markToMarket(p,priceMap,cfg=null,{policyExits=false}={}){
     pos.current_price=+price.toFixed(4);pos.value=+(pos.shares*price).toFixed(2);
     pos.unrealized_pnl=+(pos.value-pos.cost).toFixed(2);
     if(shouldStopLoss(pos)){stopOutPosition(p,pos);continue;}
-    if(shouldTakeProfit(pos))takeProfitPosition(p,pos);
+    for(const gainTier of triggeredGainStops(pos))takeProfitPosition(p,pos,gainTier);
     if(policyExits){
       const reason=exitReason(pos,fresh,analyzeMarket(fresh),cfg);
       if(reason){closePosition(p,pos,reason,"EXIT");continue;}
@@ -790,8 +819,8 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds){
     p.positions.push({market_id:s.market_id,question:s.question,side:s.side,shares,
       token_id:(s.side==="YES"?s.clob_yes:s.clob_no)||null,
       entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,
-      unrealized_pnl:0,conviction:s.conviction,category:s.category,opened_at:cycleIso(),url:s.url||"",
-      gain_stop_target:gainStopTarget({entry_price:entry})});
+      original_shares:shares,original_cost:cost,unrealized_pnl:0,conviction:s.conviction,category:s.category,opened_at:cycleIso(),url:s.url||"",
+      gain_stops:{}});
     p.history.push({date:logDay(),action:"OPEN",question:s.question,side:s.side,
       detail:`${decision?decision.mode+" mode — ":""}Bought ${shares} ${s.side} '${s.question.slice(0,40)}' @ ${pct(entry)} for ${fmtUSD(cost)}`});
     opened++;openedIds.push(s.market_id);
@@ -857,7 +886,7 @@ async function runWhaleAgent(p,wallet,decision){
     }else if(!held.has(pos.asset)){
       closePosition(p,pos,"Copied trader exited");
     }else{
-      if(shouldTakeProfit(pos))takeProfitPosition(p,pos);
+      for(const gainTier of triggeredGainStops(pos))takeProfitPosition(p,pos,gainTier);
       keep.push(pos);
     }
   }
@@ -874,8 +903,8 @@ async function runWhaleAgent(p,wallet,decision){
     if(cost>p.cash)continue;
     p.cash=+(p.cash-cost).toFixed(2);
     p.positions.push({asset:t.asset,token_id:t.asset,market_id:t.conditionId,question:t.title,side:t.side,category:"Copy",
-      shares,entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,unrealized_pnl:0,conviction:null,opened_at:cycleIso(),
-      gain_stop_target:gainStopTarget({entry_price:entry})});
+      shares,entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,
+      original_shares:shares,original_cost:cost,unrealized_pnl:0,conviction:null,opened_at:cycleIso(),gain_stops:{}});
     p.history.push({date:logDay(),action:"OPEN",question:t.title,side:t.side,
       detail:`Copied trade — ${shares} ${t.side} '${t.title.slice(0,36)}' @ ${pct(entry)} for ${fmtUSD(cost)}`});
   }
@@ -906,8 +935,8 @@ function runCopycat(p,leader,priceMap){
     if(cost>p.cash)continue;
     p.cash=+(p.cash-cost).toFixed(2);
     p.positions.push({market_id:lp.market_id,token_id:lp.token_id||null,question:lp.question,side:lp.side,category:lp.category,
-      shares,entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,unrealized_pnl:0,conviction:lp.conviction,opened_at:cycleIso(),
-      gain_stop_target:gainStopTarget({entry_price:entry})});
+      shares,entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,
+      original_shares:shares,original_cost:cost,unrealized_pnl:0,conviction:lp.conviction,opened_at:cycleIso(),gain_stops:{}});
     p.history.push({date:logDay(),action:"OPEN",question:lp.question,side:lp.side,
       detail:`Copied leader — ${shares} ${lp.side} '${lp.question.slice(0,36)}' @ ${pct(entry)}`});
   }
@@ -1177,7 +1206,7 @@ function renderAgentBrief(cfg,p,st){
     <div class="brief-mini"><div class="k">Style</div><div class="v">${esc(risk)}</div></div>
     <div class="brief-mini"><div class="k">Trade Rule</div><div class="v">${esc(cadence)}</div></div>
     <div class="brief-mini"><div class="k">Stop Loss</div><div class="v">${Math.round(STOP_LOSS_PCT*100)}% drawdown</div></div>
-    <div class="brief-mini"><div class="k">Gain Stop</div><div class="v">${TAKE_PROFIT_MULT}x: sell half</div></div>
+    <div class="brief-mini"><div class="k">Gain Stop</div><div class="v">Sell 25% at +75%, +150%, +300%</div></div>
     <div class="brief-mini"><div class="k">Policy Exit</div><div class="v">${esc(exitRule)}</div></div>
     <div class="brief-mini"><div class="k">Best / Worst</div><div class="v"><span class="pos-val">${esc(bw.best)}</span><br><span class="neg-val">${esc(bw.worst)}</span></div></div>`;
 }
