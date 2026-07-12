@@ -9,6 +9,8 @@ interfaces visible without moving funds or placing orders.
 - `.env.example` lists the environment variables the production app needs.
 - `/api/live` reports which live-money providers are configured or missing.
 - `/api/live` accepts order intents only as dry-runs and returns an audit event.
+- `/api/accounts` creates, logs into, and saves password-backed paper accounts
+  through Vercel Blob storage.
 - The Live Money tab shows launch checks, wallet/deposit settings, agent risk
   limits, a dry-run order console, and an audit preview.
 
@@ -27,8 +29,10 @@ provider, wallet-signing, reconciliation, and monitoring steps below are done.
      version.
 
 2. Account and wallet
-   - Real authentication.
-   - Production account database.
+   - Real authentication for live-money users.
+   - Production account database. The current backend account API is enough for
+     paper portfolios, but live money should use a real database with admin,
+     audit, and compliance tooling.
    - Password reset, sign-out, session expiry, and optional MFA path.
    - Non-custodial wallet connection or Polymarket deposit-wallet flow.
    - User-controlled permissions for each agent.

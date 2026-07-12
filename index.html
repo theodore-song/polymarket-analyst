@@ -475,7 +475,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
     <div class="paper-grid">
       <div>
         <div class="card">
-          <div class="card-h"><h3>Account</h3><span class="small muted">browser paper money</span></div>
+          <div class="card-h"><h3>Account</h3><span class="small muted">cloud paper money when password-backed</span></div>
           <div class="account-row">
             <select class="select" id="paperAccountSelect" aria-label="Paper account"></select>
             <input class="input" id="paperAccountName" placeholder="New account name" />
@@ -501,7 +501,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
             <input class="input" id="buyAgentAmount" type="number" min="1" step="25" placeholder="Amount" />
             <button class="btn" id="buyAgentBtn">Buy agent shares</button>
           </div>
-          <p class="small muted" style="margin:12px 0 0">Deposits and withdrawals are paper-cash controls. Copying an agent replaces this paper account with that agent's current cash and open positions. Buying agent shares lets users invest any paper amount in an agent's return stream.</p>
+          <p class="small muted" style="margin:12px 0 0">Deposits and withdrawals are paper-cash controls. Accounts created with a password sync through the backend so the same portfolio can load on another device. Copying an agent replaces this paper account with that agent's current cash and open positions.</p>
         </div>
         <div class="card">
           <div class="card-h"><h3>Paper account leaderboard</h3><span class="small muted">best returns</span></div>
@@ -662,6 +662,7 @@ const CHART_RANGE_KEY = "pma_chart_range_v1";
 const INVEST_KEY = "pma_invest_allocations_v1";
 const PAPER_KEY = "pma_paper_accounts_v1";
 const LIVE_KEY = "pma_live_readiness_v1";
+const PAPER_SESSION_PREFIX = "pma_cloud_session_";
 const CATEGORIES = ["All","Politics","Sports","Crypto","Economy","Pop Culture","Other"];
 const SYNC_KEYS=[AGENTS_KEY,SUG_KEY,FOCUS_KEY,VIEW_KEY,PF_SORT_KEY,CHART_RANGE_KEY,INVEST_KEY,PAPER_KEY,LIVE_KEY];
 const CAT_COLORS = {Politics:"#fb7185",Sports:"#34d399",Crypto:"#fbbf24",Economy:"#7c8cff",
@@ -718,6 +719,7 @@ const $ = (id) => document.getElementById(id);
 const fmtUSD = (n) => "$" + Number(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtPct = (n) => (n>=0?"+":"") + Number(n).toFixed(2) + "%";
 const signClass = (n) => (n>0?"pos-val":n<0?"neg-val":"");
+const paperSessionKey=(id)=>`${PAPER_SESSION_PREFIX}${id}`;
 const marketSearchUrl=(q)=>`https://polymarket.com/search?query=${encodeURIComponent(q||"")}`;
 const positionUrl=(pos)=>pos&&pos.url?pos.url:marketSearchUrl(pos&&pos.question);
 function partsInLocalTime(d=new Date()){
@@ -1913,10 +1915,50 @@ function loadPaperStore(){
 }
 function savePaperStore(store,sync=true){
   localStorage.setItem(PAPER_KEY,JSON.stringify(store));
-  if(sync)pushCloudState();
+  if(sync){pushCloudState();syncActivePaperAccount(store);}
 }
 function activePaperAccount(store=loadPaperStore()){
   return store.accounts[store.activeId]||Object.values(store.accounts)[0];
+}
+async function paperAccountRequest(payload){
+  const r=await fetch("/api/accounts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+  const d=await r.json().catch(()=>({ok:false,error:"Account service returned an invalid response"}));
+  if(!r.ok||!d.ok)throw new Error(d.error||"Paper account request failed");
+  return d;
+}
+function installCloudPaperAccount(account,token){
+  const store=loadPaperStore();
+  account.cloudBacked=true;account.passwordHash="cloud";
+  store.accounts[account.id]=account;store.activeId=account.id;
+  sessionStorage.setItem(unlockKey(account.id),"1");
+  sessionStorage.setItem(paperSessionKey(account.id),token);
+  savePaperStore(store,false);
+  return store;
+}
+async function createCloudPaperAccount(name,password){
+  const local=defaultPaperAccount(name,password);
+  local.passwordHash="cloud";local.cloudBacked=true;
+  const d=await paperAccountRequest({action:"create",name,password,account:local});
+  installCloudPaperAccount(d.account,d.session_token);
+}
+async function loginCloudPaperAccount(name,password){
+  const d=await paperAccountRequest({action:"login",name,password});
+  installCloudPaperAccount(d.account,d.session_token);
+}
+let PAPER_SYNC_TIMER=null;
+function syncActivePaperAccount(store=loadPaperStore()){
+  const acct=activePaperAccount(store);
+  if(!acct||!acct.cloudBacked)return;
+  const token=sessionStorage.getItem(paperSessionKey(acct.id));
+  if(!token)return;
+  clearTimeout(PAPER_SYNC_TIMER);
+  PAPER_SYNC_TIMER=setTimeout(async()=>{
+    try{
+      await paperAccountRequest({action:"save",account_id:acct.id,session_token:token,account:acct});
+    }catch(e){
+      toast(e.message||"Cloud paper save failed.");
+    }
+  },500);
 }
 function paperEquity(acct){
   return acct.cash+(acct.positions||[]).reduce((s,p)=>s+(p.value||p.shares*p.current_price||0),0);
@@ -2100,10 +2142,16 @@ function renderPaperTab(){
   if(buyAgentSel)buyAgentSel.innerHTML=AGENTS.map(a=>`<option value="${a.id}">${a.emoji} ${esc(a.name)}</option>`).join("");
   const lock=$("paperLockPanel");
   if(lock)lock.innerHTML=acct.passwordHash&&!isPaperUnlocked(acct)
-    ? `<div class="locked-panel"><b>Password protected.</b><div class="account-row" style="margin:8px 0 0"><input class="input" id="paperUnlockInput" type="password" placeholder="Password"><button class="btn" id="paperUnlockBtn">Unlock</button></div></div>`
-    : acct.passwordHash?`<div class="small muted" style="margin-bottom:10px">Account unlocked for this browser session.</div>`:`<div class="small muted" style="margin-bottom:10px">No password set for this paper account.</div>`;
+    ? `<div class="locked-panel"><b>${acct.cloudBacked?"Cloud paper account locked.":"Password protected."}</b><div class="account-row" style="margin:8px 0 0"><input class="input" id="paperUnlockInput" type="password" placeholder="Password"><button class="btn" id="paperUnlockBtn">${acct.cloudBacked?"Cloud log in":"Unlock"}</button></div></div>`
+    : acct.cloudBacked?`<div class="small muted" style="margin-bottom:10px">Cloud-synced paper account unlocked. Trades and portfolio history save across devices.</div>`
+    : acct.passwordHash?`<div class="small muted" style="margin-bottom:10px">Local account unlocked for this browser session.</div>`:`<div class="small muted" style="margin-bottom:10px">Local-only paper account. Add a password when creating an account to sync across devices.</div>`;
   const unlockBtn=$("paperUnlockBtn");
-  if(unlockBtn)unlockBtn.onclick=()=>{if(requirePaperUnlock(acct,$("paperUnlockInput").value)){renderPaperTab();toast("Paper account unlocked.");}};
+  if(unlockBtn)unlockBtn.onclick=async()=>{
+    if(acct.cloudBacked){
+      try{await loginCloudPaperAccount(acct.name,$("paperUnlockInput").value);renderPaperTab();toast("Cloud paper account loaded.");}
+      catch(e){toast(e.message);}
+    }else if(requirePaperUnlock(acct,$("paperUnlockInput").value)){renderPaperTab();toast("Paper account unlocked.");}
+  };
   const locked=acct.passwordHash&&!isPaperUnlocked(acct);
   if(locked){
     $("paperStats").innerHTML=`<div class="locked-panel" style="grid-column:1/-1">Log in to view this paper portfolio.</div>`;
@@ -2376,13 +2424,21 @@ $("resetBtn").addEventListener("click",()=>{
   if(!confirm("Reset all ten agents to their $10,000 starting balance?"))return;
   saveState(defaultState());localStorage.removeItem(SUG_KEY);pushCloudState(true);toast("All agents reset.");renderAll();
 });
-$("createPaperAccountBtn").addEventListener("click",()=>{
+$("createPaperAccountBtn").addEventListener("click",async()=>{
   const name=($("paperAccountName").value||"Paper Trader").trim().slice(0,40);
   const password=($("paperAccountPassword").value||"").trim();
-  const store=loadPaperStore(),acct=defaultPaperAccount(name||"Paper Trader",password);
-  store.accounts[acct.id]=acct;store.activeId=acct.id;
-  $("paperAccountName").value="";$("paperAccountPassword").value="";
-  savePaperStore(store);renderPaperTab();toast("Paper account created.");
+  try{
+    if(password){
+      await createCloudPaperAccount(name||"Paper Trader",password);
+      toast("Cloud paper account created.");
+    }else{
+      const store=loadPaperStore(),acct=defaultPaperAccount(name||"Paper Trader",password);
+      store.accounts[acct.id]=acct;store.activeId=acct.id;
+      savePaperStore(store);toast("Local paper account created.");
+    }
+    $("paperAccountName").value="";$("paperAccountPassword").value="";
+    renderPaperTab();
+  }catch(e){toast(e.message);}
 });
 $("copyAgentBtn").addEventListener("click",()=>{
   const agentId=$("copyAgentSelect").value,book=cloneAgentBook(agentId),cfg=agentById(agentId);
@@ -2400,13 +2456,25 @@ $("paperSearchBtn").addEventListener("click",()=>searchPaperMarkets());
 $("paperAllBtn").addEventListener("click",()=>{PAPER_MARKET_QUERY="";PAPER_SEARCH_RESULTS=[];loadPaperMarketPage(true);});
 $("paperMoreBtn").addEventListener("click",()=>loadPaperMarketPage(false));
 $("paperClearSearchBtn").addEventListener("click",()=>{PAPER_SEARCH_RESULTS=null;PAPER_MARKET_OFFSET=0;PAPER_MARKET_QUERY="";renderPaperTab();});
-$("paperLoginBtn").addEventListener("click",()=>{
+$("paperLoginBtn").addEventListener("click",async()=>{
   const acct=activePaperAccount();
-  if(requirePaperUnlock(acct,$("paperPasswordInput").value)){renderPaperTab();toast("Logged in.");}
+  const cloudName=($("paperAccountName").value||"").trim();
+  const topPassword=($("paperAccountPassword").value||"").trim();
+  try{
+    if(cloudName&&topPassword){
+      await loginCloudPaperAccount(cloudName,topPassword);
+      $("paperAccountName").value="";$("paperAccountPassword").value="";
+      renderPaperTab();toast("Cloud paper account loaded.");
+    }else if(acct.cloudBacked){
+      await loginCloudPaperAccount(acct.name,$("paperPasswordInput").value);
+      renderPaperTab();toast("Cloud paper account loaded.");
+    }else if(requirePaperUnlock(acct,$("paperPasswordInput").value)){renderPaperTab();toast("Logged in.");}
+  }catch(e){toast(e.message);}
 });
 $("paperSignOutBtn").addEventListener("click",()=>{
   const acct=activePaperAccount();
   sessionStorage.removeItem(unlockKey(acct.id));
+  sessionStorage.removeItem(paperSessionKey(acct.id));
   renderPaperTab();toast("Signed out of paper account.");
 });
 $("saveLiveProfileBtn").addEventListener("click",()=>{

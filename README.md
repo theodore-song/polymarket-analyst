@@ -13,6 +13,10 @@ The site fetches live Polymarket markets, generates agent suggestions, lets you
 run hourly paper cycles, and syncs the shared arena state through the Vercel API
 when `BLOB_READ_WRITE_TOKEN` is configured.
 
+Paper accounts created with a password are also saved through the backend, so a
+user can log in from another device and see the same paper portfolio, activity,
+and value history. Passwordless paper accounts remain local-only.
+
 ## Put it online (free) so you can reach it from any device
 
 Pick one — all give you a public URL:
@@ -36,6 +40,9 @@ Pick one — all give you a public URL:
 Use `.env.example` as the setup template.
 
 - `BLOB_READ_WRITE_TOKEN` enables cross-device shared state.
+- `ACCOUNT_SESSION_SECRET` signs cloud paper-account sessions. If omitted, the
+  app falls back to the existing server secret/token, but production should use
+  a dedicated value.
 - `/api/live` reports whether KYC, payments, wallet/deposit-wallet, Polymarket
   CLOB, authentication, geofencing, sanctions, audit, support, and monitoring
   providers are configured.
@@ -47,5 +54,6 @@ Use `.env.example` as the setup template.
 ## Notes
 - Paper trading only right now — no real money, nothing places real orders.
 - The analysis is a transparent heuristic, **not financial advice**.
-- The shared arena uses cloud state when configured. Individual paper accounts
-  still use local browser storage unless a backend account database is added.
+- The shared arena uses cloud state when configured. Password-backed paper
+  accounts use the backend account API; passwordless paper accounts use local
+  browser storage.
