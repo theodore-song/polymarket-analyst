@@ -69,6 +69,11 @@ h1,h2,h3,.brand-name{font-family:'Space Grotesk','Inter',sans-serif}
 .btn.primary:hover{filter:brightness(1.08)}
 .btn:disabled{opacity:.55;cursor:wait;transform:none}
 .btn.ghost{background:transparent}
+.personal-mode [data-tab="invest"],.personal-mode [data-tab="live"]{display:none!important}
+.personal-banner{display:none;margin:0 0 14px;border:1px solid rgba(251,191,36,.22);border-radius:14px;
+  padding:12px 14px;background:rgba(251,191,36,.08);color:#f8e7b0;font-size:13px}
+.personal-mode .personal-banner{display:block}
+.personal-banner b{color:#fff}
 
 /* ---------- hero ---------- */
 .hero{position:relative;border:1px solid var(--border);border-radius:22px;padding:34px 32px;margin:14px 0 22px;
@@ -331,6 +336,9 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
       <button id="resetBtn" class="btn ghost">Reset</button>
     </div>
   </nav>
+  <div class="personal-banner" id="personalBanner">
+    <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders for you.
+  </div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -663,6 +671,7 @@ const INVEST_KEY = "pma_invest_allocations_v1";
 const PAPER_KEY = "pma_paper_accounts_v1";
 const LIVE_KEY = "pma_live_readiness_v1";
 const PAPER_SESSION_PREFIX = "pma_cloud_session_";
+const PERSONAL_MODE = new URLSearchParams(location.search).get("personal") === "1";
 const CATEGORIES = ["All","Politics","Sports","Crypto","Economy","Pop Culture","Other"];
 const SYNC_KEYS=[AGENTS_KEY,SUG_KEY,FOCUS_KEY,VIEW_KEY,PF_SORT_KEY,CHART_RANGE_KEY,INVEST_KEY,PAPER_KEY,LIVE_KEY];
 const CAT_COLORS = {Politics:"#fb7185",Sports:"#34d399",Crypto:"#fbbf24",Economy:"#7c8cff",
@@ -677,6 +686,21 @@ let LIVE_BACKEND_STATUS = null;
 const catColor = (c) => CAT_COLORS[c] || CAT_COLORS.Other;
 const getFocus = () => localStorage.getItem(FOCUS_KEY) || "All";
 const setFocus = (c) => localStorage.setItem(FOCUS_KEY, c);
+
+function applyPersonalMode(){
+  if(!PERSONAL_MODE)return;
+  document.body.classList.add("personal-mode");
+  const brand=document.querySelector(".brand-name"),sub=document.querySelector(".brand-sub");
+  if(brand)brand.textContent="Personal Polymarket Arena";
+  if(sub)sub.textContent="private research · paper tracking · manual links";
+  const heroTitle=document.querySelector(".hero h1"),heroCopy=document.querySelector(".hero p");
+  if(heroTitle)heroTitle.innerHTML=`Your private agent lab for <span class="grad">manual market research</span>`;
+  if(heroCopy)heroCopy.textContent="Use the same agents, charts, paper portfolios, and Polymarket links for your own research. Nothing here pools outside money, manages investor funds, or places live orders.";
+  document.querySelectorAll(".hbadge").forEach((b,i)=>{
+    const labels=["Private research mode","Manual execution only","Cloud paper accounts","Live market links"];
+    if(labels[i])b.textContent=labels[i];
+  });
+}
 
 /* ---------- the ten competing agents ----------
    Each shares the same hourly suggestions but ranks/sizes them differently. */
@@ -2376,6 +2400,7 @@ function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;","
 const TABS=["overview","leaderboard","suggestions","portfolio","invest","paper","live","about"];
 function showTab(name){
   if(!TABS.includes(name))name="overview";
+  if(PERSONAL_MODE&&["invest","live"].includes(name))name="overview";
   document.querySelectorAll(".tabpanel").forEach(p=>p.classList.toggle("active",p.dataset.tab===name));
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.tab===name));
   if(location.hash.slice(1)!==name)history.replaceState(null,"","#"+name);
@@ -2385,6 +2410,7 @@ document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>show
 window.addEventListener("hashchange",()=>showTab(location.hash.slice(1)));
 
 /* ---------- Wire up ---------- */
+applyPersonalMode();
 $("runBtn").addEventListener("click",async()=>{
   const btn=$("runBtn");btn.disabled=true;btn.textContent="Running…";
   try{const r=await runDailyCycle();const b=board();toast(r.skipped?`Already ran this hour · ${b[0].c.emoji} ${b[0].c.name} leads`:`Cycle done · ${r.suggestions} ideas · ${b[0].c.emoji} ${b[0].c.name} leads`);renderAll();}

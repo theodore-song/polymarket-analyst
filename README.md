@@ -9,6 +9,10 @@ Open the deployed site:
 
 https://polymarket-site-eta.vercel.app
 
+Personal research mode:
+
+https://polymarket-site-eta.vercel.app/personal.html
+
 The site fetches live Polymarket markets, generates agent suggestions, lets you
 run hourly paper cycles, and syncs the shared arena state through the Vercel API
 when `BLOB_READ_WRITE_TOKEN` is configured.
@@ -53,6 +57,8 @@ Use `.env.example` as the setup template.
 
 ## Notes
 - Paper trading only right now — no real money, nothing places real orders.
+- Personal research mode hides investor/live-money tabs and is for your own
+  analysis plus manual execution links only.
 - The analysis is a transparent heuristic, **not financial advice**.
 - The shared arena uses cloud state when configured. Password-backed paper
   accounts use the backend account API; passwordless paper accounts use local
