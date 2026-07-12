@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Polymarket Analyst — 10 AI Agents Compete to Trade Prediction Markets</title>
-<meta name="description" content="Daily AI analysis of Polymarket with ten competing autonomous paper-trading agents, whale-copy portfolios, and a live leaderboard. Runs entirely in your browser." />
+<meta name="description" content="Hourly AI analysis of Polymarket with ten competing autonomous paper-trading agents, whale-copy portfolios, and a live leaderboard." />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
@@ -334,13 +334,13 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
       <div class="card-h"><h3>Returns — all agents</h3><div><span class="small muted">$10,000 start each</span><div class="rangebar" data-chart-ranges></div></div></div>
       <div class="chart-wrap"><svg id="chart2" viewBox="0 0 960 320" preserveAspectRatio="xMidYMid meet"></svg></div>
       <div class="legend" id="comboLegend2"></div>
-      <div class="small muted" style="margin-top:10px">Past week is a backtest. After that, each manual or daily run adds another return snapshot for every agent.</div>
+      <div class="small muted" style="margin-top:10px">Past week is a backtest. After that, each hourly run adds another return snapshot for every agent.</div>
     </div>
   </section>
 
   <!-- ============ SUGGESTIONS ============ -->
   <section class="tabpanel" data-tab="suggestions">
-    <div class="section-title">💡 Daily Suggestions <span class="small muted" id="sugDate" style="font-weight:400"></span></div>
+    <div class="section-title">💡 Hourly Suggestions <span class="small muted" id="sugDate" style="font-weight:400"></span></div>
     <div class="card">
       <div class="filterbar" id="filterbar"></div>
       <div class="small muted" id="focusNote" style="margin-top:6px"></div>
@@ -365,7 +365,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
       <div class="card"><div class="card-h"><h3>Activity Log</h3></div><div id="history"></div></div>
     </div>
     <div class="card">
-      <div class="card-h"><h3>Daily Agent Reports</h3><span class="small muted" id="reportDate"></span></div>
+      <div class="card-h"><h3>Hourly Agent Reports</h3><span class="small muted" id="reportDate"></span></div>
       <div class="report-grid" id="agentReports"></div>
     </div>
   </section>
@@ -373,10 +373,10 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <!-- ============ ABOUT ============ -->
   <section class="tabpanel" data-tab="about">
     <div class="section-title">ℹ️ The competition</div>
-    <p class="muted" style="margin-top:-6px;max-width:820px">Every agent starts with <b>$10,000</b> in paper money. The five in-house strategies trade the same daily suggestions their own way; the <b>Copycat</b> shadows whichever strategy is winning; and the four leading-account copy agents mirror live positions from high-profit real traders on Polymarket (auto-discovered from its public leaderboard). All mark to market daily and climb — or sink — the board.</p>
+    <p class="muted" style="margin-top:-6px;max-width:820px">Every agent starts with <b>$10,000</b> in paper money. The five in-house strategies trade the same hourly suggestions their own way; the <b>Copycat</b> shadows whichever strategy is winning; and the four leading-account copy agents mirror live positions from high-profit real traders on Polymarket (auto-discovered from its public leaderboard). All mark to market hourly and climb — or sink — the board.</p>
     <div class="about-grid" id="aboutAgents"></div>
     <div class="card" style="margin-top:16px">
-      <div class="card-h"><h3>The daily cycle</h3></div>
+      <div class="card-h"><h3>The hourly cycle</h3></div>
       <ol class="steps">
         <li><b>Fetch</b> — page through hundreds of live markets and tag each by category.</li>
         <li><b>Score</b> — rank every market 0–100 by conviction and estimate its edge vs. a fair-value model.</li>
@@ -433,7 +433,7 @@ const getFocus = () => localStorage.getItem(FOCUS_KEY) || "All";
 const setFocus = (c) => localStorage.setItem(FOCUS_KEY, c);
 
 /* ---------- the ten competing agents ----------
-   Each shares the same daily suggestions but ranks/sizes them differently. */
+   Each shares the same hourly suggestions but ranks/sizes them differently. */
 const AGENTS = [
   {id:"value", name:"Value Hunter", emoji:"🎯", color:"#7c8cff", kind:"strategy",
    blurb:"Looks for the widest gap between the model's fair value and the current market price. It prefers trades where the crowd appears too pessimistic or too optimistic, then sizes positions moderately so one bad read does not dominate the portfolio.",
@@ -473,7 +473,17 @@ const $ = (id) => document.getElementById(id);
 const fmtUSD = (n) => "$" + Number(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtPct = (n) => (n>=0?"+":"") + Number(n).toFixed(2) + "%";
 const signClass = (n) => (n>0?"pos-val":n<0?"neg-val":"");
-const todayStr = () => new Date().toISOString().slice(0,10);
+function partsInLocalTime(d=new Date()){
+  const parts=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Toronto",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",hourCycle:"h23"}).formatToParts(d);
+  return Object.fromEntries(parts.map(p=>[p.type,p.value]));
+}
+const todayStr = () => {const p=partsInLocalTime();return `${p.year}-${p.month}-${p.day}`;};
+const currentCycleHour = () => {const p=partsInLocalTime();return `${p.year}-${p.month}-${p.day}T${p.hour}`;};
+function cycleHourFromIso(iso){
+  const d=new Date(iso);
+  if(isNaN(d))return null;
+  const p=partsInLocalTime(d);return `${p.year}-${p.month}-${p.day}T${p.hour}`;
+}
 const nowIso = () => new Date().toISOString();
 const cycleIso = () => SIM_DAY ? new Date(SIM_DAY+"T12:00:00Z").toISOString() : nowIso();
 let SIM_DAY = null;                       // set during backtest so logs/snapshots use the simulated date
@@ -595,7 +605,7 @@ function generateSuggestions(markets,total=SUGGESTION_TOTAL,perCategory=SUGGESTI
 
 /* ---------- Multi-agent store ---------- */
 function defaultPortfolio(){return {cash:STARTING_BALANCE,starting_balance:STARTING_BALANCE,positions:[],closed:[],history:[],snapshots:[],stopped:{},lastDecision:null};}
-function defaultState(){const agents={};AGENTS.forEach(a=>agents[a.id]=defaultPortfolio());return {date:null,last_run:null,agents,whales:{},copycatLeader:null,seeded:false};}
+function defaultState(){const agents={};AGENTS.forEach(a=>agents[a.id]=defaultPortfolio());return {date:null,last_run:null,last_cycle_hour:null,agents,whales:{},copycatLeader:null,seeded:false};}
 function loadState(){
   let st; try{st=JSON.parse(localStorage.getItem(AGENTS_KEY));}catch(e){st=null;}
   if(!st||!st.agents)st=defaultState();
@@ -605,6 +615,7 @@ function loadState(){
     if(!("lastDecision" in st.agents[a.id]))st.agents[a.id].lastDecision=null;
   });
   if(!st.whales)st.whales={};
+  if(!st.last_cycle_hour&&st.last_run)st.last_cycle_hour=cycleHourFromIso(st.last_run);
   return st;
 }
 function saveState(st){localStorage.setItem(AGENTS_KEY,JSON.stringify(st));}
@@ -616,19 +627,16 @@ function stateFromSyncItems(items){
   try{return items&&items[AGENTS_KEY]?JSON.parse(items[AGENTS_KEY]):null;}
   catch(e){return null;}
 }
-function stateDepth(st){
-  if(!st||!st.seeded||!st.agents)return 0;
-  return Object.values(st.agents).reduce((n,a)=>n+(a.history?a.history.length:0)+(a.reports?a.reports.length:0)+(a.positions?a.positions.length:0),0);
-}
-function cloudShouldReplaceLocal(cloud,local){
-  const remote=stateFromSyncItems(cloud&&cloud.items);
-  if(!remote)return false;
-  const remoteDepth=stateDepth(remote), localDepth=stateDepth(local);
-  return remoteDepth>localDepth;
-}
-async function pushCloudState(){
+async function pushCloudState(force=false){
   try{
-    const r=await fetch("/api/state",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({items:collectSyncItems()})});
+    const r=await fetch("/api/state",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({items:collectSyncItems(),force})});
+    if(r.status===409){
+      const d=await r.json().catch(()=>null);
+      if(d&&d.state&&d.state.items)applySyncItems(d.state.items);
+      else await loadAuthoritativeCloudState();
+      toast("This hour already ran on another device. Loaded the shared result.");
+      return false;
+    }
     if(!r.ok)throw new Error("cloud sync unavailable");
     return true;
   }catch(e){return false;}
@@ -641,6 +649,14 @@ async function pullCloudState(){
     if(d&&d.state)return d.state;
   }catch(e){}
   return null;
+}
+async function loadAuthoritativeCloudState(){
+  const cloudState=await pullCloudState();
+  if(cloudState&&cloudState.items&&stateFromSyncItems(cloudState.items)){
+    applySyncItems(cloudState.items);
+    return true;
+  }
+  return false;
 }
 
 /* ---------- Agent mechanics ---------- */
@@ -1060,16 +1076,23 @@ async function backtestWeek(st){
     const leaderId=AGENTS.filter(a=>a.kind==="strategy").map(a=>({id:a.id,eq:equity(st.agents[a.id])})).sort((x,y)=>y.eq-x.eq)[0].id;
     st.copycatLeader=leaderId;
     runCopycat(st.agents.copycat,st.agents[leaderId],priceMap);
-    if(day===dates[dates.length-1])saveSuggestions(sugs); // today's live-ish board for the Suggestions tab
+    if(day===dates[dates.length-1])saveSuggestions(sugs); // latest live-ish board for the Suggestions tab
   }
   SIM_DAY=null;
   await backtestWhales(st,dates);
-  // establish today's actual whale paper positions so live tracking continues
+  // establish current whale paper positions so live tracking continues
   for(const a of AGENTS.filter(x=>x.kind==="whale")){const wh=st.whales[a.id];if(wh){try{await runWhaleAgent(st.agents[a.id],wh.wallet);}catch(e){}}}
   st.seeded=true;
 }
 
 async function runDailyCycle(){
+  await loadAuthoritativeCloudState();
+  let st=loadState();
+  const hour=currentCycleHour();
+  if(st.seeded&&st.last_cycle_hour===hour){
+    setStatus("up to date",false);
+    return {suggestions:(loadSuggestions().suggestions||[]).length,skipped:true,hour};
+  }
   SNAP_TS=nowIso();
   setStatus("fetching markets…",true);
   try{
@@ -1077,7 +1100,7 @@ async function runDailyCycle(){
     setStatus("analyzing…",true);
     const sugs=generateSuggestions(markets);
     saveSuggestions(sugs);
-    const st=loadState();
+    st=loadState();
     const focus=getFocus();
     // Price map for suggestion-market positions (strategy + copycat only).
     const ids=new Set();
@@ -1120,10 +1143,11 @@ async function runDailyCycle(){
       try{await runWhaleAgent(st.agents[a.id],wh.wallet,decision);}
       catch(e){recordSnapshot(st.agents[a.id]);}
     }
-    st.date=todayStr();st.last_run=SNAP_TS;
+    st.date=todayStr();st.last_run=SNAP_TS;st.last_cycle_hour=hour;
     saveState(st);
-    await pushCloudState();
+    const pushed=await pushCloudState();
     setStatus("up to date",false);
+    if(!pushed)return {suggestions:(loadSuggestions().suggestions||[]).length,skipped:true,hour};
     return {suggestions:sugs.length};
   }finally{SNAP_TS=null;}
 }
@@ -1148,7 +1172,7 @@ function renderOverview(){
     {ic:lead.c.emoji,label:"Leader",value:lead.c.name.split(" ")[0]},
     {ic:"📈",label:"Leader return",value:fmtPct(lead.ret),cls:signClass(lead.pnl)},
     {ic:"⚖️",label:"Avg return",value:fmtPct(avgRet),cls:signClass(avgRet)},
-    {ic:"💡",label:"Ideas today",value:sugCount},
+    {ic:"💡",label:"Ideas this hour",value:sugCount},
     {ic:"🏆",label:"Agents",value:AGENTS.length},
   ];
   $("stats").innerHTML=stats.map(s=>`<div class="stat"><div class="ic">${s.ic}</div><div class="label">${s.label}</div><div class="value ${s.cls||""}">${s.value}</div></div>`).join("");
@@ -1378,7 +1402,7 @@ function renderSuggestions(){
   $("focusNote").textContent=focus==="All"
     ? "All five agents trade from this wider pool — each now tries fresh markets first to reduce overlap."
     : `Filtered to ${focus} — agents will only open new ${focus} positions while this is selected.`;
-  if(!filtered.length){root.innerHTML=`<div class="empty" style="grid-column:1/-1">No ${esc(focus)} suggestions in today's batch.</div>`;return;}
+  if(!filtered.length){root.innerHTML=`<div class="empty" style="grid-column:1/-1">No ${esc(focus)} suggestions in this hourly batch.</div>`;return;}
   root.innerHTML=filtered.map(s=>{
     const col=catColor(s.category);
     const drivers=s.drivers.map(d=>`<span class="driver">${d}</span>`).join("");
@@ -1441,7 +1465,7 @@ function agentCompetitionPlan(cfg,row,rank,leader){
   return "Plan: keep following its rulebook and use fresh market data to pressure the leaderboard.";
 }
 function reportPositionLine(p){
-  if(!p.positions.length)return "No open positions yet, so today's focus is finding entries that fit the strategy.";
+  if(!p.positions.length)return "No open positions yet, so this hour's focus is finding entries that fit the strategy.";
   const best=[...p.positions].sort((a,b)=>(b.unrealized_pnl||0)-(a.unrealized_pnl||0))[0];
   const worst=[...p.positions].sort((a,b)=>(a.unrealized_pnl||0)-(b.unrealized_pnl||0))[0];
   if(best===worst)return `Current focus: ${best.question.slice(0,58)}${best.question.length>58?"...":""}, marked ${best.unrealized_pnl>=0?"+":""}${fmtUSD(best.unrealized_pnl||0)}.`;
@@ -1472,7 +1496,7 @@ function renderPositions(positions){
     const isBacktesting=!st.seeded&&(($("statusText")&&$("statusText").textContent)||"").includes("backtest");
     root.innerHTML=isBacktesting
       ? `<div class="loading-empty"><div class="loading-ring"></div><div><b>Building agent portfolios...</b><div class="empty-copy">The app is replaying the past week, finding top traders, and marking positions to real Polymarket prices. This fills in automatically when the backtest finishes.</div></div></div>`
-      : `<div class="empty">No open positions yet. Run a cycle to let this agent shop today's suggestions.</div>`;
+      : `<div class="empty">No open positions yet. Run a cycle to let this agent shop this hour's suggestions.</div>`;
     return;
   }
   const sort=localStorage.getItem(PF_SORT_KEY)||"pnl_desc";
@@ -1518,7 +1542,7 @@ window.addEventListener("hashchange",()=>showTab(location.hash.slice(1)));
 /* ---------- Wire up ---------- */
 $("runBtn").addEventListener("click",async()=>{
   const btn=$("runBtn");btn.disabled=true;btn.textContent="Running…";
-  try{const r=await runDailyCycle();const b=board();toast(`Cycle done · ${r.suggestions} ideas · ${b[0].c.emoji} ${b[0].c.name} leads`);renderAll();}
+  try{const r=await runDailyCycle();const b=board();toast(r.skipped?`Already ran this hour · ${b[0].c.emoji} ${b[0].c.name} leads`:`Cycle done · ${r.suggestions} ideas · ${b[0].c.emoji} ${b[0].c.name} leads`);renderAll();}
   catch(e){toast("Run failed: "+e.message);setStatus("error",false);}
   btn.disabled=false;btn.textContent="Run cycle";
 });
@@ -1546,24 +1570,22 @@ $("importStateBtn").addEventListener("click",async()=>{
     if(!payload||payload.version!==1||!payload.items)throw new Error("Bad sync code");
     if(!confirm("Import this sync state and replace this device's current local portfolio data?"))return;
     applySyncItems(payload.items);
-    await pushCloudState();
+    await pushCloudState(true);
     toast("Sync imported. This device now matches the copied state.");
     renderAll();showTab(location.hash.slice(1)||"portfolio");
   }catch(e){toast("Import failed. Check that the sync code was copied fully.");}
 });
 $("resetBtn").addEventListener("click",()=>{
   if(!confirm("Reset all ten agents to their $10,000 starting balance?"))return;
-  saveState(defaultState());localStorage.removeItem(SUG_KEY);pushCloudState();toast("All agents reset.");renderAll();
+  saveState(defaultState());localStorage.removeItem(SUG_KEY);pushCloudState(true);toast("All agents reset.");renderAll();
 });
 
-/* On load: first visit runs a 7-day backtest; afterwards a live daily update. */
+/* On load: first visit runs a 7-day backtest; afterwards the shared portfolio advances once per hour. */
 (async function init(){
   showTab(location.hash.slice(1)||"overview");
-  const cloudState=await pullCloudState();
+  const cloudLoaded=await loadAuthoritativeCloudState();
   let st=loadState();
-  if(cloudShouldReplaceLocal(cloudState,st)){
-    applySyncItems(cloudState.items);
-    st=loadState();
+  if(cloudLoaded){
     toast("Cloud state loaded for this device.");
   }else if(st.seeded){
     pushCloudState();
@@ -1572,13 +1594,13 @@ $("resetBtn").addEventListener("click",()=>{
   const btn=$("runBtn");
   if(!st.seeded){
     btn.disabled=true;btn.textContent="Backtesting…";
-    try{await backtestWeek(st);st.date=todayStr();st.last_run=nowIso();saveState(st);await pushCloudState();renderAll();
+    try{await backtestWeek(st);st.date=todayStr();st.last_run=nowIso();st.last_cycle_hour=currentCycleHour();saveState(st);await pushCloudState();renderAll();
       toast("7-day backtest complete — live tracking begins today.");}
     catch(e){setStatus("backtest error — click Run",false);}
     btn.disabled=false;btn.textContent="Run cycle";
-  }else if(st.date!==todayStr()){
+  }else if(st.last_cycle_hour!==currentCycleHour()){
     btn.disabled=true;btn.textContent="Running…";
-    try{await runDailyCycle();renderAll();toast("Daily update ready.");}
+    try{await runDailyCycle();renderAll();toast("Hourly update ready.");}
     catch(e){setStatus("error — click Run to retry",false);}
     btn.disabled=false;btn.textContent="Run cycle";
   }else{setStatus("up to date",false);}
