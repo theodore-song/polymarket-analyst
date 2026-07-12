@@ -320,6 +320,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
       <button class="tab" data-tab="portfolio">Portfolios</button>
       <button class="tab" data-tab="invest">Invest</button>
       <button class="tab" data-tab="paper">Paper Trade</button>
+      <button class="tab" data-tab="live">Live Money</button>
       <button class="tab" data-tab="about">About</button>
     </div>
     <div class="nav-right">
@@ -536,6 +537,52 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
     </div>
   </section>
 
+  <!-- ============ LIVE MONEY READINESS ============ -->
+  <section class="tabpanel" data-tab="live">
+    <div class="section-title">🔐 Live Money Readiness</div>
+    <div class="grid2">
+      <div class="card">
+        <div class="card-h"><h3>Launch checklist</h3><span class="small muted" id="liveReadyPct"></span></div>
+        <div id="liveChecklist"></div>
+      </div>
+      <div class="card">
+        <div class="card-h"><h3>User wallet & funds</h3><span class="small muted">simulation only</span></div>
+        <div class="account-row">
+          <input class="input" id="liveWalletAddress" placeholder="Wallet / deposit wallet address" />
+          <select class="select" id="liveJurisdiction">
+            <option value="">Jurisdiction</option><option>United States</option><option>Canada</option><option>European Union</option><option>Other</option>
+          </select>
+        </div>
+        <div class="money-row">
+          <input class="input" id="liveDepositLimit" type="number" min="0" step="100" placeholder="Max deposit" />
+          <input class="input" id="liveWithdrawReserve" type="number" min="0" step="100" placeholder="Withdrawal reserve" />
+          <button class="btn" id="saveLiveProfileBtn">Save profile</button>
+          <button class="btn primary" disabled>Real deposits locked</button>
+        </div>
+        <div class="risk-note" style="margin-top:12px">Real deposits stay locked until eligibility, wallet signing, payment rails, and legal approval are complete.</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h3>Agent permissions & risk limits</h3><span class="small muted">what a live account would allow</span></div>
+      <div id="liveAgentPermissions"></div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="card-h"><h3>Execution console</h3><span class="small muted">locked until backend exists</span></div>
+        <ol class="steps">
+          <li><b>Wallet signature</b> — user signs EIP-712 orders; the site never signs unauthorized trades.</li>
+          <li><b>CLOB router</b> — backend submits, cancels, and tracks orders through authenticated Polymarket APIs.</li>
+          <li><b>Fill sync</b> — real positions, cash, unsettled orders, and agent actions reconcile continuously.</li>
+          <li><b>Emergency controls</b> — user can pause agents, cancel orders, and withdraw available funds any time.</li>
+        </ol>
+      </div>
+      <div class="card">
+        <div class="card-h"><h3>Audit trail preview</h3><span class="small muted">required for real money</span></div>
+        <div id="liveAuditTrail"></div>
+      </div>
+    </div>
+  </section>
+
   <!-- ============ ABOUT ============ -->
   <section class="tabpanel" data-tab="about">
     <div class="section-title">ℹ️ The competition</div>
@@ -603,8 +650,9 @@ const PF_SORT_KEY = "pma_portfolio_sort_v1";
 const CHART_RANGE_KEY = "pma_chart_range_v1";
 const INVEST_KEY = "pma_invest_allocations_v1";
 const PAPER_KEY = "pma_paper_accounts_v1";
+const LIVE_KEY = "pma_live_readiness_v1";
 const CATEGORIES = ["All","Politics","Sports","Crypto","Economy","Pop Culture","Other"];
-const SYNC_KEYS=[AGENTS_KEY,SUG_KEY,FOCUS_KEY,VIEW_KEY,PF_SORT_KEY,CHART_RANGE_KEY,INVEST_KEY,PAPER_KEY];
+const SYNC_KEYS=[AGENTS_KEY,SUG_KEY,FOCUS_KEY,VIEW_KEY,PF_SORT_KEY,CHART_RANGE_KEY,INVEST_KEY,PAPER_KEY,LIVE_KEY];
 const CAT_COLORS = {Politics:"#fb7185",Sports:"#34d399",Crypto:"#fbbf24",Economy:"#7c8cff",
   "Pop Culture":"#c77dff",Other:"#94a1bb",All:"#7c8cff",Copy:"#22d3ee"};
 const DATA_API = "https://data-api.polymarket.com";
@@ -1420,7 +1468,7 @@ function board(){
 const MEDALS=["🥇","🥈","🥉"];
 
 /* ---------- Rendering ---------- */
-function renderAll(){renderOverview();renderLeaderboard();renderSuggestions();renderPortfolioTab();renderInvestTab();renderPaperTab();renderAbout();}
+function renderAll(){renderOverview();renderLeaderboard();renderSuggestions();renderPortfolioTab();renderInvestTab();renderPaperTab();renderLiveMoneyTab();renderAbout();}
 
 function renderOverview(){
   const b=board(); const lead=b[0];
@@ -2158,10 +2206,68 @@ function renderAbout(){
   root.innerHTML=AGENTS.map(a=>`<div class="feature" style="border-top:3px solid ${a.color}">
     <div class="fic">${a.emoji}</div><h4>${a.name}</h4><p>${agentBlurb(a,st)}</p></div>`).join("");
 }
+const LIVE_CHECKS=[
+  ["eligibility","KYC / eligibility provider selected"],
+  ["jurisdiction","Jurisdiction rules and geoblocking defined"],
+  ["wallet","Wallet or deposit-wallet connection designed"],
+  ["payments","Deposit and withdrawal provider selected"],
+  ["clob","Polymarket CLOB order router backend planned"],
+  ["audit","Immutable audit log for signals, orders, fills, and withdrawals"],
+  ["risk","User risk limits and emergency pause controls"],
+  ["legal","Legal review and terms approved"],
+];
+function defaultLiveState(){
+  const checks={};LIVE_CHECKS.forEach(([k])=>checks[k]=false);
+  const agents={};AGENTS.forEach(a=>agents[a.id]={enabled:false,maxAllocation:0,maxPositionPct:10,autoTrade:false,manualApprove:true});
+  return {checks,walletAddress:"",jurisdiction:"",depositLimit:0,withdrawReserve:0,agents,audit:[]};
+}
+function loadLiveState(){
+  let s;try{s=JSON.parse(localStorage.getItem(LIVE_KEY));}catch(e){s=null;}
+  if(!s||!s.checks)s=defaultLiveState();
+  LIVE_CHECKS.forEach(([k])=>{if(!(k in s.checks))s.checks[k]=false;});
+  if(!s.agents)s.agents={};
+  AGENTS.forEach(a=>{if(!s.agents[a.id])s.agents[a.id]={enabled:false,maxAllocation:0,maxPositionPct:10,autoTrade:false,manualApprove:true};});
+  if(!s.audit)s.audit=[];
+  return s;
+}
+function saveLiveState(s,detail){
+  if(detail)s.audit.push({at:nowIso(),detail});
+  s.audit=s.audit.slice(-80);
+  localStorage.setItem(LIVE_KEY,JSON.stringify(s));
+  pushCloudState();
+}
+function renderLiveMoneyTab(){
+  const root=$("liveChecklist");if(!root)return;
+  const s=loadLiveState(),done=LIVE_CHECKS.filter(([k])=>s.checks[k]).length;
+  $("liveReadyPct").textContent=`${done}/${LIVE_CHECKS.length} ready`;
+  root.innerHTML=LIVE_CHECKS.map(([k,label])=>`<label class="trade-card" style="display:flex;gap:10px;align-items:center">
+    <input type="checkbox" data-live-check="${k}" ${s.checks[k]?"checked":""}> <span>${esc(label)}</span>
+  </label>`).join("");
+  $("liveWalletAddress").value=s.walletAddress||"";
+  $("liveJurisdiction").value=s.jurisdiction||"";
+  $("liveDepositLimit").value=s.depositLimit||"";
+  $("liveWithdrawReserve").value=s.withdrawReserve||"";
+  $("liveAgentPermissions").innerHTML=AGENTS.map(a=>{const p=s.agents[a.id];
+    return `<div class="invest-agent" style="border-left:3px solid ${a.color};padding-left:12px">
+      <div class="lb-emoji">${a.emoji}</div>
+      <div><div class="invest-name">${esc(a.name)}</div><div class="invest-copy">${esc(a.blurb.slice(0,120))}${a.blurb.length>120?"...":""}</div></div>
+      <div class="trade-actions">
+        <label class="small muted"><input type="checkbox" data-live-agent="${a.id}" data-field="enabled" ${p.enabled?"checked":""}> enabled</label>
+        <label class="small muted"><input type="checkbox" data-live-agent="${a.id}" data-field="autoTrade" ${p.autoTrade?"checked":""}> auto</label>
+        <input class="input" type="number" min="0" step="100" value="${p.maxAllocation||""}" placeholder="Max $" data-live-agent="${a.id}" data-field="maxAllocation">
+        <input class="input" type="number" min="1" max="100" step="1" value="${p.maxPositionPct||10}" placeholder="Max %" data-live-agent="${a.id}" data-field="maxPositionPct">
+      </div>
+    </div>`;
+  }).join("");
+  const audit=s.audit.slice(-10).reverse();
+  $("liveAuditTrail").innerHTML=audit.length?audit.map(x=>`<div class="log-item"><span class="log-date">${new Date(x.at).toLocaleString()}</span> — ${esc(x.detail)}</div>`).join(""):`<div class="empty">No readiness changes logged yet.</div>`;
+  document.querySelectorAll("[data-live-check]").forEach(el=>el.onchange=()=>{const next=loadLiveState();next.checks[el.dataset.liveCheck]=el.checked;saveLiveState(next,`${el.checked?"Completed":"Reopened"}: ${LIVE_CHECKS.find(([k])=>k===el.dataset.liveCheck)[1]}`);renderLiveMoneyTab();});
+  document.querySelectorAll("[data-live-agent]").forEach(el=>el.onchange=()=>{const next=loadLiveState(),p=next.agents[el.dataset.liveAgent],field=el.dataset.field;p[field]=el.type==="checkbox"?el.checked:Number(el.value||0);saveLiveState(next,`Updated ${agentById(el.dataset.liveAgent).name} permission: ${field}`);renderLiveMoneyTab();});
+}
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 
 /* ---------- Tab routing ---------- */
-const TABS=["overview","leaderboard","suggestions","portfolio","invest","paper","about"];
+const TABS=["overview","leaderboard","suggestions","portfolio","invest","paper","live","about"];
 function showTab(name){
   if(!TABS.includes(name))name="overview";
   document.querySelectorAll(".tabpanel").forEach(p=>p.classList.toggle("active",p.dataset.tab===name));
@@ -2244,6 +2350,15 @@ $("paperSignOutBtn").addEventListener("click",()=>{
   const acct=activePaperAccount();
   sessionStorage.removeItem(unlockKey(acct.id));
   renderPaperTab();toast("Signed out of paper account.");
+});
+$("saveLiveProfileBtn").addEventListener("click",()=>{
+  const s=loadLiveState();
+  s.walletAddress=$("liveWalletAddress").value.trim();
+  s.jurisdiction=$("liveJurisdiction").value;
+  s.depositLimit=Number($("liveDepositLimit").value||0);
+  s.withdrawReserve=Number($("liveWithdrawReserve").value||0);
+  saveLiveState(s,"Updated live-money wallet/funds profile");
+  renderLiveMoneyTab();toast("Live-money readiness profile saved.");
 });
 window.addEventListener("focus",()=>refreshFromCloudAndRender(true));
 document.addEventListener("visibilitychange",()=>{
