@@ -228,6 +228,9 @@ a.market-title:hover{color:#fff;text-decoration:underline;text-decoration-color:
   .chart-wrap{width:100%;margin-top:8px}
   .legend{grid-template-columns:1fr}
   .agent-brief{grid-template-columns:1fr}
+  .invest-grid{grid-template-columns:1fr}
+  .invest-agent{grid-template-columns:auto 1fr}
+  .invest-agent input{grid-column:1 / -1;width:100%}
   .pos{align-items:flex-start;gap:12px}
   .pos .pq{max-width:none}
   .right{min-width:92px}
@@ -243,6 +246,23 @@ a.market-title:hover{color:#fff;text-decoration:underline;text-decoration-color:
 .steps li{position:relative;padding:0 0 16px 44px;font-size:14px;color:#cdd6e8}
 .steps li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:-2px;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-weight:700;font-size:13px;color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2))}
 .disclaimer{border:1px solid rgba(251,191,36,.3);background:rgba(251,191,36,.07);border-radius:14px;padding:16px 18px;font-size:13px;color:#e6dcc2;margin-top:8px}
+.invest-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:18px}
+.invest-agent{display:grid;grid-template-columns:auto 1fr auto;gap:13px;align-items:center;padding:14px 0;border-bottom:1px solid var(--border)}
+.invest-agent:last-child{border-bottom:none}
+.invest-agent input{width:112px;border:1px solid var(--border);border-radius:9px;background:rgba(255,255,255,.05);color:var(--text);font:700 13px 'Inter',sans-serif;padding:8px 10px}
+.invest-agent input:focus{outline:1px solid var(--accent)}
+.invest-name{font-family:'Space Grotesk';font-weight:700}
+.invest-copy{color:var(--muted);font-size:12.5px;margin-top:2px}
+.invest-total{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:14px}
+.invest-num{background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:14px;padding:14px}
+.invest-num .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+.invest-num .v{font-family:'Space Grotesk';font-size:24px;font-weight:700;margin-top:3px}
+.checklist{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.checklist li{display:flex;gap:9px;color:#cdd6e8;font-size:13.5px}
+.checklist li::before{content:"";width:9px;height:9px;border-radius:50%;margin-top:6px;background:var(--accent);box-shadow:0 0 0 4px rgba(124,140,255,.12);flex:0 0 auto}
+.exposure-row{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px}
+.exposure-row:last-child{border-bottom:none}
+.risk-note{border:1px solid rgba(251,113,133,.28);background:rgba(251,113,133,.08);border-radius:14px;padding:14px 16px;font-size:13px;color:#f4c6cf}
 
 /* ---------- misc ---------- */
 .toast{position:fixed;bottom:24px;right:24px;z-index:100;background:rgba(18,24,40,.92);border:1px solid var(--accent);padding:13px 19px;border-radius:13px;font-size:14px;opacity:0;transform:translateY(12px);transition:.28s;pointer-events:none;max-width:360px;backdrop-filter:blur(12px);box-shadow:var(--shadow)}
@@ -277,6 +297,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
       <button class="tab" data-tab="leaderboard">Leaderboard</button>
       <button class="tab" data-tab="suggestions">Suggestions</button>
       <button class="tab" data-tab="portfolio">Portfolios</button>
+      <button class="tab" data-tab="invest">Invest</button>
       <button class="tab" data-tab="about">About</button>
     </div>
     <div class="nav-right">
@@ -370,6 +391,50 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
     </div>
   </section>
 
+  <!-- ============ INVEST ============ -->
+  <section class="tabpanel" data-tab="invest">
+    <div class="section-title">💸 Invest in Agents</div>
+    <div class="invest-grid">
+      <div class="card">
+        <div class="card-h"><h3>Allocation draft</h3><span class="small muted">planning only</span></div>
+        <div class="invest-total" id="investTotals"></div>
+        <div id="investAgents"></div>
+      </div>
+      <div>
+        <div class="card">
+          <div class="card-h"><h3>How real money should work</h3></div>
+          <ol class="steps">
+            <li><b>User owns funds</b> — connect a wallet or regulated brokerage account; the site should not custody deposits directly.</li>
+            <li><b>Consent per agent</b> — users choose which agents can trade and the maximum amount each may control.</li>
+            <li><b>Execution layer</b> — agent signals become signed user orders through Polymarket's trading flow or a compliant partner.</li>
+            <li><b>Risk controls</b> — stop-loss, gain-stop, exposure caps, market exclusions, and emergency pause stay visible before any order is sent.</li>
+          </ol>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3>Compliance checklist</h3></div>
+          <ul class="checklist">
+            <li>Eligibility, location, age, KYC, and sanctions screening before real trading.</li>
+            <li>Clear disclosure that prediction markets are risky and users can lose the full amount committed.</li>
+            <li>No pooled customer funds unless handled by a properly regulated structure.</li>
+            <li>Audit logs for every signal, user approval, order, fill, stop, and withdrawal.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3>Execution status</h3><span class="small muted">not enabled</span></div>
+          <p class="muted" style="margin-top:0">Real orders require user-signed trading credentials and an eligible account. The current site only creates an allocation draft.</p>
+          <div class="card-tools">
+            <a class="btn ghost" href="https://docs.polymarket.com/trading/overview" target="_blank" rel="noopener">Trading docs</a>
+            <a class="btn ghost" href="https://polymarket.com/terms-of-use" target="_blank" rel="noopener">Terms</a>
+            <button class="btn primary" disabled>Wallet trading locked</button>
+          </div>
+        </div>
+        <div class="risk-note">
+          <b>Important:</b> this site still does not move money or place orders. This tab is the bridge design: it lets people plan allocations and shows the safe path toward wallet-based or regulated real-money execution.
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ============ ABOUT ============ -->
   <section class="tabpanel" data-tab="about">
     <div class="section-title">ℹ️ The competition</div>
@@ -421,8 +486,9 @@ const FOCUS_KEY = "pma_focus_v1";
 const VIEW_KEY = "pma_view_v1";
 const PF_SORT_KEY = "pma_portfolio_sort_v1";
 const CHART_RANGE_KEY = "pma_chart_range_v1";
+const INVEST_KEY = "pma_invest_allocations_v1";
 const CATEGORIES = ["All","Politics","Sports","Crypto","Economy","Pop Culture","Other"];
-const SYNC_KEYS=[AGENTS_KEY,SUG_KEY,FOCUS_KEY,VIEW_KEY,PF_SORT_KEY,CHART_RANGE_KEY];
+const SYNC_KEYS=[AGENTS_KEY,SUG_KEY,FOCUS_KEY,VIEW_KEY,PF_SORT_KEY,CHART_RANGE_KEY,INVEST_KEY];
 const CAT_COLORS = {Politics:"#fb7185",Sports:"#34d399",Crypto:"#fbbf24",Economy:"#7c8cff",
   "Pop Culture":"#c77dff",Other:"#94a1bb",All:"#7c8cff",Copy:"#22d3ee"};
 const DATA_API = "https://data-api.polymarket.com";
@@ -1178,7 +1244,7 @@ function board(){
 const MEDALS=["🥇","🥈","🥉"];
 
 /* ---------- Rendering ---------- */
-function renderAll(){renderOverview();renderLeaderboard();renderSuggestions();renderPortfolioTab();renderAbout();}
+function renderAll(){renderOverview();renderLeaderboard();renderSuggestions();renderPortfolioTab();renderInvestTab();renderAbout();}
 
 function renderOverview(){
   const b=board(); const lead=b[0];
@@ -1535,6 +1601,63 @@ function renderHistory(history){
   if(!history.length){root.innerHTML=`<div class="empty">No activity yet.</div>`;return;}
   root.innerHTML=history.map(h=>`<div class="log-item"><span class="badge ${h.action}">${h.action}</span><span class="log-date">${h.date}</span> — ${esc(h.detail)}</div>`).join("");
 }
+function loadInvestAllocations(){
+  try{return JSON.parse(localStorage.getItem(INVEST_KEY))||{};}catch(e){return {};}
+}
+function saveInvestAllocations(a){
+  localStorage.setItem(INVEST_KEY,JSON.stringify(a));
+  pushCloudState();
+}
+function agentExposureSummary(cfg,p,amount){
+  const eq=Math.max(equity(p),1);
+  const open=(p.positions||[]).filter(x=>(x.value||0)>0).slice().sort((a,b)=>(b.value||0)-(a.value||0)).slice(0,3);
+  if(!amount||!open.length)return `<div class="empty">Add an amount to preview this agent's largest mapped exposures.</div>`;
+  return open.map(pos=>{
+    const mapped=amount*((pos.value||0)/eq);
+    const q=pos.url?`<a class="market-title" href="${esc(pos.url)}" target="_blank" rel="noopener">${esc(pos.question.slice(0,52))}${pos.question.length>52?"...":""}</a>`:`${esc(pos.question.slice(0,52))}${pos.question.length>52?"...":""}`;
+    return `<div class="exposure-row"><span>${q}<br><span class="muted small">${esc(pos.side)} · ${esc(pos.category||"Other")}</span></span><b>${fmtUSD(mapped)}</b></div>`;
+  }).join("");
+}
+function renderInvestTab(){
+  const root=$("investAgents"); if(!root)return;
+  const totals=$("investTotals");
+  const st=loadState(), alloc=loadInvestAllocations();
+  const rows=board().map(row=>{
+    const amount=Number(alloc[row.c.id]||0);
+    return Object.assign({},row,{amount});
+  });
+  const total=rows.reduce((s,r)=>s+(Number.isFinite(r.amount)?r.amount:0),0);
+  const chosen=rows.filter(r=>r.amount>0).length;
+  const avgReturn=chosen?rows.filter(r=>r.amount>0).reduce((s,r)=>s+r.ret*(r.amount/total),0):0;
+  if(totals)totals.innerHTML=[
+    {k:"Planned capital",v:fmtUSD(total)},
+    {k:"Agents funded",v:String(chosen)},
+    {k:"Weighted return",v:chosen?fmtPct(avgReturn):"+0.00%"},
+  ].map(x=>`<div class="invest-num"><div class="k">${x.k}</div><div class="v">${x.v}</div></div>`).join("");
+  root.innerHTML=rows.map(row=>{
+    const pct=total>0?(row.amount/total*100):0;
+    return `<div class="invest-agent" style="border-left:3px solid ${row.c.color};padding-left:12px">
+      <div class="lb-emoji">${row.c.emoji}</div>
+      <div>
+        <div class="invest-name">${row.c.name}</div>
+        <div class="invest-copy">${fmtPct(row.ret)} return · ${row.p.positions.length} open · ${pct.toFixed(1)}% of draft allocation</div>
+        <div style="margin-top:8px">${agentExposureSummary(row.c,row.p,row.amount)}</div>
+      </div>
+      <label class="small muted">Amount<br><input type="number" min="0" step="25" value="${row.amount||""}" placeholder="$0" data-invest-agent="${row.c.id}" aria-label="Allocation for ${esc(row.c.name)}"></label>
+    </div>`;
+  }).join("");
+  document.querySelectorAll("[data-invest-agent]").forEach(input=>{
+    const saveDraft=()=>{
+      const next=loadInvestAllocations();
+      const val=Math.max(0,Number(input.value||0));
+      if(val)next[input.dataset.investAgent]=val;
+      else delete next[input.dataset.investAgent];
+      localStorage.setItem(INVEST_KEY,JSON.stringify(next));
+    };
+    input.oninput=saveDraft;
+    input.onchange=()=>{saveDraft();pushCloudState();renderInvestTab();};
+  });
+}
 function renderAbout(){
   const root=$("aboutAgents");if(!root)return;
   const st=loadState();
@@ -1544,7 +1667,7 @@ function renderAbout(){
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 
 /* ---------- Tab routing ---------- */
-const TABS=["overview","leaderboard","suggestions","portfolio","about"];
+const TABS=["overview","leaderboard","suggestions","portfolio","invest","about"];
 function showTab(name){
   if(!TABS.includes(name))name="overview";
   document.querySelectorAll(".tabpanel").forEach(p=>p.classList.toggle("active",p.dataset.tab===name));
