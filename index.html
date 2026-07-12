@@ -232,6 +232,8 @@ a.market-title:hover{color:#fff;text-decoration:underline;text-decoration-color:
   .invest-agent{grid-template-columns:auto 1fr}
 .invest-agent input{grid-column:1 / -1;width:100%}
   .paper-grid{grid-template-columns:1fr}
+  .ta-grid{grid-template-columns:1fr}
+  .money-row{grid-template-columns:1fr}
   .pos{align-items:flex-start;gap:12px}
   .pos .pq{max-width:none}
   .right{min-width:92px}
@@ -276,6 +278,12 @@ a.market-title:hover{color:#fff;text-decoration:underline;text-decoration-color:
 .trade-actions .input{width:98px}
 .trade-meta{display:flex;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:11.5px}
 .exact-table{display:grid;gap:10px}
+.ta-grid{display:grid;grid-template-columns:1fr .6fr;gap:16px}
+.ta-chart{width:100%;height:auto;display:block;overflow:visible}
+.money-row{display:grid;grid-template-columns:1fr 1fr auto auto;gap:8px;margin-top:12px}
+.leader-row{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.leader-row:last-child{border-bottom:none}
+.locked-panel{border:1px solid rgba(124,140,255,.28);background:rgba(124,140,255,.08);border-radius:14px;padding:14px;margin:12px 0}
 
 /* ---------- misc ---------- */
 .toast{position:fixed;bottom:24px;right:24px;z-index:100;background:rgba(18,24,40,.92);border:1px solid var(--accent);padding:13px 19px;border-radius:13px;font-size:14px;opacity:0;transform:translateY(12px);transition:.28s;pointer-events:none;max-width:360px;backdrop-filter:blur(12px);box-shadow:var(--shadow)}
@@ -400,6 +408,13 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
       <div class="card"><div class="card-h"><h3>Activity Log</h3></div><div id="history"></div></div>
     </div>
     <div class="card">
+      <div class="card-h"><h3>Technical Analysis</h3><span class="small muted">candles, moving averages, MACD, activity</span></div>
+      <div class="ta-grid">
+        <div><svg id="agentTAChart" class="ta-chart" viewBox="0 0 960 420" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <div id="agentTAReadout"></div>
+      </div>
+    </div>
+    <div class="card">
       <div class="card-h"><h3>Hourly Agent Reports</h3><span class="small muted" id="reportDate"></span></div>
       <div class="report-grid" id="agentReports"></div>
     </div>
@@ -463,14 +478,31 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
           <div class="account-row">
             <select class="select" id="paperAccountSelect" aria-label="Paper account"></select>
             <input class="input" id="paperAccountName" placeholder="New account name" />
+            <input class="input" id="paperAccountPassword" type="password" placeholder="Password optional" />
             <button class="btn primary" id="createPaperAccountBtn">Create</button>
           </div>
+          <div id="paperLockPanel"></div>
           <div class="stats" id="paperStats"></div>
+          <div class="money-row">
+            <input class="input" id="paperMoneyAmount" type="number" min="1" step="25" placeholder="Amount" />
+            <input class="input" id="paperPasswordInput" type="password" placeholder="Password" />
+            <button class="btn" id="paperDepositBtn">Deposit</button>
+            <button class="btn ghost" id="paperWithdrawBtn">Withdraw</button>
+          </div>
           <div class="card-tools">
             <select class="select" id="copyAgentSelect" aria-label="Agent to copy"></select>
             <button class="btn" id="copyAgentBtn">Copy agent exactly</button>
           </div>
-          <p class="small muted" style="margin:12px 0 0">Copying an agent replaces this paper account with that agent's current cash and open positions. No real orders are placed.</p>
+          <div class="card-tools" style="margin-top:10px">
+            <select class="select" id="buyAgentSelect" aria-label="Agent to buy"></select>
+            <input class="input" id="buyAgentAmount" type="number" min="1" step="25" placeholder="Amount" />
+            <button class="btn" id="buyAgentBtn">Buy agent shares</button>
+          </div>
+          <p class="small muted" style="margin:12px 0 0">Deposits and withdrawals are paper-cash controls. Copying an agent replaces this paper account with that agent's current cash and open positions. Buying agent shares lets users invest any paper amount in an agent's return stream.</p>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3>Paper account leaderboard</h3><span class="small muted">best returns</span></div>
+          <div id="paperLeaderboard"></div>
         </div>
         <div class="card">
           <div class="card-h"><h3>Paper positions</h3></div>
@@ -479,7 +511,12 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
       </div>
       <div>
         <div class="card">
-          <div class="card-h"><h3>Browse Polymarket ideas</h3><span class="small muted">place paper bets</span></div>
+          <div class="card-h"><h3>Browse Polymarket</h3><span class="small muted">daily ideas or search all markets</span></div>
+          <div class="account-row">
+            <input class="input" id="paperSearchInput" placeholder="Search all Polymarket markets" />
+            <button class="btn" id="paperSearchBtn">Search</button>
+            <button class="btn ghost" id="paperClearSearchBtn">Daily ideas</button>
+          </div>
           <div class="filterbar" id="paperFilterbar"></div>
           <div class="trade-list" id="paperMarketList"></div>
         </div>
@@ -555,6 +592,7 @@ const CAT_COLORS = {Politics:"#fb7185",Sports:"#34d399",Crypto:"#fbbf24",Economy
 const DATA_API = "https://data-api.polymarket.com";
 const LB_API = "https://lb-api.polymarket.com";
 const CLOB = "https://clob.polymarket.com";
+let PAPER_SEARCH_RESULTS = null;
 const catColor = (c) => CAT_COLORS[c] || CAT_COLORS.Other;
 const getFocus = () => localStorage.getItem(FOCUS_KEY) || "All";
 const setFocus = (c) => localStorage.setItem(FOCUS_KEY, c);
@@ -1651,7 +1689,44 @@ function renderPortfolioTab(){
   }
   renderPositions(p.positions);
   renderHistory((p.history||[]).slice(-50).reverse());
+  renderAgentTechnical(viewId);
   renderAgentReports();
+}
+const avg=(arr)=>arr.length?arr.reduce((s,x)=>s+x,0)/arr.length:0;
+function ema(vals,period){
+  const k=2/(period+1),out=[];let prev=vals[0]||0;
+  vals.forEach((v,i)=>{prev=i?((v*k)+(prev*(1-k))):v;out.push(prev);});
+  return out;
+}
+function renderAgentTechnical(agentId){
+  const svg=$("agentTAChart"),readout=$("agentTAReadout");if(!svg||!readout)return;
+  const st=loadState(),cfg=agentById(agentId),p=st.agents[agentId]||defaultPortfolio();
+  const snaps=(p.snapshots||[]).filter(s=>Number.isFinite(snapTime(s))).sort((a,b)=>snapTime(a)-snapTime(b)).slice(-60);
+  if(snaps.length<2){svg.innerHTML="";readout.innerHTML=`<div class="empty">Need at least two return snapshots for technical analysis.</div>`;return;}
+  const closes=snaps.map(s=>s.equity||STARTING_BALANCE),times=snaps.map(snapTime),rets=snaps.map(s=>s.return_pct||0);
+  const ma5=closes.map((_,i)=>avg(closes.slice(Math.max(0,i-4),i+1)));
+  const ma10=closes.map((_,i)=>avg(closes.slice(Math.max(0,i-9),i+1)));
+  const macd=ema(closes,6).map((v,i)=>v-ema(closes,13)[i]),signal=ema(macd,5),hist=macd.map((v,i)=>v-signal[i]);
+  const W=960,H=420,padL=64,padR=26,padT=28,padB=40,priceH=250,macdTop=300;
+  const vals=closes.concat(ma5,ma10),mn=Math.min(...vals),mx=Math.max(...vals),span=(mx-mn)||1;
+  const x=i=>padL+(i/(snaps.length-1))*(W-padL-padR),y=v=>padT+(mx-v)/span*(priceH-padT);
+  const mMax=Math.max(...hist.map(Math.abs),1),my=v=>macdTop+48-(v/mMax)*42;
+  let inner=`<rect x="${padL}" y="${padT}" width="${W-padL-padR}" height="${priceH-padT}" rx="12" fill="rgba(255,255,255,.025)" stroke="rgba(255,255,255,.08)"/>`;
+  for(let i=0;i<5;i++){const v=mn+(span*i/4),yy=y(v);inner+=`<line x1="${padL}" x2="${W-padR}" y1="${yy}" y2="${yy}" stroke="rgba(255,255,255,.06)"/><text x="${padL-10}" y="${yy+4}" text-anchor="end" fill="rgba(224,234,255,.62)" font-size="11">${fmtUSD(v)}</text>`;}
+  const w=Math.max(3,(W-padL-padR)/snaps.length*.48);
+  closes.forEach((c,i)=>{const o=i?closes[i-1]:c,hi=Math.max(o,c)*(1+0.003),lo=Math.min(o,c)*(1-0.003),up=c>=o,col=up?getComputedStyle(document.documentElement).getPropertyValue("--green").trim():getComputedStyle(document.documentElement).getPropertyValue("--red").trim();const xx=x(i);
+    inner+=`<line x1="${xx}" x2="${xx}" y1="${y(hi)}" y2="${y(lo)}" stroke="${col}" stroke-width="1.2"/><rect x="${xx-w/2}" y="${y(Math.max(o,c))}" width="${w}" height="${Math.max(2,Math.abs(y(c)-y(o)))}" fill="${col}" opacity=".85"/>`;});
+  const path=(arr)=>arr.map((v,i)=>`${i?"L":"M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  inner+=`<path d="${path(ma5)}" fill="none" stroke="#fbbf24" stroke-width="2.4"/><path d="${path(ma10)}" fill="none" stroke="#38d2e6" stroke-width="2.4"/>`;
+  inner+=`<line x1="${padL}" x2="${W-padR}" y1="${my(0)}" y2="${my(0)}" stroke="rgba(255,255,255,.18)"/>`;
+  hist.forEach((v,i)=>{const xx=x(i),yy=my(Math.max(0,v)),hh=Math.abs(my(v)-my(0));inner+=`<rect x="${xx-w/2}" y="${v>=0?yy:my(0)}" width="${w}" height="${Math.max(1,hh)}" fill="${v>=0?"#34d399":"#fb7185"}" opacity=".7"/>`;});
+  for(const tick of chartTicks(times,4)){inner+=`<text x="${x(tick.i)}" y="${H-14}" text-anchor="middle" fill="rgba(224,234,255,.7)" font-size="11">${chartDateLabel(tick.t,true)}</text>`;}
+  inner+=`<text x="${padL}" y="18" fill="rgba(224,234,255,.7)" font-size="12">${cfg.name} equity candles · MA5 yellow · MA10 cyan · MACD bars</text>`;
+  svg.innerHTML=inner;
+  const last=closes.length-1,trend=ma5[last]>=ma10[last]?"bullish":"bearish",mom=hist[last]>=0?"positive":"negative";
+  readout.innerHTML=`<div class="invest-num"><div class="k">Trend</div><div class="v">${trend}</div></div>
+    <div class="invest-num" style="margin-top:10px"><div class="k">MACD</div><div class="v">${mom}</div></div>
+    <p class="muted">Latest return ${fmtPct(rets[last])}. MA5 is ${fmtUSD(ma5[last])}; MA10 is ${fmtUSD(ma10[last])}. Activity proxy: ${snaps[last].open_positions||0} open positions.</p>`;
 }
 function agentCompetitionPlan(cfg,row,rank,leader){
   if(rank===1)return "Plan: defend the lead, keep sizing disciplined, and let risk controls protect gains instead of forcing new trades.";
@@ -1671,6 +1746,17 @@ function reportPositionLine(p){
   if(best===worst)return `Current focus: ${best.question.slice(0,58)}${best.question.length>58?"...":""}, marked ${best.unrealized_pnl>=0?"+":""}${fmtUSD(best.unrealized_pnl||0)}.`;
   return `Best mark: ${best.question.slice(0,42)}${best.question.length>42?"...":""} (${best.unrealized_pnl>=0?"+":""}${fmtUSD(best.unrealized_pnl||0)}). Watch item: ${worst.question.slice(0,42)}${worst.question.length>42?"...":""} (${fmtUSD(worst.unrealized_pnl||0)}).`;
 }
+function dailyPerformanceExplanation(row){
+  const snaps=(row.p.snapshots||[]).slice().sort((a,b)=>snapTime(a)-snapTime(b));
+  const last=snaps[snaps.length-1],prev=snaps[snaps.length-2];
+  const delta=last&&prev?(last.return_pct||0)-(prev.return_pct||0):0;
+  const open=row.p.positions||[];
+  const best=open.slice().sort((a,b)=>(b.unrealized_pnl||0)-(a.unrealized_pnl||0))[0];
+  const worst=open.slice().sort((a,b)=>(a.unrealized_pnl||0)-(b.unrealized_pnl||0))[0];
+  if(delta>0.25)return `Why it is working today: return improved ${delta.toFixed(2)} points, led by ${best?`'${best.question.slice(0,45)}'`:"cash discipline and favorable marks"}.`;
+  if(delta<-0.25)return `Why it is struggling today: return fell ${Math.abs(delta).toFixed(2)} points, mainly from ${worst?`'${worst.question.slice(0,45)}'`:"weak marks or low conviction exposure"}.`;
+  return `Why it is steady today: return moved only ${delta.toFixed(2)} points, so the account is mostly marking positions sideways while waiting for stronger price movement.`;
+}
 function renderAgentReports(){
   const root=$("agentReports"); if(!root)return;
   const b=board(); const st=loadState(); const leader=b[0];
@@ -1684,6 +1770,7 @@ function renderAgentReports(){
       <div class="report-title"><div class="report-name">${row.c.emoji} ${row.c.name}</div><div class="report-rank">#${rank} · ${ret}</div></div>
       <p><b>Strategy:</b> ${esc(thesis)}</p>
       <p><b>Adaptation:</b> ${esc(decisionSummary(row.p))}</p>
+      <p><b>Performance:</b> ${esc(dailyPerformanceExplanation(row))}</p>
       <p><b>Status:</b> ${open} open position${open===1?"":"s"} with ${fmtUSD(row.eq)} equity. ${esc(line)}</p>
       <p><b>${esc(plan)}</b></p>
     </article>`;
@@ -1722,8 +1809,16 @@ function renderHistory(history){
   if(!history.length){root.innerHTML=`<div class="empty">No activity yet.</div>`;return;}
   root.innerHTML=history.map(h=>`<div class="log-item"><span class="badge ${h.action}">${h.action}</span><span class="log-date">${h.date}</span> — ${esc(h.detail)}</div>`).join("");
 }
-function defaultPaperAccount(name="Paper Trader"){
-  return {id:"acct_"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),name,cash:STARTING_BALANCE,starting_balance:STARTING_BALANCE,positions:[],history:[]};
+function hashPassword(s){
+  let h=2166136261;for(const ch of String(s)){h^=ch.charCodeAt(0);h=Math.imul(h,16777619);}
+  return (h>>>0).toString(16);
+}
+const unlockKey=(id)=>`pma_unlocked_${id}`;
+function isPaperUnlocked(acct){return !acct.passwordHash||sessionStorage.getItem(unlockKey(acct.id))==="1";}
+function defaultPaperAccount(name="Paper Trader",password=""){
+  const id="acct_"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+  if(password)sessionStorage.setItem(unlockKey(id),"1");
+  return {id,name,cash:STARTING_BALANCE,starting_balance:STARTING_BALANCE,positions:[],history:[],passwordHash:password?hashPassword(password):null};
 }
 function loadPaperStore(){
   let store;try{store=JSON.parse(localStorage.getItem(PAPER_KEY));}catch(e){store=null;}
@@ -1733,6 +1828,7 @@ function loadPaperStore(){
     localStorage.setItem(PAPER_KEY,JSON.stringify(store));
   }
   if(!store.accounts[store.activeId])store.activeId=Object.keys(store.accounts)[0];
+  Object.values(store.accounts).forEach(a=>{if(!a.history)a.history=[];if(!a.positions)a.positions=[];if(a.passwordHash===undefined)a.passwordHash=null;});
   return store;
 }
 function savePaperStore(store,sync=true){
@@ -1749,6 +1845,10 @@ function markPaperToMarket(acct){
   const sugs=(loadSuggestions().suggestions)||[];
   const byId={};sugs.forEach(s=>byId[s.market_id]=s);
   (acct.positions||[]).forEach(pos=>{
+    if(pos.kind==="AGENT"){
+      const st=loadState(),agent=st.agents[pos.agentId],eq=agent?equity(agent):STARTING_BALANCE;
+      pos.current_price=+eq.toFixed(2);pos.value=+(pos.units*eq).toFixed(2);pos.unrealized_pnl=+(pos.value-pos.cost).toFixed(2);return;
+    }
     const s=byId[pos.market_id];
     if(s){
       const price=pos.side==="YES"?s.yes_price:s.no_price;
@@ -1759,14 +1859,22 @@ function markPaperToMarket(acct){
     pos.unrealized_pnl=+(pos.value-pos.cost).toFixed(2);
   });
 }
+function requirePaperUnlock(acct,password){
+  if(isPaperUnlocked(acct))return true;
+  if(password&&hashPassword(password)===acct.passwordHash){sessionStorage.setItem(unlockKey(acct.id),"1");return true;}
+  toast("Unlock this paper account first.");
+  return false;
+}
 function cloneAgentBook(agentId){
   const st=loadState(),src=st.agents[agentId],cfg=agentById(agentId);
   if(!src)return null;
   return {cash:+src.cash.toFixed(2),positions:JSON.parse(JSON.stringify(src.positions||[])),
     history:[{date:logDay(),action:"COPY",detail:`Copied ${cfg.name}'s current paper book exactly.`}]};
 }
+function currentPaperMarkets(){return PAPER_SEARCH_RESULTS||(loadSuggestions().suggestions)||[];}
 function paperBuy(marketId,side,amount){
-  const store=loadPaperStore(),acct=activePaperAccount(store),s=((loadSuggestions().suggestions)||[]).find(x=>x.market_id===marketId);
+  const store=loadPaperStore(),acct=activePaperAccount(store),s=currentPaperMarkets().find(x=>x.market_id===marketId);
+  if(!requirePaperUnlock(acct,$("paperPasswordInput")&&$("paperPasswordInput").value))return;
   if(!s)return toast("Market not found in current ideas.");
   amount=Math.max(0,Math.min(Number(amount||0),acct.cash));
   if(amount<1)return toast("Enter a paper amount first.");
@@ -1779,14 +1887,45 @@ function paperBuy(marketId,side,amount){
   acct.history.push({date:logDay(),action:"OPEN",detail:`Paper bought ${shares} ${side} '${s.question.slice(0,40)}' @ ${pct(entry)} for ${fmtUSD(cost)}`});
   savePaperStore(store);renderPaperTab();toast("Paper bet placed.");
 }
+function paperBuyAgent(agentId,amount){
+  const store=loadPaperStore(),acct=activePaperAccount(store),agent=loadState().agents[agentId],cfg=agentById(agentId);
+  if(!requirePaperUnlock(acct,$("paperPasswordInput")&&$("paperPasswordInput").value))return;
+  amount=Math.max(0,Math.min(Number(amount||0),acct.cash));
+  if(!agent||amount<1)return toast("Enter a paper amount first.");
+  const eq=Math.max(1,equity(agent)),units=amount/eq;
+  acct.cash=+(acct.cash-amount).toFixed(2);
+  acct.positions.push({kind:"AGENT",agentId,question:`${cfg.name} agent shares`,side:"AGENT",shares:+units.toFixed(6),units,
+    entry_price:+eq.toFixed(2),current_price:+eq.toFixed(2),cost:+amount.toFixed(2),value:+amount.toFixed(2),unrealized_pnl:0,category:"Agent",opened_at:cycleIso(),paper:true});
+  acct.history.push({date:logDay(),action:"OPEN",detail:`Bought ${fmtUSD(amount)} of ${cfg.name}'s return stream.`});
+  savePaperStore(store);renderPaperTab();toast(`Bought ${cfg.name} shares.`);
+}
+function paperTradeFromMarket(m){
+  const a=analyzeMarket(m);
+  return a||{market_id:m.id,question:m.question,event:m.event,url:m.url,category:m.category,tags:m.tags,
+    clob_yes:(m.clob_token_ids||[])[0]||null,clob_no:(m.clob_token_ids||[])[1]||null,
+    yes_price:m.yes_price,no_price:m.no_price,side:"YES",entry_price:m.yes_price,conviction:0,
+    volume:m.volume||0,volume_24hr:m.volume_24hr||0,days_to_resolution:m.days_to_resolution,
+    rationale:"Search result: available for manual paper trading.",drivers:["manual search"]};
+}
 function paperClose(index){
   const store=loadPaperStore(),acct=activePaperAccount(store),pos=acct.positions[index];
+  if(!requirePaperUnlock(acct,$("paperPasswordInput")&&$("paperPasswordInput").value))return;
   if(!pos)return;
   const proceeds=+(pos.shares*pos.current_price).toFixed(2),realized=+(proceeds-pos.cost).toFixed(2);
   acct.cash=+(acct.cash+proceeds).toFixed(2);
   acct.history.push({date:logDay(),action:"CLOSE",detail:`Paper sold '${pos.question.slice(0,40)}' for ${fmtUSD(proceeds)} (${fmtUSD(realized)})`});
   acct.positions.splice(index,1);
   savePaperStore(store);renderPaperTab();
+}
+function paperMoveCash(kind,amount,password){
+  const store=loadPaperStore(),acct=activePaperAccount(store);
+  if(!requirePaperUnlock(acct,password))return;
+  amount=Math.max(0,Number(amount||0));if(amount<1)return toast("Enter an amount.");
+  if(kind==="withdraw"&&amount>acct.cash)return toast("Not enough paper cash.");
+  acct.cash=+(acct.cash+(kind==="deposit"?amount:-amount)).toFixed(2);
+  if(kind==="deposit")acct.starting_balance=+(acct.starting_balance+amount).toFixed(2);
+  acct.history.push({date:logDay(),action:kind==="deposit"?"DEPOSIT":"WITHDRAW",detail:`${kind==="deposit"?"Deposited":"Withdrew"} ${fmtUSD(amount)} paper cash.`});
+  savePaperStore(store);renderPaperTab();toast(kind==="deposit"?"Paper deposit added.":"Paper withdrawal complete.");
 }
 function renderExactTrades(){
   const root=$("exactTrades");if(!root)return;
@@ -1866,6 +2005,14 @@ function renderPaperTab(){
   acctSelect.onchange=()=>{store.activeId=acctSelect.value;savePaperStore(store);renderPaperTab();};
   const agentSel=$("copyAgentSelect");
   if(agentSel)agentSel.innerHTML=AGENTS.map(a=>`<option value="${a.id}">${a.emoji} ${esc(a.name)}</option>`).join("");
+  const buyAgentSel=$("buyAgentSelect");
+  if(buyAgentSel)buyAgentSel.innerHTML=AGENTS.map(a=>`<option value="${a.id}">${a.emoji} ${esc(a.name)}</option>`).join("");
+  const lock=$("paperLockPanel");
+  if(lock)lock.innerHTML=acct.passwordHash&&!isPaperUnlocked(acct)
+    ? `<div class="locked-panel"><b>Password protected.</b><div class="account-row" style="margin:8px 0 0"><input class="input" id="paperUnlockInput" type="password" placeholder="Password"><button class="btn" id="paperUnlockBtn">Unlock</button></div></div>`
+    : acct.passwordHash?`<div class="small muted" style="margin-bottom:10px">Account unlocked for this browser session.</div>`:`<div class="small muted" style="margin-bottom:10px">No password set for this paper account.</div>`;
+  const unlockBtn=$("paperUnlockBtn");
+  if(unlockBtn)unlockBtn.onclick=()=>{if(requirePaperUnlock(acct,$("paperUnlockInput").value)){renderPaperTab();toast("Paper account unlocked.");}};
   const eq=paperEquity(acct),pnl=eq-acct.starting_balance;
   $("paperStats").innerHTML=[
     {ic:"💰",label:"Equity",value:fmtUSD(eq)},
@@ -1876,29 +2023,33 @@ function renderPaperTab(){
   renderPaperPositions(acct);
   renderPaperMarkets();
   renderPaperHistory(acct);
+  renderPaperLeaderboard(store);
 }
 function renderPaperPositions(acct){
   const root=$("paperPositions");if(!root)return;
   if(!acct.positions.length){root.innerHTML=`<div class="empty">No paper positions yet. Copy an agent or place a paper bet from the market browser.</div>`;return;}
   root.innerHTML=acct.positions.map((p,i)=>{const pnl=p.unrealized_pnl||0,col=catColor(p.category);
+    const detail=p.kind==="AGENT"
+      ? `${Number(p.shares||0).toFixed(6)} agent units · entry ${fmtUSD(p.entry_price)} → ${fmtUSD(p.current_price)}`
+      : `${p.category?`<span class="cat-badge" style="background:${col}22;color:${col}">${esc(p.category)}</span> `:""}${p.shares} ${p.side} @ ${Math.round(p.entry_price*100)}¢ → ${Math.round(p.current_price*100)}¢`;
     return `<div class="pos"><div>
       <div class="pq"><a class="market-title" href="${esc(positionUrl(p))}" target="_blank" rel="noopener">${esc(p.question)}</a></div>
-      <div class="sub">${p.category?`<span class="cat-badge" style="background:${col}22;color:${col}">${esc(p.category)}</span> `:""}${p.shares} ${p.side} @ ${Math.round(p.entry_price*100)}¢ → ${Math.round(p.current_price*100)}¢</div>
-      <div class="sub"><a class="market-link" href="${esc(positionUrl(p))}" target="_blank" rel="noopener">Open market</a></div>
+      <div class="sub">${detail}</div>
+      ${p.kind==="AGENT"?"":`<div class="sub"><a class="market-link" href="${esc(positionUrl(p))}" target="_blank" rel="noopener">Open market</a></div>`}
     </div><div class="right"><div>${fmtUSD(p.value||0)}</div><div class="${signClass(pnl)}">${pnl>=0?"+":""}${fmtUSD(pnl)}</div><button class="btn ghost" data-paper-close="${i}" style="margin-top:7px">Sell</button></div></div>`;
   }).join("");
   document.querySelectorAll("[data-paper-close]").forEach(btn=>btn.onclick=()=>paperClose(Number(btn.dataset.paperClose)));
 }
 function renderPaperMarkets(){
   const root=$("paperMarketList"),filter=$("paperFilterbar");if(!root)return;
-  const all=(loadSuggestions().suggestions)||[],focus=getFocus();
+  const all=currentPaperMarkets(),focus=getFocus();
   if(filter){
     const counts={};CATEGORIES.forEach(c=>counts[c]=0);all.forEach(s=>{counts[counts[s.category]!==undefined?s.category:"Other"]++;});counts.All=all.length;
     filter.innerHTML=CATEGORIES.map(c=>`<span class="chip ${focus===c?"active":""}" data-paper-cat="${c}">${c}<span class="ct">${counts[c]||0}</span></span>`).join("");
     document.querySelectorAll("[data-paper-cat]").forEach(el=>el.onclick=()=>{setFocus(el.dataset.paperCat);renderPaperTab();});
   }
   const shown=all.filter(s=>focus==="All"||!focus||s.category===focus).slice(0,24);
-  if(!shown.length){root.innerHTML=`<div class="empty">Run a cycle to load paper-tradable Polymarket ideas.</div>`;return;}
+  if(!shown.length){root.innerHTML=`<div class="empty">Run a cycle or search all Polymarket markets to load paper-tradable ideas.</div>`;return;}
   root.innerHTML=shown.map(s=>`<div class="trade-card">
     <div class="trade-head"><div><div class="trade-title"><a class="market-title" href="${esc(s.url||marketSearchUrl(s.question))}" target="_blank" rel="noopener">${esc(s.question)}</a></div>
       <div class="trade-meta"><span>${esc(s.category)}</span><span>YES ${pct(s.yes_price)}</span><span>NO ${pct(s.no_price)}</span><span>${Math.round(s.conviction)} conviction</span></div></div>
@@ -1918,6 +2069,24 @@ function renderPaperHistory(acct){
   const root=$("paperHistory");if(!root)return;
   const hist=(acct.history||[]).slice(-40).reverse();
   root.innerHTML=hist.length?hist.map(h=>`<div class="log-item"><span class="badge ${h.action}">${h.action}</span><span class="log-date">${h.date}</span> — ${esc(h.detail)}</div>`).join(""):`<div class="empty">No paper activity yet.</div>`;
+}
+function renderPaperLeaderboard(store){
+  const root=$("paperLeaderboard");if(!root)return;
+  const rows=Object.values(store.accounts).map(a=>{markPaperToMarket(a);const eq=paperEquity(a),ret=(eq/a.starting_balance-1)*100;return {a,eq,ret};}).sort((x,y)=>y.ret-x.ret);
+  root.innerHTML=rows.map((r,i)=>`<div class="leader-row"><div><b>#${i+1} ${esc(r.a.name)}</b><div class="small muted">${r.a.positions.length} open · ${fmtUSD(r.eq)} equity</div></div><div class="${signClass(r.ret)}"><b>${fmtPct(r.ret)}</b></div></div>`).join("");
+}
+async function searchPaperMarkets(){
+  const q=($("paperSearchInput").value||"").trim();
+  if(!q)return toast("Enter a market search.");
+  setStatus("searching Polymarket...",true);
+  try{
+    const params=new URLSearchParams({closed:"false",active:"true",archived:"false",include_tag:"true",limit:"80",order:"volume24hr",ascending:"false",search:q});
+    const r=await fetch(`${GAMMA}/markets?${params}`);
+    if(!r.ok)throw new Error("search failed");
+    const raw=await r.json();
+    PAPER_SEARCH_RESULTS=raw.map(normalizeMarket).filter(Boolean).map(paperTradeFromMarket);
+    renderPaperTab();setStatus("up to date",false);
+  }catch(e){setStatus("search error",false);toast("Polymarket search failed.");}
 }
 function renderAbout(){
   const root=$("aboutAgents");if(!root)return;
@@ -1981,9 +2150,10 @@ $("resetBtn").addEventListener("click",()=>{
 });
 $("createPaperAccountBtn").addEventListener("click",()=>{
   const name=($("paperAccountName").value||"Paper Trader").trim().slice(0,40);
-  const store=loadPaperStore(),acct=defaultPaperAccount(name||"Paper Trader");
+  const password=($("paperAccountPassword").value||"").trim();
+  const store=loadPaperStore(),acct=defaultPaperAccount(name||"Paper Trader",password);
   store.accounts[acct.id]=acct;store.activeId=acct.id;
-  $("paperAccountName").value="";
+  $("paperAccountName").value="";$("paperAccountPassword").value="";
   savePaperStore(store);renderPaperTab();toast("Paper account created.");
 });
 $("copyAgentBtn").addEventListener("click",()=>{
@@ -1991,9 +2161,15 @@ $("copyAgentBtn").addEventListener("click",()=>{
   if(!book)return toast("Agent book unavailable.");
   if(!confirm(`Replace this paper account with ${cfg.name}'s current paper positions?`))return;
   const store=loadPaperStore(),acct=activePaperAccount(store);
+  if(!requirePaperUnlock(acct,$("paperPasswordInput")&&$("paperPasswordInput").value))return;
   acct.cash=book.cash;acct.positions=book.positions;acct.history=(acct.history||[]).concat(book.history);
   savePaperStore(store);renderPaperTab();showTab("paper");toast(`Copied ${cfg.name} into paper account.`);
 });
+$("paperDepositBtn").addEventListener("click",()=>paperMoveCash("deposit",$("paperMoneyAmount").value,$("paperPasswordInput").value));
+$("paperWithdrawBtn").addEventListener("click",()=>paperMoveCash("withdraw",$("paperMoneyAmount").value,$("paperPasswordInput").value));
+$("buyAgentBtn").addEventListener("click",()=>paperBuyAgent($("buyAgentSelect").value,$("buyAgentAmount").value));
+$("paperSearchBtn").addEventListener("click",()=>searchPaperMarkets());
+$("paperClearSearchBtn").addEventListener("click",()=>{PAPER_SEARCH_RESULTS=null;renderPaperTab();});
 window.addEventListener("focus",()=>refreshFromCloudAndRender(true));
 document.addEventListener("visibilitychange",()=>{
   if(!document.hidden)refreshFromCloudAndRender(true);
