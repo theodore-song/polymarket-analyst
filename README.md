@@ -37,7 +37,8 @@ Use `.env.example` as the setup template.
 
 - `BLOB_READ_WRITE_TOKEN` enables cross-device shared state.
 - `/api/live` reports whether KYC, payments, wallet/deposit-wallet, Polymarket
-  CLOB, audit, and monitoring providers are configured.
+  CLOB, authentication, geofencing, sanctions, audit, support, and monitoring
+  providers are configured.
 - `LIVE_TRADING_ENABLED` should stay `false` until legal review, provider setup,
   wallet signing, reconciliation, and dry-run testing are complete.
 - See `REAL_MONEY_ROADMAP.md` for the launch requirements before any real funds

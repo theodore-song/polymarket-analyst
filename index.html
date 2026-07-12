@@ -615,9 +615,11 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
       <ol class="steps">
         <li><b>Eligibility</b> — identity checks, location restrictions, age checks, terms acceptance, and sanctions screening.</li>
         <li><b>Wallets</b> — non-custodial wallet connection or Polymarket deposit-wallet flow so users sign orders themselves.</li>
-        <li><b>Funds</b> — compliant deposit/withdraw rails, reconciled balances, statements, tax/accounting exports, and customer support.</li>
-        <li><b>Execution</b> — order router using Polymarket CLOB authentication, signed orders, cancellations, fill tracking, and audit logs.</li>
-        <li><b>Risk controls</b> — user permissions for each agent, exposure limits, stop rules, emergency pause, and withdrawal access at all times.</li>
+        <li><b>Accounts</b> — production login, sign-out, password reset, consent records, portfolio history, and secure sessions.</li>
+        <li><b>Funds</b> — compliant deposit/withdraw rails, webhooks, reconciled balances, statements, tax/accounting exports, and customer support.</li>
+        <li><b>Execution</b> — order router using Polymarket CLOB authentication, signed orders, cancellations, fill tracking, idempotency, retries, and stale-order protection.</li>
+        <li><b>Risk controls</b> — server-side user permissions for each agent, exposure limits, stop rules, emergency pause, market blacklists, and withdrawal access at all times.</li>
+        <li><b>Operations</b> — monitoring, alerts, security review, audit retention, incident response, and rollback plan.</li>
       </ol>
     </div>
     <div class="disclaimer">⚠️ <b>Paper trading only — not financial advice.</b> Nothing here places real orders or moves money. The analysis is a transparent heuristic. Portfolios sync through the site when cloud state is available, with this browser keeping a local backup.</div>
@@ -2217,14 +2219,19 @@ function renderAbout(){
     <div class="fic">${a.emoji}</div><h4>${a.name}</h4><p>${agentBlurb(a,st)}</p></div>`).join("");
 }
 const LIVE_CHECKS=[
-  ["eligibility","KYC / eligibility provider selected"],
-  ["jurisdiction","Jurisdiction rules and geoblocking defined"],
-  ["wallet","Wallet or deposit-wallet connection designed"],
-  ["payments","Deposit and withdrawal provider selected"],
-  ["clob","Polymarket CLOB order router backend planned"],
-  ["audit","Immutable audit log for signals, orders, fills, and withdrawals"],
-  ["risk","User risk limits and emergency pause controls"],
-  ["legal","Legal review and terms approved"],
+  ["legal","Terms, privacy policy, risk disclosures, and jurisdiction policy approved"],
+  ["eligibility","KYC/KYB, age, sanctions, watchlist, and location screening active"],
+  ["market_policy","Allowed market categories, restricted events, and manipulation rules defined"],
+  ["auth","Production accounts, sessions, password reset, MFA path, and sign-out implemented"],
+  ["wallet","User-controlled wallet/deposit-wallet signing and permission revocation implemented"],
+  ["payments","Deposits, withdrawals, webhooks, failed-payment handling, and support flows implemented"],
+  ["clob","Signed order creation, CLOB submission, cancellation, retry, and fill tracking implemented"],
+  ["reconciliation","Cash, open orders, positions, fills, fees, and withdrawals reconciled continuously"],
+  ["risk","Agent allocation caps, market caps, stop rules, manual approval, and emergency pause enforced server-side"],
+  ["security","Secret management, encryption, rate limits, abuse controls, and security review completed"],
+  ["records","Append-only audit logs, customer statements, exports, and retention policy active"],
+  ["operations","Monitoring, incident response, customer support, and rollback plan ready"],
+  ["testing","Paper-to-live parity, dry-runs, test wallets, webhook tests, and edge-case QA completed"],
 ];
 function defaultLiveState(){
   const checks={};LIVE_CHECKS.forEach(([k])=>checks[k]=false);
@@ -2260,8 +2267,9 @@ function renderLiveBackendStatus(){
   const s=LIVE_BACKEND_STATUS;
   if(!s){root.innerHTML="Checking backend readiness...";return;}
   const providers=(s.providers||[]).map(p=>`<div class="leader-row"><span>${esc(p.label)}${p.expected?`<div class="small muted">${esc(p.expected)}</div>`:""}</span><b class="${p.configured?"pos-val":"neg-val"}">${p.configured?"configured":"missing"}</b></div>`).join("");
-  const next=(s.next_required||[]).slice(0,8).map(x=>`<li>${esc(x)}</li>`).join("");
-  root.innerHTML=`<b>${s.live_trading_enabled?"Live trading unlocked":"Live trading locked"}</b><div class="small muted" style="margin:6px 0">${esc(s.locked_reason||"All required backend providers are configured.")}</div>${providers}${next?`<div class="locked-panel" style="margin-top:10px"><b>Next setup items</b><ul>${next}</ul></div>`:""}<div class="small muted" style="margin-top:8px">Live execution stays disabled until every provider is configured and final approval flips LIVE_TRADING_ENABLED=true.</div>`;
+  const next=(s.next_required||[]).slice(0,12).map(x=>`<li>${esc(x)}</li>`).join("");
+  const reqs=(s.launch_requirements||[]).map(x=>`<li>${esc(x.label)}</li>`).join("");
+  root.innerHTML=`<b>${s.live_trading_enabled?"Live trading unlocked":"Live trading locked"}</b><div class="small muted" style="margin:6px 0">${esc(s.locked_reason||"All required backend providers are configured.")}</div>${providers}${next?`<div class="locked-panel" style="margin-top:10px"><b>Next setup items</b><ul>${next}</ul></div>`:""}${reqs?`<div class="locked-panel" style="margin-top:10px"><b>Full launch requirements</b><ol>${reqs}</ol></div>`:""}<div class="small muted" style="margin-top:8px">Live execution stays disabled until every provider is configured, every launch requirement is complete, and final approval flips LIVE_TRADING_ENABLED=true.</div>`;
 }
 async function dryRunLiveOrderIntent(){
   const s=loadLiveState();
