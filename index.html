@@ -472,7 +472,11 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
 
 const GAMMA = "https://gamma-api.polymarket.com";
 const STARTING_BALANCE = 10000;
-const STOP_LOSS_PCT = 0.18;
+const STOP_LOSS_TIERS = [
+  {id:"15",drawdown:0.15,sellFrac:0.33,label:"-15%"},
+  {id:"30",drawdown:0.30,sellFrac:0.33,label:"-30%"},
+  {id:"45",drawdown:0.45,sellFrac:1.00,label:"-45%"},
+];
 const GAIN_STOP_TIERS = [
   {id:"75",gain:0.75,multiple:1.75,sellFrac:0.25,label:"+75%"},
   {id:"150",gain:1.50,multiple:2.50,sellFrac:0.25,label:"+150%"},
@@ -777,9 +781,23 @@ function rememberStop(p,pos){
   const key=stopKey(pos);
   if(key)p.stopped[key]=logDay();
 }
-function shouldStopLoss(pos){
-  if(!pos.cost||pos.cost<=0)return false;
-  return (pos.value||0)<=pos.cost*(1-STOP_LOSS_PCT);
+function doneStopLosses(pos){
+  return pos.stop_losses&&typeof pos.stop_losses==="object"?Object.assign({},pos.stop_losses):{};
+}
+function stopLossTarget(pos,tier){
+  const entry=Number(pos.entry_price);
+  if(Number.isFinite(entry)&&entry>0)return +(entry*(1-tier.drawdown)).toFixed(4);
+  if(pos.original_shares>0&&pos.original_cost>0)return +((pos.original_cost/pos.original_shares)*(1-tier.drawdown)).toFixed(4);
+  if(pos.shares>0&&pos.cost>0)return +((pos.cost/pos.shares)*(1-tier.drawdown)).toFixed(4);
+  return null;
+}
+function triggeredStopLosses(pos){
+  const done=doneStopLosses(pos);
+  return STOP_LOSS_TIERS.filter(t=>{
+    if(done[t.id])return false;
+    const target=stopLossTarget(pos,t);
+    return target!=null&&(pos.current_price||0)<=target;
+  });
 }
 function doneGainStops(pos){
   const done=pos.gain_stops&&typeof pos.gain_stops==="object"?Object.assign({},pos.gain_stops):{};
@@ -820,6 +838,14 @@ function gainStopLabel(pos){
   const gap=Math.max(0,target-(pos.current_price||0));
   return `${prefix}sell 25% at ${pct(target)} (${tier.label})${gap>0?` — ${(gap*100).toFixed(1)}c away`:" — armed"}`;
 }
+function stopLossLabel(pos){
+  const done=doneStopLosses(pos),doneCount=STOP_LOSS_TIERS.filter(t=>done[t.id]).length;
+  const tier=STOP_LOSS_TIERS.find(t=>!done[t.id]);
+  if(!tier)return "Stop loss: final tier fired";
+  const target=stopLossTarget(pos,tier);
+  const sold=doneCount===0?"":`${Math.round(doneCount*33)}% sold; next `;
+  return `Stop loss: ${sold}${tier.id==="45"?"sell all":"sell 33%"} at ${pct(target)} (${tier.label})`;
+}
 function stopOutPosition(p,pos){
   const proceeds=+(pos.shares*pos.current_price).toFixed(2);
   p.cash=+(p.cash+proceeds).toFixed(2);
@@ -828,6 +854,31 @@ function stopOutPosition(p,pos){
   p.closed.push(pos);rememberStop(p,pos);
   p.history.push({date:logDay(),action:"STOP",question:pos.question,side:pos.side,
     detail:`Stop-loss sold '${pos.question.slice(0,40)}' at ${pct(pos.current_price)} for ${fmtUSD(proceeds)} (P&L ${fmtUSD(pos.realized_pnl)})`});
+}
+function scaleStopLossPosition(p,pos,tier){
+  const originalShares=+(pos.original_shares||pos.shares).toFixed(2);
+  const originalCost=+(pos.original_cost||pos.cost).toFixed(2);
+  pos.original_shares=originalShares;
+  pos.original_cost=originalCost;
+  if(tier.sellFrac>=1||tier.id==="45"){
+    stopOutPosition(p,pos);
+    pos._closedByStop=true;
+    return;
+  }
+  const soldShares=+Math.min(pos.shares,originalShares*tier.sellFrac).toFixed(2);
+  if(soldShares<=0)return;
+  const proceeds=+(soldShares*pos.current_price).toFixed(2);
+  const realizedCost=+Math.min(pos.cost,originalCost*tier.sellFrac).toFixed(2);
+  const realizedPnl=+(proceeds-realizedCost).toFixed(2);
+  p.cash=+(p.cash+proceeds).toFixed(2);
+  pos.shares=+(pos.shares-soldShares).toFixed(2);
+  pos.cost=+(pos.cost-realizedCost).toFixed(2);
+  pos.value=+(pos.shares*pos.current_price).toFixed(2);
+  pos.unrealized_pnl=+(pos.value-pos.cost).toFixed(2);
+  pos.stop_losses=doneStopLosses(pos);
+  pos.stop_losses[tier.id]=cycleIso();
+  p.history.push({date:logDay(),action:"STOP",question:pos.question,side:pos.side,
+    detail:`Stop-loss ${tier.label} sold 33% of '${pos.question.slice(0,40)}' at ${pct(pos.current_price)} for ${fmtUSD(proceeds)} (realized ${fmtUSD(realizedPnl)})`});
 }
 function closePosition(p,pos,reason,action="CLOSE"){
   const proceeds=+(pos.shares*pos.current_price).toFixed(2);
@@ -886,7 +937,8 @@ function markToMarket(p,priceMap,cfg=null,{policyExits=false}={}){
     const price=pos.side==="YES"?fresh.yes_price:fresh.no_price;
     pos.current_price=+price.toFixed(4);pos.value=+(pos.shares*price).toFixed(2);
     pos.unrealized_pnl=+(pos.value-pos.cost).toFixed(2);
-    if(shouldStopLoss(pos)){stopOutPosition(p,pos);continue;}
+    for(const stopTier of triggeredStopLosses(pos))scaleStopLossPosition(p,pos,stopTier);
+    if(pos._closedByStop){delete pos._closedByStop;continue;}
     for(const gainTier of triggeredGainStops(pos))takeProfitPosition(p,pos,gainTier);
     if(policyExits){
       const reason=exitReason(pos,fresh,analyzeMarket(fresh),cfg);
@@ -921,7 +973,7 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds){
       token_id:(s.side==="YES"?s.clob_yes:s.clob_no)||null,
       entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,
       original_shares:shares,original_cost:cost,unrealized_pnl:0,conviction:s.conviction,category:s.category,opened_at:cycleIso(),url:s.url||"",
-      gain_stops:{}});
+      gain_stops:{},stop_losses:{}});
     p.history.push({date:logDay(),action:"OPEN",question:s.question,side:s.side,
       detail:`${decision?decision.mode+" mode — ":""}Bought ${shares} ${s.side} '${s.question.slice(0,40)}' @ ${pct(entry)} for ${fmtUSD(cost)}`});
     opened++;openedIds.push(s.market_id);
@@ -982,8 +1034,9 @@ async function runWhaleAgent(p,wallet,decision){
   const held=new Set(tps.map(t=>t.asset));
   const keep=[];
   for(const pos of p.positions){
-    if(shouldStopLoss(pos)){
-      stopOutPosition(p,pos);
+    for(const stopTier of triggeredStopLosses(pos))scaleStopLossPosition(p,pos,stopTier);
+    if(pos._closedByStop){
+      delete pos._closedByStop;
     }else if(!held.has(pos.asset)){
       closePosition(p,pos,"Copied trader exited");
     }else{
@@ -1005,7 +1058,7 @@ async function runWhaleAgent(p,wallet,decision){
     p.cash=+(p.cash-cost).toFixed(2);
     p.positions.push({asset:t.asset,token_id:t.asset,market_id:t.conditionId,question:t.title,side:t.side,category:"Copy",
       shares,entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,
-      original_shares:shares,original_cost:cost,unrealized_pnl:0,conviction:null,opened_at:cycleIso(),gain_stops:{}});
+      original_shares:shares,original_cost:cost,unrealized_pnl:0,conviction:null,opened_at:cycleIso(),gain_stops:{},stop_losses:{}});
     p.history.push({date:logDay(),action:"OPEN",question:t.title,side:t.side,
       detail:`Copied trade — ${shares} ${t.side} '${t.title.slice(0,36)}' @ ${pct(entry)} for ${fmtUSD(cost)}`});
   }
@@ -1037,7 +1090,7 @@ function runCopycat(p,leader,priceMap){
     p.cash=+(p.cash-cost).toFixed(2);
     p.positions.push({market_id:lp.market_id,token_id:lp.token_id||null,question:lp.question,side:lp.side,category:lp.category,
       shares,entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,
-      original_shares:shares,original_cost:cost,unrealized_pnl:0,conviction:lp.conviction,opened_at:cycleIso(),gain_stops:{}});
+      original_shares:shares,original_cost:cost,unrealized_pnl:0,conviction:lp.conviction,opened_at:cycleIso(),gain_stops:{},stop_losses:{}});
     p.history.push({date:logDay(),action:"OPEN",question:lp.question,side:lp.side,
       detail:`Copied leader — ${shares} ${lp.side} '${lp.question.slice(0,36)}' @ ${pct(entry)}`});
   }
@@ -1315,7 +1368,7 @@ function renderAgentBrief(cfg,p,st){
     </div>
     <div class="brief-mini"><div class="k">Style</div><div class="v">${esc(risk)}</div></div>
     <div class="brief-mini"><div class="k">Trade Rule</div><div class="v">${esc(cadence)}</div></div>
-    <div class="brief-mini"><div class="k">Stop Loss</div><div class="v">${Math.round(STOP_LOSS_PCT*100)}% drawdown</div></div>
+    <div class="brief-mini"><div class="k">Stop Loss</div><div class="v">Sell 33% at -15%, 33% at -30%, all at -45%</div></div>
     <div class="brief-mini"><div class="k">Gain Stop</div><div class="v">Sell 25% at +75%, +150%, +300%</div></div>
     <div class="brief-mini"><div class="k">Policy Exit</div><div class="v">${esc(exitRule)}</div></div>
     <div class="brief-mini"><div class="k">Best / Worst</div><div class="v"><span class="pos-val">${esc(bw.best)}</span><br><span class="neg-val">${esc(bw.worst)}</span></div></div>`;
@@ -1593,6 +1646,7 @@ function renderPositions(positions){
     return `<div class="pos"><div>
       <div class="pq">${esc(p.question)}</div>
       <div class="sub">${p.category?`<span class="cat-badge" style="background:${col}22;color:${col}">${esc(p.category)}</span> `:""}${p.shares} ${p.side} @ ${Math.round(p.entry_price*100)}¢ → ${Math.round(p.current_price*100)}¢</div>
+      <div class="sub">${esc(stopLossLabel(p))}</div>
       <div class="sub">${esc(gainStopLabel(p))}</div>
     </div><div class="right"><div>${fmtUSD(p.value)}</div><div class="${signClass(pnl)}">${pnl>=0?"+":""}${fmtUSD(pnl)}</div></div></div>`;}).join("");
 }
