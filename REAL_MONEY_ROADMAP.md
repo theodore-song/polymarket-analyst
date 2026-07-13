@@ -15,8 +15,11 @@ interfaces visible without moving funds or placing orders.
   Sentry browser DSN and Clerk publishable key once configured.
 - `/api/live` now checks the selected provider stack: Clerk, Neon, Veriff,
   Circle, and Sentry.
+- `/api/webhooks/clerk`, `/api/webhooks/veriff`, and `/api/webhooks/circle`
+  receive provider events and store them in Neon.
+- `/api/provider-events` reports provider event counts for a quick health check.
 - The Live Money tab shows launch checks, wallet/deposit settings, agent risk
-  limits, a dry-run order console, and an audit preview.
+  limits, provider webhook URLs, a dry-run order console, and an audit preview.
 
 The app still refuses to place live orders. That is intentional until the legal,
 provider, wallet-signing, reconciliation, and monitoring steps below are done.

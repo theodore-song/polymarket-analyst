@@ -73,8 +73,21 @@ initialize Sentry. Keep auth tokens server-side only.
 - `ADMIN_ALERT_EMAIL=emplusbodyworks@gmail.com`
 - `CUSTOMER_SUPPORT_EMAIL=emplusbodyworks@gmail.com`
 - `PRODUCTION_APP_URL=https://polymarket-site-eta.vercel.app`
+- `WEBHOOK_BASE_URL=https://polymarket-site-eta.vercel.app/api`
 - `RESTRICTED_JURISDICTIONS=US,CA-NY,CA-ON`
 - `LIVE_TRADING_ENABLED=false`
+
+## Webhook URLs to paste into provider dashboards
+
+These endpoints store provider events in Neon for audit/reconciliation prep.
+They do not move money or place orders.
+
+- Clerk: `https://polymarket-site-eta.vercel.app/api/webhooks/clerk`
+- Veriff: `https://polymarket-site-eta.vercel.app/api/webhooks/veriff`
+- Circle: `https://polymarket-site-eta.vercel.app/api/webhooks/circle`
+
+Provider event counts are visible at
+`https://polymarket-site-eta.vercel.app/api/provider-events`.
 
 ## What is still intentionally locked
 

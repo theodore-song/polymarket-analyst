@@ -598,6 +598,10 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
         <div id="liveAuditTrail"></div>
       </div>
     </div>
+    <div class="card">
+      <div class="card-h"><h3>Provider webhooks</h3><span class="small muted">events are stored in Neon</span></div>
+      <div id="liveWebhookStatus" class="small muted">Checking webhook setup...</div>
+    </div>
   </section>
 
   <!-- ============ ABOUT ============ -->
@@ -2352,13 +2356,18 @@ async function fetchLiveBackendStatus(){
 }
 function renderLiveBackendStatus(){
   const root=$("liveBackendStatus");if(!root)return;
+  const hookRoot=$("liveWebhookStatus");
   const s=LIVE_BACKEND_STATUS;
-  if(!s){root.innerHTML="Checking backend readiness...";return;}
+  if(!s){root.innerHTML="Checking backend readiness...";if(hookRoot)hookRoot.innerHTML="Checking webhook setup...";return;}
   const providers=(s.providers||[]).map(p=>`<div class="leader-row"><span>${esc(p.label)}${p.expected?`<div class="small muted">${esc(p.expected)}</div>`:""}</span><b class="${p.configured?"pos-val":"neg-val"}">${p.configured?"configured":"missing"}</b></div>`).join("");
   const stack=(s.provider_stack||[]).map(p=>`<div class="leader-row"><span><b>${esc(p.provider)}</b><div class="small muted">${esc(p.role)}</div><div class="small muted">${(p.checks||[]).map(c=>`${esc(c.key)}: ${c.configured?"ok":"missing"}`).join(" · ")}</div></span><b class="${p.configured?"pos-val":"neg-val"}">${p.configured?"ready":"needs keys"}</b></div>`).join("");
   const next=(s.next_required||[]).slice(0,12).map(x=>`<li>${esc(x)}</li>`).join("");
   const reqs=(s.launch_requirements||[]).map(x=>`<li>${esc(x.label)}</li>`).join("");
   root.innerHTML=`<b>${s.live_trading_enabled?"Live trading unlocked":"Live trading locked"}</b><div class="small muted" style="margin:6px 0">${esc(s.locked_reason||"All required backend providers are configured.")}</div>${stack?`<div class="locked-panel" style="margin-top:10px"><b>Your provider stack</b>${stack}</div>`:""}${providers}${next?`<div class="locked-panel" style="margin-top:10px"><b>Next setup items</b><ul>${next}</ul></div>`:""}${reqs?`<div class="locked-panel" style="margin-top:10px"><b>Full launch requirements</b><ol>${reqs}</ol></div>`:""}<div class="small muted" style="margin-top:8px">Live execution stays disabled until every provider is configured, every launch requirement is complete, and final approval flips LIVE_TRADING_ENABLED=true.</div>`;
+  if(hookRoot){
+    const hooks=(s.webhooks||[]).map(h=>`<div class="leader-row"><span><b>${esc(h.provider)}</b><div class="small muted">${esc(h.label)}</div></span><a class="market-link" href="${esc(h.url)}" target="_blank" rel="noopener">${esc(h.url)}</a></div>`).join("");
+    hookRoot.innerHTML=hooks||"Webhook URLs will appear after backend readiness loads.";
+  }
 }
 async function dryRunLiveOrderIntent(){
   const s=loadLiveState();

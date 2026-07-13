@@ -1,5 +1,7 @@
 {
   "dependencies": {
-    "@vercel/blob": "2.5.0"
+    "@neondatabase/serverless": "^1.1.0",
+    "@vercel/blob": "2.5.0",
+    "svix": "^1.96.1"
   }
 }

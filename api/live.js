@@ -107,6 +107,12 @@ const LAUNCH_REQUIREMENTS = [
   ["testing", "Paper-to-live parity, dry-runs, test wallets, webhook tests, and edge-case QA completed"],
 ];
 
+const WEBHOOK_ROUTES = [
+  ["clerk", "Clerk user and session events", "/api/webhooks/clerk"],
+  ["veriff", "Veriff verification and review events", "/api/webhooks/veriff"],
+  ["circle", "Circle payment, wallet, and transfer events", "/api/webhooks/circle"],
+];
+
 function envValue(key) {
   if (process.env[key]) return process.env[key];
   return (ENV_ALIASES[key] || []).map((alias) => process.env[alias]).find(Boolean);
@@ -143,6 +149,7 @@ function liveTradingReady() {
 
 function baseStatus() {
   const providers = providerStatus();
+  const origin = (envValue("WEBHOOK_BASE_URL") || envValue("PRODUCTION_APP_URL") || "").replace(/\/api\/?$/, "").replace(/\/$/, "");
   const liveFlagEnabled = process.env.LIVE_TRADING_ENABLED === "true";
   const signatureTypeOk = String(process.env.POLYMARKET_SIGNATURE_TYPE || "") === "3";
   const chainOk = String(process.env.POLYMARKET_CHAIN_ID || "137") === "137";
@@ -162,6 +169,12 @@ function baseStatus() {
     providers,
     provider_stack: stackStatus(),
     launch_requirements: LAUNCH_REQUIREMENTS.map(([key, label]) => ({ key, label })),
+    webhooks: WEBHOOK_ROUTES.map(([provider, label, path]) => ({
+      provider,
+      label,
+      path,
+      url: origin ? `${origin}${path}` : path,
+    })),
     next_required: missing,
     docs: {
       polymarket_overview: "https://docs.polymarket.com/trading/overview",
