@@ -11,6 +11,10 @@ interfaces visible without moving funds or placing orders.
 - `/api/live` accepts order intents only as dry-runs and returns an audit event.
 - `/api/accounts` creates, logs into, and saves password-backed paper accounts
   through Vercel Blob storage.
+- `/api/config` exposes safe public provider configuration, including the
+  Sentry browser DSN and Clerk publishable key once configured.
+- `/api/live` now checks the selected provider stack: Clerk, Neon, Veriff,
+  Circle, and Sentry.
 - The Live Money tab shows launch checks, wallet/deposit settings, agent risk
   limits, a dry-run order console, and an audit preview.
 

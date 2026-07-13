@@ -47,6 +47,8 @@ Use `.env.example` as the setup template.
 - `ACCOUNT_SESSION_SECRET` signs cloud paper-account sessions. If omitted, the
   app falls back to the existing server secret/token, but production should use
   a dedicated value.
+- `PROVIDER_SETUP.md` maps the current stack — Clerk, Neon, Veriff, Circle, and
+  Sentry — to the exact Vercel environment variables still needed.
 - `/api/live` reports whether KYC, payments, wallet/deposit-wallet, Polymarket
   CLOB, authentication, geofencing, sanctions, audit, support, and monitoring
   providers are configured.

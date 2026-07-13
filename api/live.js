@@ -40,6 +40,57 @@ const REQUIRED_ENV = [
   ["CUSTOMER_SUPPORT_EMAIL", "Customer support contact"],
 ];
 
+const ENV_ALIASES = {
+  DATABASE_URL: ["NEON_DATABASE_URL"],
+  KYC_API_KEY: ["VERIFF_API_KEY"],
+  KYC_WEBHOOK_SECRET: ["VERIFF_WEBHOOK_SECRET", "VERIFF_SECRET_KEY"],
+  SANCTIONS_API_KEY: ["VERIFF_API_KEY"],
+  GEOIP_API_KEY: ["VERIFF_API_KEY"],
+  PAYMENTS_API_KEY: ["CIRCLE_API_KEY"],
+  PAYMENTS_WEBHOOK_SECRET: ["CIRCLE_WEBHOOK_SECRET"],
+  WALLET_PROJECT_ID: ["CIRCLE_WALLET_SET_ID"],
+  WALLET_API_KEY: ["CIRCLE_API_KEY"],
+  RECONCILIATION_STORE: ["DATABASE_URL", "NEON_DATABASE_URL"],
+  ACCOUNTING_EXPORT_STORE: ["DATABASE_URL", "NEON_DATABASE_URL"],
+  RATE_LIMIT_STORE: ["DATABASE_URL", "NEON_DATABASE_URL"],
+  AUDIT_LOG_STORE: ["DATABASE_URL", "NEON_DATABASE_URL"],
+  MONITORING_DSN: ["SENTRY_DSN"],
+  INCIDENT_WEBHOOK_URL: ["SENTRY_WEBHOOK_URL"],
+};
+
+const PROVIDER_STACK = [
+  {
+    provider: "Clerk",
+    role: "User auth, sessions, sign-in/sign-out, account identity",
+    env: ["AUTH_PROVIDER", "CLERK_PUBLISHABLE_KEY", "CLERK_SECRET_KEY", "CLERK_WEBHOOK_SIGNING_SECRET"],
+    dashboard: "https://dashboard.clerk.com/",
+  },
+  {
+    provider: "Neon",
+    role: "Postgres database for users, portfolios, audit metadata, reconciliation, and history",
+    env: ["DATABASE_URL"],
+    dashboard: "https://console.neon.tech/",
+  },
+  {
+    provider: "Veriff",
+    role: "KYC/KYB, identity verification, age checks, AML/sanctions workflow",
+    env: ["KYC_PROVIDER", "VERIFF_API_KEY", "VERIFF_SECRET_KEY", "VERIFF_WEBHOOK_SECRET"],
+    dashboard: "https://station.veriff.com/",
+  },
+  {
+    provider: "Circle",
+    role: "USDC, embedded wallets, payments/deposits/withdrawals, webhooks",
+    env: ["PAYMENTS_PROVIDER", "WALLET_PROVIDER", "CIRCLE_API_KEY", "CIRCLE_WEBHOOK_SECRET", "CIRCLE_WALLET_SET_ID"],
+    dashboard: "https://console.circle.com/",
+  },
+  {
+    provider: "Sentry",
+    role: "Error monitoring, browser/backend issue tracking, incident visibility",
+    env: ["MONITORING_DSN", "SENTRY_DSN"],
+    dashboard: "https://sentry.io/",
+  },
+];
+
 const LAUNCH_REQUIREMENTS = [
   ["legal", "Terms, privacy policy, risk disclosures, and jurisdiction policy approved"],
   ["eligibility", "KYC/KYB, age, sanctions, watchlist, and location screening active"],
@@ -56,13 +107,30 @@ const LAUNCH_REQUIREMENTS = [
   ["testing", "Paper-to-live parity, dry-runs, test wallets, webhook tests, and edge-case QA completed"],
 ];
 
+function envValue(key) {
+  if (process.env[key]) return process.env[key];
+  return (ENV_ALIASES[key] || []).map((alias) => process.env[alias]).find(Boolean);
+}
+
 function providerStatus() {
   return REQUIRED_ENV.map(([key, label]) => ({
     key,
     label,
-    configured: Boolean(process.env[key]),
+    configured: Boolean(envValue(key)),
+    aliases: ENV_ALIASES[key] || [],
     expected: key === "POLYMARKET_SIGNATURE_TYPE" ? "3 for new deposit-wallet API users" : undefined,
   }));
+}
+
+function stackStatus() {
+  return PROVIDER_STACK.map((provider) => {
+    const checks = provider.env.map((key) => ({ key, configured: Boolean(envValue(key)) }));
+    return {
+      ...provider,
+      configured: checks.every((x) => x.configured),
+      checks,
+    };
+  });
 }
 
 function liveTradingReady() {
@@ -92,6 +160,7 @@ function baseStatus() {
       ? null
       : "Live trading is locked until eligibility, payments, wallet/deposit-wallet signing, Polymarket CLOB credentials, audit storage, monitoring, and LIVE_TRADING_ENABLED=true are configured.",
     providers,
+    provider_stack: stackStatus(),
     launch_requirements: LAUNCH_REQUIREMENTS.map(([key, label]) => ({ key, label })),
     next_required: missing,
     docs: {

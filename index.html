@@ -683,6 +683,7 @@ let PAPER_SEARCH_RESULTS = null;
 let PAPER_MARKET_OFFSET = 0;
 let PAPER_MARKET_QUERY = "";
 let LIVE_BACKEND_STATUS = null;
+let PROVIDER_CONFIG = null;
 const catColor = (c) => CAT_COLORS[c] || CAT_COLORS.Other;
 const getFocus = () => localStorage.getItem(FOCUS_KEY) || "All";
 const setFocus = (c) => localStorage.setItem(FOCUS_KEY, c);
@@ -700,6 +701,21 @@ function applyPersonalMode(){
     const labels=["Private research mode","Manual execution only","Cloud paper accounts","Live market links"];
     if(labels[i])b.textContent=labels[i];
   });
+}
+
+async function initProviderConfig(){
+  try{
+    const r=await fetch("/api/config",{cache:"no-store"});
+    PROVIDER_CONFIG=await r.json();
+    const dsn=PROVIDER_CONFIG&&PROVIDER_CONFIG.public&&PROVIDER_CONFIG.public.sentry_dsn;
+    if(dsn&&!window.Sentry){
+      const script=document.createElement("script");
+      script.src="https://browser.sentry-cdn.com/8.55.0/bundle.tracing.min.js";
+      script.crossOrigin="anonymous";
+      script.onload=()=>{if(window.Sentry)window.Sentry.init({dsn,tracesSampleRate:0.1,environment:"production"});};
+      document.head.appendChild(script);
+    }
+  }catch(e){}
 }
 
 /* ---------- the ten competing agents ----------
@@ -2339,9 +2355,10 @@ function renderLiveBackendStatus(){
   const s=LIVE_BACKEND_STATUS;
   if(!s){root.innerHTML="Checking backend readiness...";return;}
   const providers=(s.providers||[]).map(p=>`<div class="leader-row"><span>${esc(p.label)}${p.expected?`<div class="small muted">${esc(p.expected)}</div>`:""}</span><b class="${p.configured?"pos-val":"neg-val"}">${p.configured?"configured":"missing"}</b></div>`).join("");
+  const stack=(s.provider_stack||[]).map(p=>`<div class="leader-row"><span><b>${esc(p.provider)}</b><div class="small muted">${esc(p.role)}</div><div class="small muted">${(p.checks||[]).map(c=>`${esc(c.key)}: ${c.configured?"ok":"missing"}`).join(" · ")}</div></span><b class="${p.configured?"pos-val":"neg-val"}">${p.configured?"ready":"needs keys"}</b></div>`).join("");
   const next=(s.next_required||[]).slice(0,12).map(x=>`<li>${esc(x)}</li>`).join("");
   const reqs=(s.launch_requirements||[]).map(x=>`<li>${esc(x.label)}</li>`).join("");
-  root.innerHTML=`<b>${s.live_trading_enabled?"Live trading unlocked":"Live trading locked"}</b><div class="small muted" style="margin:6px 0">${esc(s.locked_reason||"All required backend providers are configured.")}</div>${providers}${next?`<div class="locked-panel" style="margin-top:10px"><b>Next setup items</b><ul>${next}</ul></div>`:""}${reqs?`<div class="locked-panel" style="margin-top:10px"><b>Full launch requirements</b><ol>${reqs}</ol></div>`:""}<div class="small muted" style="margin-top:8px">Live execution stays disabled until every provider is configured, every launch requirement is complete, and final approval flips LIVE_TRADING_ENABLED=true.</div>`;
+  root.innerHTML=`<b>${s.live_trading_enabled?"Live trading unlocked":"Live trading locked"}</b><div class="small muted" style="margin:6px 0">${esc(s.locked_reason||"All required backend providers are configured.")}</div>${stack?`<div class="locked-panel" style="margin-top:10px"><b>Your provider stack</b>${stack}</div>`:""}${providers}${next?`<div class="locked-panel" style="margin-top:10px"><b>Next setup items</b><ul>${next}</ul></div>`:""}${reqs?`<div class="locked-panel" style="margin-top:10px"><b>Full launch requirements</b><ol>${reqs}</ol></div>`:""}<div class="small muted" style="margin-top:8px">Live execution stays disabled until every provider is configured, every launch requirement is complete, and final approval flips LIVE_TRADING_ENABLED=true.</div>`;
 }
 async function dryRunLiveOrderIntent(){
   const s=loadLiveState();
@@ -2411,6 +2428,7 @@ window.addEventListener("hashchange",()=>showTab(location.hash.slice(1)));
 
 /* ---------- Wire up ---------- */
 applyPersonalMode();
+initProviderConfig();
 $("runBtn").addEventListener("click",async()=>{
   const btn=$("runBtn");btn.disabled=true;btn.textContent="Running…";
   try{const r=await runDailyCycle();const b=board();toast(r.skipped?`Already ran this hour · ${b[0].c.emoji} ${b[0].c.name} leads`:`Cycle done · ${r.suggestions} ideas · ${b[0].c.emoji} ${b[0].c.name} leads`);renderAll();}
