@@ -96,5 +96,15 @@ Provider event counts are visible at
 - Live Polymarket order placement.
 - Automatic agent trading with real funds.
 
+## Newly wired backend endpoints
+
+- Policies: `https://polymarket-site-eta.vercel.app/api/policies`
+- Consent recording: `https://polymarket-site-eta.vercel.app/api/consent`
+- Server risk profile: `https://polymarket-site-eta.vercel.app/api/risk-profile`
+- Incident alerts: `https://polymarket-site-eta.vercel.app/api/incident`
+
+The consent and incident endpoints are intentionally gated: consent needs real
+approved policy versions, and incident alerts need `RISK_ADMIN_TOKEN`.
+
 Those should stay locked until legal review, eligibility checks, signed-order
 execution, reconciliation, audit logs, and incident response are complete.

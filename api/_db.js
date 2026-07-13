@@ -52,6 +52,31 @@ export async function ensureSchema() {
     )
   `;
 
+  await db`
+    create table if not exists user_consents (
+      id bigserial primary key,
+      user_id text not null,
+      terms_version text not null,
+      privacy_version text not null,
+      risk_disclosure_version text not null,
+      jurisdiction text,
+      payload jsonb not null default '{}'::jsonb,
+      accepted_at timestamptz not null default now()
+    )
+  `;
+
+  await db`
+    create table if not exists risk_profiles (
+      user_id text primary key,
+      wallet_address text,
+      jurisdiction text,
+      deposit_limit numeric not null default 0,
+      withdraw_reserve numeric not null default 0,
+      agent_permissions jsonb not null default '{}'::jsonb,
+      updated_at timestamptz not null default now()
+    )
+  `;
+
   schemaReady = true;
 }
 
@@ -91,6 +116,82 @@ export async function recordAuditEvent(eventType, detail) {
     insert into readiness_audit (event_type, detail)
     values (${eventType}, ${JSON.stringify(detail || {})}::jsonb)
   `;
+}
+
+export async function recordUserConsent(consent) {
+  await ensureSchema();
+  const db = sql();
+  const rows = await db`
+    insert into user_consents (
+      user_id,
+      terms_version,
+      privacy_version,
+      risk_disclosure_version,
+      jurisdiction,
+      payload
+    ) values (
+      ${consent.userId},
+      ${consent.termsVersion},
+      ${consent.privacyVersion},
+      ${consent.riskDisclosureVersion},
+      ${consent.jurisdiction || null},
+      ${JSON.stringify(consent.payload || {})}::jsonb
+    )
+    returning id, accepted_at
+  `;
+  return rows[0] || null;
+}
+
+export async function upsertRiskProfile(profile) {
+  await ensureSchema();
+  const db = sql();
+  const rows = await db`
+    insert into risk_profiles (
+      user_id,
+      wallet_address,
+      jurisdiction,
+      deposit_limit,
+      withdraw_reserve,
+      agent_permissions,
+      updated_at
+    ) values (
+      ${profile.userId},
+      ${profile.walletAddress || null},
+      ${profile.jurisdiction || null},
+      ${Number(profile.depositLimit || 0)},
+      ${Number(profile.withdrawReserve || 0)},
+      ${JSON.stringify(profile.agentPermissions || {})}::jsonb,
+      now()
+    )
+    on conflict (user_id) do update set
+      wallet_address = excluded.wallet_address,
+      jurisdiction = excluded.jurisdiction,
+      deposit_limit = excluded.deposit_limit,
+      withdraw_reserve = excluded.withdraw_reserve,
+      agent_permissions = excluded.agent_permissions,
+      updated_at = now()
+    returning user_id, updated_at
+  `;
+  return rows[0] || null;
+}
+
+export async function latestRiskProfile(userId) {
+  await ensureSchema();
+  const db = sql();
+  const rows = await db`
+    select
+      user_id,
+      wallet_address,
+      jurisdiction,
+      deposit_limit,
+      withdraw_reserve,
+      agent_permissions,
+      updated_at
+    from risk_profiles
+    where user_id = ${userId}
+    limit 1
+  `;
+  return rows[0] || null;
 }
 
 export async function providerEventSummary() {

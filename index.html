@@ -602,6 +602,25 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
       <div class="card-h"><h3>Provider webhooks</h3><span class="small muted">events are stored in Neon</span></div>
       <div id="liveWebhookStatus" class="small muted">Checking webhook setup...</div>
     </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="card-h"><h3>Policies & consent</h3><span class="small muted">required before deposits</span></div>
+        <div id="livePolicyStatus" class="locked-panel">Checking policy status...</div>
+        <div class="account-row">
+          <label class="small muted"><input type="checkbox" id="liveAcceptTerms"> terms</label>
+          <label class="small muted"><input type="checkbox" id="liveAcceptPrivacy"> privacy</label>
+          <label class="small muted"><input type="checkbox" id="liveAcceptRisk"> risk disclosure</label>
+          <button class="btn" id="recordConsentBtn">Record consent</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-h"><h3>Server controls</h3><span class="small muted">live safety gates</span></div>
+        <div class="locked-panel">
+          <b>Production switch remains off</b>
+          <div class="small muted">The backend can now store policies, consent, risk profiles, webhooks, incidents, and dry-run order intents. Real deposits and live orders still require final approval and real CLOB/deposit-wallet setup.</div>
+        </div>
+      </div>
+    </div>
   </section>
 
   <!-- ============ ABOUT ============ -->
@@ -687,6 +706,7 @@ let PAPER_SEARCH_RESULTS = null;
 let PAPER_MARKET_OFFSET = 0;
 let PAPER_MARKET_QUERY = "";
 let LIVE_BACKEND_STATUS = null;
+let LIVE_POLICY_STATUS = null;
 let PROVIDER_CONFIG = null;
 const catColor = (c) => CAT_COLORS[c] || CAT_COLORS.Other;
 const getFocus = () => localStorage.getItem(FOCUS_KEY) || "All";
@@ -2347,18 +2367,24 @@ function saveLiveState(s,detail){
 }
 async function fetchLiveBackendStatus(){
   try{
-    const r=await fetch("/api/live",{cache:"no-store"});
-    LIVE_BACKEND_STATUS=await r.json();
+    const [liveRes,policyRes]=await Promise.all([
+      fetch("/api/live",{cache:"no-store"}),
+      fetch("/api/policies",{cache:"no-store"}),
+    ]);
+    LIVE_BACKEND_STATUS=await liveRes.json();
+    LIVE_POLICY_STATUS=await policyRes.json();
   }catch(e){
     LIVE_BACKEND_STATUS={ok:false,locked_reason:"Live backend status endpoint is unavailable.",providers:[]};
+    LIVE_POLICY_STATUS={ok:false,note:"Policy status endpoint is unavailable."};
   }
   renderLiveBackendStatus();
 }
 function renderLiveBackendStatus(){
   const root=$("liveBackendStatus");if(!root)return;
   const hookRoot=$("liveWebhookStatus");
+  const policyRoot=$("livePolicyStatus");
   const s=LIVE_BACKEND_STATUS;
-  if(!s){root.innerHTML="Checking backend readiness...";if(hookRoot)hookRoot.innerHTML="Checking webhook setup...";return;}
+  if(!s){root.innerHTML="Checking backend readiness...";if(hookRoot)hookRoot.innerHTML="Checking webhook setup...";if(policyRoot)policyRoot.innerHTML="Checking policy status...";return;}
   const providers=(s.providers||[]).map(p=>`<div class="leader-row"><span>${esc(p.label)}${p.expected?`<div class="small muted">${esc(p.expected)}</div>`:""}</span><b class="${p.configured?"pos-val":"neg-val"}">${p.configured?"configured":"missing"}</b></div>`).join("");
   const stack=(s.provider_stack||[]).map(p=>`<div class="leader-row"><span><b>${esc(p.provider)}</b><div class="small muted">${esc(p.role)}</div><div class="small muted">${(p.checks||[]).map(c=>`${esc(c.key)}: ${c.configured?"ok":"missing"}`).join(" · ")}</div></span><b class="${p.configured?"pos-val":"neg-val"}">${p.configured?"ready":"needs keys"}</b></div>`).join("");
   const next=(s.next_required||[]).slice(0,12).map(x=>`<li>${esc(x)}</li>`).join("");
@@ -2367,6 +2393,12 @@ function renderLiveBackendStatus(){
   if(hookRoot){
     const hooks=(s.webhooks||[]).map(h=>`<div class="leader-row"><span><b>${esc(h.provider)}</b><div class="small muted">${esc(h.label)}</div></span><a class="market-link" href="${esc(h.url)}" target="_blank" rel="noopener">${esc(h.url)}</a></div>`).join("");
     hookRoot.innerHTML=hooks||"Webhook URLs will appear after backend readiness loads.";
+  }
+  if(policyRoot){
+    const p=LIVE_POLICY_STATUS||{};
+    const versions=p.versions||{};
+    const rules=(p.rules||[]).map(rule=>`<li>${esc(rule)}</li>`).join("");
+    policyRoot.innerHTML=`<b>${p.approved?"Policy versions configured":"Policy documents not approved yet"}</b><div class="small muted" style="margin:6px 0">${esc(p.note||"")}</div><div class="leader-row"><span>Terms</span><b>${esc(versions.terms||"missing")}</b></div><div class="leader-row"><span>Privacy</span><b>${esc(versions.privacy||"missing")}</b></div><div class="leader-row"><span>Risk disclosure</span><b>${esc(versions.risk_disclosure||"missing")}</b></div>${rules?`<ol class="steps">${rules}</ol>`:""}`;
   }
 }
 async function dryRunLiveOrderIntent(){
@@ -2387,6 +2419,38 @@ async function dryRunLiveOrderIntent(){
     saveLiveState(s,`Dry-ran ${intent.side} order intent for ${intent.agent_id} on ${intent.market_id}`);
   }catch(e){
     toast("Order dry-run failed.");
+  }
+}
+async function saveRiskProfileToServer(s){
+  const body={
+    user_id:"local-readiness-user",
+    wallet_address:s.walletAddress,
+    jurisdiction:s.jurisdiction,
+    deposit_limit:s.depositLimit,
+    withdraw_reserve:s.withdrawReserve,
+    agent_permissions:s.agents,
+  };
+  const r=await fetch("/api/risk-profile",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  const d=await r.json();
+  if(!r.ok)throw new Error(d.error||"Risk profile save failed");
+  return d;
+}
+async function recordLiveConsent(){
+  const s=loadLiveState();
+  try{
+    const r=await fetch("/api/consent",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+      user_id:"local-readiness-user",
+      jurisdiction:s.jurisdiction,
+      accept_terms:$("liveAcceptTerms").checked,
+      accept_privacy:$("liveAcceptPrivacy").checked,
+      accept_risk:$("liveAcceptRisk").checked,
+    })});
+    const d=await r.json();
+    if(!r.ok)throw new Error(`${d.error}: ${(d.missing||[]).join(", ")}`);
+    saveLiveState(s,"Recorded live-money consent versions");
+    renderLiveMoneyTab();toast("Consent recorded.");
+  }catch(e){
+    toast(e.message||"Consent is not ready to record yet.");
   }
 }
 function renderLiveMoneyTab(){
@@ -2530,16 +2594,23 @@ $("paperSignOutBtn").addEventListener("click",()=>{
   sessionStorage.removeItem(paperSessionKey(acct.id));
   renderPaperTab();toast("Signed out of paper account.");
 });
-$("saveLiveProfileBtn").addEventListener("click",()=>{
+$("saveLiveProfileBtn").addEventListener("click",async()=>{
   const s=loadLiveState();
   s.walletAddress=$("liveWalletAddress").value.trim();
   s.jurisdiction=$("liveJurisdiction").value;
   s.depositLimit=Number($("liveDepositLimit").value||0);
   s.withdrawReserve=Number($("liveWithdrawReserve").value||0);
-  saveLiveState(s,"Updated live-money wallet/funds profile");
-  renderLiveMoneyTab();toast("Live-money readiness profile saved.");
+  try{
+    await saveRiskProfileToServer(s);
+    saveLiveState(s,"Updated live-money wallet/funds profile and server risk profile");
+    renderLiveMoneyTab();toast("Live-money readiness profile saved to Neon.");
+  }catch(e){
+    saveLiveState(s,"Updated local live-money wallet/funds profile");
+    renderLiveMoneyTab();toast(e.message||"Saved locally, but server risk profile failed.");
+  }
 });
 $("dryRunOrderBtn").addEventListener("click",()=>dryRunLiveOrderIntent());
+$("recordConsentBtn").addEventListener("click",()=>recordLiveConsent());
 window.addEventListener("focus",()=>refreshFromCloudAndRender(true));
 document.addEventListener("visibilitychange",()=>{
   if(!document.hidden)refreshFromCloudAndRender(true);

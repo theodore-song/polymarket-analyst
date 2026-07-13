@@ -1,3 +1,5 @@
+import { recordAuditEvent } from "./_db.js";
+
 const REQUIRED_ENV = [
   ["PRODUCTION_APP_URL", "Production app URL"],
   ["AUTH_PROVIDER", "Real account authentication provider"],
@@ -16,6 +18,7 @@ const REQUIRED_ENV = [
   ["PRIVACY_VERSION", "Approved privacy policy version"],
   ["RISK_DISCLOSURE_VERSION", "Approved risk disclosure version"],
   ["MARKET_POLICY_STORE", "Market eligibility and category policy store"],
+  ["CONSENT_STORE", "Versioned user consent store"],
   ["PAYMENTS_PROVIDER", "Deposit and withdrawal provider"],
   ["PAYMENTS_API_KEY", "Payments provider API key"],
   ["PAYMENTS_WEBHOOK_SECRET", "Payments webhook secret"],
@@ -36,6 +39,7 @@ const REQUIRED_ENV = [
   ["AUDIT_LOG_STORE", "Durable audit log store"],
   ["MONITORING_DSN", "Error and performance monitoring"],
   ["INCIDENT_WEBHOOK_URL", "Incident alert webhook"],
+  ["RISK_ADMIN_TOKEN", "Risk admin incident-control token"],
   ["ADMIN_ALERT_EMAIL", "Admin alert destination"],
   ["CUSTOMER_SUPPORT_EMAIL", "Customer support contact"],
 ];
@@ -54,6 +58,7 @@ const ENV_ALIASES = {
   ACCOUNTING_EXPORT_STORE: ["DATABASE_URL", "NEON_DATABASE_URL"],
   RATE_LIMIT_STORE: ["DATABASE_URL", "NEON_DATABASE_URL"],
   AUDIT_LOG_STORE: ["DATABASE_URL", "NEON_DATABASE_URL"],
+  CONSENT_STORE: ["DATABASE_URL", "NEON_DATABASE_URL"],
   MONITORING_DSN: ["SENTRY_DSN"],
   INCIDENT_WEBHOOK_URL: ["SENTRY_WEBHOOK_URL"],
 };
@@ -223,6 +228,7 @@ export default async function handler(req, res) {
     };
 
     if (!status.live_trading_enabled) {
+      await recordAuditEvent("ORDER_INTENT_BLOCKED", auditEvent);
       return res.status(423).json({
         ok: false,
         dry_run: true,
@@ -232,6 +238,7 @@ export default async function handler(req, res) {
       });
     }
 
+    await recordAuditEvent("ORDER_INTENT_NOT_IMPLEMENTED", auditEvent);
     return res.status(501).json({
       ok: false,
       dry_run: true,

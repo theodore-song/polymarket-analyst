@@ -18,6 +18,13 @@ interfaces visible without moving funds or placing orders.
 - `/api/webhooks/clerk`, `/api/webhooks/veriff`, and `/api/webhooks/circle`
   receive provider events and store them in Neon.
 - `/api/provider-events` reports provider event counts for a quick health check.
+- `/api/policies` exposes the active policy/readiness state.
+- `/api/consent` records versioned user consent after approved versions are
+  configured.
+- `/api/risk-profile` stores wallet, jurisdiction, allocation, and agent
+  permission settings server-side.
+- `/api/incident` records incident events and can notify the configured incident
+  webhook after `RISK_ADMIN_TOKEN` is set.
 - The Live Money tab shows launch checks, wallet/deposit settings, agent risk
   limits, provider webhook URLs, a dry-run order console, and an audit preview.
 
