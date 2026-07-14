@@ -1,14 +1,15 @@
 # Real Money Enablement Roadmap
 
-This app is currently paper trading only. The Live Money tab and `/api/live`
-endpoint are readiness scaffolding: they make the required product and backend
-interfaces visible without moving funds or placing orders.
+This public app is currently paper trading only. The public site hides live
+trading controls. The `/personal` route opens a private cockpit for your own
+wallet, your own money, manual approval, and audit logging.
 
 ## What is configured now
 
 - `.env.example` lists the environment variables the production app needs.
 - `/api/live` reports which live-money providers are configured or missing.
-- `/api/live` accepts order intents only as dry-runs and returns an audit event.
+- `/api/live` accepts public order intents only as dry-runs and returns an
+  audit event. Personal-mode intents are staged for manual review, not executed.
 - `/api/accounts` creates, logs into, and saves password-backed paper accounts
   through Vercel Blob storage.
 - `/api/config` exposes safe public provider configuration, including the
@@ -25,11 +26,35 @@ interfaces visible without moving funds or placing orders.
   permission settings server-side.
 - `/api/incident` records incident events and can notify the configured incident
   webhook after `RISK_ADMIN_TOKEN` is set.
-- The Live Money tab shows launch checks, wallet/deposit settings, agent risk
-  limits, provider webhook URLs, a dry-run order console, and an audit preview.
+- The public site hides the live-money tab. `/personal` shows wallet/deposit
+  settings, personal risk limits, provider webhook URLs, a manual intent
+  console, and an audit preview.
 
-The app still refuses to place live orders. That is intentional until the legal,
-provider, wallet-signing, reconciliation, and monitoring steps below are done.
+The app still refuses to place live orders. Personal mode stages manual intents
+only until your own deposit wallet, CLOB credentials, and tiny test flow are
+ready.
+
+## Personal-use path
+
+Personal mode is narrower than the public business launch:
+
+- Your own money only.
+- Your own Polymarket/deposit wallet only.
+- No outside investors, deposits, pooled funds, or copy-trading customers.
+- No unattended agent trading.
+- Every live trade starts as a staged manual intent and must be reviewed before
+  you do anything in Polymarket.
+- Public `LIVE_TRADING_ENABLED` stays `false`.
+
+Personal mode still needs:
+
+- `DEPOSIT_WALLET_ADDRESS`
+- `POLYMARKET_SIGNATURE_TYPE=3`
+- `POLYMARKET_CLOB_API_KEY`
+- `POLYMARKET_CLOB_SECRET`
+- `POLYMARKET_CLOB_PASSPHRASE`
+- `RISK_ADMIN_TOKEN`
+- `PERSONAL_TRADING_ENABLED=true` only after your own tiny manual test flow
 
 ## Required before live deposits or trading
 

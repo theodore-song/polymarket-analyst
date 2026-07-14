@@ -69,7 +69,8 @@ h1,h2,h3,.brand-name{font-family:'Space Grotesk','Inter',sans-serif}
 .btn.primary:hover{filter:brightness(1.08)}
 .btn:disabled{opacity:.55;cursor:wait;transform:none}
 .btn.ghost{background:transparent}
-.personal-mode [data-tab="invest"],.personal-mode [data-tab="live"]{display:none!important}
+body:not(.personal-mode) [data-tab="live"]{display:none!important}
+.personal-mode [data-tab="invest"]{display:none!important}
 .personal-banner{display:none;margin:0 0 14px;border:1px solid rgba(251,191,36,.22);border-radius:14px;
   padding:12px 14px;background:rgba(251,191,36,.08);color:#f8e7b0;font-size:13px}
 .personal-mode .personal-banner{display:block}
@@ -337,7 +338,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
     </div>
   </nav>
   <div class="personal-banner" id="personalBanner">
-    <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders for you.
+    <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
 
   <!-- ============ OVERVIEW ============ -->
@@ -545,18 +546,19 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
     </div>
   </section>
 
-  <!-- ============ LIVE MONEY READINESS ============ -->
+  <!-- ============ PERSONAL TRADING COCKPIT ============ -->
   <section class="tabpanel" data-tab="live">
-    <div class="section-title">🔐 Live Money Readiness</div>
+    <div class="section-title">🔐 Personal Trading Cockpit</div>
+    <div class="disclaimer" style="margin-bottom:16px"><b>Private use only.</b> This area is hidden from the public site and is for your own wallet, your own money, and manual approval only. It does not accept investor deposits, pool funds, sell agent access, or execute unattended trades.</div>
     <div class="grid2">
       <div class="card">
-        <div class="card-h"><h3>Launch checklist</h3><span class="small muted" id="liveReadyPct"></span></div>
+        <div class="card-h"><h3>Personal safety checklist</h3><span class="small muted" id="liveReadyPct"></span></div>
         <div id="liveChecklist"></div>
       </div>
       <div class="card">
-        <div class="card-h"><h3>User wallet & funds</h3><span class="small muted">simulation only</span></div>
+        <div class="card-h"><h3>Your wallet & limits</h3><span class="small muted">personal only</span></div>
         <div class="account-row">
-          <input class="input" id="liveWalletAddress" placeholder="Wallet / deposit wallet address" />
+          <input class="input" id="liveWalletAddress" placeholder="Your Polymarket deposit wallet address" />
           <select class="select" id="liveJurisdiction">
             <option value="">Jurisdiction</option><option>United States</option><option>Canada</option><option>European Union</option><option>Other</option>
           </select>
@@ -565,35 +567,35 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
           <input class="input" id="liveDepositLimit" type="number" min="0" step="100" placeholder="Max deposit" />
           <input class="input" id="liveWithdrawReserve" type="number" min="0" step="100" placeholder="Withdrawal reserve" />
           <button class="btn" id="saveLiveProfileBtn">Save profile</button>
-          <button class="btn primary" disabled>Real deposits locked</button>
+          <button class="btn primary" disabled>No public deposits</button>
         </div>
-        <div class="risk-note" style="margin-top:12px">Real deposits stay locked until eligibility, wallet signing, payment rails, and legal approval are complete.</div>
+        <div class="risk-note" style="margin-top:12px">Fund only your own wallet directly through approved provider flows. This site will not accept, hold, or withdraw money for other people.</div>
       </div>
     </div>
     <div class="card">
-      <div class="card-h"><h3>Agent permissions & risk limits</h3><span class="small muted">what a live account would allow</span></div>
+      <div class="card-h"><h3>Agent permissions & risk limits</h3><span class="small muted">manual approval only</span></div>
       <div id="liveAgentPermissions"></div>
     </div>
     <div class="grid2">
       <div class="card">
-        <div class="card-h"><h3>Execution console</h3><span class="small muted">locked until backend exists</span></div>
+        <div class="card-h"><h3>Manual order console</h3><span class="small muted">review before any trade</span></div>
         <div id="liveBackendStatus" class="locked-panel">Checking backend readiness...</div>
         <div class="account-row">
           <select class="select" id="liveIntentAgent"></select>
           <input class="input" id="liveIntentMarket" placeholder="Market ID" />
           <select class="select" id="liveIntentSide"><option>YES</option><option>NO</option></select>
           <input class="input" id="liveIntentAmount" type="number" min="1" step="25" placeholder="Max amount" />
-          <button class="btn" id="dryRunOrderBtn">Dry-run order intent</button>
+          <button class="btn" id="dryRunOrderBtn">Stage manual intent</button>
         </div>
         <ol class="steps">
-          <li><b>Wallet signature</b> — user signs EIP-712 orders; the site never signs unauthorized trades.</li>
-          <li><b>CLOB router</b> — backend submits, cancels, and tracks orders through authenticated Polymarket APIs.</li>
-          <li><b>Fill sync</b> — real positions, cash, unsettled orders, and agent actions reconcile continuously.</li>
-          <li><b>Emergency controls</b> — user can pause agents, cancel orders, and withdraw available funds any time.</li>
+          <li><b>Research signal</b> — choose an agent idea and inspect the exact market yourself.</li>
+          <li><b>Manual review</b> — confirm side, amount, price, risk cap, and current market status.</li>
+          <li><b>Your wallet only</b> — sign or submit only from your own Polymarket/deposit wallet.</li>
+          <li><b>Emergency pause</b> — keep agent automation off and cancel staged intents any time.</li>
         </ol>
       </div>
       <div class="card">
-        <div class="card-h"><h3>Audit trail preview</h3><span class="small muted">required for real money</span></div>
+        <div class="card-h"><h3>Personal audit trail</h3><span class="small muted">local + Neon records</span></div>
         <div id="liveOrderDryRun"></div>
         <div id="liveAuditTrail"></div>
       </div>
@@ -616,8 +618,8 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
       <div class="card">
         <div class="card-h"><h3>Server controls</h3><span class="small muted">live safety gates</span></div>
         <div class="locked-panel">
-          <b>Production switch remains off</b>
-          <div class="small muted">The backend can now store policies, consent, risk profiles, webhooks, incidents, and dry-run order intents. Real deposits and live orders still require final approval and real CLOB/deposit-wallet setup.</div>
+          <b>Public production switch remains off</b>
+          <div class="small muted">The public product remains paper trading only. Personal mode can store your wallet limits, consent status, staged manual intents, webhooks, and incident records, but does not onboard investors or pool money.</div>
         </div>
       </div>
     </div>
@@ -720,7 +722,7 @@ function applyPersonalMode(){
   if(sub)sub.textContent="private research · paper tracking · manual links";
   const heroTitle=document.querySelector(".hero h1"),heroCopy=document.querySelector(".hero p");
   if(heroTitle)heroTitle.innerHTML=`Your private agent lab for <span class="grad">manual market research</span>`;
-  if(heroCopy)heroCopy.textContent="Use the same agents, charts, paper portfolios, and Polymarket links for your own research. Nothing here pools outside money, manages investor funds, or places live orders.";
+  if(heroCopy)heroCopy.textContent="Use the same agents, charts, paper portfolios, and Polymarket links for your own research. Nothing here pools outside money, manages investor funds, or places live orders without manual review.";
   document.querySelectorAll(".hbadge").forEach((b,i)=>{
     const labels=["Private research mode","Manual execution only","Cloud paper accounts","Live market links"];
     if(labels[i])b.textContent=labels[i];
@@ -2331,19 +2333,18 @@ function renderAbout(){
     <div class="fic">${a.emoji}</div><h4>${a.name}</h4><p>${agentBlurb(a,st)}</p></div>`).join("");
 }
 const LIVE_CHECKS=[
-  ["legal","Terms, privacy policy, risk disclosures, and jurisdiction policy approved"],
-  ["eligibility","KYC/KYB, age, sanctions, watchlist, and location screening active"],
-  ["market_policy","Allowed market categories, restricted events, and manipulation rules defined"],
-  ["auth","Production accounts, sessions, password reset, MFA path, and sign-out implemented"],
-  ["wallet","User-controlled wallet/deposit-wallet signing and permission revocation implemented"],
-  ["payments","Deposits, withdrawals, webhooks, failed-payment handling, and support flows implemented"],
-  ["clob","Signed order creation, CLOB submission, cancellation, retry, and fill tracking implemented"],
-  ["reconciliation","Cash, open orders, positions, fills, fees, and withdrawals reconciled continuously"],
-  ["risk","Agent allocation caps, market caps, stop rules, manual approval, and emergency pause enforced server-side"],
+  ["personal_scope","I will use only my own money and my own Polymarket/deposit wallet"],
+  ["no_investors","No outside investors, pooled funds, user deposits, or copy-trading customers"],
+  ["eligibility","I personally satisfy the provider and Polymarket eligibility/location rules"],
+  ["wallet","My own deposit wallet is created, controlled by me, and funded only by me"],
+  ["clob","Personal CLOB credentials are configured only for my own wallet"],
+  ["manual_only","Every staged intent requires manual review before any order is placed"],
+  ["reconciliation","I will compare cash, open orders, fills, and positions after each test"],
+  ["risk","Personal max amount, per-agent caps, stop rules, and emergency pause are set"],
   ["security","Secret management, encryption, rate limits, abuse controls, and security review completed"],
-  ["records","Append-only audit logs, customer statements, exports, and retention policy active"],
-  ["operations","Monitoring, incident response, customer support, and rollback plan ready"],
-  ["testing","Paper-to-live parity, dry-runs, test wallets, webhook tests, and edge-case QA completed"],
+  ["records","Append-only audit logs are recording profile changes and staged intents"],
+  ["operations","Incident alerting and emergency pause path are ready"],
+  ["testing","Tiny manual test trades are checked before increasing size"],
 ];
 function defaultLiveState(){
   const checks={};LIVE_CHECKS.forEach(([k])=>checks[k]=false);
@@ -2386,10 +2387,12 @@ function renderLiveBackendStatus(){
   const s=LIVE_BACKEND_STATUS;
   if(!s){root.innerHTML="Checking backend readiness...";if(hookRoot)hookRoot.innerHTML="Checking webhook setup...";if(policyRoot)policyRoot.innerHTML="Checking policy status...";return;}
   const providers=(s.providers||[]).map(p=>`<div class="leader-row"><span>${esc(p.label)}${p.expected?`<div class="small muted">${esc(p.expected)}</div>`:""}</span><b class="${p.configured?"pos-val":"neg-val"}">${p.configured?"configured":"missing"}</b></div>`).join("");
+  const personalReqs=(s.personal_requirements||[]).map(p=>`<div class="leader-row"><span>${esc(p.label)}${p.expected?`<div class="small muted">${esc(p.expected)}</div>`:""}</span><b class="${p.configured?"pos-val":"neg-val"}">${p.configured?"ready":"missing"}</b></div>`).join("");
   const stack=(s.provider_stack||[]).map(p=>`<div class="leader-row"><span><b>${esc(p.provider)}</b><div class="small muted">${esc(p.role)}</div><div class="small muted">${(p.checks||[]).map(c=>`${esc(c.key)}: ${c.configured?"ok":"missing"}`).join(" · ")}</div></span><b class="${p.configured?"pos-val":"neg-val"}">${p.configured?"ready":"needs keys"}</b></div>`).join("");
   const next=(s.next_required||[]).slice(0,12).map(x=>`<li>${esc(x)}</li>`).join("");
+  const personalNext=(s.personal_next_required||[]).slice(0,12).map(x=>`<li>${esc(x)}</li>`).join("");
   const reqs=(s.launch_requirements||[]).map(x=>`<li>${esc(x.label)}</li>`).join("");
-  root.innerHTML=`<b>${s.live_trading_enabled?"Live trading unlocked":"Live trading locked"}</b><div class="small muted" style="margin:6px 0">${esc(s.locked_reason||"All required backend providers are configured.")}</div>${stack?`<div class="locked-panel" style="margin-top:10px"><b>Your provider stack</b>${stack}</div>`:""}${providers}${next?`<div class="locked-panel" style="margin-top:10px"><b>Next setup items</b><ul>${next}</ul></div>`:""}${reqs?`<div class="locked-panel" style="margin-top:10px"><b>Full launch requirements</b><ol>${reqs}</ol></div>`:""}<div class="small muted" style="margin-top:8px">Live execution stays disabled until every provider is configured, every launch requirement is complete, and final approval flips LIVE_TRADING_ENABLED=true.</div>`;
+  root.innerHTML=`<b>${s.personal_trading_enabled?"Personal prerequisites ready":"Manual personal mode locked to staging"}</b><div class="small muted" style="margin:6px 0">${esc(s.locked_reason||"Public trading remains locked.")}</div>${personalReqs?`<div class="locked-panel" style="margin-top:10px"><b>Personal-only requirements</b>${personalReqs}</div>`:""}${personalNext?`<div class="locked-panel" style="margin-top:10px"><b>Before personal live execution</b><ul>${personalNext}</ul></div>`:""}${stack?`<div class="locked-panel" style="margin-top:10px"><b>Public provider stack</b>${stack}</div>`:""}${providers}${next?`<div class="locked-panel" style="margin-top:10px"><b>Public platform blockers</b><ul>${next}</ul></div>`:""}${reqs?`<div class="locked-panel" style="margin-top:10px"><b>Public launch requirements</b><ol>${reqs}</ol></div>`:""}<div class="small muted" style="margin-top:8px">This cockpit stages manual intents only. Public investor deposits and unattended agent trading stay off.</div>`;
   if(hookRoot){
     const hooks=(s.webhooks||[]).map(h=>`<div class="leader-row"><span><b>${esc(h.provider)}</b><div class="small muted">${esc(h.label)}</div></span><a class="market-link" href="${esc(h.url)}" target="_blank" rel="noopener">${esc(h.url)}</a></div>`).join("");
     hookRoot.innerHTML=hooks||"Webhook URLs will appear after backend readiness loads.";
@@ -2411,24 +2414,27 @@ async function dryRunLiveOrderIntent(){
     side:$("liveIntentSide").value,
     max_amount:Number($("liveIntentAmount").value||0),
     execution_mode:"manual_approval",
+    account_scope:PERSONAL_MODE?"personal":"public_readiness",
   };
   try{
     const r=await fetch("/api/live",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({intent})});
     const d=await r.json();
     $("liveOrderDryRun").innerHTML=`<div class="locked-panel"><b>Order intent dry-run</b><div class="small muted">${esc(d.error||"Accepted dry-run.")}</div><pre style="white-space:pre-wrap;font-size:11px;color:#cdd6e8">${esc(JSON.stringify(d.audit_event||d,null,2))}</pre></div>`;
-    saveLiveState(s,`Dry-ran ${intent.side} order intent for ${intent.agent_id} on ${intent.market_id}`);
+    saveLiveState(s,`${PERSONAL_MODE?"Staged manual":"Dry-ran"} ${intent.side} order intent for ${intent.agent_id} on ${intent.market_id}`);
   }catch(e){
     toast("Order dry-run failed.");
   }
 }
 async function saveRiskProfileToServer(s){
+  const permissions=JSON.parse(JSON.stringify(s.agents||{}));
+  Object.values(permissions).forEach(p=>{p.autoTrade=false;p.manualApprove=true;});
   const body={
     user_id:"local-readiness-user",
     wallet_address:s.walletAddress,
     jurisdiction:s.jurisdiction,
     deposit_limit:s.depositLimit,
     withdraw_reserve:s.withdrawReserve,
-    agent_permissions:s.agents,
+    agent_permissions:permissions,
   };
   const r=await fetch("/api/risk-profile",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
   const d=await r.json();
@@ -2473,7 +2479,7 @@ function renderLiveMoneyTab(){
       <div><div class="invest-name">${esc(a.name)}</div><div class="invest-copy">${esc(a.blurb.slice(0,120))}${a.blurb.length>120?"...":""}</div></div>
       <div class="trade-actions">
         <label class="small muted"><input type="checkbox" data-live-agent="${a.id}" data-field="enabled" ${p.enabled?"checked":""}> enabled</label>
-        <label class="small muted"><input type="checkbox" data-live-agent="${a.id}" data-field="autoTrade" ${p.autoTrade?"checked":""}> auto</label>
+        <label class="small muted"><input type="checkbox" data-live-agent="${a.id}" data-field="autoTrade" ${p.autoTrade?"checked":""} disabled> auto unavailable</label>
         <input class="input" type="number" min="0" step="100" value="${p.maxAllocation||""}" placeholder="Max $" data-live-agent="${a.id}" data-field="maxAllocation">
         <input class="input" type="number" min="1" max="100" step="1" value="${p.maxPositionPct||10}" placeholder="Max %" data-live-agent="${a.id}" data-field="maxPositionPct">
       </div>
@@ -2490,7 +2496,8 @@ function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;","
 const TABS=["overview","leaderboard","suggestions","portfolio","invest","paper","live","about"];
 function showTab(name){
   if(!TABS.includes(name))name="overview";
-  if(PERSONAL_MODE&&["invest","live"].includes(name))name="overview";
+  if(PERSONAL_MODE&&name==="invest")name="overview";
+  if(!PERSONAL_MODE&&name==="live")name="overview";
   document.querySelectorAll(".tabpanel").forEach(p=>p.classList.toggle("active",p.dataset.tab===name));
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.tab===name));
   if(location.hash.slice(1)!==name)history.replaceState(null,"","#"+name);

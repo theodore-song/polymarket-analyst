@@ -44,6 +44,16 @@ const REQUIRED_ENV = [
   ["CUSTOMER_SUPPORT_EMAIL", "Customer support contact"],
 ];
 
+const PERSONAL_REQUIRED_ENV = [
+  ["DATABASE_URL", "Audit database"],
+  ["DEPOSIT_WALLET_ADDRESS", "Personal Polymarket deposit wallet address"],
+  ["POLYMARKET_SIGNATURE_TYPE", "Polymarket signature type"],
+  ["POLYMARKET_CLOB_API_KEY", "Personal Polymarket CLOB API key"],
+  ["POLYMARKET_CLOB_SECRET", "Personal Polymarket CLOB API secret"],
+  ["POLYMARKET_CLOB_PASSPHRASE", "Personal Polymarket CLOB passphrase"],
+  ["RISK_ADMIN_TOKEN", "Personal admin token"],
+];
+
 const ENV_ALIASES = {
   DATABASE_URL: ["NEON_DATABASE_URL"],
   KYC_API_KEY: ["VERIFF_API_KEY"],
@@ -133,6 +143,15 @@ function providerStatus() {
   }));
 }
 
+function personalStatus() {
+  return PERSONAL_REQUIRED_ENV.map(([key, label]) => ({
+    key,
+    label,
+    configured: Boolean(envValue(key)),
+    expected: key === "POLYMARKET_SIGNATURE_TYPE" ? "3 for deposit-wallet users" : undefined,
+  }));
+}
+
 function stackStatus() {
   return PROVIDER_STACK.map((provider) => {
     const checks = provider.env.map((key) => ({ key, configured: Boolean(envValue(key)) }));
@@ -152,6 +171,13 @@ function liveTradingReady() {
   return requiredConfigured && liveFlagEnabled && signatureTypeOk && chainOk;
 }
 
+function personalTradingReady() {
+  return personalStatus().every((x) => x.configured)
+    && process.env.PERSONAL_TRADING_ENABLED === "true"
+    && String(process.env.POLYMARKET_SIGNATURE_TYPE || "") === "3"
+    && String(process.env.POLYMARKET_CHAIN_ID || "137") === "137";
+}
+
 function baseStatus() {
   const providers = providerStatus();
   const origin = (envValue("WEBHOOK_BASE_URL") || envValue("PRODUCTION_APP_URL") || "").replace(/\/api\/?$/, "").replace(/\/$/, "");
@@ -159,13 +185,18 @@ function baseStatus() {
   const signatureTypeOk = String(process.env.POLYMARKET_SIGNATURE_TYPE || "") === "3";
   const chainOk = String(process.env.POLYMARKET_CHAIN_ID || "137") === "137";
   const missing = providers.filter((x) => !x.configured).map((x) => x.label);
+  const personal = personalStatus();
+  const personalMissing = personal.filter((x) => !x.configured).map((x) => x.label);
+  if (process.env.PERSONAL_TRADING_ENABLED !== "true") personalMissing.push("PERSONAL_TRADING_ENABLED=true after your own wallet/CLOB test");
   if (!liveFlagEnabled) missing.push("LIVE_TRADING_ENABLED=true after final approval");
   if (!signatureTypeOk) missing.push("POLYMARKET_SIGNATURE_TYPE=3 for deposit-wallet users");
   if (!chainOk) missing.push("POLYMARKET_CHAIN_ID=137");
   return {
     ok: true,
     live_trading_enabled: liveTradingReady(),
+    personal_trading_enabled: personalTradingReady(),
     live_flag_enabled: liveFlagEnabled,
+    personal_flag_enabled: process.env.PERSONAL_TRADING_ENABLED === "true",
     signature_type_ok: signatureTypeOk,
     chain_ok: chainOk,
     locked_reason: liveTradingReady()
@@ -173,6 +204,7 @@ function baseStatus() {
       : "Live trading is locked until eligibility, payments, wallet/deposit-wallet signing, Polymarket CLOB credentials, audit storage, monitoring, and LIVE_TRADING_ENABLED=true are configured.",
     providers,
     provider_stack: stackStatus(),
+    personal_requirements: personal,
     launch_requirements: LAUNCH_REQUIREMENTS.map(([key, label]) => ({ key, label })),
     webhooks: WEBHOOK_ROUTES.map(([provider, label, path]) => ({
       provider,
@@ -181,6 +213,7 @@ function baseStatus() {
       url: origin ? `${origin}${path}` : path,
     })),
     next_required: missing,
+    personal_next_required: personalMissing,
     docs: {
       polymarket_overview: "https://docs.polymarket.com/trading/overview",
       polymarket_quickstart: "https://docs.polymarket.com/trading/quickstart",
@@ -225,7 +258,23 @@ export default async function handler(req, res) {
       side: String(intent.side).toUpperCase(),
       max_amount: Number(intent.max_amount),
       execution_mode: intent.execution_mode || "manual_approval",
+      account_scope: intent.account_scope || body.account_scope || "public_readiness",
     };
+
+    if (auditEvent.account_scope === "personal") {
+      await recordAuditEvent("PERSONAL_ORDER_INTENT_STAGED", auditEvent);
+      return res.status(202).json({
+        ok: true,
+        dry_run: true,
+        manual_review_required: true,
+        live_order_placed: false,
+        message: personalTradingReady()
+          ? "Personal prerequisites are configured, but this endpoint still stages manual review only."
+          : "Personal order intent staged. Configure your own deposit wallet/CLOB credentials before any manual live execution.",
+        audit_event: auditEvent,
+        status,
+      });
+    }
 
     if (!status.live_trading_enabled) {
       await recordAuditEvent("ORDER_INTENT_BLOCKED", auditEvent);

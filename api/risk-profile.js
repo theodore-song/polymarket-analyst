@@ -10,9 +10,7 @@ function validateProfile(profile) {
     if (Number(permission.maxAllocation || 0) < 0) errors.push(`${agentId} maxAllocation must be 0 or greater`);
     const maxPositionPct = Number(permission.maxPositionPct || 0);
     if (maxPositionPct < 0 || maxPositionPct > 100) errors.push(`${agentId} maxPositionPct must be between 0 and 100`);
-    if (permission.autoTrade && !permission.manualApprove) {
-      errors.push(`${agentId} cannot enable unattended real-money trading before final approval`);
-    }
+    if (permission.autoTrade) errors.push(`${agentId} cannot enable unattended real-money trading in personal mode`);
   });
 
   return errors;
