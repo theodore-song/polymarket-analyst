@@ -77,6 +77,30 @@ export async function ensureSchema() {
     )
   `;
 
+  await db`
+    create table if not exists trade_tickets (
+      id bigserial primary key,
+      user_id text not null,
+      agent_id text not null,
+      market_id text not null,
+      question text,
+      market_url text,
+      side text not null,
+      max_amount numeric not null,
+      limit_price numeric,
+      rationale text,
+      status text not null default 'staged',
+      instructions jsonb not null default '{}'::jsonb,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `;
+
+  await db`
+    create index if not exists trade_tickets_user_status_idx
+      on trade_tickets (user_id, status, created_at desc)
+  `;
+
   schemaReady = true;
 }
 
@@ -190,6 +214,64 @@ export async function latestRiskProfile(userId) {
     from risk_profiles
     where user_id = ${userId}
     limit 1
+  `;
+  return rows[0] || null;
+}
+
+export async function createTradeTicket(ticket) {
+  await ensureSchema();
+  const db = sql();
+  const rows = await db`
+    insert into trade_tickets (
+      user_id,
+      agent_id,
+      market_id,
+      question,
+      market_url,
+      side,
+      max_amount,
+      limit_price,
+      rationale,
+      status,
+      instructions
+    ) values (
+      ${ticket.userId},
+      ${ticket.agentId},
+      ${ticket.marketId},
+      ${ticket.question || null},
+      ${ticket.marketUrl || null},
+      ${ticket.side},
+      ${Number(ticket.maxAmount || 0)},
+      ${ticket.limitPrice == null ? null : Number(ticket.limitPrice)},
+      ${ticket.rationale || null},
+      ${ticket.status || "staged"},
+      ${JSON.stringify(ticket.instructions || {})}::jsonb
+    )
+    returning *
+  `;
+  return rows[0] || null;
+}
+
+export async function listTradeTickets(userId, limit = 50) {
+  await ensureSchema();
+  const db = sql();
+  return db`
+    select *
+    from trade_tickets
+    where user_id = ${userId}
+    order by created_at desc
+    limit ${Math.max(1, Math.min(Number(limit) || 50, 100))}
+  `;
+}
+
+export async function updateTradeTicketStatus(userId, ticketId, status) {
+  await ensureSchema();
+  const db = sql();
+  const rows = await db`
+    update trade_tickets
+    set status = ${status}, updated_at = now()
+    where user_id = ${userId} and id = ${Number(ticketId)}
+    returning *
   `;
   return rows[0] || null;
 }

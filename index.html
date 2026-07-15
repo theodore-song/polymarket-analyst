@@ -583,8 +583,10 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
         <div class="account-row">
           <select class="select" id="liveIntentAgent"></select>
           <input class="input" id="liveIntentMarket" placeholder="Market ID" />
+          <input class="input" id="liveIntentQuestion" placeholder="Market question / note" />
           <select class="select" id="liveIntentSide"><option>YES</option><option>NO</option></select>
           <input class="input" id="liveIntentAmount" type="number" min="1" step="25" placeholder="Max amount" />
+          <input class="input" id="liveIntentPrice" type="number" min="0.01" max="0.99" step="0.01" placeholder="Limit price" />
           <button class="btn" id="dryRunOrderBtn">Stage manual intent</button>
         </div>
         <ol class="steps">
@@ -599,6 +601,10 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
         <div id="liveOrderDryRun"></div>
         <div id="liveAuditTrail"></div>
       </div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h3>Manual trade ticket queue</h3><span class="small muted">AI suggests, you sign elsewhere</span></div>
+      <div id="personalTicketQueue"></div>
     </div>
     <div class="card">
       <div class="card-h"><h3>Provider webhooks</h3><span class="small muted">events are stored in Neon</span></div>
@@ -697,6 +703,7 @@ const PAPER_KEY = "pma_paper_accounts_v1";
 const LIVE_KEY = "pma_live_readiness_v1";
 const PAPER_SESSION_PREFIX = "pma_cloud_session_";
 const PERSONAL_MODE = new URLSearchParams(location.search).get("personal") === "1";
+const PERSONAL_USER_ID = "local-readiness-user";
 const CATEGORIES = ["All","Politics","Sports","Crypto","Economy","Pop Culture","Other"];
 const SYNC_KEYS=[AGENTS_KEY,SUG_KEY,FOCUS_KEY,VIEW_KEY,PF_SORT_KEY,CHART_RANGE_KEY,INVEST_KEY,PAPER_KEY,LIVE_KEY];
 const CAT_COLORS = {Politics:"#fb7185",Sports:"#34d399",Crypto:"#fbbf24",Economy:"#7c8cff",
@@ -709,6 +716,7 @@ let PAPER_MARKET_OFFSET = 0;
 let PAPER_MARKET_QUERY = "";
 let LIVE_BACKEND_STATUS = null;
 let LIVE_POLICY_STATUS = null;
+let PERSONAL_TICKETS = [];
 let PROVIDER_CONFIG = null;
 const catColor = (c) => CAT_COLORS[c] || CAT_COLORS.Other;
 const getFocus = () => localStorage.getItem(FOCUS_KEY) || "All";
@@ -1808,8 +1816,10 @@ function renderSuggestions(){
       <div class="metrics">
         <span>Vol <b>${fmtUSD(s.volume)}</b></span><span>24h <b>${fmtUSD(s.volume_24hr)}</b></span><span>Resolves <b>${days}</b></span>
         ${s.url?`<a class="market-link" href="${esc(s.url)}" target="_blank" rel="noopener">Open on Polymarket ↗</a>`:""}
+        ${PERSONAL_MODE?`<button class="btn ghost" data-stage-suggestion="${esc(s.market_id)}">Stage ticket</button>`:""}
       </div></div>`;
   }).join("");
+  document.querySelectorAll("[data-stage-suggestion]").forEach(btn=>btn.onclick=()=>stageSuggestionTicket(btn.dataset.stageSuggestion));
 }
 function renderPortfolioTab(){
   const st=loadState();
@@ -2379,6 +2389,7 @@ async function fetchLiveBackendStatus(){
     LIVE_POLICY_STATUS={ok:false,note:"Policy status endpoint is unavailable."};
   }
   renderLiveBackendStatus();
+  if(PERSONAL_MODE)loadTradeTickets();
 }
 function renderLiveBackendStatus(){
   const root=$("liveBackendStatus");if(!root)return;
@@ -2407,23 +2418,105 @@ function renderLiveBackendStatus(){
 async function dryRunLiveOrderIntent(){
   const s=loadLiveState();
   const intent={
-    user_id:"local-readiness-user",
+    user_id:PERSONAL_USER_ID,
     wallet_address:s.walletAddress,
     agent_id:$("liveIntentAgent").value,
     market_id:$("liveIntentMarket").value.trim(),
+    question:($("liveIntentQuestion")&&$("liveIntentQuestion").value||"").trim(),
     side:$("liveIntentSide").value,
     max_amount:Number($("liveIntentAmount").value||0),
+    limit_price:Number(($("liveIntentPrice")&&$("liveIntentPrice").value)||0)||null,
     execution_mode:"manual_approval",
     account_scope:PERSONAL_MODE?"personal":"public_readiness",
   };
   try{
+    if(PERSONAL_MODE)await createTradeTicket({
+      user_id:intent.user_id,
+      agent_id:intent.agent_id,
+      market_id:intent.market_id,
+      question:intent.question,
+      side:intent.side,
+      max_amount:intent.max_amount,
+      limit_price:intent.limit_price,
+      rationale:"Manually staged from the personal cockpit.",
+    });
     const r=await fetch("/api/live",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({intent})});
     const d=await r.json();
     $("liveOrderDryRun").innerHTML=`<div class="locked-panel"><b>Order intent dry-run</b><div class="small muted">${esc(d.error||"Accepted dry-run.")}</div><pre style="white-space:pre-wrap;font-size:11px;color:#cdd6e8">${esc(JSON.stringify(d.audit_event||d,null,2))}</pre></div>`;
     saveLiveState(s,`${PERSONAL_MODE?"Staged manual":"Dry-ran"} ${intent.side} order intent for ${intent.agent_id} on ${intent.market_id}`);
+    if(PERSONAL_MODE)await loadTradeTickets();
   }catch(e){
-    toast("Order dry-run failed.");
+    toast(e.message||"Order dry-run failed.");
   }
+}
+async function createTradeTicket(ticket){
+  const r=await fetch("/api/trade-tickets",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(ticket)});
+  const d=await r.json();
+  if(!r.ok)throw new Error(d.error||"Ticket staging failed");
+  toast("Manual trade ticket staged.");
+  return d.ticket;
+}
+async function stageSuggestionTicket(marketId){
+  const s=(loadSuggestions().suggestions||[]).find(x=>String(x.market_id)===String(marketId));
+  if(!s)return toast("Suggestion not found.");
+  const amount=Number(prompt("Max amount for this manual ticket?", "10")||0);
+  if(!amount||amount<=0)return;
+  try{
+    await createTradeTicket({
+      user_id:PERSONAL_USER_ID,
+      agent_id:localStorage.getItem(VIEW_KEY)||"value",
+      market_id:s.market_id,
+      question:s.question,
+      market_url:s.url,
+      side:s.side,
+      max_amount:amount,
+      limit_price:s.entry_price,
+      rationale:s.rationale,
+    });
+    await loadTradeTickets();
+    showTab("live");
+  }catch(e){toast(e.message||"Ticket staging failed.");}
+}
+async function loadTradeTickets(){
+  if(!PERSONAL_MODE)return;
+  try{
+    const r=await fetch(`/api/trade-tickets?user_id=${encodeURIComponent(PERSONAL_USER_ID)}&limit=30`,{cache:"no-store"});
+    const d=await r.json();
+    PERSONAL_TICKETS=d.tickets||[];
+  }catch(e){PERSONAL_TICKETS=[];}
+  renderTradeTickets();
+}
+async function updateTicketStatus(ticketId,status){
+  try{
+    const r=await fetch("/api/trade-tickets",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"status",user_id:PERSONAL_USER_ID,ticket_id:ticketId,status})});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error||"Ticket update failed");
+    await loadTradeTickets();
+    toast("Ticket updated.");
+  }catch(e){toast(e.message||"Ticket update failed.");}
+}
+function renderTradeTickets(){
+  const root=$("personalTicketQueue");if(!root)return;
+  if(!PERSONAL_MODE){root.innerHTML=`<div class="empty">Personal trade tickets are hidden on the public site.</div>`;return;}
+  if(!PERSONAL_TICKETS.length){root.innerHTML=`<div class="empty">No staged tickets yet. Stage one from Suggestions or the manual console.</div>`;return;}
+  root.innerHTML=PERSONAL_TICKETS.map(t=>{
+    const instructions=t.instructions||{},steps=instructions.steps||[];
+    const url=t.market_url||instructions.market_url||marketSearchUrl(t.question||t.market_id);
+    return `<div class="trade-card">
+      <div class="trade-head"><div><div class="trade-title">${esc(t.question||t.market_id)}</div><div class="trade-meta"><span>${esc(t.agent_id)}</span><span>${esc(t.status)}</span><span>${new Date(t.created_at).toLocaleString()}</span></div></div><span class="pill ${esc(t.side)}">BUY ${esc(t.side)}</span></div>
+      <div class="small muted">Max ${fmtUSD(Number(t.max_amount||0))}${t.limit_price?` · limit ${Math.round(Number(t.limit_price)*100)}¢`:""} · ticket #${t.id}</div>
+      ${t.rationale?`<div class="rationale">${esc(t.rationale)}</div>`:""}
+      <ol class="steps">${steps.map(step=>`<li>${esc(step)}</li>`).join("")}</ol>
+      <div class="trade-actions">
+        <a class="btn" href="${esc(url)}" target="_blank" rel="noopener">Open Polymarket</a>
+        <button class="btn ghost" data-ticket-status="${t.id}:reviewed">Reviewed</button>
+        <button class="btn ghost" data-ticket-status="${t.id}:placed_manually">Placed manually</button>
+        <button class="btn ghost" data-ticket-status="${t.id}:skipped">Skipped</button>
+        <button class="btn ghost" data-ticket-status="${t.id}:cancelled">Cancel</button>
+      </div>
+    </div>`;
+  }).join("");
+  document.querySelectorAll("[data-ticket-status]").forEach(btn=>btn.onclick=()=>{const [id,status]=btn.dataset.ticketStatus.split(":");updateTicketStatus(id,status);});
 }
 async function saveRiskProfileToServer(s){
   const permissions=JSON.parse(JSON.stringify(s.agents||{}));
