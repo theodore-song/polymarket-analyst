@@ -101,6 +101,50 @@ export async function ensureSchema() {
       on trade_tickets (user_id, status, created_at desc)
   `;
 
+  await db`
+    create table if not exists real_fills (
+      id bigserial primary key,
+      user_id text not null,
+      ticket_id bigint,
+      agent_id text,
+      market_id text not null,
+      question text,
+      market_url text,
+      side text not null,
+      action text not null,
+      shares numeric not null,
+      price numeric not null,
+      fees numeric not null default 0,
+      tx_note text,
+      filled_at timestamptz not null default now(),
+      created_at timestamptz not null default now()
+    )
+  `;
+
+  await db`
+    create index if not exists real_fills_user_market_idx
+      on real_fills (user_id, market_id, side, filled_at desc)
+  `;
+
+  await db`
+    create table if not exists real_positions (
+      id bigserial primary key,
+      user_id text not null,
+      agent_id text,
+      market_id text not null,
+      question text,
+      market_url text,
+      side text not null,
+      shares numeric not null default 0,
+      avg_price numeric not null default 0,
+      cost_basis numeric not null default 0,
+      realized_pnl numeric not null default 0,
+      current_price numeric,
+      updated_at timestamptz not null default now(),
+      unique (user_id, market_id, side)
+    )
+  `;
+
   schemaReady = true;
 }
 
@@ -274,6 +318,158 @@ export async function updateTradeTicketStatus(userId, ticketId, status) {
     returning *
   `;
   return rows[0] || null;
+}
+
+export async function recordRealFill(fill) {
+  await ensureSchema();
+  const db = sql();
+  const action = String(fill.action || "BUY").toUpperCase();
+  const shares = Number(fill.shares || 0);
+  const price = Number(fill.price || 0);
+  const fees = Number(fill.fees || 0);
+
+  const rows = await db`
+    insert into real_fills (
+      user_id,
+      ticket_id,
+      agent_id,
+      market_id,
+      question,
+      market_url,
+      side,
+      action,
+      shares,
+      price,
+      fees,
+      tx_note,
+      filled_at
+    ) values (
+      ${fill.userId},
+      ${fill.ticketId ? Number(fill.ticketId) : null},
+      ${fill.agentId || null},
+      ${fill.marketId},
+      ${fill.question || null},
+      ${fill.marketUrl || null},
+      ${fill.side},
+      ${action},
+      ${shares},
+      ${price},
+      ${fees},
+      ${fill.txNote || null},
+      ${fill.filledAt ? new Date(fill.filledAt).toISOString() : new Date().toISOString()}
+    )
+    returning *
+  `;
+
+  const existing = await db`
+    select *
+    from real_positions
+    where user_id = ${fill.userId}
+      and market_id = ${fill.marketId}
+      and side = ${fill.side}
+    limit 1
+  `;
+  const pos = existing[0];
+
+  if (action === "SELL" && pos) {
+    const sellShares = Math.min(shares, Number(pos.shares || 0));
+    const avgPrice = Number(pos.avg_price || 0);
+    const proceeds = sellShares * price - fees;
+    const costRemoved = sellShares * avgPrice;
+    const nextShares = Number(pos.shares || 0) - sellShares;
+    const nextCost = Math.max(0, Number(pos.cost_basis || 0) - costRemoved);
+    const realized = Number(pos.realized_pnl || 0) + proceeds - costRemoved;
+    await db`
+      update real_positions
+      set shares = ${nextShares},
+          cost_basis = ${nextCost},
+          realized_pnl = ${realized},
+          current_price = ${price},
+          updated_at = now()
+      where id = ${pos.id}
+    `;
+  } else {
+    const currentShares = pos ? Number(pos.shares || 0) : 0;
+    const currentCost = pos ? Number(pos.cost_basis || 0) : 0;
+    const nextShares = currentShares + shares;
+    const nextCost = currentCost + shares * price + fees;
+    const avgPrice = nextShares > 0 ? nextCost / nextShares : 0;
+    await db`
+      insert into real_positions (
+        user_id,
+        agent_id,
+        market_id,
+        question,
+        market_url,
+        side,
+        shares,
+        avg_price,
+        cost_basis,
+        realized_pnl,
+        current_price,
+        updated_at
+      ) values (
+        ${fill.userId},
+        ${fill.agentId || null},
+        ${fill.marketId},
+        ${fill.question || null},
+        ${fill.marketUrl || null},
+        ${fill.side},
+        ${nextShares},
+        ${avgPrice},
+        ${nextCost},
+        ${pos ? Number(pos.realized_pnl || 0) : 0},
+        ${price},
+        now()
+      )
+      on conflict (user_id, market_id, side) do update set
+        agent_id = coalesce(excluded.agent_id, real_positions.agent_id),
+        question = coalesce(excluded.question, real_positions.question),
+        market_url = coalesce(excluded.market_url, real_positions.market_url),
+        shares = excluded.shares,
+        avg_price = excluded.avg_price,
+        cost_basis = excluded.cost_basis,
+        current_price = excluded.current_price,
+        updated_at = now()
+    `;
+  }
+
+  if (fill.ticketId) {
+    await updateTradeTicketStatus(fill.userId, fill.ticketId, "placed_manually");
+  }
+
+  return rows[0] || null;
+}
+
+export async function updateRealPositionMark(userId, positionId, currentPrice) {
+  await ensureSchema();
+  const db = sql();
+  const rows = await db`
+    update real_positions
+    set current_price = ${Number(currentPrice)}, updated_at = now()
+    where user_id = ${userId} and id = ${Number(positionId)}
+    returning *
+  `;
+  return rows[0] || null;
+}
+
+export async function listRealPortfolio(userId) {
+  await ensureSchema();
+  const db = sql();
+  const positions = await db`
+    select *
+    from real_positions
+    where user_id = ${userId}
+    order by updated_at desc
+  `;
+  const fills = await db`
+    select *
+    from real_fills
+    where user_id = ${userId}
+    order by filled_at desc
+    limit 100
+  `;
+  return { positions, fills };
 }
 
 export async function providerEventSummary() {

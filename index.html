@@ -606,6 +606,17 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
       <div class="card-h"><h3>Manual trade ticket queue</h3><span class="small muted">AI suggests, you sign elsewhere</span></div>
       <div id="personalTicketQueue"></div>
     </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="card-h"><h3>Tracked real positions</h3><span class="small muted">manual fills only</span></div>
+        <div id="realPositionSummary"></div>
+        <div id="realPositions"></div>
+      </div>
+      <div class="card">
+        <div class="card-h"><h3>Manual fill history</h3><span class="small muted">no private key used</span></div>
+        <div id="realFills"></div>
+      </div>
+    </div>
     <div class="card">
       <div class="card-h"><h3>Provider webhooks</h3><span class="small muted">events are stored in Neon</span></div>
       <div id="liveWebhookStatus" class="small muted">Checking webhook setup...</div>
@@ -717,6 +728,7 @@ let PAPER_MARKET_QUERY = "";
 let LIVE_BACKEND_STATUS = null;
 let LIVE_POLICY_STATUS = null;
 let PERSONAL_TICKETS = [];
+let REAL_PORTFOLIO = {positions:[],fills:[]};
 let PROVIDER_CONFIG = null;
 const catColor = (c) => CAT_COLORS[c] || CAT_COLORS.Other;
 const getFocus = () => localStorage.getItem(FOCUS_KEY) || "All";
@@ -2553,11 +2565,16 @@ async function stageSuggestionTicket(marketId){
 async function loadTradeTickets(){
   if(!PERSONAL_MODE)return;
   try{
-    const r=await fetch(`/api/live?action=tickets&user_id=${encodeURIComponent(PERSONAL_USER_ID)}&limit=30`,{cache:"no-store"});
-    const d=await r.json();
+    const [ticketRes,portfolioRes]=await Promise.all([
+      fetch(`/api/live?action=tickets&user_id=${encodeURIComponent(PERSONAL_USER_ID)}&limit=30`,{cache:"no-store"}),
+      fetch(`/api/live?action=real_portfolio&user_id=${encodeURIComponent(PERSONAL_USER_ID)}`,{cache:"no-store"}),
+    ]);
+    const d=await ticketRes.json(),pf=await portfolioRes.json();
     PERSONAL_TICKETS=d.tickets||[];
-  }catch(e){PERSONAL_TICKETS=[];}
+    REAL_PORTFOLIO={positions:pf.positions||[],fills:pf.fills||[]};
+  }catch(e){PERSONAL_TICKETS=[];REAL_PORTFOLIO={positions:[],fills:[]};}
   renderTradeTickets();
+  renderRealPortfolio();
 }
 async function updateTicketStatus(ticketId,status){
   try{
@@ -2583,13 +2600,87 @@ function renderTradeTickets(){
       <div class="trade-actions">
         <a class="btn" href="${esc(url)}" target="_blank" rel="noopener">Open Polymarket</a>
         <button class="btn ghost" data-ticket-status="${t.id}:reviewed">Reviewed</button>
-        <button class="btn ghost" data-ticket-status="${t.id}:placed_manually">Placed manually</button>
         <button class="btn ghost" data-ticket-status="${t.id}:skipped">Skipped</button>
         <button class="btn ghost" data-ticket-status="${t.id}:cancelled">Cancel</button>
+      </div>
+      <div class="account-row" style="margin-top:12px">
+        <select class="select" data-fill-action="${t.id}"><option>BUY</option><option>SELL</option></select>
+        <input class="input" type="number" min="0.01" step="0.01" placeholder="Shares" data-fill-shares="${t.id}">
+        <input class="input" type="number" min="0.01" max="0.99" step="0.01" placeholder="Actual price" data-fill-price="${t.id}">
+        <input class="input" type="number" min="0" step="0.01" placeholder="Fees" data-fill-fees="${t.id}">
+        <input class="input" placeholder="Tx/link note" data-fill-note="${t.id}">
+        <button class="btn primary" data-record-fill="${t.id}">Record manual fill</button>
       </div>
     </div>`;
   }).join("");
   document.querySelectorAll("[data-ticket-status]").forEach(btn=>btn.onclick=()=>{const [id,status]=btn.dataset.ticketStatus.split(":");updateTicketStatus(id,status);});
+  document.querySelectorAll("[data-record-fill]").forEach(btn=>btn.onclick=()=>recordTicketFill(btn.dataset.recordFill));
+}
+function ticketById(id){return PERSONAL_TICKETS.find(t=>String(t.id)===String(id));}
+async function recordTicketFill(ticketId){
+  const t=ticketById(ticketId);
+  if(!t)return toast("Ticket not found.");
+  const fill={
+    action:"record_fill",
+    user_id:PERSONAL_USER_ID,
+    ticket_id:t.id,
+    agent_id:t.agent_id,
+    market_id:t.market_id,
+    question:t.question,
+    market_url:t.market_url,
+    side:t.side,
+    fill_action:(document.querySelector(`[data-fill-action="${ticketId}"]`)||{}).value||"BUY",
+    shares:Number((document.querySelector(`[data-fill-shares="${ticketId}"]`)||{}).value||0),
+    price:Number((document.querySelector(`[data-fill-price="${ticketId}"]`)||{}).value||0),
+    fees:Number((document.querySelector(`[data-fill-fees="${ticketId}"]`)||{}).value||0),
+    tx_note:(document.querySelector(`[data-fill-note="${ticketId}"]`)||{}).value||"",
+  };
+  try{
+    const r=await fetch("/api/live",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(fill)});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error||"Manual fill failed");
+    await loadTradeTickets();
+    toast("Manual fill recorded for tracking.");
+  }catch(e){toast(e.message||"Manual fill failed.");}
+}
+async function updateRealMark(positionId){
+  const input=document.querySelector(`[data-real-mark="${positionId}"]`);
+  const price=Number(input&&input.value||0);
+  try{
+    const r=await fetch("/api/live",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"mark_position",user_id:PERSONAL_USER_ID,position_id:positionId,current_price:price})});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error||"Mark update failed");
+    await loadTradeTickets();
+    toast("Position mark updated.");
+  }catch(e){toast(e.message||"Mark update failed.");}
+}
+function renderRealPortfolio(){
+  const summary=$("realPositionSummary"),posRoot=$("realPositions"),fillsRoot=$("realFills");
+  if(!summary||!posRoot||!fillsRoot)return;
+  const positions=REAL_PORTFOLIO.positions||[],fills=REAL_PORTFOLIO.fills||[];
+  const invested=positions.reduce((s,p)=>s+Number(p.cost_basis||0),0);
+  const marketValue=positions.reduce((s,p)=>s+Number(p.shares||0)*Number(p.current_price||p.avg_price||0),0);
+  const realized=positions.reduce((s,p)=>s+Number(p.realized_pnl||0),0);
+  const pnl=marketValue+realized-invested;
+  summary.innerHTML=`<div class="invest-total">
+    <div class="invest-num"><div class="k">Tracked value</div><div class="v">${fmtUSD(marketValue)}</div></div>
+    <div class="invest-num"><div class="k">Cost basis</div><div class="v">${fmtUSD(invested)}</div></div>
+    <div class="invest-num"><div class="k">Tracked P&L</div><div class="v ${signClass(pnl)}">${fmtUSD(pnl)}</div></div>
+  </div>`;
+  posRoot.innerHTML=positions.length?positions.map(p=>{
+    const mark=Number(p.current_price||p.avg_price||0),value=Number(p.shares||0)*mark,pnl=value+Number(p.realized_pnl||0)-Number(p.cost_basis||0);
+    return `<div class="trade-card">
+      <div class="trade-head"><div><div class="trade-title">${esc(p.question||p.market_id)}</div><div class="trade-meta"><span>${esc(p.side)}</span><span>${Number(p.shares||0).toFixed(2)} shares</span><span>avg ${Math.round(Number(p.avg_price||0)*100)}¢</span></div></div><b class="${signClass(pnl)}">${fmtUSD(pnl)}</b></div>
+      <div class="small muted">Value ${fmtUSD(value)} · Cost ${fmtUSD(Number(p.cost_basis||0))} · Realized ${fmtUSD(Number(p.realized_pnl||0))}</div>
+      <div class="trade-actions">
+        ${p.market_url?`<a class="btn ghost" href="${esc(p.market_url)}" target="_blank" rel="noopener">Open market</a>`:""}
+        <input class="input" type="number" min="0.01" max="0.99" step="0.01" value="${mark||""}" data-real-mark="${p.id}">
+        <button class="btn ghost" data-update-mark="${p.id}">Update mark</button>
+      </div>
+    </div>`;
+  }).join(""):`<div class="empty">No real fills recorded yet. Record a manual fill from a ticket after you trade outside Poly Arena.</div>`;
+  fillsRoot.innerHTML=fills.length?fills.slice(0,25).map(f=>`<div class="log-item"><span class="badge ${esc(f.action)}">${esc(f.action)}</span><span class="log-date">${new Date(f.filled_at).toLocaleString()}</span> — ${Number(f.shares||0).toFixed(2)} ${esc(f.side)} @ ${Math.round(Number(f.price||0)*100)}¢ on ${esc((f.question||f.market_id||"").slice(0,52))}</div>`).join(""):`<div class="empty">No manual fills yet.</div>`;
+  document.querySelectorAll("[data-update-mark]").forEach(btn=>btn.onclick=()=>updateRealMark(btn.dataset.updateMark));
 }
 async function saveRiskProfileToServer(s){
   const permissions=JSON.parse(JSON.stringify(s.agents||{}));

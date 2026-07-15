@@ -14,6 +14,9 @@ wallet, your own money, manual approval, and audit logging.
   non-custodial manual trade tickets. These tickets contain the market, side,
   amount, limit, rationale, Polymarket link, and review instructions, but never
   a private key or signed order.
+- `/api/live` manual-fill actions record trades that you placed yourself on
+  Polymarket, then update tracked real positions and P&L. These records are for
+  reconciliation only: Poly Arena still does not sign or submit the trade.
 - `/api/accounts` creates, logs into, and saves password-backed paper accounts
   through Vercel Blob storage.
 - `/api/config` exposes safe public provider configuration, including the
@@ -50,6 +53,8 @@ Personal mode is narrower than the public business launch:
   you do anything in Polymarket.
 - Trade execution happens outside Poly Arena through your own Polymarket wallet
   or UI. Poly Arena remains the analyst/ticketing layer.
+- After you manually trade, record the actual shares, price, fees, and note in
+  Poly Arena so the personal cockpit can track real position value and P&L.
 - Public `LIVE_TRADING_ENABLED` stays `false`.
 
 Personal mode still needs:

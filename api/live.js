@@ -1,4 +1,12 @@
-import { createTradeTicket, listTradeTickets, recordAuditEvent, updateTradeTicketStatus } from "./_db.js";
+import {
+  createTradeTicket,
+  listRealPortfolio,
+  listTradeTickets,
+  recordAuditEvent,
+  recordRealFill,
+  updateRealPositionMark,
+  updateTradeTicketStatus,
+} from "./_db.js";
 
 const REQUIRED_ENV = [
   ["PRODUCTION_APP_URL", "Production app URL"],
@@ -233,6 +241,7 @@ function validateIntent(intent) {
 }
 
 const VALID_TICKET_STATUSES = new Set(["staged", "reviewed", "placed_manually", "skipped", "cancelled"]);
+const VALID_FILL_ACTIONS = new Set(["BUY", "SELL"]);
 
 function marketSearchUrl(question) {
   return `https://polymarket.com/search?query=${encodeURIComponent(String(question || ""))}`;
@@ -280,6 +289,36 @@ function validateTicket(ticket) {
   return errors;
 }
 
+function normalizeFill(body) {
+  return {
+    userId: String(body.user_id || "local-readiness-user").trim(),
+    ticketId: body.ticket_id || null,
+    agentId: String(body.agent_id || "").trim(),
+    marketId: String(body.market_id || "").trim(),
+    question: String(body.question || "").trim(),
+    marketUrl: String(body.market_url || "").trim(),
+    side: String(body.side || "").trim().toUpperCase(),
+    action: String(body.fill_action || body.trade_action || "BUY").trim().toUpperCase(),
+    shares: Number(body.shares || 0),
+    price: Number(body.price || 0),
+    fees: Number(body.fees || 0),
+    txNote: String(body.tx_note || "").trim(),
+    filledAt: body.filled_at || null,
+  };
+}
+
+function validateFill(fill) {
+  const errors = [];
+  if (!fill.userId) errors.push("user_id");
+  if (!fill.marketId) errors.push("market_id");
+  if (!["YES", "NO"].includes(fill.side)) errors.push("side must be YES or NO");
+  if (!VALID_FILL_ACTIONS.has(fill.action)) errors.push("fill_action must be BUY or SELL");
+  if (!Number.isFinite(fill.shares) || fill.shares <= 0) errors.push("shares must be positive");
+  if (!Number.isFinite(fill.price) || fill.price <= 0 || fill.price >= 1) errors.push("price must be between 0 and 1");
+  if (!Number.isFinite(fill.fees) || fill.fees < 0) errors.push("fees must be 0 or greater");
+  return errors;
+}
+
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
 
@@ -288,6 +327,11 @@ export default async function handler(req, res) {
       const userId = String(req.query?.user_id || "local-readiness-user").trim();
       const tickets = await listTradeTickets(userId, req.query?.limit || 50);
       return res.status(200).json({ ok: true, tickets });
+    }
+    if (req.query?.action === "real_portfolio") {
+      const userId = String(req.query?.user_id || "local-readiness-user").trim();
+      const portfolio = await listRealPortfolio(userId);
+      return res.status(200).json({ ok: true, ...portfolio });
     }
     return res.status(200).json(baseStatus());
   }
@@ -329,6 +373,41 @@ export default async function handler(req, res) {
       if (!ticket) return res.status(404).json({ ok: false, error: "Ticket not found" });
       await recordAuditEvent("TRADE_TICKET_STATUS_UPDATED", { user_id: userId, ticket_id: ticket.id, status });
       return res.status(200).json({ ok: true, ticket });
+    }
+
+    if (body.action === "record_fill") {
+      const fill = normalizeFill(body);
+      const fillErrors = validateFill(fill);
+      if (fillErrors.length) return res.status(400).json({ ok: false, error: "Invalid manual fill", details: fillErrors });
+      const saved = await recordRealFill(fill);
+      await recordAuditEvent("REAL_FILL_RECORDED", {
+        user_id: fill.userId,
+        ticket_id: fill.ticketId,
+        market_id: fill.marketId,
+        side: fill.side,
+        action: fill.action,
+        shares: fill.shares,
+        price: fill.price,
+        private_key_used: false,
+        live_order_placed_by_site: false,
+      });
+      return res.status(201).json({
+        ok: true,
+        fill: saved,
+        private_key_used: false,
+        live_order_placed_by_site: false,
+        note: "Manual fill recorded for tracking only. Poly Arena did not sign or place this trade.",
+      });
+    }
+
+    if (body.action === "mark_position") {
+      const userId = String(body.user_id || "local-readiness-user").trim();
+      const price = Number(body.current_price || 0);
+      if (!Number.isFinite(price) || price <= 0 || price >= 1) return res.status(400).json({ ok: false, error: "current_price must be between 0 and 1" });
+      const position = await updateRealPositionMark(userId, body.position_id, price);
+      if (!position) return res.status(404).json({ ok: false, error: "Position not found" });
+      await recordAuditEvent("REAL_POSITION_MARK_UPDATED", { user_id: userId, position_id: position.id, current_price: price });
+      return res.status(200).json({ ok: true, position });
     }
 
     const intent = body.intent || body;
