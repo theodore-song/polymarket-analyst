@@ -10,9 +10,10 @@ wallet, your own money, manual approval, and audit logging.
 - `/api/live` reports which live-money providers are configured or missing.
 - `/api/live` accepts public order intents only as dry-runs and returns an
   audit event. Personal-mode intents are staged for manual review, not executed.
-- `/api/trade-tickets` stores non-custodial manual trade tickets. These tickets
-  contain the market, side, amount, limit, rationale, Polymarket link, and
-  review instructions, but never a private key or signed order.
+- `/api/live?action=tickets` and `/api/live` ticket actions store
+  non-custodial manual trade tickets. These tickets contain the market, side,
+  amount, limit, rationale, Polymarket link, and review instructions, but never
+  a private key or signed order.
 - `/api/accounts` creates, logs into, and saves password-backed paper accounts
   through Vercel Blob storage.
 - `/api/config` exposes safe public provider configuration, including the

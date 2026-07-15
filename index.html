@@ -2450,7 +2450,7 @@ async function dryRunLiveOrderIntent(){
   }
 }
 async function createTradeTicket(ticket){
-  const r=await fetch("/api/trade-tickets",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(ticket)});
+  const r=await fetch("/api/live",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...ticket,action:"ticket"})});
   const d=await r.json();
   if(!r.ok)throw new Error(d.error||"Ticket staging failed");
   toast("Manual trade ticket staged.");
@@ -2480,7 +2480,7 @@ async function stageSuggestionTicket(marketId){
 async function loadTradeTickets(){
   if(!PERSONAL_MODE)return;
   try{
-    const r=await fetch(`/api/trade-tickets?user_id=${encodeURIComponent(PERSONAL_USER_ID)}&limit=30`,{cache:"no-store"});
+    const r=await fetch(`/api/live?action=tickets&user_id=${encodeURIComponent(PERSONAL_USER_ID)}&limit=30`,{cache:"no-store"});
     const d=await r.json();
     PERSONAL_TICKETS=d.tickets||[];
   }catch(e){PERSONAL_TICKETS=[];}
@@ -2488,7 +2488,7 @@ async function loadTradeTickets(){
 }
 async function updateTicketStatus(ticketId,status){
   try{
-    const r=await fetch("/api/trade-tickets",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"status",user_id:PERSONAL_USER_ID,ticket_id:ticketId,status})});
+    const r=await fetch("/api/live",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"ticket_status",user_id:PERSONAL_USER_ID,ticket_id:ticketId,status})});
     const d=await r.json();
     if(!r.ok)throw new Error(d.error||"Ticket update failed");
     await loadTradeTickets();
