@@ -145,6 +145,41 @@ export async function ensureSchema() {
     )
   `;
 
+  await db`
+    create table if not exists personal_capital_accounts (
+      user_id text primary key,
+      cash numeric not null default 0,
+      updated_at timestamptz not null default now()
+    )
+  `;
+
+  await db`
+    create table if not exists personal_agent_allocations (
+      user_id text not null,
+      agent_id text not null,
+      amount numeric not null default 0,
+      updated_at timestamptz not null default now(),
+      primary key (user_id, agent_id)
+    )
+  `;
+
+  await db`
+    create table if not exists personal_capital_events (
+      id bigserial primary key,
+      user_id text not null,
+      action text not null,
+      agent_id text,
+      amount numeric not null,
+      note text,
+      created_at timestamptz not null default now()
+    )
+  `;
+
+  await db`
+    create index if not exists personal_capital_events_user_idx
+      on personal_capital_events (user_id, created_at desc)
+  `;
+
   schemaReady = true;
 }
 
@@ -470,6 +505,109 @@ export async function listRealPortfolio(userId) {
     limit 100
   `;
   return { positions, fills };
+}
+
+export async function listPersonalCapital(userId) {
+  await ensureSchema();
+  const db = sql();
+  await db`
+    insert into personal_capital_accounts (user_id, cash)
+    values (${userId}, 0)
+    on conflict (user_id) do nothing
+  `;
+  const accounts = await db`
+    select *
+    from personal_capital_accounts
+    where user_id = ${userId}
+    limit 1
+  `;
+  const allocations = await db`
+    select *
+    from personal_agent_allocations
+    where user_id = ${userId} and amount > 0
+    order by updated_at desc
+  `;
+  const events = await db`
+    select *
+    from personal_capital_events
+    where user_id = ${userId}
+    order by created_at desc
+    limit 100
+  `;
+  return { account: accounts[0] || { user_id: userId, cash: 0 }, allocations, events };
+}
+
+export async function recordPersonalCapitalAction(action) {
+  await ensureSchema();
+  const db = sql();
+  const userId = action.userId;
+  const type = String(action.action || "").toUpperCase();
+  const agentId = action.agentId || null;
+  const amount = Number(action.amount || 0);
+
+  await db`
+    insert into personal_capital_accounts (user_id, cash)
+    values (${userId}, 0)
+    on conflict (user_id) do nothing
+  `;
+
+  const accounts = await db`
+    select *
+    from personal_capital_accounts
+    where user_id = ${userId}
+    limit 1
+  `;
+  const account = accounts[0] || { cash: 0 };
+  let nextCash = Number(account.cash || 0);
+
+  if (type === "DEPOSIT") {
+    nextCash += amount;
+  } else if (type === "WITHDRAW") {
+    nextCash -= amount;
+  } else if (type === "BUY_AGENT") {
+    nextCash -= amount;
+    await db`
+      insert into personal_agent_allocations (user_id, agent_id, amount, updated_at)
+      values (${userId}, ${agentId}, ${amount}, now())
+      on conflict (user_id, agent_id) do update set
+        amount = personal_agent_allocations.amount + excluded.amount,
+        updated_at = now()
+    `;
+  } else if (type === "SELL_AGENT") {
+    const rows = await db`
+      select *
+      from personal_agent_allocations
+      where user_id = ${userId} and agent_id = ${agentId}
+      limit 1
+    `;
+    const current = rows[0] ? Number(rows[0].amount || 0) : 0;
+    const reduction = Math.min(amount, current);
+    nextCash += reduction;
+    await db`
+      insert into personal_agent_allocations (user_id, agent_id, amount, updated_at)
+      values (${userId}, ${agentId}, ${Math.max(0, current - reduction)}, now())
+      on conflict (user_id, agent_id) do update set
+        amount = excluded.amount,
+        updated_at = now()
+    `;
+  }
+
+  if (nextCash < -0.000001) {
+    throw new Error("Tracked personal cash is too low for that action");
+  }
+
+  await db`
+    update personal_capital_accounts
+    set cash = ${nextCash}, updated_at = now()
+    where user_id = ${userId}
+  `;
+
+  await db`
+    insert into personal_capital_events (user_id, action, agent_id, amount, note)
+    values (${userId}, ${type}, ${agentId}, ${amount}, ${action.note || null})
+  `;
+
+  return listPersonalCapital(userId);
 }
 
 export async function providerEventSummary() {

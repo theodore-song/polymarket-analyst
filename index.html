@@ -573,6 +573,21 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
       </div>
     </div>
     <div class="card">
+      <div class="card-h"><h3>Personal capital & agent shares</h3><span class="small muted">synced tracker, no custody</span></div>
+      <div id="personalCapitalSummary"></div>
+      <div class="account-row">
+        <input class="input" id="personalCapitalAmount" type="number" min="1" step="25" placeholder="Amount" />
+        <select class="select" id="personalCapitalAgent"></select>
+        <button class="btn" id="personalDepositBtn">Record external deposit</button>
+        <button class="btn ghost" id="personalWithdrawBtn">Record withdrawal</button>
+        <button class="btn primary" id="personalBuyAgentBtn">Allocate to agent</button>
+        <button class="btn ghost" id="personalSellAgentBtn">Reduce agent</button>
+      </div>
+      <div class="risk-note" style="margin-top:12px">This tracks money you personally control outside Poly Arena. Agent shares are bookkeeping allocations only, not securities, pooled deposits, or orders placed by the site.</div>
+      <div id="personalAgentAllocations" style="margin-top:12px"></div>
+      <div id="personalCapitalHistory" style="margin-top:12px"></div>
+    </div>
+    <div class="card">
       <div class="card-h"><h3>Agent permissions & risk limits</h3><span class="small muted">manual approval only</span></div>
       <div id="liveAgentPermissions"></div>
     </div>
@@ -601,6 +616,18 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
         <div id="liveOrderDryRun"></div>
         <div id="liveAuditTrail"></div>
       </div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h3>Browse Polymarket for manual tickets</h3><span class="small muted">search active markets</span></div>
+      <div class="account-row">
+        <input class="input" id="liveSearchInput" placeholder="Search Polymarket markets" />
+        <button class="btn" id="liveSearchBtn">Search</button>
+        <button class="btn" id="liveAllBtn">All active</button>
+        <button class="btn ghost" id="liveMoreBtn">Load more</button>
+        <button class="btn ghost" id="liveClearSearchBtn">Clear</button>
+      </div>
+      <div class="filterbar" id="liveMarketFilterbar"></div>
+      <div class="trade-list" id="liveMarketList"></div>
     </div>
     <div class="card">
       <div class="card-h"><h3>Manual trade ticket queue</h3><span class="small muted">AI suggests, you sign elsewhere</span></div>
@@ -725,10 +752,14 @@ const CLOB = "https://clob.polymarket.com";
 let PAPER_SEARCH_RESULTS = null;
 let PAPER_MARKET_OFFSET = 0;
 let PAPER_MARKET_QUERY = "";
+let LIVE_SEARCH_RESULTS = [];
+let LIVE_MARKET_OFFSET = 0;
+let LIVE_MARKET_QUERY = "";
 let LIVE_BACKEND_STATUS = null;
 let LIVE_POLICY_STATUS = null;
 let PERSONAL_TICKETS = [];
 let REAL_PORTFOLIO = {positions:[],fills:[]};
+let PERSONAL_CAPITAL = {account:{cash:0},allocations:[],events:[]};
 let PROVIDER_CONFIG = null;
 const catColor = (c) => CAT_COLORS[c] || CAT_COLORS.Other;
 const getFocus = () => localStorage.getItem(FOCUS_KEY) || "All";
@@ -2565,16 +2596,19 @@ async function stageSuggestionTicket(marketId){
 async function loadTradeTickets(){
   if(!PERSONAL_MODE)return;
   try{
-    const [ticketRes,portfolioRes]=await Promise.all([
+    const [ticketRes,portfolioRes,capitalRes]=await Promise.all([
       fetch(`/api/live?action=tickets&user_id=${encodeURIComponent(PERSONAL_USER_ID)}&limit=30`,{cache:"no-store"}),
       fetch(`/api/live?action=real_portfolio&user_id=${encodeURIComponent(PERSONAL_USER_ID)}`,{cache:"no-store"}),
+      fetch(`/api/live?action=personal_capital&user_id=${encodeURIComponent(PERSONAL_USER_ID)}`,{cache:"no-store"}),
     ]);
-    const d=await ticketRes.json(),pf=await portfolioRes.json();
+    const d=await ticketRes.json(),pf=await portfolioRes.json(),cap=await capitalRes.json();
     PERSONAL_TICKETS=d.tickets||[];
     REAL_PORTFOLIO={positions:pf.positions||[],fills:pf.fills||[]};
-  }catch(e){PERSONAL_TICKETS=[];REAL_PORTFOLIO={positions:[],fills:[]};}
+    PERSONAL_CAPITAL={account:cap.account||{cash:0},allocations:cap.allocations||[],events:cap.events||[]};
+  }catch(e){PERSONAL_TICKETS=[];REAL_PORTFOLIO={positions:[],fills:[]};PERSONAL_CAPITAL={account:{cash:0},allocations:[],events:[]};}
   renderTradeTickets();
   renderRealPortfolio();
+  renderPersonalCapital();
 }
 async function updateTicketStatus(ticketId,status){
   try{
@@ -2682,6 +2716,117 @@ function renderRealPortfolio(){
   fillsRoot.innerHTML=fills.length?fills.slice(0,25).map(f=>`<div class="log-item"><span class="badge ${esc(f.action)}">${esc(f.action)}</span><span class="log-date">${new Date(f.filled_at).toLocaleString()}</span> — ${Number(f.shares||0).toFixed(2)} ${esc(f.side)} @ ${Math.round(Number(f.price||0)*100)}¢ on ${esc((f.question||f.market_id||"").slice(0,52))}</div>`).join(""):`<div class="empty">No manual fills yet.</div>`;
   document.querySelectorAll("[data-update-mark]").forEach(btn=>btn.onclick=()=>updateRealMark(btn.dataset.updateMark));
 }
+async function personalCapitalAction(capitalAction){
+  const amount=Number(($("personalCapitalAmount")&&$("personalCapitalAmount").value)||0);
+  const agentId=($("personalCapitalAgent")&&$("personalCapitalAgent").value)||"";
+  try{
+    const r=await fetch("/api/live",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+      action:"capital_action",
+      user_id:PERSONAL_USER_ID,
+      capital_action:capitalAction,
+      agent_id:agentId,
+      amount,
+      note:"Personal cockpit bookkeeping action",
+    })});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error||"Capital tracker update failed");
+    PERSONAL_CAPITAL={account:d.account||{cash:0},allocations:d.allocations||[],events:d.events||[]};
+    renderPersonalCapital();
+    toast("Personal tracker updated.");
+  }catch(e){toast(e.message||"Capital tracker update failed.");}
+}
+function renderPersonalCapital(){
+  const summary=$("personalCapitalSummary"),allocRoot=$("personalAgentAllocations"),histRoot=$("personalCapitalHistory"),agentSel=$("personalCapitalAgent");
+  if(!summary||!allocRoot||!histRoot)return;
+  if(agentSel)agentSel.innerHTML=AGENTS.map(a=>`<option value="${esc(a.id)}">${a.emoji} ${esc(a.name)}</option>`).join("");
+  const cash=Number(PERSONAL_CAPITAL.account&&PERSONAL_CAPITAL.account.cash||0);
+  const allocations=PERSONAL_CAPITAL.allocations||[];
+  const allocated=allocations.reduce((s,a)=>s+Number(a.amount||0),0);
+  summary.innerHTML=`<div class="invest-total">
+    <div class="invest-num"><div class="k">Tracked outside cash</div><div class="v">${fmtUSD(cash)}</div></div>
+    <div class="invest-num"><div class="k">Agent allocations</div><div class="v">${fmtUSD(allocated)}</div></div>
+    <div class="invest-num"><div class="k">Personal tracker total</div><div class="v">${fmtUSD(cash+allocated)}</div></div>
+  </div>`;
+  allocRoot.innerHTML=allocations.length?allocations.map(a=>{
+    const cfg=agentById(a.agent_id)||{name:a.agent_id,emoji:"",color:"#7c8cff"};
+    return `<div class="leader-row"><span><b>${cfg.emoji} ${esc(cfg.name)}</b><div class="small muted">bookkeeping allocation only</div></span><b>${fmtUSD(Number(a.amount||0))}</b></div>`;
+  }).join(""):`<div class="empty">No agent allocations yet. Record outside cash, then allocate any amount to an agent you want to shadow.</div>`;
+  const events=(PERSONAL_CAPITAL.events||[]).slice(0,20);
+  histRoot.innerHTML=events.length?events.map(e=>{
+    const cfg=e.agent_id?agentById(e.agent_id):null;
+    return `<div class="log-item"><span class="badge">${esc(e.action)}</span><span class="log-date">${new Date(e.created_at).toLocaleString()}</span> — ${fmtUSD(Number(e.amount||0))}${cfg?` · ${cfg.emoji} ${esc(cfg.name)}`:""}</div>`;
+  }).join(""):`<div class="empty">No personal tracker activity yet.</div>`;
+}
+function currentLiveMarkets(){return LIVE_SEARCH_RESULTS||[];}
+function renderLiveMarkets(){
+  const root=$("liveMarketList"),filter=$("liveMarketFilterbar");if(!root)return;
+  const all=currentLiveMarkets(),focus=getFocus();
+  if(filter){
+    const counts={};CATEGORIES.forEach(c=>counts[c]=0);all.forEach(s=>{counts[counts[s.category]!==undefined?s.category:"Other"]++;});counts.All=all.length;
+    filter.innerHTML=CATEGORIES.map(c=>`<span class="chip ${focus===c?"active":""}" data-live-cat="${c}">${c}<span class="ct">${counts[c]||0}</span></span>`).join("");
+    document.querySelectorAll("[data-live-cat]").forEach(el=>el.onclick=()=>{setFocus(el.dataset.liveCat);renderLiveMarkets();});
+  }
+  const shown=all.filter(s=>focus==="All"||!focus||s.category===focus);
+  if(!shown.length){root.innerHTML=`<div class="empty">Search Polymarket or load active markets to stage manual tickets from the cockpit.</div>`;return;}
+  root.innerHTML=shown.map(s=>`<div class="trade-card">
+    <div class="trade-head"><div><div class="trade-title"><a class="market-title" href="${esc(s.url||marketSearchUrl(s.question))}" target="_blank" rel="noopener">${esc(s.question)}</a></div>
+      <div class="trade-meta"><span>${esc(s.category)}</span><span>YES ${pct(s.yes_price)}</span><span>NO ${pct(s.no_price)}</span><span>${Math.round(s.conviction||0)} conviction</span></div></div>
+      <a class="btn ghost" href="${esc(s.url||marketSearchUrl(s.question))}" target="_blank" rel="noopener">Open Polymarket</a></div>
+    <div class="rationale">${esc(s.rationale||"Active Polymarket market available for manual review.")}</div>
+    <div class="trade-actions">
+      <select class="select" data-live-side="${esc(s.market_id)}"><option>YES</option><option>NO</option></select>
+      <input class="input" type="number" min="1" step="25" value="100" data-live-amount="${esc(s.market_id)}" aria-label="Manual amount for ${esc(s.question)}">
+      <input class="input" type="number" min="0.01" max="0.99" step="0.01" value="${Number(s.entry_price||s.yes_price||0).toFixed(2)}" data-live-price="${esc(s.market_id)}" aria-label="Limit price for ${esc(s.question)}">
+      <button class="btn primary" data-live-ticket="${esc(s.market_id)}">Stage manual ticket</button>
+    </div>
+  </div>`).join("");
+  document.querySelectorAll("[data-live-ticket]").forEach(btn=>btn.onclick=()=>stageLiveMarketTicket(btn.dataset.liveTicket));
+}
+async function searchLiveMarkets(){
+  const q=($("liveSearchInput").value||"").trim();
+  if(!q)return toast("Enter a Polymarket search.");
+  LIVE_MARKET_OFFSET=0;LIVE_MARKET_QUERY=q;
+  await loadLiveMarketPage(true);
+}
+async function loadLiveMarketPage(reset=false){
+  const q=LIVE_MARKET_QUERY||(($("liveSearchInput")&&$("liveSearchInput").value)||"").trim();
+  setStatus("searching Polymarket...",true);
+  try{
+    if(reset){LIVE_SEARCH_RESULTS=[];LIVE_MARKET_OFFSET=0;}
+    const params=new URLSearchParams({closed:"false",active:"true",archived:"false",include_tag:"true",limit:"100",offset:String(LIVE_MARKET_OFFSET),order:"volume24hr",ascending:"false"});
+    if(q)params.set("search",q);
+    const r=await fetch(`${GAMMA}/markets?${params}`);
+    if(!r.ok)throw new Error("market load failed");
+    const raw=await r.json();
+    const next=raw.map(normalizeMarket).filter(Boolean).map(paperTradeFromMarket);
+    LIVE_SEARCH_RESULTS=(LIVE_SEARCH_RESULTS||[]).concat(next);
+    LIVE_MARKET_OFFSET+=raw.length;
+    renderLiveMarkets();setStatus("up to date",false);
+    toast(next.length?`Loaded ${LIVE_SEARCH_RESULTS.length} active markets.`:"No more active markets found.");
+  }catch(e){setStatus("market load error",false);toast("Polymarket market load failed.");}
+}
+async function stageLiveMarketTicket(marketId){
+  const s=currentLiveMarkets().find(x=>String(x.market_id)===String(marketId));
+  if(!s)return toast("Market not found.");
+  const side=(document.querySelector(`[data-live-side="${marketId}"]`)||{}).value||"YES";
+  const amount=Number((document.querySelector(`[data-live-amount="${marketId}"]`)||{}).value||0);
+  const price=Number((document.querySelector(`[data-live-price="${marketId}"]`)||{}).value||0);
+  try{
+    await createTradeTicket({
+      user_id:PERSONAL_USER_ID,
+      agent_id:($("liveIntentAgent")&&$("liveIntentAgent").value)||localStorage.getItem(VIEW_KEY)||"value",
+      market_id:s.market_id,
+      question:s.question,
+      market_url:s.url,
+      side,
+      max_amount:amount,
+      limit_price:price,
+      rationale:`Manually staged from the personal Polymarket browser. ${s.rationale||""}`.trim(),
+    });
+    await loadTradeTickets();
+    toast("Manual ticket staged. Open Polymarket to place it yourself.");
+  }catch(e){toast(e.message||"Ticket staging failed.");}
+}
 async function saveRiskProfileToServer(s){
   const permissions=JSON.parse(JSON.stringify(s.agents||{}));
   Object.values(permissions).forEach(p=>{p.autoTrade=false;p.manualApprove=true;});
@@ -2744,6 +2889,8 @@ function renderLiveMoneyTab(){
   }).join("");
   const audit=s.audit.slice(-10).reverse();
   $("liveAuditTrail").innerHTML=audit.length?audit.map(x=>`<div class="log-item"><span class="log-date">${new Date(x.at).toLocaleString()}</span> — ${esc(x.detail)}</div>`).join(""):`<div class="empty">No readiness changes logged yet.</div>`;
+  renderPersonalCapital();
+  renderLiveMarkets();
   document.querySelectorAll("[data-live-check]").forEach(el=>el.onchange=()=>{const next=loadLiveState();next.checks[el.dataset.liveCheck]=el.checked;saveLiveState(next,`${el.checked?"Completed":"Reopened"}: ${LIVE_CHECKS.find(([k])=>k===el.dataset.liveCheck)[1]}`);renderLiveMoneyTab();});
   document.querySelectorAll("[data-live-agent]").forEach(el=>el.onchange=()=>{const next=loadLiveState(),p=next.agents[el.dataset.liveAgent],field=el.dataset.field;p[field]=el.type==="checkbox"?el.checked:Number(el.value||0);saveLiveState(next,`Updated ${agentById(el.dataset.liveAgent).name} permission: ${field}`);renderLiveMoneyTab();});
 }
@@ -2874,6 +3021,14 @@ $("saveLiveProfileBtn").addEventListener("click",async()=>{
   }
 });
 $("dryRunOrderBtn").addEventListener("click",()=>dryRunLiveOrderIntent());
+$("personalDepositBtn").addEventListener("click",()=>personalCapitalAction("DEPOSIT"));
+$("personalWithdrawBtn").addEventListener("click",()=>personalCapitalAction("WITHDRAW"));
+$("personalBuyAgentBtn").addEventListener("click",()=>personalCapitalAction("BUY_AGENT"));
+$("personalSellAgentBtn").addEventListener("click",()=>personalCapitalAction("SELL_AGENT"));
+$("liveSearchBtn").addEventListener("click",()=>searchLiveMarkets());
+$("liveAllBtn").addEventListener("click",()=>{LIVE_MARKET_QUERY="";LIVE_SEARCH_RESULTS=[];loadLiveMarketPage(true);});
+$("liveMoreBtn").addEventListener("click",()=>loadLiveMarketPage(false));
+$("liveClearSearchBtn").addEventListener("click",()=>{LIVE_SEARCH_RESULTS=[];LIVE_MARKET_OFFSET=0;LIVE_MARKET_QUERY="";renderLiveMarkets();});
 $("recordConsentBtn").addEventListener("click",()=>recordLiveConsent());
 window.addEventListener("focus",()=>refreshFromCloudAndRender(true));
 document.addEventListener("visibilitychange",()=>{

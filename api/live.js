@@ -1,8 +1,10 @@
 import {
   createTradeTicket,
+  listPersonalCapital,
   listRealPortfolio,
   listTradeTickets,
   recordAuditEvent,
+  recordPersonalCapitalAction,
   recordRealFill,
   updateRealPositionMark,
   updateTradeTicketStatus,
@@ -242,6 +244,7 @@ function validateIntent(intent) {
 
 const VALID_TICKET_STATUSES = new Set(["staged", "reviewed", "placed_manually", "skipped", "cancelled"]);
 const VALID_FILL_ACTIONS = new Set(["BUY", "SELL"]);
+const VALID_CAPITAL_ACTIONS = new Set(["DEPOSIT", "WITHDRAW", "BUY_AGENT", "SELL_AGENT"]);
 
 function marketSearchUrl(question) {
   return `https://polymarket.com/search?query=${encodeURIComponent(String(question || ""))}`;
@@ -319,6 +322,25 @@ function validateFill(fill) {
   return errors;
 }
 
+function normalizeCapitalAction(body) {
+  return {
+    userId: String(body.user_id || "local-readiness-user").trim(),
+    action: String(body.capital_action || body.capitalAction || "").trim().toUpperCase(),
+    agentId: String(body.agent_id || "").trim(),
+    amount: Number(body.amount || 0),
+    note: String(body.note || "").trim(),
+  };
+}
+
+function validateCapitalAction(action) {
+  const errors = [];
+  if (!action.userId) errors.push("user_id");
+  if (!VALID_CAPITAL_ACTIONS.has(action.action)) errors.push("capital_action must be DEPOSIT, WITHDRAW, BUY_AGENT, or SELL_AGENT");
+  if ((action.action === "BUY_AGENT" || action.action === "SELL_AGENT") && !action.agentId) errors.push("agent_id");
+  if (!Number.isFinite(action.amount) || action.amount <= 0) errors.push("amount must be positive");
+  return errors;
+}
+
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
 
@@ -332,6 +354,11 @@ export default async function handler(req, res) {
       const userId = String(req.query?.user_id || "local-readiness-user").trim();
       const portfolio = await listRealPortfolio(userId);
       return res.status(200).json({ ok: true, ...portfolio });
+    }
+    if (req.query?.action === "personal_capital") {
+      const userId = String(req.query?.user_id || "local-readiness-user").trim();
+      const capital = await listPersonalCapital(userId);
+      return res.status(200).json({ ok: true, ...capital });
     }
     return res.status(200).json(baseStatus());
   }
@@ -408,6 +435,33 @@ export default async function handler(req, res) {
       if (!position) return res.status(404).json({ ok: false, error: "Position not found" });
       await recordAuditEvent("REAL_POSITION_MARK_UPDATED", { user_id: userId, position_id: position.id, current_price: price });
       return res.status(200).json({ ok: true, position });
+    }
+
+    if (body.action === "capital_action") {
+      const capitalAction = normalizeCapitalAction(body);
+      const capitalErrors = validateCapitalAction(capitalAction);
+      if (capitalErrors.length) return res.status(400).json({ ok: false, error: "Invalid personal capital action", details: capitalErrors });
+      let capital;
+      try {
+        capital = await recordPersonalCapitalAction(capitalAction);
+      } catch (err) {
+        return res.status(400).json({ ok: false, error: err?.message || "Personal capital tracker update failed" });
+      }
+      await recordAuditEvent("PERSONAL_CAPITAL_ACTION", {
+        user_id: capitalAction.userId,
+        action: capitalAction.action,
+        agent_id: capitalAction.agentId,
+        amount: capitalAction.amount,
+        custody_by_site: false,
+        real_order_placed_by_site: false,
+      });
+      return res.status(200).json({
+        ok: true,
+        ...capital,
+        custody_by_site: false,
+        real_order_placed_by_site: false,
+        note: "Personal capital tracker updated for bookkeeping only. Poly Arena did not receive funds or place an order.",
+      });
     }
 
     const intent = body.intent || body;

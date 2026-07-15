@@ -17,6 +17,9 @@ wallet, your own money, manual approval, and audit logging.
 - `/api/live` manual-fill actions record trades that you placed yourself on
   Polymarket, then update tracked real positions and P&L. These records are for
   reconciliation only: Poly Arena still does not sign or submit the trade.
+- `/api/live` personal-capital actions track money you control outside Poly
+  Arena and bookkeeping allocations to agent return streams. This is not a
+  deposit system, custody account, public investment product, or order router.
 - `/api/accounts` creates, logs into, and saves password-backed paper accounts
   through Vercel Blob storage.
 - `/api/config` exposes safe public provider configuration, including the
@@ -53,6 +56,9 @@ Personal mode is narrower than the public business launch:
   you do anything in Polymarket.
 - Trade execution happens outside Poly Arena through your own Polymarket wallet
   or UI. Poly Arena remains the analyst/ticketing layer.
+- Personal agent shares are allocation notes for your own tracking only. They
+  do not represent pooled investor shares, securities, or money held by Poly
+  Arena.
 - After you manually trade, record the actual shares, price, fees, and note in
   Poly Arena so the personal cockpit can track real position value and P&L.
 - Public `LIVE_TRADING_ENABLED` stays `false`.
