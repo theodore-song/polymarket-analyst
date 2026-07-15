@@ -354,7 +354,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
         <g fill="#d9b4ff"><circle cx="380" cy="40" r="6"/></g>
       </svg>
       <h1>Ten AI agents race to <span class="grad">beat the market</span></h1>
-      <p>Five in-house strategies, a copycat that shadows the leader, and four agents that mirror the live positions of the top traders on Polymarket — all paper-trading for the top of the leaderboard.</p>
+      <p>Five in-house strategies, a copycat that follows the strongest MACD/momentum profile, and four agents that mirror the live positions of the top traders on Polymarket — all paper-trading for the top of the leaderboard.</p>
       <div class="badges">
         <span class="hbadge">🏆 10 competing agents</span>
         <span class="hbadge">🐋 Copies real Polymarket whales</span>
@@ -634,7 +634,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <!-- ============ ABOUT ============ -->
   <section class="tabpanel" data-tab="about">
     <div class="section-title">ℹ️ The competition</div>
-    <p class="muted" style="margin-top:-6px;max-width:820px">Every agent starts with <b>$10,000</b> in paper money. The five in-house strategies trade the same hourly suggestions their own way; the <b>Copycat</b> shadows whichever strategy is winning; and the four leading-account copy agents mirror live positions from high-profit real traders on Polymarket (auto-discovered from its public leaderboard). All mark to market hourly and climb — or sink — the board.</p>
+    <p class="muted" style="margin-top:-6px;max-width:820px">Every agent starts with <b>$10,000</b> in paper money. The five in-house strategies trade the same hourly suggestions their own way; the <b>Copycat</b> follows the strategy with the strongest MACD, momentum, and drawdown-adjusted return profile; and the four leading-account copy agents mirror live positions from high-profit real traders on Polymarket (auto-discovered from its public leaderboard). All mark to market hourly and climb — or sink — the board.</p>
     <div class="about-grid" id="aboutAgents"></div>
     <div class="card" style="margin-top:16px">
       <div class="card-h"><h3>The hourly cycle</h3></div>
@@ -776,7 +776,7 @@ const AGENTS = [
    rank:(s)=>[...s].sort((a,b)=>b.conviction-a.conviction),
    maxNew:8, maxFrac:0.05, minConv:35, kelly:0.15, flat:true},
   {id:"copycat", name:"The Copycat", emoji:"🐒", color:"#ec4899", kind:"copycat",
-   blurb:"A meta-agent that does not pick markets directly. It watches the in-house strategies, identifies the current leader, and mirrors that leader's open book so the site can test whether copying the winner keeps working."},
+   blurb:"A meta-agent that does not pick markets directly. It watches the in-house strategies, scores their return trend, MACD, recent momentum, and drawdown risk, then mirrors the agent most likely to keep improving rather than blindly chasing the current leader."},
   {id:"whale1", name:"Apex Mirror", emoji:"🐋", color:"#2dd4bf", kind:"whale", slot:0,
    blurb:"Copies one of the highest-profit real Polymarket traders discovered from the public leaderboard. It mirrors that trader's largest live positions, then applies the same paper-trading risk rules as the other agents."},
   {id:"whale2", name:"Deepwater Echo", emoji:"🐳", color:"#fb923c", kind:"whale", slot:1,
@@ -1023,6 +1023,10 @@ function adaptiveDecision(cfg,p,rank,total,leaderEq){
     mode="Recover";minConv+=6;maxNew=Math.max(1,maxNew-1);maxFrac*=0.72;reserve=0.08;
     reason="in drawdown, so it tightens entries, shrinks bets, and waits for stronger confirmation.";
   }
+  if(ret<-15){
+    mode="Crisis Guard";minConv+=12;maxNew=1;maxFrac=Math.min(maxFrac*0.45,0.045);reserve=0.16;
+    reason="down more than 15%, so it stops chasing, keeps more cash, and only allows one high-conviction recovery trade.";
+  }
   if((p.cash/Math.max(eq,1))<0.12){maxNew=Math.max(1,Math.min(maxNew,2));reason+=" Cash is tight, so new entries are rationed.";}
   const maxCap=cfg.kind==="whale"?0.34:0.18;
   return {mode,reason,minConv:Math.max(0,Math.round(minConv)),maxNew:Math.max(1,Math.round(maxNew)),maxFrac:+Math.min(maxCap,Math.max(0.02,maxFrac)).toFixed(3),reserve};
@@ -1241,6 +1245,55 @@ function recordSnapshot(p){
   p.snapshots=SIM_DAY?p.snapshots.filter(s=>s.date!==snap.date):p.snapshots.filter(s=>s.timestamp!==snap.timestamp);
   p.snapshots.push(snap);p.snapshots.sort((a,b)=>new Date(a.timestamp||a.date)-new Date(b.timestamp||b.date));
 }
+function agentMomentumStats(p){
+  const snaps=(p.snapshots||[]).slice().filter(s=>Number.isFinite(s.return_pct)).sort((a,b)=>snapTime(a)-snapTime(b));
+  const returns=snaps.map(s=>Number(s.return_pct||0));
+  const last=returns[returns.length-1]||0;
+  const prev=returns[returns.length-2]??last;
+  const recent=returns.length>4?last-returns[returns.length-4]:last-prev;
+  const emaFast=returns.length?ema(returns,3):[0];
+  const emaSlow=returns.length?ema(returns,7):[0];
+  const macd=emaFast[emaFast.length-1]-emaSlow[emaSlow.length-1];
+  const signalArr=ema(returns.map((_,i)=>emaFast[i]-emaSlow[i]),3);
+  const macdHist=macd-(signalArr[signalArr.length-1]||0);
+  const high=Math.max(...returns,last,0);
+  const drawdown=last-high;
+  return {last,prev,recent,macd,macdHist,drawdown,snaps};
+}
+function copycatCandidateScore(cfg,p){
+  const m=agentMomentumStats(p);
+  const eq=equity(p);
+  const open=(p.positions||[]).length;
+  const openPnl=(p.positions||[]).reduce((sum,pos)=>sum+(pos.unrealized_pnl||0),0);
+  const cashRatio=p.cash/Math.max(eq,1);
+  const score=
+    m.last*0.40+
+    m.recent*1.20+
+    m.macd*1.60+
+    m.macdHist*1.80+
+    Math.min(8,openPnl/100)*0.35+
+    Math.min(3,open)*0.45+
+    Math.max(-8,m.drawdown)*0.35+
+    cashRatio*0.60;
+  return {id:cfg.id,cfg,p,score,m,openPnl,cashRatio};
+}
+function chooseCopycatLeader(st){
+  const cands=AGENTS.filter(a=>a.kind==="strategy").map(cfg=>copycatCandidateScore(cfg,st.agents[cfg.id]||defaultPortfolio()));
+  cands.sort((a,b)=>b.score-a.score);
+  return cands[0]||null;
+}
+function copycatReason(candidate){
+  if(!candidate)return "No eligible strategy has enough data, so the copycat is waiting.";
+  const m=candidate.m;
+  const bits=[
+    `return ${fmtPct(m.last)}`,
+    `recent momentum ${m.recent>=0?"+":""}${m.recent.toFixed(2)} pts`,
+    `MACD ${m.macd>=0?"+":""}${m.macd.toFixed(2)}`,
+    `histogram ${m.macdHist>=0?"+":""}${m.macdHist.toFixed(2)}`,
+  ];
+  if(m.drawdown<0)bits.push(`drawdown ${m.drawdown.toFixed(2)} pts`);
+  return `copying ${candidate.cfg.name} because it has the strongest forward score: ${bits.join(", ")}.`;
+}
 /* ---------- Copy-trading: Polymarket leaders ---------- */
 const hasAsset=(p,a)=>p.positions.some(x=>x.asset===a);
 async function fetchTokenPrice(asset){
@@ -1323,9 +1376,13 @@ async function runWhaleAgent(p,wallet,decision){
   recordSnapshot(p);
 }
 
-/* ---------- Copycat: shadow the leading in-house strategy ---------- */
-function runCopycat(p,leader,priceMap){
-  p.lastDecision={mode:"Adaptive",reason:"watching the strategy leaderboard and rotating toward the in-house agent with the strongest current equity.",minConv:0,maxNew:leader.positions.length,maxFrac:0.2,reserve:0.05};
+/* ---------- Copycat: shadow the strongest momentum/MACD strategy ---------- */
+function runCopycat(p,leader,priceMap,candidate=null){
+  const reason=candidate?copycatReason(candidate):"watching the strategy board and rotating toward the account with the best momentum/MACD setup.";
+  p.lastDecision={mode:"Momentum Copy",reason,minConv:0,maxNew:leader.positions.length,maxFrac:0.2,reserve:0.05,
+    copyScore:candidate?+candidate.score.toFixed(2):null,
+    macd:candidate?+candidate.m.macd.toFixed(2):null,
+    momentum:candidate?+candidate.m.recent.toFixed(2):null};
   markToMarket(p,priceMap);
   const held=new Set(leader.positions.map(x=>x.market_id));
   const keep=[];
@@ -1351,7 +1408,7 @@ function runCopycat(p,leader,priceMap){
       original_shares:shares,original_cost:cost,unrealized_pnl:0,conviction:lp.conviction,opened_at:cycleIso(),url:lp.url||"",
       gain_stops:{},stop_losses:{}});
     p.history.push({date:logDay(),action:"OPEN",question:lp.question,side:lp.side,
-      detail:`Copied leader — ${shares} ${lp.side} '${lp.question.slice(0,36)}' @ ${pct(entry)}`});
+      detail:`Copied ${(candidate&&candidate.cfg&&candidate.cfg.name)||"momentum leader"} — ${shares} ${lp.side} '${lp.question.slice(0,36)}' @ ${pct(entry)}`});
   }
   recordSnapshot(p);
 }
@@ -1466,9 +1523,10 @@ async function backtestWeek(st){
       openPositions(p,cfg,cfg.rank(sugs),focus,null,claimedMarkets).forEach(id=>claimedMarkets.add(id));
       recordSnapshot(p);
     }
-    const leaderId=AGENTS.filter(a=>a.kind==="strategy").map(a=>({id:a.id,eq:equity(st.agents[a.id])})).sort((x,y)=>y.eq-x.eq)[0].id;
+    const copyPick=chooseCopycatLeader(st);
+    const leaderId=copyPick?copyPick.id:AGENTS.filter(a=>a.kind==="strategy")[0].id;
     st.copycatLeader=leaderId;
-    runCopycat(st.agents.copycat,st.agents[leaderId],priceMap);
+    runCopycat(st.agents.copycat,st.agents[leaderId],priceMap,copyPick);
     if(day===dates[dates.length-1])saveSuggestions(sugs); // latest live-ish board for the Suggestions tab
   }
   SIM_DAY=null;
@@ -1516,11 +1574,10 @@ async function runDailyCycle(){
       openPositions(p,cfg,cfg.rank(sugs),focus,decision,claimedMarkets).forEach(id=>claimedMarkets.add(id));
       recordSnapshot(p);
     }
-    // 2) copycat shadows the leading strategy agent
-    const stratBoard=AGENTS.filter(a=>a.kind==="strategy")
-      .map(a=>({id:a.id,eq:equity(st.agents[a.id])})).sort((x,y)=>y.eq-x.eq);
-    st.copycatLeader=stratBoard[0].id;
-    runCopycat(st.agents["copycat"],st.agents[st.copycatLeader],priceMap);
+    // 2) copycat shadows the in-house agent with the strongest MACD/momentum score
+    const copyPick=chooseCopycatLeader(st);
+    st.copycatLeader=copyPick?copyPick.id:AGENTS.filter(a=>a.kind==="strategy")[0].id;
+    runCopycat(st.agents["copycat"],st.agents[st.copycatLeader],priceMap,copyPick);
     // 3) whale-copy agents mirror top Polymarket traders
     if(AGENTS.some(a=>a.kind==="whale"&&!st.whales[a.id])){
       setStatus("finding top Polymarket traders…",true);
@@ -1594,7 +1651,7 @@ function miniSpark(snaps,color){
 }
 function agentBlurb(cfg,st){
   if(cfg.kind==="whale"){const w=st.whales[cfg.id];return w?`🐋 Mirrors <b>${esc(w.name)}</b>${w.profit?` · $${(w.profit/1e6).toFixed(1)}M profit`:""}. ${esc(cfg.blurb)}`:`${esc(cfg.blurb)} The trader is selected on the first successful run.`;}
-  if(cfg.kind==="copycat"){const L=AGENTS.find(a=>a.id===st.copycatLeader);return `🐒 Currently copying <b>${L?esc(L.name):"the leader"}</b>. ${esc(cfg.blurb)}`;}
+  if(cfg.kind==="copycat"){const L=AGENTS.find(a=>a.id===st.copycatLeader),p=st.agents.copycat||defaultPortfolio();return `🐒 Currently copying <b>${L?esc(L.name):"the strongest momentum setup"}</b>. ${esc(p.lastDecision&&p.lastDecision.reason?p.lastDecision.reason:cfg.blurb)}`;}
   return cfg.blurb;
 }
 function agentPlainBlurb(cfg,st){
@@ -1616,8 +1673,8 @@ function renderAgentBrief(cfg,p,st){
   const root=$("agentBrief"); if(!root)return;
   const bw=bestAndWorst(p);
   const risk=cfg.kind==="whale"?"Mirror risk":cfg.kind==="copycat"?"Adaptive":cfg.maxFrac>=0.12?"Higher risk":cfg.maxFrac<=0.05?"Lower risk":"Balanced";
-  const cadence=cfg.kind==="whale"?"Copies biggest live holdings":cfg.kind==="copycat"?"Follows current strategy leader":`${cfg.maxNew||0} new trades max`;
-  const exitRule=cfg.kind==="strategy"?`Exit if edge fades, conviction weakens, <${EXIT_RESOLUTION_DAYS}d to resolve, or ${EXIT_STALE_DAYS}d stale`:cfg.kind==="copycat"?"Exit when leader exits":"Exit when copied trader exits";
+  const cadence=cfg.kind==="whale"?"Copies biggest live holdings":cfg.kind==="copycat"?"Follows MACD/momentum leader":`${cfg.maxNew||0} new trades max`;
+  const exitRule=cfg.kind==="strategy"?`Exit if edge fades, conviction weakens, <${EXIT_RESOLUTION_DAYS}d to resolve, or ${EXIT_STALE_DAYS}d stale`:cfg.kind==="copycat"?"Exit when momentum leader exits":"Exit when copied trader exits";
   const thesis=agentPlainBlurb(cfg,st);
   root.innerHTML=`
     <div class="brief-main" style="border-top:3px solid ${cfg.color}">
@@ -1888,7 +1945,7 @@ function renderAgentTechnical(agentId){
 }
 function agentCompetitionPlan(cfg,row,rank,leader){
   if(rank===1)return "Plan: defend the lead, keep sizing disciplined, and let risk controls protect gains instead of forcing new trades.";
-  if(cfg.kind==="copycat")return `Plan: keep shadowing ${leader.c.name}, then rotate automatically if another in-house strategy takes the crown.`;
+  if(cfg.kind==="copycat")return `Plan: keep shadowing the strongest MACD/momentum setup, then rotate automatically if another in-house strategy shows better forward pressure.`;
   if(cfg.kind==="whale")return "Plan: stay close to the copied trader's largest live positions while using the stop-loss and gain-stop rules to avoid blindly riding every swing.";
   if(cfg.id==="value")return "Plan: close the gap by waiting for the cleanest model-versus-market mispricings and avoiding crowded trades without enough edge.";
   if(cfg.id==="momentum")return "Plan: attack fast-moving markets where fresh volume confirms attention, hoping speed beats slower value strategies.";
@@ -1896,6 +1953,17 @@ function agentCompetitionPlan(cfg,row,rank,leader){
   if(cfg.id==="longshot")return "Plan: keep risk small but search for one underpriced outsider that can reprice sharply and leapfrog the leaderboard.";
   if(cfg.id==="diversifier")return "Plan: spread bets broadly, reduce single-market damage, and try to win through consistency rather than one heroic call.";
   return "Plan: keep following its rulebook and use fresh market data to pressure the leaderboard.";
+}
+function recentActionSummary(p){
+  const recent=(p.history||[]).slice(-8);
+  const counts={STOP:0,GAIN:0,EXIT:0,CLOSE:0,OPEN:0};
+  recent.forEach(h=>{if(counts[h.action]!==undefined)counts[h.action]++;});
+  const bits=[];
+  if(counts.STOP)bits.push(`${counts.STOP} stop-loss sale${counts.STOP===1?"":"s"}`);
+  if(counts.GAIN)bits.push(`${counts.GAIN} gain-stop cash-in${counts.GAIN===1?"":"s"}`);
+  if(counts.EXIT||counts.CLOSE)bits.push(`${counts.EXIT+counts.CLOSE} exit${counts.EXIT+counts.CLOSE===1?"":"s"}`);
+  if(counts.OPEN)bits.push(`${counts.OPEN} new entr${counts.OPEN===1?"y":"ies"}`);
+  return bits.length?bits.join(", "):"no major recent trade actions";
 }
 function reportPositionLine(p){
   if(!p.positions.length)return "No open positions yet, so this hour's focus is finding entries that fit the strategy.";
@@ -1911,9 +1979,12 @@ function dailyPerformanceExplanation(row){
   const open=row.p.positions||[];
   const best=open.slice().sort((a,b)=>(b.unrealized_pnl||0)-(a.unrealized_pnl||0))[0];
   const worst=open.slice().sort((a,b)=>(a.unrealized_pnl||0)-(b.unrealized_pnl||0))[0];
-  if(delta>0.25)return `Why it is working today: return improved ${delta.toFixed(2)} points, led by ${best?`'${best.question.slice(0,45)}'`:"cash discipline and favorable marks"}.`;
-  if(delta<-0.25)return `Why it is struggling today: return fell ${Math.abs(delta).toFixed(2)} points, mainly from ${worst?`'${worst.question.slice(0,45)}'`:"weak marks or low conviction exposure"}.`;
-  return `Why it is steady today: return moved only ${delta.toFixed(2)} points, so the account is mostly marking positions sideways while waiting for stronger price movement.`;
+  const m=agentMomentumStats(row.p);
+  const macdText=`MACD ${m.macd>=0?"+":""}${m.macd.toFixed(2)}, momentum ${m.recent>=0?"+":""}${m.recent.toFixed(2)} pts`;
+  const actions=recentActionSummary(row.p);
+  if(delta>0.25)return `Why it went up: return improved ${delta.toFixed(2)} points. ${best?`The biggest open help was '${best.question.slice(0,45)}' at ${fmtUSD(best.unrealized_pnl||0)}.`:"Cash discipline and favorable marks helped."} Technicals: ${macdText}. Recent actions: ${actions}.`;
+  if(delta<-0.25)return `Why it went down: return fell ${Math.abs(delta).toFixed(2)} points. ${worst?`The biggest drag was '${worst.question.slice(0,45)}' at ${fmtUSD(worst.unrealized_pnl||0)}.`:"Weak marks or low-conviction exposure hurt."} Technicals: ${macdText}. Recent actions: ${actions}.`;
+  return `Why it is steady: return moved only ${delta.toFixed(2)} points. Technicals are mixed (${macdText}), and recent actions were ${actions}.`;
 }
 function renderAgentReports(){
   const root=$("agentReports"); if(!root)return;
@@ -1924,11 +1995,13 @@ function renderAgentReports(){
     const thesis=agentPlainBlurb(row.c,st);
     const plan=agentCompetitionPlan(row.c,row,rank,leader);
     const line=reportPositionLine(row.p);
+    const crash=row.ret<-15?`<p><b>Drawdown guard:</b> This account is down more than 15%, so new trades are throttled to one high-conviction entry with extra cash reserve. It is not trying to force a comeback.</p>`:"";
     return `<article class="report" style="border-top-color:${row.c.color}">
       <div class="report-title"><div class="report-name">${row.c.emoji} ${row.c.name}</div><div class="report-rank">#${rank} · ${ret}</div></div>
       <p><b>Strategy:</b> ${esc(thesis)}</p>
       <p><b>Adaptation:</b> ${esc(decisionSummary(row.p))}</p>
       <p><b>Performance:</b> ${esc(dailyPerformanceExplanation(row))}</p>
+      ${crash}
       <p><b>Status:</b> ${open} open position${open===1?"":"s"} with ${fmtUSD(row.eq)} equity. ${esc(line)}</p>
       <p><b>${esc(plan)}</b></p>
     </article>`;
