@@ -14,8 +14,8 @@ Personal research mode:
 https://polymarket-site-eta.vercel.app/personal.html
 
 The site fetches live Polymarket markets, generates agent suggestions, lets you
-run hourly paper cycles, and syncs the shared arena state through the Vercel API
-when `BLOB_READ_WRITE_TOKEN` is configured.
+run frequent paper cycles, and syncs the shared arena state through the Vercel
+API when `BLOB_READ_WRITE_TOKEN` is configured.
 
 Paper accounts created with a password are also saved through the backend, so a
 user can log in from another device and see the same paper portfolio, activity,

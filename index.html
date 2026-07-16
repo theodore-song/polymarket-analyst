@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Polymarket Analyst — 10 AI Agents Compete to Trade Prediction Markets</title>
-<meta name="description" content="Hourly AI analysis of Polymarket with ten competing autonomous paper-trading agents, whale-copy portfolios, and a live leaderboard." />
+<meta name="description" content="Frequent AI analysis of Polymarket with ten competing autonomous paper-trading agents, whale-copy portfolios, and a live leaderboard." />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
@@ -387,13 +387,13 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
       <div class="card-h"><h3>Returns — all agents</h3><div><span class="small muted">$10,000 start each</span><div class="rangebar" data-chart-ranges></div></div></div>
       <div class="chart-wrap"><svg id="chart2" viewBox="0 0 960 320" preserveAspectRatio="xMidYMid meet"></svg></div>
       <div class="legend" id="comboLegend2"></div>
-      <div class="small muted" style="margin-top:10px">Past week is a backtest. After that, each hourly run adds another return snapshot for every agent.</div>
+      <div class="small muted" style="margin-top:10px">Past week is a backtest. After that, each live cycle adds another return snapshot for every agent.</div>
     </div>
   </section>
 
   <!-- ============ SUGGESTIONS ============ -->
   <section class="tabpanel" data-tab="suggestions">
-    <div class="section-title">💡 Hourly Suggestions <span class="small muted" id="sugDate" style="font-weight:400"></span></div>
+    <div class="section-title">💡 Live Suggestions <span class="small muted" id="sugDate" style="font-weight:400"></span></div>
     <div class="card">
       <div class="filterbar" id="filterbar"></div>
       <div class="small muted" id="focusNote" style="margin-top:6px"></div>
@@ -672,10 +672,10 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <!-- ============ ABOUT ============ -->
   <section class="tabpanel" data-tab="about">
     <div class="section-title">ℹ️ The competition</div>
-    <p class="muted" style="margin-top:-6px;max-width:820px">Every agent starts with <b>$10,000</b> in paper money. The five in-house strategies trade the same hourly suggestions their own way; the <b>Copycat</b> follows the strategy with the strongest MACD, momentum, and drawdown-adjusted return profile; and the four leading-account copy agents mirror live positions from high-profit real traders on Polymarket (auto-discovered from its public leaderboard). All mark to market hourly and climb — or sink — the board.</p>
+    <p class="muted" style="margin-top:-6px;max-width:820px">Every agent starts with <b>$10,000</b> in paper money. The five in-house strategies trade the same frequently refreshed suggestions their own way; the <b>Copycat</b> follows the strategy with the strongest MACD, momentum, and drawdown-adjusted return profile; and the four leading-account copy agents mirror live positions from high-profit real traders on Polymarket (auto-discovered from its public leaderboard). All mark to market on each cycle and climb — or sink — the board.</p>
     <div class="about-grid" id="aboutAgents"></div>
     <div class="card" style="margin-top:16px">
-      <div class="card-h"><h3>The hourly cycle</h3></div>
+      <div class="card-h"><h3>The live cycle</h3></div>
       <ol class="steps">
         <li><b>Fetch</b> — page through every active Polymarket market and tag each by category.</li>
         <li><b>Score</b> — rank every market 0–100 by conviction and estimate its edge vs. a fair-value model.</li>
@@ -796,7 +796,7 @@ async function initProviderConfig(){
 }
 
 /* ---------- the ten competing agents ----------
-   Each shares the same hourly suggestions but ranks/sizes them differently. */
+   Each shares the same frequently refreshed suggestions but ranks/sizes them differently. */
 const AGENTS = [
   {id:"value", name:"Value Hunter", emoji:"🎯", color:"#7c8cff", kind:"strategy",
    blurb:"Looks for the widest gap between the model's fair value and the current market price. It prefers trades where the crowd appears too pessimistic or too optimistic, then sizes positions moderately so one bad read does not dominate the portfolio.",
@@ -840,20 +840,22 @@ const paperSessionKey=(id)=>`${PAPER_SESSION_PREFIX}${id}`;
 const marketSearchUrl=(q)=>`https://polymarket.com/search?query=${encodeURIComponent(q||"")}`;
 const positionUrl=(pos)=>pos&&pos.url?pos.url:marketSearchUrl(pos&&pos.question);
 function partsInLocalTime(d=new Date()){
-  const parts=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Toronto",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",hourCycle:"h23"}).formatToParts(d);
+  const parts=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Toronto",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(d);
   return Object.fromEntries(parts.map(p=>[p.type,p.value]));
 }
 const todayStr = () => {const p=partsInLocalTime();return `${p.year}-${p.month}-${p.day}`;};
-const currentCycleHour = () => {const p=partsInLocalTime();return `${p.year}-${p.month}-${p.day}T${p.hour}`;};
+const RUN_INTERVAL_MS = 60000;
+const currentCycleHour = () => {const p=partsInLocalTime();return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;};
 function cycleHourFromIso(iso){
   const d=new Date(iso);
   if(isNaN(d))return null;
-  const p=partsInLocalTime(d);return `${p.year}-${p.month}-${p.day}T${p.hour}`;
+  const p=partsInLocalTime(d);return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
 }
 const nowIso = () => new Date().toISOString();
 const cycleIso = () => SIM_DAY ? new Date(SIM_DAY+"T12:00:00Z").toISOString() : nowIso();
 let SIM_DAY = null;                       // set during backtest so logs/snapshots use the simulated date
 let SNAP_TS = null;                       // set during a live cycle so every agent gets the same chart x-value
+let CYCLE_RUNNING = false;
 const logDay = () => SIM_DAY || todayStr();
 function toast(msg){
   let t=document.querySelector(".toast");
@@ -1583,17 +1585,19 @@ async function backtestWeek(st){
 }
 
 async function runDailyCycle(){
-  const cloud=await loadAuthoritativeCloudState();
-  if(!cloud.ok)throw new Error("Cloud sync unavailable. Refusing to run a local-only cycle.");
-  let st=loadState();
-  const hour=currentCycleHour();
-  if(st.seeded&&st.last_cycle_hour===hour){
-    setStatus("up to date",false);
-    return {suggestions:(loadSuggestions().suggestions||[]).length,skipped:true,hour};
-  }
-  SNAP_TS=nowIso();
-  setStatus("fetching markets…",true);
+  if(CYCLE_RUNNING)return {suggestions:(loadSuggestions().suggestions||[]).length,skipped:true,busy:true,hour:currentCycleHour()};
+  CYCLE_RUNNING=true;
   try{
+    const cloud=await loadAuthoritativeCloudState();
+    if(!cloud.ok)throw new Error("Cloud sync unavailable. Refusing to run a local-only cycle.");
+    let st=loadState();
+    const hour=currentCycleHour();
+    if(st.seeded&&st.last_cycle_hour===hour){
+      setStatus("up to date",false);
+      return {suggestions:(loadSuggestions().suggestions||[]).length,skipped:true,hour};
+    }
+    SNAP_TS=nowIso();
+    setStatus("fetching markets…",true);
     const markets=await fetchMarkets(Infinity,100,count=>setStatus(`fetching all active markets (${count})…`,true));
     setStatus("analyzing…",true);
     const sugs=generateSuggestions(markets);
@@ -1646,7 +1650,7 @@ async function runDailyCycle(){
     setStatus("up to date",false);
     if(!pushed)return {suggestions:(loadSuggestions().suggestions||[]).length,skipped:true,hour};
     return {suggestions:sugs.length};
-  }finally{SNAP_TS=null;}
+  }finally{SNAP_TS=null;CYCLE_RUNNING=false;}
 }
 
 /* ---------- Leaderboard helpers ---------- */
@@ -2986,7 +2990,7 @@ applyPersonalMode();
 initProviderConfig();
 $("runBtn").addEventListener("click",async()=>{
   const btn=$("runBtn");btn.disabled=true;btn.textContent="Running…";
-  try{const r=await runDailyCycle();const b=board();toast(r.skipped?`Already ran this hour · ${b[0].c.emoji} ${b[0].c.name} leads`:`Cycle done · ${r.suggestions} ideas · ${b[0].c.emoji} ${b[0].c.name} leads`);renderAll();}
+  try{const r=await runDailyCycle();const b=board();toast(r.busy?`Cycle already running · ${b[0].c.emoji} ${b[0].c.name} leads`:r.skipped?`Already ran this minute · ${b[0].c.emoji} ${b[0].c.name} leads`:`Cycle done · ${r.suggestions} ideas · ${b[0].c.emoji} ${b[0].c.name} leads`);renderAll();}
   catch(e){toast("Run failed: "+e.message);setStatus("error",false);}
   btn.disabled=false;btn.textContent="Run cycle";
 });
@@ -3105,8 +3109,16 @@ window.addEventListener("focus",()=>refreshFromCloudAndRender(true));
 document.addEventListener("visibilitychange",()=>{
   if(!document.hidden)refreshFromCloudAndRender(true);
 });
+async function autoRunDueCycle(){
+  if(document.hidden||CYCLE_RUNNING)return;
+  const st=loadState();
+  if(!st.seeded||st.last_cycle_hour===currentCycleHour())return;
+  try{await runDailyCycle();renderAll();toast("Live update ready.");}
+  catch(e){setStatus("error — click Run to retry",false);}
+}
+setInterval(()=>autoRunDueCycle(),RUN_INTERVAL_MS);
 
-/* On load: first visit runs a 7-day backtest; afterwards the shared portfolio advances once per hour. */
+/* On load: first visit runs a 7-day backtest; afterwards the shared portfolio advances as often as the cycle key allows. */
 (async function init(){
   showTab(location.hash.slice(1)||"overview");
   fetchLiveBackendStatus();
@@ -3133,7 +3145,7 @@ document.addEventListener("visibilitychange",()=>{
     btn.disabled=false;btn.textContent="Run cycle";
   }else if(st.last_cycle_hour!==currentCycleHour()){
     btn.disabled=true;btn.textContent="Running…";
-    try{await runDailyCycle();renderAll();toast("Hourly update ready.");}
+    try{await runDailyCycle();renderAll();toast("Live update ready.");}
     catch(e){setStatus("error — click Run to retry",false);}
     btn.disabled=false;btn.textContent="Run cycle";
   }else{setStatus("up to date",false);}

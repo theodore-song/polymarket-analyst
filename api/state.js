@@ -43,18 +43,18 @@ export default async function handler(req, res) {
       const currentAgents = agentStateFromItems(current && current.items);
       const incomingAgents = agentStateFromItems(body.items);
       if (!body.force && currentAgents) {
-        const currentHour = currentAgents.last_cycle_hour || "";
-        const incomingHour = incomingAgents && incomingAgents.last_cycle_hour ? incomingAgents.last_cycle_hour : "";
-        if (currentHour && (!incomingAgents || !incomingHour)) {
+        const currentCycle = currentAgents.last_cycle_hour || "";
+        const incomingCycle = incomingAgents && incomingAgents.last_cycle_hour ? incomingAgents.last_cycle_hour : "";
+        if (currentCycle && (!incomingAgents || !incomingCycle)) {
           return conflictResponse(res, "Cloud already has a cycle result; refusing unscheduled local state", current);
         }
-        if (currentHour && incomingHour && incomingHour < currentHour) {
+        if (currentCycle && incomingCycle && incomingCycle < currentCycle) {
           return conflictResponse(res, "Incoming state is older than the shared cloud result", current);
         }
-        const sameHour = currentHour && currentHour === incomingHour;
+        const sameCycle = currentCycle && currentCycle === incomingCycle;
         const differentRun = currentAgents.last_run && incomingAgents.last_run && currentAgents.last_run !== incomingAgents.last_run;
-        if (sameHour && differentRun) {
-          return conflictResponse(res, "This cycle hour already has a cloud result", current);
+        if (sameCycle && differentRun) {
+          return conflictResponse(res, "This cycle already has a cloud result", current);
         }
       }
       const state = { version: 1, updated_at: new Date().toISOString(), items: body.items };
