@@ -677,7 +677,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
     <div class="card" style="margin-top:16px">
       <div class="card-h"><h3>The hourly cycle</h3></div>
       <ol class="steps">
-        <li><b>Fetch</b> — page through hundreds of live markets and tag each by category.</li>
+        <li><b>Fetch</b> — page through every active Polymarket market and tag each by category.</li>
         <li><b>Score</b> — rank every market 0–100 by conviction and estimate its edge vs. a fair-value model.</li>
         <li><b>Suggest</b> — surface the strongest picks per category with a plain-English rationale.</li>
         <li><b>Compete</b> — the strategy agents trade the same suggestions their own way, stop-loss weak positions, scale out through gain-stop tiers, exit stale or fading trades, then snapshot equity.</li>
@@ -896,14 +896,17 @@ function normalizeMarket(raw){
     days_to_resolution:daysUntil(raw.endDate),image:raw.image||"",
     url:ev.slug?`https://polymarket.com/event/${ev.slug}`:""};
 }
-async function fetchMarkets(pages=4,perPage=100){
+async function fetchMarkets(pages=Infinity,perPage=100,onProgress=null){
   const all=[];
-  for(let i=0;i<pages;i++){
+  const maxPages=Number.isFinite(pages)?pages:250;
+  for(let i=0;i<maxPages;i++){
     const params=new URLSearchParams({closed:"false",active:"true",archived:"false",include_tag:"true",
       limit:String(perPage),offset:String(i*perPage),order:"volume24hr",ascending:"false"});
     const r=await fetch(`${GAMMA}/markets?${params}`);
     if(!r.ok){if(i===0)throw new Error("Polymarket API "+r.status);break;}
     const raw=await r.json(); if(!raw.length)break; all.push(...raw);
+    if(onProgress)onProgress(all.length);
+    if(raw.length<perPage)break;
   }
   return all.map(normalizeMarket).filter(m=>m&&m.question);
 }
@@ -1591,7 +1594,7 @@ async function runDailyCycle(){
   SNAP_TS=nowIso();
   setStatus("fetching markets…",true);
   try{
-    const markets=await fetchMarkets(10,100);
+    const markets=await fetchMarkets(Infinity,100,count=>setStatus(`fetching all active markets (${count})…`,true));
     setStatus("analyzing…",true);
     const sugs=generateSuggestions(markets);
     saveSuggestions(sugs);
@@ -2487,21 +2490,29 @@ async function searchPaperMarkets(){
   PAPER_MARKET_OFFSET=0;PAPER_MARKET_QUERY=q;
   await loadPaperMarketPage(true);
 }
-async function loadPaperMarketPage(reset=false){
+async function loadPaperMarketPage(reset=false,loadAll=false){
   const q=PAPER_MARKET_QUERY||(($("paperSearchInput")&&$("paperSearchInput").value)||"").trim();
   setStatus("searching Polymarket...",true);
   try{
     if(reset){PAPER_SEARCH_RESULTS=[];PAPER_MARKET_OFFSET=0;}
-    const params=new URLSearchParams({closed:"false",active:"true",archived:"false",include_tag:"true",limit:"100",offset:String(PAPER_MARKET_OFFSET),order:"volume24hr",ascending:"false"});
-    if(q)params.set("search",q);
-    const r=await fetch(`${GAMMA}/markets?${params}`);
-    if(!r.ok)throw new Error("market load failed");
-    const raw=await r.json();
-    const next=raw.map(normalizeMarket).filter(Boolean).map(paperTradeFromMarket);
-    PAPER_SEARCH_RESULTS=(PAPER_SEARCH_RESULTS||[]).concat(next);
-    PAPER_MARKET_OFFSET+=raw.length;
+    let loaded=0,rawCount=0,keepGoing=true;
+    const limit=100,maxPages=loadAll?250:1;
+    for(let page=0;page<maxPages&&keepGoing;page++){
+      const params=new URLSearchParams({closed:"false",active:"true",archived:"false",include_tag:"true",limit:String(limit),offset:String(PAPER_MARKET_OFFSET),order:"volume24hr",ascending:"false"});
+      if(q)params.set("search",q);
+      const r=await fetch(`${GAMMA}/markets?${params}`);
+      if(!r.ok)throw new Error("market load failed");
+      const raw=await r.json();
+      rawCount+=raw.length;
+      const next=raw.map(normalizeMarket).filter(Boolean).map(paperTradeFromMarket);
+      PAPER_SEARCH_RESULTS=(PAPER_SEARCH_RESULTS||[]).concat(next);
+      PAPER_MARKET_OFFSET+=raw.length;
+      loaded+=next.length;
+      if(loadAll)setStatus(`loading active markets (${PAPER_SEARCH_RESULTS.length})…`,true);
+      if(raw.length<limit)keepGoing=false;
+    }
     renderPaperTab();setStatus("up to date",false);
-    toast(next.length?`Loaded ${PAPER_SEARCH_RESULTS.length} active markets.`:"No more active markets found.");
+    toast(loaded?`Loaded ${PAPER_SEARCH_RESULTS.length} active markets.`:rawCount?"No tradable binary markets found in this page.":"No more active markets found.");
   }catch(e){setStatus("market load error",false);toast("Polymarket market load failed.");}
 }
 function renderAbout(){
@@ -2840,21 +2851,29 @@ async function searchLiveMarkets(){
   LIVE_MARKET_OFFSET=0;LIVE_MARKET_QUERY=q;
   await loadLiveMarketPage(true);
 }
-async function loadLiveMarketPage(reset=false){
+async function loadLiveMarketPage(reset=false,loadAll=false){
   const q=LIVE_MARKET_QUERY||(($("liveSearchInput")&&$("liveSearchInput").value)||"").trim();
   setStatus("searching Polymarket...",true);
   try{
     if(reset){LIVE_SEARCH_RESULTS=[];LIVE_MARKET_OFFSET=0;}
-    const params=new URLSearchParams({closed:"false",active:"true",archived:"false",include_tag:"true",limit:"100",offset:String(LIVE_MARKET_OFFSET),order:"volume24hr",ascending:"false"});
-    if(q)params.set("search",q);
-    const r=await fetch(`${GAMMA}/markets?${params}`);
-    if(!r.ok)throw new Error("market load failed");
-    const raw=await r.json();
-    const next=raw.map(normalizeMarket).filter(Boolean).map(paperTradeFromMarket);
-    LIVE_SEARCH_RESULTS=(LIVE_SEARCH_RESULTS||[]).concat(next);
-    LIVE_MARKET_OFFSET+=raw.length;
+    let loaded=0,rawCount=0,keepGoing=true;
+    const limit=100,maxPages=loadAll?250:1;
+    for(let page=0;page<maxPages&&keepGoing;page++){
+      const params=new URLSearchParams({closed:"false",active:"true",archived:"false",include_tag:"true",limit:String(limit),offset:String(LIVE_MARKET_OFFSET),order:"volume24hr",ascending:"false"});
+      if(q)params.set("search",q);
+      const r=await fetch(`${GAMMA}/markets?${params}`);
+      if(!r.ok)throw new Error("market load failed");
+      const raw=await r.json();
+      rawCount+=raw.length;
+      const next=raw.map(normalizeMarket).filter(Boolean).map(paperTradeFromMarket);
+      LIVE_SEARCH_RESULTS=(LIVE_SEARCH_RESULTS||[]).concat(next);
+      LIVE_MARKET_OFFSET+=raw.length;
+      loaded+=next.length;
+      if(loadAll)setStatus(`loading active markets (${LIVE_SEARCH_RESULTS.length})…`,true);
+      if(raw.length<limit)keepGoing=false;
+    }
     renderLiveMarkets();setStatus("up to date",false);
-    toast(next.length?`Loaded ${LIVE_SEARCH_RESULTS.length} active markets.`:"No more active markets found.");
+    toast(loaded?`Loaded ${LIVE_SEARCH_RESULTS.length} active markets.`:rawCount?"No tradable binary markets found in this page.":"No more active markets found.");
   }catch(e){setStatus("market load error",false);toast("Polymarket market load failed.");}
 }
 async function stageLiveMarketTicket(marketId){
@@ -3033,7 +3052,7 @@ $("paperDepositBtn").addEventListener("click",()=>paperMoveCash("deposit",$("pap
 $("paperWithdrawBtn").addEventListener("click",()=>paperMoveCash("withdraw",$("paperMoneyAmount").value,$("paperPasswordInput").value));
 $("buyAgentBtn").addEventListener("click",()=>paperBuyAgent($("buyAgentSelect").value,$("buyAgentAmount").value));
 $("paperSearchBtn").addEventListener("click",()=>searchPaperMarkets());
-$("paperAllBtn").addEventListener("click",()=>{PAPER_MARKET_QUERY="";PAPER_SEARCH_RESULTS=[];loadPaperMarketPage(true);});
+$("paperAllBtn").addEventListener("click",()=>{PAPER_MARKET_QUERY="";PAPER_SEARCH_RESULTS=[];loadPaperMarketPage(true,true);});
 $("paperMoreBtn").addEventListener("click",()=>loadPaperMarketPage(false));
 $("paperClearSearchBtn").addEventListener("click",()=>{PAPER_SEARCH_RESULTS=null;PAPER_MARKET_OFFSET=0;PAPER_MARKET_QUERY="";renderPaperTab();});
 $("paperLoginBtn").addEventListener("click",async()=>{
@@ -3078,7 +3097,7 @@ $("personalWithdrawBtn").addEventListener("click",()=>personalCapitalAction("WIT
 $("personalBuyAgentBtn").addEventListener("click",()=>personalCapitalAction("BUY_AGENT"));
 $("personalSellAgentBtn").addEventListener("click",()=>personalCapitalAction("SELL_AGENT"));
 $("liveSearchBtn").addEventListener("click",()=>searchLiveMarkets());
-$("liveAllBtn").addEventListener("click",()=>{LIVE_MARKET_QUERY="";LIVE_SEARCH_RESULTS=[];loadLiveMarketPage(true);});
+$("liveAllBtn").addEventListener("click",()=>{LIVE_MARKET_QUERY="";LIVE_SEARCH_RESULTS=[];loadLiveMarketPage(true,true);});
 $("liveMoreBtn").addEventListener("click",()=>loadLiveMarketPage(false));
 $("liveClearSearchBtn").addEventListener("click",()=>{LIVE_SEARCH_RESULTS=[];LIVE_MARKET_OFFSET=0;LIVE_MARKET_QUERY="";renderLiveMarkets();});
 $("recordConsentBtn").addEventListener("click",()=>recordLiveConsent());
