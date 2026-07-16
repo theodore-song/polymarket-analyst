@@ -914,10 +914,10 @@ async function fetchMarketPrice(id){
 
 /* ---------- Analysis engine ---------- */
 const W={LIQ:0.25,MOM:0.25,MIS:0.30,TIME:0.20};
-const MIN_VOLUME=20000;
-const SUGGESTION_TOTAL=40;
-const SUGGESTION_PER_CATEGORY=10;
-const VISIBLE_SUGGESTIONS=30;
+const MIN_VOLUME=5000;
+const SUGGESTION_TOTAL=180;
+const SUGGESTION_PER_CATEGORY=40;
+const VISIBLE_SUGGESTIONS=120;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function liquiditySignal(m){const vol=Math.min(1,Math.log10(m.volume+1)/6.0);const liq=Math.min(1,Math.log10(m.liquidity+1)/5.3);return 0.6*vol+0.4*liq;}
 function momentumSignal(m){const da=m.volume_1wk?m.volume_1wk/7:0;if(da<=0)return m.volume_24hr>0?0.3:0;return clamp((m.volume_24hr/da-0.5)/2.0,0,1);}
@@ -1591,7 +1591,7 @@ async function runDailyCycle(){
   SNAP_TS=nowIso();
   setStatus("fetching markets…",true);
   try{
-    const markets=await fetchMarkets(4,100);
+    const markets=await fetchMarkets(10,100);
     setStatus("analyzing…",true);
     const sugs=generateSuggestions(markets);
     saveSuggestions(sugs);
@@ -1892,10 +1892,11 @@ function renderSuggestions(){
   renderFilterBar(all);
   if(!all.length){root.innerHTML=`<div class="empty" style="grid-column:1/-1">No suggestions yet. Click "Run cycle".</div>`;$("focusNote").textContent="";return;}
   const focus=getFocus();
-  const filtered=(focus==="All"?all:all.filter(s=>s.category===focus)).slice(0,VISIBLE_SUGGESTIONS);
+  const pool=(focus==="All"?all:all.filter(s=>s.category===focus));
+  const filtered=pool.slice(0,VISIBLE_SUGGESTIONS);
   $("focusNote").textContent=focus==="All"
-    ? "All five agents trade from this wider pool — each now tries fresh markets first to reduce overlap."
-    : `Filtered to ${focus} — agents will only open new ${focus} positions while this is selected.`;
+    ? `Showing ${filtered.length} of ${all.length} scored ideas. Agents trade from the full wider pool, so strategies have much more room to separate.`
+    : `Showing ${filtered.length} of ${pool.length} ${focus} ideas. Agents will only open new ${focus} positions while this is selected.`;
   if(!filtered.length){root.innerHTML=`<div class="empty" style="grid-column:1/-1">No ${esc(focus)} suggestions in this hourly batch.</div>`;return;}
   root.innerHTML=filtered.map(s=>{
     const col=catColor(s.category);
