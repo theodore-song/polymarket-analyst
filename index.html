@@ -730,7 +730,8 @@ const GAIN_STOP_TIERS = [
 const EXIT_STALE_DAYS = 14;
 const EXIT_RESOLUTION_DAYS = 2;
 const AGENTS_KEY = "pma_agents_v2";
-const SUG_KEY = "pma_suggestions_v2";
+const SUG_KEY = "pma_suggestions_v3";
+const SUGGESTION_ENGINE_VERSION = 4;
 const FOCUS_KEY = "pma_focus_v1";
 const VIEW_KEY = "pma_view_v1";
 const PF_SORT_KEY = "pma_portfolio_sort_v1";
@@ -844,11 +845,11 @@ function partsInLocalTime(d=new Date()){
 }
 const todayStr = () => {const p=partsInLocalTime();return `${p.year}-${p.month}-${p.day}`;};
 const RUN_INTERVAL_MS = 60000;
-const currentCycleHour = () => {const p=partsInLocalTime();return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;};
+const currentCycleHour = () => {const p=partsInLocalTime();return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}|v${SUGGESTION_ENGINE_VERSION}`;};
 function cycleHourFromIso(iso){
   const d=new Date(iso);
   if(isNaN(d))return null;
-  const p=partsInLocalTime(d);return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+  const p=partsInLocalTime(d);return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}|v${SUGGESTION_ENGINE_VERSION}`;
 }
 const nowIso = () => new Date().toISOString();
 const cycleIso = () => SIM_DAY ? new Date(SIM_DAY+"T12:00:00Z").toISOString() : nowIso();
@@ -990,7 +991,7 @@ function loadState(){
 }
 function saveState(st){localStorage.setItem(AGENTS_KEY,JSON.stringify(st));}
 function loadSuggestions(){try{const s=localStorage.getItem(SUG_KEY);return s?JSON.parse(s):{date:null,suggestions:[]};}catch(e){return {date:null,suggestions:[]};}}
-function saveSuggestions(sugs){const p={date:todayStr(),generated_at:nowIso(),suggestions:sugs};localStorage.setItem(SUG_KEY,JSON.stringify(p));return p;}
+function saveSuggestions(sugs,marketCount=0){const p={date:todayStr(),generated_at:nowIso(),engine_version:SUGGESTION_ENGINE_VERSION,market_count:marketCount,suggestion_cap:SUGGESTION_TOTAL,suggestions:sugs};localStorage.setItem(SUG_KEY,JSON.stringify(p));return p;}
 function collectSyncItems(){const items={};SYNC_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!=null)items[k]=v;});return items;}
 function applySyncItems(items){if(!items||typeof items!=="object")return false;SYNC_KEYS.forEach(k=>{if(items[k]!=null)localStorage.setItem(k,items[k]);});return true;}
 function stateFromSyncItems(items){
@@ -1574,7 +1575,7 @@ async function backtestWeek(st){
     const leaderId=copyPick?copyPick.id:AGENTS.filter(a=>a.kind==="strategy")[0].id;
     st.copycatLeader=leaderId;
     runCopycat(st.agents.copycat,st.agents[leaderId],priceMap,copyPick);
-    if(day===dates[dates.length-1])saveSuggestions(sugs); // latest live-ish board for the Suggestions tab
+    if(day===dates[dates.length-1])saveSuggestions(sugs,markets.length); // latest live-ish board for the Suggestions tab
   }
   SIM_DAY=null;
   await backtestWhales(st,dates);
@@ -1600,7 +1601,7 @@ async function runDailyCycle(){
     const markets=await fetchMarkets(Infinity,100,count=>setStatus(`fetching all active markets (${count})…`,true));
     setStatus("analyzing…",true);
     const sugs=generateSuggestions(markets);
-    saveSuggestions(sugs);
+    saveSuggestions(sugs,markets.length);
     st=loadState();
     const focus=getFocus();
     // Price map for suggestion-market positions (strategy + copycat only).
@@ -1672,7 +1673,7 @@ function renderOverview(){
     {ic:lead.c.emoji,label:"Leader",value:lead.c.name.split(" ")[0]},
     {ic:"📈",label:"Leader return",value:fmtPct(lead.ret),cls:signClass(lead.pnl)},
     {ic:"⚖️",label:"Avg return",value:fmtPct(avgRet),cls:signClass(avgRet)},
-    {ic:"💡",label:"Ideas this hour",value:sugCount},
+    {ic:"💡",label:"Scored ideas",value:sugCount},
     {ic:"🏆",label:"Agents",value:AGENTS.length},
   ];
   $("stats").innerHTML=stats.map(s=>`<div class="stat"><div class="ic">${s.ic}</div><div class="label">${s.label}</div><div class="value ${s.cls||""}">${s.value}</div></div>`).join("");
@@ -1901,9 +1902,9 @@ function renderSuggestions(){
   const pool=(focus==="All"?all:all.filter(s=>s.category===focus));
   const filtered=pool.slice(0,VISIBLE_SUGGESTIONS);
   $("focusNote").textContent=focus==="All"
-    ? `Showing ${filtered.length} of ${all.length} scored ideas. Agents trade from the full wider pool, so strategies have much more room to separate.`
-    : `Showing ${filtered.length} of ${pool.length} ${focus} ideas. Agents will only open new ${focus} positions while this is selected.`;
-  if(!filtered.length){root.innerHTML=`<div class="empty" style="grid-column:1/-1">No ${esc(focus)} suggestions in this hourly batch.</div>`;return;}
+    ? `Scanned ${Number(data.market_count||0).toLocaleString()} active markets and kept ${all.length} scored ideas. Showing ${filtered.length}; agents trade from the full wider pool.`
+    : `Scanned ${Number(data.market_count||0).toLocaleString()} active markets. Showing ${filtered.length} of ${pool.length} ${focus} ideas; agents only open new ${focus} positions while this is selected.`;
+  if(!filtered.length){root.innerHTML=`<div class="empty" style="grid-column:1/-1">No ${esc(focus)} suggestions in this live batch.</div>`;return;}
   root.innerHTML=filtered.map(s=>{
     const col=catColor(s.category);
     const drivers=s.drivers.map(d=>`<span class="driver">${d}</span>`).join("");
@@ -2115,7 +2116,7 @@ function renderPositions(positions){
     const isBacktesting=!st.seeded&&(($("statusText")&&$("statusText").textContent)||"").includes("backtest");
     root.innerHTML=isBacktesting
       ? `<div class="loading-empty"><div class="loading-ring"></div><div><b>Building agent portfolios...</b><div class="empty-copy">The app is replaying the past week, finding top traders, and marking positions to real Polymarket prices. This fills in automatically when the backtest finishes.</div></div></div>`
-      : `<div class="empty">No open positions yet. Run a cycle to let this agent shop this hour's suggestions.</div>`;
+      : `<div class="empty">No open positions yet. Run a cycle to let this agent shop the latest suggestions.</div>`;
     return;
   }
   const sort=localStorage.getItem(PF_SORT_KEY)||"pnl_desc";
