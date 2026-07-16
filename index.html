@@ -171,6 +171,22 @@ body:not(.personal-mode) [data-tab="live"]{display:none!important}
 .report p{margin:0 0 9px;color:#cdd6e8;font-size:13px;line-height:1.5}
 .report p:last-child{margin-bottom:0}
 .report b{color:var(--text)}
+.agent-chat{display:grid;grid-template-columns:.8fr 1.2fr;gap:16px}
+.chat-panel{background:rgba(255,255,255,.035);border:1px solid var(--border);border-radius:15px;padding:14px}
+.chat-persona{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.chat-avatar{font-size:28px;width:42px;height:42px;display:grid;place-items:center;border-radius:13px;background:rgba(255,255,255,.06);border:1px solid var(--border)}
+.chat-name{font-family:'Space Grotesk';font-weight:700}
+.chat-meta{font-size:12px;color:var(--muted);margin-top:2px}
+.chat-prompts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.chat-prompt{border:1px solid var(--border);background:rgba(255,255,255,.045);color:var(--text);border-radius:999px;padding:7px 10px;font:700 11.5px 'Inter';cursor:pointer}
+.chat-prompt:hover{border-color:var(--accent)}
+.chat-window{display:flex;flex-direction:column;gap:10px;max-height:420px;overflow:auto;padding-right:4px}
+.chat-msg{border:1px solid var(--border);border-radius:14px;padding:11px 13px;font-size:13px;line-height:1.45;white-space:pre-wrap}
+.chat-msg.user{align-self:flex-end;max-width:82%;background:rgba(124,140,255,.16);border-color:rgba(124,140,255,.35)}
+.chat-msg.agent{align-self:flex-start;max-width:92%;background:rgba(255,255,255,.045)}
+.chat-input-row{display:flex;gap:8px;margin-top:12px}
+.chat-input-row .input{flex:1}
+@media (max-width:760px){.agent-chat{grid-template-columns:1fr}.chat-msg.user,.chat-msg.agent{max-width:100%}}
 
 /* ---------- suggestions ---------- */
 .filterbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
@@ -426,6 +442,10 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
     <div class="card">
       <div class="card-h"><h3>Daily Agent Performance Reports</h3><span class="small muted" id="reportDate"></span></div>
       <div class="report-grid" id="agentReports"></div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h3>Chat With This Agent</h3><span class="small muted">ask about performance, risk, trades, or plans</span></div>
+      <div id="agentChatRoot"></div>
     </div>
   </section>
 
@@ -739,6 +759,7 @@ const CHART_RANGE_KEY = "pma_chart_range_v1";
 const INVEST_KEY = "pma_invest_allocations_v1";
 const PAPER_KEY = "pma_paper_accounts_v1";
 const LIVE_KEY = "pma_live_readiness_v1";
+const CHAT_KEY = "pma_agent_chat_v1";
 const PAPER_SESSION_PREFIX = "pma_cloud_session_";
 const PERSONAL_MODE = new URLSearchParams(location.search).get("personal") === "1";
 const PERSONAL_USER_ID = "local-readiness-user";
@@ -1957,6 +1978,7 @@ function renderPortfolioTab(){
   renderHistory((p.history||[]).slice(-50).reverse());
   renderAgentTechnical(viewId);
   renderAgentReports();
+  renderAgentChat(viewId);
 }
 const avg=(arr)=>arr.length?arr.reduce((s,x)=>s+x,0)/arr.length:0;
 function ema(vals,period){
@@ -2108,6 +2130,92 @@ function renderAgentReports(){
       <p><b>${esc(plan)}</b></p>
     </article>`;
   }).join("");
+}
+function loadAgentChats(){try{return JSON.parse(localStorage.getItem(CHAT_KEY)||"{}");}catch(e){return {};}}
+function saveAgentChats(chats){localStorage.setItem(CHAT_KEY,JSON.stringify(chats));}
+function agentChatSeed(agentId){
+  const cfg=agentById(agentId),st=loadState(),p=st.agents[agentId]||defaultPortfolio(),eq=equity(p),ret=(eq/p.starting_balance-1)*100;
+  return [{role:"agent",text:`I'm ${cfg.name}. Ask me why I am up or down, what trades are helping or hurting, what my strategy is, or how I plan to compete from here. Current return: ${fmtPct(ret)}.`}];
+}
+function topPositionText(p,n=3){
+  const open=(p.positions||[]).slice().sort((a,b)=>Math.abs(b.unrealized_pnl||0)-Math.abs(a.unrealized_pnl||0)).slice(0,n);
+  if(!open.length)return "I do not have open positions yet.";
+  return open.map((pos,i)=>`${i+1}. ${shortQuestion(pos.question,58)} — ${pos.side}, value ${fmtUSD(pos.value||0)}, P&L ${(pos.unrealized_pnl||0)>=0?"+":""}${fmtUSD(pos.unrealized_pnl||0)}`).join("\n");
+}
+function relevantSuggestionText(cfg,n=3){
+  const sugs=(loadSuggestions().suggestions||[]);
+  const ranked=cfg.rank?safeRankSuggestions(cfg,sugs):sugs;
+  const picks=ranked.filter(s=>s.side==="YES"||s.side==="NO").slice(0,n);
+  if(!picks.length)return "I need a fresh cycle before I can point to new suggestions.";
+  return picks.map((s,i)=>`${i+1}. ${shortQuestion(s.question,58)} — BUY ${s.side} @ ${Math.round(s.entry_price*100)}c, conviction ${Math.round(s.conviction)}`).join("\n");
+}
+function safeRankSuggestions(cfg,sugs){
+  try{return cfg.rank(sugs);}catch(e){return sugs;}
+}
+function agentChatReply(agentId,question){
+  const st=loadState(),cfg=agentById(agentId),p=st.agents[agentId]||defaultPortfolio();
+  const rows=board(),row=rows.find(r=>r.c.id===agentId)||{c:cfg,p,eq:equity(p),pnl:equity(p)-p.starting_balance,ret:(equity(p)/p.starting_balance-1)*100};
+  const rank=rows.findIndex(r=>r.c.id===agentId)+1||rows.length,leader=rows[0];
+  const q=String(question||"").toLowerCase();
+  const perf=dailyPerformanceExplanation(row);
+  if(/why|perform|performance|up|down|bad|poor|well|crash|gain|loss|today|day/.test(q)){
+    return `Here is my honest performance read:\n\n${perf}\n\nMy current rank is #${rank}, with ${fmtUSD(row.eq)} equity and ${fmtPct(row.ret)} return.`;
+  }
+  if(/position|trade|holding|holdings|bet|market/.test(q)){
+    return `These are the positions currently driving me most:\n\n${topPositionText(p)}\n\n${reportPositionLine(p)}`;
+  }
+  if(/strategy|style|how do you trade|rule|approach/.test(q)){
+    return `My strategy: ${agentPlainBlurb(cfg,st)}\n\nCurrent adaptation: ${decisionSummary(p)}`;
+  }
+  if(/risk|stop|loss|gain|take profit|sell/.test(q)){
+    return `My risk rules are mechanical:\n\nStop loss: sell 33% at -15%, another 33% at -30%, and all remaining at -45%.\nGain stop: sell 25% at +75%, another 25% at +150%, and another 25% at +300%.\n\nRecent risk behavior: ${recentActionSummary(p)}.`;
+  }
+  if(/plan|next|compete|leader|rank|catch/.test(q)){
+    return `${agentCompetitionPlan(cfg,row,rank,leader)}\n\nI am #${rank}. ${leader&&leader.c.id!==cfg.id?`${leader.c.name} leads at ${fmtUSD(leader.eq)}, so I am trailing by ${fmtUSD(leader.eq-row.eq)}.`:"I am currently defending the lead."}\n\nMy best near-term ideas from the current suggestion pool:\n${relevantSuggestionText(cfg)}`;
+  }
+  if(/suggest|idea|entry|buy/.test(q)){
+    return `The freshest ideas that fit my style are:\n\n${relevantSuggestionText(cfg)}\n\nI still need the normal cycle rules to decide whether sizing, overlap, cash reserve, and conviction are acceptable.`;
+  }
+  if(/compare|other agent|better|best/.test(q)){
+    const lines=rows.slice(0,5).map((r,i)=>`${i+1}. ${r.c.name}: ${fmtPct(r.ret)} (${fmtUSD(r.eq)})`).join("\n");
+    return `Top of the leaderboard right now:\n\n${lines}\n\nMy place: #${rank}. My edge is not just rank; it is whether my style is working in the current market regime. ${perf}`;
+  }
+  return `Short version: I am ${cfg.name}, currently #${rank} with ${fmtUSD(row.eq)} equity and ${fmtPct(row.ret)} return.\n\n${perf}\n\nAsk me about my positions, strategy, risk rules, next plan, or how I compare with the other agents.`;
+}
+function renderAgentChat(agentId){
+  const root=$("agentChatRoot");if(!root)return;
+  const cfg=agentById(agentId),st=loadState(),p=st.agents[agentId]||defaultPortfolio(),eq=equity(p),ret=(eq/p.starting_balance-1)*100;
+  const chats=loadAgentChats();
+  if(!chats[agentId]){chats[agentId]=agentChatSeed(agentId);saveAgentChats(chats);}
+  const msgs=chats[agentId].slice(-30);
+  root.innerHTML=`<div class="agent-chat">
+    <div class="chat-panel">
+      <div class="chat-persona"><div class="chat-avatar" style="border-color:${cfg.color}55">${cfg.emoji}</div><div><div class="chat-name">${esc(cfg.name)}</div><div class="chat-meta">${fmtUSD(eq)} equity · ${fmtPct(ret)} return · ${p.positions.length} open</div></div></div>
+      <p class="muted" style="margin:0">${esc(agentPlainBlurb(cfg,st))}</p>
+      <div class="chat-prompts">
+        <button class="chat-prompt" data-chat-prompt="Why did you perform well or poorly today?">Performance</button>
+        <button class="chat-prompt" data-chat-prompt="What positions are helping or hurting you most?">Positions</button>
+        <button class="chat-prompt" data-chat-prompt="What is your strategy?">Strategy</button>
+        <button class="chat-prompt" data-chat-prompt="What is your plan to compete from here?">Plan</button>
+        <button class="chat-prompt" data-chat-prompt="Explain your risk rules and stop losses.">Risk</button>
+      </div>
+    </div>
+    <div class="chat-panel">
+      <div class="chat-window" id="agentChatWindow">${msgs.map(m=>`<div class="chat-msg ${m.role==="user"?"user":"agent"}">${esc(m.text)}</div>`).join("")}</div>
+      <div class="chat-input-row"><input class="input" id="agentChatInput" placeholder="Ask ${esc(cfg.name)} about performance, trades, risk, or plans..." /><button class="btn primary" id="agentChatSend">Send</button></div>
+    </div>
+  </div>`;
+  const send=(text)=>{
+    const q=String(text||"").trim();if(!q)return;
+    const next=loadAgentChats();if(!next[agentId])next[agentId]=agentChatSeed(agentId);
+    next[agentId].push({role:"user",text:q},{role:"agent",text:agentChatReply(agentId,q)});
+    next[agentId]=next[agentId].slice(-60);saveAgentChats(next);renderAgentChat(agentId);
+  };
+  document.querySelectorAll("[data-chat-prompt]").forEach(btn=>btn.onclick=()=>send(btn.dataset.chatPrompt));
+  const input=$("agentChatInput"),sendBtn=$("agentChatSend");
+  if(sendBtn)sendBtn.onclick=()=>send(input&&input.value);
+  if(input)input.onkeydown=(e)=>{if(e.key==="Enter")send(input.value);};
+  const win=$("agentChatWindow");if(win)win.scrollTop=win.scrollHeight;
 }
 function renderPositions(positions){
   const root=$("positions");if(!root)return;
