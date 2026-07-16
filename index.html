@@ -422,6 +422,10 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
     <div class="seg" id="agentSel"></div>
     <div class="agent-brief" id="agentBrief"></div>
     <div class="stats" id="statsPf"></div>
+    <div class="card">
+      <div class="card-h"><h3>Chat With This Agent</h3><span class="small muted">ask about performance, risk, trades, or plans</span></div>
+      <div id="agentChatRoot"></div>
+    </div>
     <div class="grid2">
       <div class="card"><div class="card-h"><h3>Open Positions</h3><div class="card-tools"><select class="select" id="positionSort" aria-label="Sort open positions">
         <option value="pnl_desc">Best P&amp;L</option>
@@ -442,10 +446,6 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
     <div class="card">
       <div class="card-h"><h3>Daily Agent Performance Reports</h3><span class="small muted" id="reportDate"></span></div>
       <div class="report-grid" id="agentReports"></div>
-    </div>
-    <div class="card">
-      <div class="card-h"><h3>Chat With This Agent</h3><span class="small muted">ask about performance, risk, trades, or plans</span></div>
-      <div id="agentChatRoot"></div>
     </div>
   </section>
 
@@ -1777,6 +1777,7 @@ function renderLeaderboard(){
   drawCombo("chart2","comboLegend2");
 }
 const CHART_RANGES=[
+  {id:"1d",label:"1D",days:1},
   {id:"1w",label:"1W",days:7},
   {id:"1m",label:"1M",days:30},
   {id:"3m",label:"3M",days:90},
@@ -1786,12 +1787,21 @@ const CHART_RANGES=[
   {id:"all",label:"ALL",days:null},
 ];
 function chartRange(){const r=localStorage.getItem(CHART_RANGE_KEY)||"1w";return CHART_RANGES.some(x=>x.id===r)?r:"1w";}
+function zoomChartRange(direction){
+  const idx=CHART_RANGES.findIndex(r=>r.id===chartRange());
+  const next=clamp(idx+direction,0,CHART_RANGES.length-1);
+  localStorage.setItem(CHART_RANGE_KEY,CHART_RANGES[next].id);
+  renderAll();
+}
 function renderChartRanges(){
   const active=chartRange();
   document.querySelectorAll("[data-chart-ranges]").forEach(root=>{
-    root.innerHTML=CHART_RANGES.map(r=>`<button class="rangebtn ${r.id===active?"active":""}" data-range="${r.id}" type="button">${r.label}</button>`).join("");
+    root.innerHTML=`<button class="rangebtn" data-chart-zoom="-1" type="button" title="Zoom in">-</button>`+
+      CHART_RANGES.map(r=>`<button class="rangebtn ${r.id===active?"active":""}" data-range="${r.id}" type="button">${r.label}</button>`).join("")+
+      `<button class="rangebtn" data-chart-zoom="1" type="button" title="Zoom out">+</button>`;
   });
   document.querySelectorAll(".rangebtn").forEach(btn=>btn.onclick=()=>{localStorage.setItem(CHART_RANGE_KEY,btn.dataset.range);renderAll();});
+  document.querySelectorAll("[data-chart-zoom]").forEach(btn=>btn.onclick=()=>zoomChartRange(Number(btn.dataset.chartZoom||0)));
 }
 const snapTime=(s)=>new Date(s.timestamp||`${s.date}T12:00:00Z`).getTime();
 function chartDateLabel(t,compact=false){
