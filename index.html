@@ -425,7 +425,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
       </div>
     </div>
     <div class="card">
-      <div class="card-h"><h3>Hourly Agent Reports</h3><span class="small muted" id="reportDate"></span></div>
+      <div class="card-h"><h3>Daily Agent Performance Reports</h3><span class="small muted" id="reportDate"></span></div>
       <div class="report-grid" id="agentReports"></div>
     </div>
   </section>
@@ -2008,6 +2008,37 @@ function recentActionSummary(p){
   if(counts.OPEN)bits.push(`${counts.OPEN} new entr${counts.OPEN===1?"y":"ies"}`);
   return bits.length?bits.join(", "):"no major recent trade actions";
 }
+function snapshotNearDayAgo(snaps,lastTime){
+  const cutoff=lastTime-86400000;
+  const before=snaps.filter(s=>snapTime(s)<=cutoff).pop();
+  if(before)return before;
+  return snaps.length>1?snaps[0]:null;
+}
+function dailyActionSummary(p,lastTime){
+  const cutoff=lastTime-86400000;
+  const counts={STOP:0,GAIN:0,EXIT:0,CLOSE:0,OPEN:0};
+  (p.history||[]).forEach(h=>{
+    const t=h.date?new Date(`${h.date}T12:00:00`).getTime():NaN;
+    if(Number.isFinite(t)&&t>=cutoff&&counts[h.action]!==undefined)counts[h.action]++;
+  });
+  const bits=[];
+  if(counts.OPEN)bits.push(`${counts.OPEN} opened`);
+  if(counts.GAIN)bits.push(`${counts.GAIN} gain-stop sale${counts.GAIN===1?"":"s"}`);
+  if(counts.STOP)bits.push(`${counts.STOP} stop-loss sale${counts.STOP===1?"":"s"}`);
+  if(counts.EXIT||counts.CLOSE)bits.push(`${counts.EXIT+counts.CLOSE} exit${counts.EXIT+counts.CLOSE===1?"":"s"}`);
+  return bits.length?bits.join(", "):recentActionSummary(p);
+}
+function recentClosedAttribution(p,lastTime){
+  const cutoff=lastTime-86400000;
+  return (p.closed||[]).filter(pos=>{
+    const t=pos.closed_at?new Date(pos.closed_at).getTime():NaN;
+    return Number.isFinite(t)&&t>=cutoff;
+  }).sort((a,b)=>Math.abs(b.realized_pnl||0)-Math.abs(a.realized_pnl||0));
+}
+function shortQuestion(q,len=48){
+  q=String(q||"");
+  return `${q.slice(0,len)}${q.length>len?"...":""}`;
+}
 function reportPositionLine(p){
   if(!p.positions.length)return "No open positions yet, so this hour's focus is finding entries that fit the strategy.";
   const best=[...p.positions].sort((a,b)=>(b.unrealized_pnl||0)-(a.unrealized_pnl||0))[0];
@@ -2017,17 +2048,37 @@ function reportPositionLine(p){
 }
 function dailyPerformanceExplanation(row){
   const snaps=(row.p.snapshots||[]).slice().sort((a,b)=>snapTime(a)-snapTime(b));
-  const last=snaps[snaps.length-1],prev=snaps[snaps.length-2];
-  const delta=last&&prev?(last.return_pct||0)-(prev.return_pct||0):0;
+  const last=snaps[snaps.length-1];
+  if(!last)return "Why today is unclear: the agent needs at least one return snapshot before it can explain performance.";
+  const lastTime=snapTime(last);
+  const prev=snapshotNearDayAgo(snaps,lastTime);
+  if(!prev)return "Why today is still forming: there is not enough 24-hour history yet, so the report is waiting for more snapshots.";
+  const delta=(last.return_pct||0)-(prev.return_pct||0);
+  const equityDelta=(last.equity||0)-(prev.equity||0);
   const open=row.p.positions||[];
   const best=open.slice().sort((a,b)=>(b.unrealized_pnl||0)-(a.unrealized_pnl||0))[0];
   const worst=open.slice().sort((a,b)=>(a.unrealized_pnl||0)-(b.unrealized_pnl||0))[0];
+  const recentClosed=recentClosedAttribution(row.p,lastTime);
+  const mostImportantClose=recentClosed[0];
+  const realizedToday=recentClosed.reduce((s,p)=>s+Number(p.realized_pnl||0),0);
   const m=agentMomentumStats(row.p);
   const macdText=`MACD ${m.macd>=0?"+":""}${m.macd.toFixed(2)}, momentum ${m.recent>=0?"+":""}${m.recent.toFixed(2)} pts`;
-  const actions=recentActionSummary(row.p);
-  if(delta>0.25)return `Why it went up: return improved ${delta.toFixed(2)} points. ${best?`The biggest open help was '${best.question.slice(0,45)}' at ${fmtUSD(best.unrealized_pnl||0)}.`:"Cash discipline and favorable marks helped."} Technicals: ${macdText}. Recent actions: ${actions}.`;
-  if(delta<-0.25)return `Why it went down: return fell ${Math.abs(delta).toFixed(2)} points. ${worst?`The biggest drag was '${worst.question.slice(0,45)}' at ${fmtUSD(worst.unrealized_pnl||0)}.`:"Weak marks or low-conviction exposure hurt."} Technicals: ${macdText}. Recent actions: ${actions}.`;
-  return `Why it is steady: return moved only ${delta.toFixed(2)} points. Technicals are mixed (${macdText}), and recent actions were ${actions}.`;
+  const actions=dailyActionSummary(row.p,lastTime);
+  const closedText=mostImportantClose
+    ? `The largest realized driver was '${shortQuestion(mostImportantClose.question)}' at ${fmtUSD(mostImportantClose.realized_pnl||0)}; total realized P&L over the past day was ${fmtUSD(realizedToday)}.`
+    : "There were no major realized closes in the past day.";
+  if(delta>0.25){
+    const openText=best?`The strongest open position helping it is '${shortQuestion(best.question)}' at ${best.unrealized_pnl>=0?"+":""}${fmtUSD(best.unrealized_pnl||0)}.`:"It benefited mostly from cash discipline and closed-trade results rather than a single open winner.";
+    return `Past 24h: up ${delta.toFixed(2)} return points (${fmtUSD(equityDelta)}). ${openText} ${closedText} Trade behavior: ${actions}. Technical pressure: ${macdText}.`;
+  }
+  if(delta<-0.25){
+    const openText=worst?`The biggest open drag is '${shortQuestion(worst.question)}' at ${fmtUSD(worst.unrealized_pnl||0)}.`:"The decline came more from broad mark-downs or realized losses than one obvious open position.";
+    return `Past 24h: down ${Math.abs(delta).toFixed(2)} return points (${fmtUSD(equityDelta)}). ${openText} ${closedText} Trade behavior: ${actions}. Technical pressure: ${macdText}.`;
+  }
+  const openText=best&&worst&&best!==worst
+    ? `Best open mark is '${shortQuestion(best.question,36)}' (${best.unrealized_pnl>=0?"+":""}${fmtUSD(best.unrealized_pnl||0)}) while the weakest is '${shortQuestion(worst.question,36)}' (${fmtUSD(worst.unrealized_pnl||0)}).`
+    : "Open positions mostly offset each other or the agent is carrying limited exposure.";
+  return `Past 24h: nearly flat at ${delta>=0?"+":""}${delta.toFixed(2)} return points (${fmtUSD(equityDelta)}). ${openText} ${closedText} Trade behavior: ${actions}. Technical pressure: ${macdText}.`;
 }
 function renderAgentReports(){
   const root=$("agentReports"); if(!root)return;
