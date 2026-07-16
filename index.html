@@ -745,11 +745,11 @@ const GAIN_STOP_TIERS = [
   {id:"150",gain:1.50,multiple:2.50,sellFrac:0.25,label:"+150%"},
   {id:"300",gain:3.00,multiple:4.00,sellFrac:0.25,label:"+300%"},
 ];
-const EXIT_STALE_DAYS = 14;
-const EXIT_RESOLUTION_DAYS = 2;
+const EXIT_STALE_DAYS = 7;
+const EXIT_RESOLUTION_DAYS = 3;
 const AGENTS_KEY = "pma_agents_v2";
-const SUG_KEY = "pma_suggestions_v3";
-const SUGGESTION_ENGINE_VERSION = 4;
+const SUG_KEY = "pma_suggestions_v4";
+const SUGGESTION_ENGINE_VERSION = 5;
 const FOCUS_KEY = "pma_focus_v1";
 const VIEW_KEY = "pma_view_v1";
 const PF_SORT_KEY = "pma_portfolio_sort_v1";
@@ -820,23 +820,23 @@ const AGENTS = [
   {id:"value", name:"Value Hunter", emoji:"🎯", color:"#7c8cff", kind:"strategy",
    blurb:"Looks for the widest gap between the model's fair value and the current market price. It prefers trades where the crowd appears too pessimistic or too optimistic, then sizes positions moderately so one bad read does not dominate the portfolio.",
    rank:(s)=>[...s].sort((a,b)=>b.conviction-a.conviction),
-   maxNew:4, maxFrac:0.10, minConv:45, kelly:0.25},
+   maxNew:2, maxFrac:0.06, minConv:62, kelly:0.14},
   {id:"momentum", name:"Momentum Chaser", emoji:"🚀", color:"#34d399", kind:"strategy",
    blurb:"Chases markets where attention is accelerating. It weights conviction by fresh 24-hour volume, so it tends to enter fast-moving events with strong liquidity and recent trader interest.",
    rank:(s)=>[...s].sort((a,b)=>(b.volume_24hr*(b.conviction+20))-(a.volume_24hr*(a.conviction+20))),
-   maxNew:5, maxFrac:0.12, minConv:40, kelly:0.30},
+   maxNew:2, maxFrac:0.065, minConv:60, kelly:0.15},
   {id:"favorite", name:"Favorite Backer", emoji:"🛡️", color:"#38d2e6", kind:"strategy",
    blurb:"A lower-drama agent that only considers outcomes already priced as favorites. It tries to grind out steadier returns by backing high-probability markets when the model still sees a useful edge.",
    rank:(s)=>[...s].filter(x=>x.entry_price>=0.6).sort((a,b)=>b.entry_price-a.entry_price||b.conviction-a.conviction),
-   maxNew:4, maxFrac:0.14, minConv:38, kelly:0.40},
+   maxNew:2, maxFrac:0.07, minConv:58, kelly:0.16},
   {id:"longshot", name:"Longshot Hunter", emoji:"🎰", color:"#fbbf24", kind:"strategy",
    blurb:"The swing-for-upside strategy. It hunts cheaper contracts that the model thinks are being ignored, accepting more volatility in exchange for the chance that one mispriced longshot rerates sharply.",
    rank:(s)=>[...s].filter(x=>x.entry_price<=0.4).sort((a,b)=>a.entry_price-b.entry_price||b.conviction-a.conviction),
-   maxNew:5, maxFrac:0.08, minConv:38, kelly:0.20},
+   maxNew:2, maxFrac:0.035, minConv:64, kelly:0.08},
   {id:"diversifier", name:"The Diversifier", emoji:"🌐", color:"#c77dff", kind:"strategy",
    blurb:"Builds a broad basket instead of making a few concentrated bets. It spreads smaller, flatter positions across many high-conviction ideas to reduce single-market risk and show how the whole suggestion pool performs.",
    rank:(s)=>[...s].sort((a,b)=>b.conviction-a.conviction),
-   maxNew:8, maxFrac:0.05, minConv:35, kelly:0.15, flat:true},
+   maxNew:4, maxFrac:0.025, minConv:58, kelly:0.08, flat:true},
   {id:"copycat", name:"The Copycat", emoji:"🐒", color:"#ec4899", kind:"copycat",
    blurb:"A meta-agent that does not pick markets directly. It watches the in-house strategies, scores their return trend, MACD, recent momentum, and drawdown risk, then mirrors the agent most likely to keep improving rather than blindly chasing the current leader."},
   {id:"whale1", name:"Apex Mirror", emoji:"🐋", color:"#2dd4bf", kind:"whale", slot:0,
@@ -938,7 +938,11 @@ async function fetchMarketPrice(id){
 
 /* ---------- Analysis engine ---------- */
 const W={LIQ:0.25,MOM:0.25,MIS:0.30,TIME:0.20};
-const MIN_VOLUME=5000;
+const MIN_VOLUME=18000;
+const MIN_LIQUIDITY=1500;
+const MIN_ENTRY_EDGE=0.03;
+const EDGE_SCALE=0.14;
+const MAX_STRATEGY_POSITIONS=14;
 const SUGGESTION_TOTAL=180;
 const SUGGESTION_PER_CATEGORY=40;
 const VISIBLE_SUGGESTIONS=120;
@@ -951,14 +955,14 @@ function fairValue(m){const p=m.yes_price,mom=momentumSignal(m),liq=liquiditySig
   return clamp(p+(mom-0.5)*0.06,0.02,0.98);}
 function timingSignal(d){if(d==null)return 0.4;if(d<1)return 0.1;if(d<=3)return 0.5;if(d<=90)return 1.0-(d-3)/87.0*0.4;return 0.35;}
 function analyzeMarket(m){
-  if(m.volume<MIN_VOLUME)return null;
+  if(m.volume<MIN_VOLUME||m.liquidity<MIN_LIQUIDITY)return null;
   const p=m.yes_price,fair=fairValue(m),edgeYes=fair-p,edge=Math.abs(edgeYes);
   const liq=liquiditySignal(m),mom=momentumSignal(m),timing=timingSignal(m.days_to_resolution);
-  const mis=Math.min(1,edge/0.10);
+  const mis=Math.min(1,edge/EDGE_SCALE);
   const conviction=+((W.LIQ*liq+W.MOM*mom+W.MIS*mis+W.TIME*timing)*100).toFixed(1);
   let side,entry,rationale;
-  if(edgeYes>0.015){side="YES";entry=p;rationale=`Model fair value ${pct(fair)} vs market ${pct(p)} — YES looks underpriced by ~${(edgeYes*100).toFixed(1)}c.`;}
-  else if(edgeYes<-0.015){side="NO";entry=m.no_price;rationale=`Model fair value ${pct(fair)} vs market ${pct(p)} — YES looks overpriced, so NO at ${pct(m.no_price)} has the edge.`;}
+  if(edgeYes>MIN_ENTRY_EDGE){side="YES";entry=p;rationale=`Model fair value ${pct(fair)} vs market ${pct(p)} — YES looks underpriced by ~${(edgeYes*100).toFixed(1)}c.`;}
+  else if(edgeYes<-MIN_ENTRY_EDGE){side="NO";entry=m.no_price;rationale=`Model fair value ${pct(fair)} vs market ${pct(p)} — YES looks overpriced, so NO at ${pct(m.no_price)} has the edge.`;}
   else{side="HOLD";entry=p;rationale=`Price ${pct(p)} is close to model fair value ${pct(fair)}; no clear edge — watch only.`;}
   const drivers=[];
   if(liq>0.6)drivers.push("deep/liquid market");
@@ -1075,28 +1079,28 @@ function recentReturnDelta(p){
 function adaptiveDecision(cfg,p,rank,total,leaderEq){
   const eq=equity(p),ret=(eq/p.starting_balance-1)*100,trail=((leaderEq||eq)-eq)/p.starting_balance*100;
   const trend=recentReturnDelta(p);
-  let minConv=cfg.minConv??0,maxNew=cfg.maxNew??12,maxFrac=cfg.maxFrac??0.34,reserve=0.05,mode="Balanced",reason="following its base strategy while watching the leaderboard.";
+  let minConv=cfg.minConv??0,maxNew=cfg.maxNew??12,maxFrac=cfg.maxFrac??0.34,reserve=0.10,mode="Balanced",reason="following its base strategy while keeping a larger cash cushion.";
   if(rank===1){
-    mode="Defend";minConv+=5;maxNew=Math.max(1,maxNew-1);maxFrac*=0.82;reserve=0.09;
+    mode="Defend";minConv+=6;maxNew=Math.max(1,maxNew-1);maxFrac*=0.75;reserve=0.15;
     reason="leading the race, so it raises standards and protects cash instead of overtrading.";
   }else if(trail>6){
-    mode="Chase";minConv-=5;maxNew+=1;maxFrac*=1.18;reserve=0.035;
-    reason="far behind the leader, so it accepts a little more risk to find catch-up trades.";
+    mode="Selective Chase";minConv+=2;maxFrac*=0.90;reserve=0.09;
+    reason="far behind the leader, so it looks for cleaner catch-up trades instead of forcing risk.";
   }else if(trend>1.5){
-    mode="Press";minConv-=2;maxNew+=1;maxFrac*=1.08;reserve=0.04;
-    reason="recent momentum is positive, so it leans into its edge while the tape is friendly.";
+    mode="Measured Press";minConv+=2;maxFrac*=0.92;reserve=0.08;
+    reason="recent momentum is positive, so it keeps participating without lowering standards.";
   }
   if(ret<-5){
-    mode="Recover";minConv+=6;maxNew=Math.max(1,maxNew-1);maxFrac*=0.72;reserve=0.08;
+    mode="Recover";minConv+=8;maxNew=Math.max(1,maxNew-1);maxFrac*=0.55;reserve=0.16;
     reason="in drawdown, so it tightens entries, shrinks bets, and waits for stronger confirmation.";
   }
   if(ret<-18){
-    mode="Crisis Guard";minConv+=12;maxNew=1;maxFrac=Math.min(maxFrac*0.45,0.045);reserve=0.16;
+    mode="Crisis Guard";minConv+=14;maxNew=1;maxFrac=Math.min(maxFrac*0.35,0.025);reserve=0.25;
     reason="down more than 18%, so it stops chasing, keeps more cash, and only allows one high-conviction recovery trade.";
   }
-  if((p.cash/Math.max(eq,1))<0.12){maxNew=Math.max(1,Math.min(maxNew,2));reason+=" Cash is tight, so new entries are rationed.";}
-  const maxCap=cfg.kind==="whale"?0.34:0.18;
-  return {mode,reason,minConv:Math.max(0,Math.round(minConv)),maxNew:Math.max(1,Math.round(maxNew)),maxFrac:+Math.min(maxCap,Math.max(0.02,maxFrac)).toFixed(3),reserve};
+  if((p.cash/Math.max(eq,1))<0.20){maxNew=1;reason+=" Cash is tight, so new entries are rationed.";}
+  const maxCap=cfg.kind==="whale"?0.34:0.08;
+  return {mode,reason,minConv:Math.max(0,Math.round(minConv)),maxNew:Math.max(1,Math.round(maxNew)),maxFrac:+Math.min(maxCap,Math.max(0.01,maxFrac)).toFixed(3),reserve};
 }
 const stopKey=(posOrId)=>typeof posOrId==="string"?posOrId:String(posOrId.asset||posOrId.market_id||"");
 const hasStoppedToday=(p,posOrId)=>p.stopped&&p.stopped[stopKey(posOrId)]===logDay();
@@ -1246,7 +1250,7 @@ function exitReason(pos,fresh,analysis,cfg){
   if(daysHeld(pos)>=EXIT_STALE_DAYS)return `Stale exit after ${Math.floor(daysHeld(pos))} days`;
   if(analysis.side==="HOLD")return "Edge faded";
   if(analysis.side&&analysis.side!==pos.side)return `Model flipped to ${analysis.side}`;
-  const minExit=Math.max(25,(cfg&&cfg.minConv?cfg.minConv:35)-10);
+  const minExit=Math.max(35,(cfg&&cfg.minConv?cfg.minConv:45)-5);
   if(analysis.conviction<minExit)return `Conviction faded to ${Math.round(analysis.conviction)}`;
   return null;
 }
@@ -1275,18 +1279,20 @@ function markToMarket(p,priceMap,cfg=null,{policyExits=false}={}){
 function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds){
   const d=decision||{minConv:cfg.minConv,maxNew:cfg.maxNew,maxFrac:cfg.maxFrac,reserve:0.05};
   p.lastDecision=decision||null;
+  if((p.positions||[]).length>=MAX_STRATEGY_POSITIONS)return [];
   const cands=rankedSugs.filter(s=>(s.side==="YES"||s.side==="NO")&&s.conviction>=d.minConv
-    &&!hasPosition(p,s.market_id)&&!hasStoppedToday(p,s.market_id)&&(focus==="All"||!focus||s.category===focus));
+    &&Math.abs(s.edge)>=MIN_ENTRY_EDGE&&!hasPosition(p,s.market_id)&&!hasStoppedToday(p,s.market_id)&&(focus==="All"||!focus||s.category===focus));
   const avoid=avoidMarketIds||new Set();
   const ordered=cands.filter(s=>!avoid.has(s.market_id)).concat(cands.filter(s=>avoid.has(s.market_id)));
   let opened=0,openedIds=[];
   for(const s of ordered){
     if(opened>=d.maxNew)break;
+    if((p.positions||[]).length>=MAX_STRATEGY_POSITIONS)break;
     const eq=equity(p),investable=p.cash-eq*d.reserve;
     if(investable<=50)break;
     let frac;
     if(cfg.flat){frac=d.maxFrac;}
-    else{const base=(s.conviction/100)*Math.min(1,Math.abs(s.edge)/0.10);frac=Math.min(d.maxFrac,cfg.kelly*base);}
+    else{const base=(s.conviction/100)*Math.min(1,Math.abs(s.edge)/EDGE_SCALE);frac=Math.min(d.maxFrac,cfg.kelly*base);}
     let stake=Math.min(eq*frac,investable);
     if(stake<50)continue;
     const entry=s.entry_price; if(entry<=0||entry>=1)continue;
