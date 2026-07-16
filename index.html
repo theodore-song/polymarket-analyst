@@ -738,9 +738,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
 const GAMMA = "https://gamma-api.polymarket.com";
 const STARTING_BALANCE = 10000;
 const STOP_LOSS_TIERS = [
-  {id:"15",drawdown:0.15,sellFrac:0.33,label:"-15%"},
-  {id:"30",drawdown:0.30,sellFrac:0.33,label:"-30%"},
-  {id:"45",drawdown:0.45,sellFrac:1.00,label:"-45%"},
+  {id:"18",drawdown:0.18,sellFrac:1.00,label:"-18%"},
 ];
 const GAIN_STOP_TIERS = [
   {id:"75",gain:0.75,multiple:1.75,sellFrac:0.25,label:"+75%"},
@@ -1092,9 +1090,9 @@ function adaptiveDecision(cfg,p,rank,total,leaderEq){
     mode="Recover";minConv+=6;maxNew=Math.max(1,maxNew-1);maxFrac*=0.72;reserve=0.08;
     reason="in drawdown, so it tightens entries, shrinks bets, and waits for stronger confirmation.";
   }
-  if(ret<-15){
+  if(ret<-18){
     mode="Crisis Guard";minConv+=12;maxNew=1;maxFrac=Math.min(maxFrac*0.45,0.045);reserve=0.16;
-    reason="down more than 15%, so it stops chasing, keeps more cash, and only allows one high-conviction recovery trade.";
+    reason="down more than 18%, so it stops chasing, keeps more cash, and only allows one high-conviction recovery trade.";
   }
   if((p.cash/Math.max(eq,1))<0.12){maxNew=Math.max(1,Math.min(maxNew,2));reason+=" Cash is tight, so new entries are rationed.";}
   const maxCap=cfg.kind==="whale"?0.34:0.18;
@@ -1167,10 +1165,10 @@ function gainStopLabel(pos){
 function stopLossLabel(pos){
   const done=doneStopLosses(pos),doneCount=STOP_LOSS_TIERS.filter(t=>done[t.id]).length;
   const tier=STOP_LOSS_TIERS.find(t=>!done[t.id]);
-  if(!tier)return "Stop loss: final tier fired";
+  if(!tier)return "Stop loss: fired at -18%";
   const target=stopLossTarget(pos,tier);
-  const sold=doneCount===0?"":`${Math.round(doneCount*33)}% sold; next `;
-  return `Stop loss: ${sold}${tier.id==="45"?"sell all":"sell 33%"} at ${pct(target)} (${tier.label})`;
+  const action=tier.sellFrac>=1?"sell all":`sell ${Math.round(tier.sellFrac*100)}%`;
+  return `Stop loss: ${action} at ${pct(target)} (${tier.label})`;
 }
 function stopOutPosition(p,pos){
   const proceeds=+(pos.shares*pos.current_price).toFixed(2);
@@ -1755,7 +1753,7 @@ function renderAgentBrief(cfg,p,st){
     </div>
     <div class="brief-mini"><div class="k">Style</div><div class="v">${esc(risk)}</div></div>
     <div class="brief-mini"><div class="k">Trade Rule</div><div class="v">${esc(cadence)}</div></div>
-    <div class="brief-mini"><div class="k">Stop Loss</div><div class="v">Sell 33% at -15%, 33% at -30%, all at -45%</div></div>
+    <div class="brief-mini"><div class="k">Stop Loss</div><div class="v">Sell all at -18%</div></div>
     <div class="brief-mini"><div class="k">Gain Stop</div><div class="v">Sell 25% at +75%, +150%, +300%</div></div>
     <div class="brief-mini"><div class="k">Policy Exit</div><div class="v">${esc(exitRule)}</div></div>
     <div class="brief-mini"><div class="k">Best / Worst</div><div class="v"><span class="pos-val">${esc(bw.best)}</span><br><span class="neg-val">${esc(bw.worst)}</span></div></div>`;
@@ -2129,7 +2127,7 @@ function renderAgentReports(){
     const thesis=agentPlainBlurb(row.c,st);
     const plan=agentCompetitionPlan(row.c,row,rank,leader);
     const line=reportPositionLine(row.p);
-    const crash=row.ret<-15?`<p><b>Drawdown guard:</b> This account is down more than 15%, so new trades are throttled to one high-conviction entry with extra cash reserve. It is not trying to force a comeback.</p>`:"";
+    const crash=row.ret<-18?`<p><b>Drawdown guard:</b> This account is down more than 18%, so new trades are throttled to one high-conviction entry with extra cash reserve. It is not trying to force a comeback.</p>`:"";
     return `<article class="report" style="border-top-color:${row.c.color}">
       <div class="report-title"><div class="report-name">${row.c.emoji} ${row.c.name}</div><div class="report-rank">#${rank} · ${ret}</div></div>
       <p><b>Strategy:</b> ${esc(thesis)}</p>
@@ -2178,7 +2176,7 @@ function agentChatReply(agentId,question){
     return `My strategy: ${agentPlainBlurb(cfg,st)}\n\nCurrent adaptation: ${decisionSummary(p)}`;
   }
   if(/risk|stop|loss|gain|take profit|sell/.test(q)){
-    return `My risk rules are mechanical:\n\nStop loss: sell 33% at -15%, another 33% at -30%, and all remaining at -45%.\nGain stop: sell 25% at +75%, another 25% at +150%, and another 25% at +300%.\n\nRecent risk behavior: ${recentActionSummary(p)}.`;
+    return `My risk rules are mechanical:\n\nStop loss: sell the full remaining position at -18% from entry.\nGain stop: sell 25% at +75%, another 25% at +150%, and another 25% at +300%.\n\nRecent risk behavior: ${recentActionSummary(p)}.`;
   }
   if(/plan|next|compete|leader|rank|catch/.test(q)){
     return `${agentCompetitionPlan(cfg,row,rank,leader)}\n\nI am #${rank}. ${leader&&leader.c.id!==cfg.id?`${leader.c.name} leads at ${fmtUSD(leader.eq)}, so I am trailing by ${fmtUSD(leader.eq-row.eq)}.`:"I am currently defending the lead."}\n\nMy best near-term ideas from the current suggestion pool:\n${relevantSuggestionText(cfg)}`;
