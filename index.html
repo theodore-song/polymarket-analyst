@@ -334,7 +334,6 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
       <button id="runBtn" class="btn primary">Run cycle</button>
       <button id="copyStateBtn" class="btn ghost">Copy Sync</button>
       <button id="importStateBtn" class="btn ghost">Import Sync</button>
-      <button id="resetBtn" class="btn ghost">Reset</button>
     </div>
   </nav>
   <div class="personal-banner" id="personalBanner">
@@ -3022,10 +3021,6 @@ $("importStateBtn").addEventListener("click",async()=>{
     toast("Sync imported. This device now matches the copied state.");
     renderAll();showTab(location.hash.slice(1)||"portfolio");
   }catch(e){toast("Import failed. Check that the sync code was copied fully.");}
-});
-$("resetBtn").addEventListener("click",()=>{
-  if(!confirm("Reset all ten agents to their $10,000 starting balance?"))return;
-  saveState(defaultState());localStorage.removeItem(SUG_KEY);pushCloudState(true);toast("All agents reset.");renderAll();
 });
 $("createPaperAccountBtn").addEventListener("click",async()=>{
   const name=($("paperAccountName").value||"Paper Trader").trim().slice(0,40);
