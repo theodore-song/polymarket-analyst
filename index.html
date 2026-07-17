@@ -2268,10 +2268,10 @@ function agentChatPayload(agentId,question,history=[]){
   };
 }
 async function askAgentAI(agentId,question,history=[]){
-  const r=await fetch("/api/agent-chat",{
+  const r=await fetch("/api/live",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
-    body:JSON.stringify(agentChatPayload(agentId,question,history)),
+    body:JSON.stringify(Object.assign({action:"agent_chat"},agentChatPayload(agentId,question,history))),
   });
   const data=await r.json().catch(()=>({}));
   if(!r.ok||!data.ok)throw new Error(data.error||"Agent AI chat is not available yet.");
