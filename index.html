@@ -184,6 +184,7 @@ body:not(.personal-mode) [data-tab="live"]{display:none!important}
 .chat-msg{border:1px solid var(--border);border-radius:14px;padding:11px 13px;font-size:13px;line-height:1.45;white-space:pre-wrap}
 .chat-msg.user{align-self:flex-end;max-width:82%;background:rgba(124,140,255,.16);border-color:rgba(124,140,255,.35)}
 .chat-msg.agent{align-self:flex-start;max-width:92%;background:rgba(255,255,255,.045)}
+.chat-msg.pending{color:var(--muted);font-style:italic}
 .chat-input-row{display:flex;gap:8px;margin-top:12px}
 .chat-input-row .input{flex:1}
 @media (max-width:760px){.agent-chat{grid-template-columns:1fr}.chat-msg.user,.chat-msg.agent{max-width:100%}}
@@ -722,7 +723,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 8400310+risk-tune · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build ai-chat · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -2246,6 +2247,36 @@ function agentChatReply(agentId,question,history=[]){
   }
   return conversationalAgentReply(cfg,row,p,q);
 }
+function agentChatPayload(agentId,question,history=[]){
+  const st=loadState(),cfg=agentById(agentId),p=st.agents[agentId]||defaultPortfolio();
+  const rows=board(),row=rows.find(r=>r.c.id===agentId)||{c:cfg,p,eq:equity(p),pnl:equity(p)-p.starting_balance,ret:(equity(p)/p.starting_balance-1)*100};
+  const rank=(rows.findIndex(r=>r.c.id===agentId)+1)||rows.length;
+  const ranked=cfg.rank?safeRankSuggestions(cfg,(loadSuggestions().suggestions||[])):(loadSuggestions().suggestions||[]);
+  return {
+    agent:{id:cfg.id,name:cfg.name,kind:cfg.kind,blurb:agentPlainBlurb(cfg,st),voice:agentVoice(cfg).tone},
+    question,
+    history:(history||[]).slice(-12).filter(m=>!m.pending).map(m=>({role:m.role==="user"?"user":"assistant",text:m.text})),
+    portfolio:{
+      equity:+row.eq.toFixed(2),cash:+(p.cash||0).toFixed(2),return_pct:+row.ret.toFixed(2),pnl:+row.pnl.toFixed(2),
+      rank,open_positions:(p.positions||[]).length,last_decision:decisionSummary(p),
+      positions:(p.positions||[]).slice().sort((a,b)=>Math.abs(b.unrealized_pnl||0)-Math.abs(a.unrealized_pnl||0)).slice(0,10),
+      recent_actions:(p.history||[]).slice(-8).map(h=>h.detail||`${h.action||"ACTION"} ${h.question||""}`),
+      snapshots:(p.snapshots||[]).slice(-8),
+    },
+    leaderboard:rows.slice(0,10).map((r,i)=>({rank:i+1,name:r.c.name,return_pct:+r.ret.toFixed(2),equity:+r.eq.toFixed(2)})),
+    suggestions:ranked.filter(s=>s.side==="YES"||s.side==="NO").slice(0,8),
+  };
+}
+async function askAgentAI(agentId,question,history=[]){
+  const r=await fetch("/api/agent-chat",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(agentChatPayload(agentId,question,history)),
+  });
+  const data=await r.json().catch(()=>({}));
+  if(!r.ok||!data.ok)throw new Error(data.error||"Agent AI chat is not available yet.");
+  return data.text||"I am here, but I do not have a strong answer from the current context.";
+}
 function renderAgentChat(agentId){
   const root=$("agentChatRoot");if(!root)return;
   const cfg=agentById(agentId),st=loadState(),p=st.agents[agentId]||defaultPortfolio(),eq=equity(p),ret=(eq/p.starting_balance-1)*100;
@@ -2267,16 +2298,28 @@ function renderAgentChat(agentId){
       </div>
     </div>
     <div class="chat-panel">
-      <div class="chat-window" id="agentChatWindow">${msgs.map(m=>`<div class="chat-msg ${m.role==="user"?"user":"agent"}">${esc(m.text)}</div>`).join("")}</div>
+      <div class="chat-window" id="agentChatWindow">${msgs.map(m=>`<div class="chat-msg ${m.role==="user"?"user":"agent"} ${m.pending?"pending":""}">${esc(m.text)}</div>`).join("")}</div>
       <div class="chat-input-row"><input class="input" id="agentChatInput" placeholder="Ask ${esc(cfg.name)} about performance, trades, risk, or plans..." /><button class="btn primary" id="agentChatSend">Send</button></div>
     </div>
   </div>`;
-  const send=(text)=>{
+  const send=async(text)=>{
     const q=String(text||"").trim();if(!q)return;
     const next=loadAgentChats();if(!next[agentId])next[agentId]=agentChatSeed(agentId);
     const history=next[agentId].slice();
-    next[agentId].push({role:"user",text:q},{role:"agent",text:agentChatReply(agentId,q,history)});
+    next[agentId].push({role:"user",text:q},{role:"agent",text:"Thinking with my live portfolio context...",pending:true});
     next[agentId]=next[agentId].slice(-60);saveAgentChats(next);renderAgentChat(agentId);
+    let answer;
+    try{
+      answer=await askAgentAI(agentId,q,history);
+    }catch(e){
+      const local=agentChatReply(agentId,q,history);
+      answer=`${local}\n\nAI chat is not fully connected yet: ${e.message||"missing server configuration"}`;
+    }
+    const done=loadAgentChats();if(!done[agentId])done[agentId]=[];
+    const idx=[...done[agentId]].reverse().findIndex(m=>m.pending);
+    if(idx>=0)done[agentId][done[agentId].length-1-idx]={role:"agent",text:answer};
+    else done[agentId].push({role:"agent",text:answer});
+    done[agentId]=done[agentId].slice(-60);saveAgentChats(done);renderAgentChat(agentId);
   };
   document.querySelectorAll("[data-chat-prompt]").forEach(btn=>btn.onclick=()=>send(btn.dataset.chatPrompt));
   const input=$("agentChatInput"),sendBtn=$("agentChatSend");
