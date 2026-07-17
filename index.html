@@ -723,7 +723,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build ai-chat · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build free-agent-chat · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -759,6 +759,7 @@ const INVEST_KEY = "pma_invest_allocations_v1";
 const PAPER_KEY = "pma_paper_accounts_v1";
 const LIVE_KEY = "pma_live_readiness_v1";
 const CHAT_KEY = "pma_agent_chat_v1";
+const PAID_AGENT_CHAT_KEY = "pma_paid_agent_chat_v1";
 const PAPER_SESSION_PREFIX = "pma_cloud_session_";
 const PERSONAL_MODE = new URLSearchParams(location.search).get("personal") === "1";
 const PERSONAL_USER_ID = "local-readiness-user";
@@ -2191,14 +2192,61 @@ function agentOneLineState(row,p){
   const pnl=row.pnl>=0?`up ${fmtUSD(row.pnl)}`:`down ${fmtUSD(Math.abs(row.pnl))}`;
   return `Right now I am #${row.rank||"?"}, ${pnl}, with ${p.positions.length} open position${p.positions.length===1?"":"s"}.`;
 }
+function chatMemory(history){
+  const users=(history||[]).filter(m=>m.role==="user").map(m=>String(m.text||"").trim()).filter(Boolean);
+  const last=users[users.length-1]||"";
+  const all=users.slice(-4).join(" ").toLowerCase();
+  return {last,lastLower:last.toLowerCase(),all};
+}
+function agentMood(row,p){
+  const actions=recentActionSummary(p);
+  if(row.ret>8)return `I am ahead, but I am trying not to confuse a hot streak with skill. Recent tape: ${actions}.`;
+  if(row.ret>0)return `I am modestly positive, so my job is to protect the progress and keep entries clean. Recent tape: ${actions}.`;
+  if(row.ret<-18)return `I am in damage-control mode. I should be slower, smaller, and pickier until the book stops leaking. Recent tape: ${actions}.`;
+  if(row.ret<-5)return `I am under pressure, so I am less interested in catching up fast and more interested in not making the next mistake. Recent tape: ${actions}.`;
+  return `I am close to flat, which means the next few entries matter more than the scoreboard noise. Recent tape: ${actions}.`;
+}
+function positionNarrative(p){
+  const open=(p.positions||[]).slice();
+  if(!open.length)return "I have no open positions yet, so the honest answer is that I am waiting for the cycle to find something worth owning.";
+  const sorted=open.sort((a,b)=>(b.unrealized_pnl||0)-(a.unrealized_pnl||0));
+  const best=sorted[0],worst=sorted[sorted.length-1];
+  const total=open.reduce((s,x)=>s+Number(x.unrealized_pnl||0),0);
+  const exposure=open.reduce((s,x)=>s+Number(x.value||0),0);
+  let text=`My open book has ${open.length} position${open.length===1?"":"s"}, about ${fmtUSD(exposure)} exposed, and ${fmtUSD(total)} in marked P&L.\n\n`;
+  text+=`Best helper: ${shortQuestion(best.question,70)} — ${best.side} at ${pct(best.current_price||best.entry_price||0)}, marked ${(best.unrealized_pnl||0)>=0?"+":""}${fmtUSD(best.unrealized_pnl||0)}.\n`;
+  if(best!==worst)text+=`Main problem: ${shortQuestion(worst.question,70)} — ${worst.side} at ${pct(worst.current_price||worst.entry_price||0)}, marked ${fmtUSD(worst.unrealized_pnl||0)}.`;
+  return text;
+}
+function suggestionNarrative(cfg,n=4){
+  const sugs=(loadSuggestions().suggestions||[]);
+  const ranked=cfg.rank?safeRankSuggestions(cfg,sugs):sugs;
+  const picks=ranked.filter(s=>s.side==="YES"||s.side==="NO").slice(0,n);
+  if(!picks.length)return "I do not have fresh actionable suggestions yet. Run a cycle and I will have more to chew on.";
+  return picks.map((s,i)=>`${i+1}. ${shortQuestion(s.question,76)}\n   ${s.side} around ${pct(s.entry_price)} · conviction ${Math.round(s.conviction)} · edge ${(Number(s.edge||0)*100).toFixed(1)}c`).join("\n");
+}
+function regretNarrative(row,p){
+  const bw=bestAndWorst(p);
+  if(row.ret>=0)return `My main regret is not a disaster trade right now; it is staying humble. Best current helper: ${bw.best}. Weakest mark: ${bw.worst}. If I get sloppy after being up, that is usually where gains disappear.`;
+  return `My regret is that the weak side of the book is dragging harder than the strong side can help. Best current helper: ${bw.best}. Weakest mark: ${bw.worst}. From here I should demand stronger conviction before adding anything new.`;
+}
+function leaderboardNarrative(rows,row,rank){
+  const leader=rows[0];
+  const nearby=rows.slice(Math.max(0,rank-2),Math.min(rows.length,rank+2)).map((r,i)=>{
+    const actual=Math.max(1,rank-1)+i;
+    return `${actual}. ${r.c.name}: ${fmtPct(r.ret)} (${fmtUSD(r.eq)})`;
+  }).join("\n");
+  const gap=leader&&leader.c.id!==row.c.id?`The leader is ${leader.c.name}, and I am behind by ${fmtUSD(leader.eq-row.eq)}.`:"I am the current leader, so the risk is overtrading from first place.";
+  return `${gap}\n\nNearby board:\n${nearby}`;
+}
 function conversationalAgentReply(cfg,row,p,q){
   const voice=agentVoice(cfg);
-  const bw=bestAndWorst(p);
   const samples=[
-    `${voice.hello} ${agentOneLineState(row,p)} If you want the honest read, my best current help is ${bw.best}; my biggest irritation is ${bw.worst}.`,
-    `I am thinking in my usual ${voice.tone} way: protect the bankroll first, then press only when my edge is actually there. ${decisionSummary(p)}`,
-    `My short answer: ${row.ret>=0?"I have earned some room to be selective":"I need to be more selective from here"}. ${voice.signoff}`,
-    `I can talk through that. Do you want me to focus on my trades, my strategy, my risk controls, or how I compare with the other agents?`,
+    `${voice.hello} ${agentOneLineState(row,p)} ${agentMood(row,p)}`,
+    `My quick read: I am acting in a ${voice.tone} style. ${decisionSummary(p)} ${voice.signoff}`,
+    `${positionNarrative(p)}\n\nThat is the part of my book I would inspect first.`,
+    `I do not want to pretend certainty. The useful question is whether my next trade has enough edge to deserve risk. Right now my best style-fit ideas are:\n${suggestionNarrative(cfg,3)}`,
+    `${regretNarrative(row,p)}`
   ];
   const idx=Math.abs((q||"").split("").reduce((s,ch)=>s+ch.charCodeAt(0),0))%samples.length;
   return samples[idx];
@@ -2209,25 +2257,25 @@ function agentChatReply(agentId,question,history=[]){
   const rank=rows.findIndex(r=>r.c.id===agentId)+1||rows.length,leader=rows[0];
   row.rank=rank;
   const q=String(question||"").toLowerCase();
-  const prior=lastUserTopic(history);
-  const combined=`${q} ${prior}`;
+  const mem=chatMemory(history);
+  const prior=mem.lastLower||lastUserTopic(history);
+  const combined=`${q} ${prior} ${mem.all}`;
   const perf=dailyPerformanceExplanation(row);
   if(/^(hi|hey|hello|yo|sup|what'?s up)\b/.test(q)){
     const voice=agentVoice(cfg);
-    return `${voice.hello} What do you want to dig into: my trades, my recent performance, my next plan, or how I stack up against the field?`;
+    return `${voice.hello}\n\n${agentOneLineState(row,p)} ${agentMood(row,p)}\n\nAsk me like a normal trader: “what are you worried about,” “what trade hurt you,” “what would you avoid,” or “how do you catch the leader?”`;
   }
   if(/thank|thanks|cool|nice|great|got it/.test(q)){
     return `Of course. Keep pressing me on the weak spots too; that is where the useful stuff usually is.`;
   }
   if(/feel|worried|confident|nervous|mad|happy|regret|annoy/.test(q)){
-    const bw=bestAndWorst(p);
-    return `If I had to put it like a trader: I am ${row.ret>=0?"calm but not comfortable":"not panicking, but definitely tightening up"}. I feel best about ${bw.best}. I am watching ${bw.worst}.`;
+    return `${agentMood(row,p)}\n\n${regretNarrative(row,p)}`;
   }
   if(/why|perform|performance|up|down|bad|poor|well|crash|gain|loss|today|day/.test(q)||(/^(why|how|what about|and that|what happened)\??$/.test(q)&&/perform|up|down|loss|gain|bad|well/.test(prior))){
-    return `Performance read:\n\n${perf}\n\nIn plain English: ${row.ret>=0?"I have been rewarded for my current exposures, but I still need to avoid getting sloppy.":"I am behind, so I need cleaner entries and less ego."}`;
+    return `Performance read:\n\n${perf}\n\nWhat I take from it: ${row.ret>=0?"my current exposures have helped, but I should not start forcing trades just because the chart looks better.":"I need cleaner entries, smaller mistakes, and patience. Chasing from a drawdown is exactly how a bad run becomes a terrible one."}`;
   }
   if(/position|trade|holding|holdings|bet|market/.test(combined)){
-    return `Here is what is moving my book right now:\n\n${topPositionText(p)}\n\nMy quick read: ${reportPositionLine(p)}`;
+    return `${positionNarrative(p)}\n\nShort version: ${reportPositionLine(p)}`;
   }
   if(/strategy|style|how do you trade|rule|approach/.test(combined)){
     return `My style is ${agentVoice(cfg).tone}.\n\n${agentPlainBlurb(cfg,st)}\n\nCurrent adaptation: ${decisionSummary(p)}`;
@@ -2235,15 +2283,20 @@ function agentChatReply(agentId,question,history=[]){
   if(/risk|stop|loss|gain|take profit|sell/.test(combined)){
     return `My risk rules are mechanical:\n\nStop loss: sell the full remaining position at -18% from entry.\nGain stop: sell 25% at +75%, another 25% at +150%, and another 25% at +300%.\n\nRecent risk behavior: ${recentActionSummary(p)}.`;
   }
+  if(/mistake|wrong|regret|fix|improve|better/.test(combined)){
+    return `${regretNarrative(row,p)}\n\nThe fix is not “bet harder.” The fix is stricter entries, fewer positions, and cutting trades when the model edge fades. That is the discipline I am trying to follow now.`;
+  }
   if(/plan|next|compete|leader|rank|catch/.test(combined)){
     return `${agentCompetitionPlan(cfg,row,rank,leader)}\n\nI am #${rank}. ${leader&&leader.c.id!==cfg.id?`${leader.c.name} leads at ${fmtUSD(leader.eq)}, so I am trailing by ${fmtUSD(leader.eq-row.eq)}.`:"I am currently defending the lead."}\n\nMy best near-term ideas from the current suggestion pool:\n${relevantSuggestionText(cfg)}`;
   }
   if(/suggest|idea|entry|buy/.test(combined)){
-    return `The freshest ideas that fit my style are:\n\n${relevantSuggestionText(cfg)}\n\nI still need the normal cycle rules to decide whether sizing, overlap, cash reserve, and conviction are acceptable.`;
+    return `The freshest ideas that fit my style are:\n\n${suggestionNarrative(cfg,4)}\n\nI still need the normal cycle rules to decide whether sizing, overlap, cash reserve, and conviction are acceptable.`;
   }
   if(/compare|other agent|better|best/.test(combined)){
-    const lines=rows.slice(0,5).map((r,i)=>`${i+1}. ${r.c.name}: ${fmtPct(r.ret)} (${fmtUSD(r.eq)})`).join("\n");
-    return `Here is the field right now:\n\n${lines}\n\nI am #${rank}. My edge is not just rank; it is whether my style is working in the current market regime.`;
+    return `${leaderboardNarrative(rows,row,rank)}\n\nMy edge is not just rank; it is whether my style is working in the current market regime.`;
+  }
+  if(/explain|what do you mean|say more|more detail|why is that/.test(combined)){
+    return `Let me make it concrete.\n\n${positionNarrative(p)}\n\n${decisionSummary(p)}\n\nSo my next move should be based on evidence, not mood: stronger conviction, enough liquidity, and no oversized comeback bets.`;
   }
   return conversationalAgentReply(cfg,row,p,q);
 }
@@ -2268,6 +2321,7 @@ function agentChatPayload(agentId,question,history=[]){
   };
 }
 async function askAgentAI(agentId,question,history=[]){
+  if(localStorage.getItem(PAID_AGENT_CHAT_KEY)!=="1")throw new Error("free local agent chat is enabled");
   const r=await fetch("/api/live",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
@@ -2299,21 +2353,20 @@ function renderAgentChat(agentId){
     </div>
     <div class="chat-panel">
       <div class="chat-window" id="agentChatWindow">${msgs.map(m=>`<div class="chat-msg ${m.role==="user"?"user":"agent"} ${m.pending?"pending":""}">${esc(m.text)}</div>`).join("")}</div>
-      <div class="chat-input-row"><input class="input" id="agentChatInput" placeholder="Ask ${esc(cfg.name)} about performance, trades, risk, or plans..." /><button class="btn primary" id="agentChatSend">Send</button></div>
+      <div class="chat-input-row"><input class="input" id="agentChatInput" placeholder="Ask ${esc(cfg.name)} about performance, trades, risk, or plans..." /><button class="btn primary" id="agentChatSend">Chat</button></div>
     </div>
   </div>`;
   const send=async(text)=>{
     const q=String(text||"").trim();if(!q)return;
     const next=loadAgentChats();if(!next[agentId])next[agentId]=agentChatSeed(agentId);
     const history=next[agentId].slice();
-    next[agentId].push({role:"user",text:q},{role:"agent",text:"Thinking with my live portfolio context...",pending:true});
+    next[agentId].push({role:"user",text:q},{role:"agent",text:"Reading my portfolio...",pending:true});
     next[agentId]=next[agentId].slice(-60);saveAgentChats(next);renderAgentChat(agentId);
     let answer;
     try{
       answer=await askAgentAI(agentId,q,history);
     }catch(e){
-      const local=agentChatReply(agentId,q,history);
-      answer=`${local}\n\nAI chat is not fully connected yet: ${e.message||"missing server configuration"}`;
+      answer=agentChatReply(agentId,q,history);
     }
     const done=loadAgentChats();if(!done[agentId])done[agentId]=[];
     const idx=[...done[agentId]].reverse().findIndex(m=>m.pending);
