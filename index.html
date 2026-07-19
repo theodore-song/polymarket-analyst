@@ -723,7 +723,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build free-agent-chat · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build growth-tune · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -746,11 +746,11 @@ const GAIN_STOP_TIERS = [
   {id:"150",gain:1.50,multiple:2.50,sellFrac:0.25,label:"+150%"},
   {id:"300",gain:3.00,multiple:4.00,sellFrac:0.25,label:"+300%"},
 ];
-const EXIT_STALE_DAYS = 7;
-const EXIT_RESOLUTION_DAYS = 3;
+const EXIT_STALE_DAYS = 10;
+const EXIT_RESOLUTION_DAYS = 2;
 const AGENTS_KEY = "pma_agents_v2";
-const SUG_KEY = "pma_suggestions_v4";
-const SUGGESTION_ENGINE_VERSION = 5;
+const SUG_KEY = "pma_suggestions_v5";
+const SUGGESTION_ENGINE_VERSION = 6;
 const FOCUS_KEY = "pma_focus_v1";
 const VIEW_KEY = "pma_view_v1";
 const PF_SORT_KEY = "pma_portfolio_sort_v1";
@@ -822,23 +822,23 @@ const AGENTS = [
   {id:"value", name:"Value Hunter", emoji:"🎯", color:"#7c8cff", kind:"strategy",
    blurb:"Looks for the widest gap between the model's fair value and the current market price. It prefers trades where the crowd appears too pessimistic or too optimistic, then sizes positions moderately so one bad read does not dominate the portfolio.",
    rank:(s)=>[...s].sort((a,b)=>b.conviction-a.conviction),
-   maxNew:2, maxFrac:0.06, minConv:62, kelly:0.14},
+   maxNew:3, maxFrac:0.09, minConv:54, kelly:0.20},
   {id:"momentum", name:"Momentum Chaser", emoji:"🚀", color:"#34d399", kind:"strategy",
    blurb:"Chases markets where attention is accelerating. It weights conviction by fresh 24-hour volume, so it tends to enter fast-moving events with strong liquidity and recent trader interest.",
    rank:(s)=>[...s].sort((a,b)=>(b.volume_24hr*(b.conviction+20))-(a.volume_24hr*(a.conviction+20))),
-   maxNew:2, maxFrac:0.065, minConv:60, kelly:0.15},
+   maxNew:4, maxFrac:0.10, minConv:52, kelly:0.24},
   {id:"favorite", name:"Favorite Backer", emoji:"🛡️", color:"#38d2e6", kind:"strategy",
    blurb:"A lower-drama agent that only considers outcomes already priced as favorites. It tries to grind out steadier returns by backing high-probability markets when the model still sees a useful edge.",
    rank:(s)=>[...s].filter(x=>x.entry_price>=0.6).sort((a,b)=>b.entry_price-a.entry_price||b.conviction-a.conviction),
-   maxNew:2, maxFrac:0.07, minConv:58, kelly:0.16},
+   maxNew:3, maxFrac:0.095, minConv:50, kelly:0.22},
   {id:"longshot", name:"Longshot Hunter", emoji:"🎰", color:"#fbbf24", kind:"strategy",
    blurb:"The swing-for-upside strategy. It hunts cheaper contracts that the model thinks are being ignored, accepting more volatility in exchange for the chance that one mispriced longshot rerates sharply.",
    rank:(s)=>[...s].filter(x=>x.entry_price<=0.4).sort((a,b)=>a.entry_price-b.entry_price||b.conviction-a.conviction),
-   maxNew:2, maxFrac:0.035, minConv:64, kelly:0.08},
+   maxNew:3, maxFrac:0.055, minConv:56, kelly:0.12},
   {id:"diversifier", name:"The Diversifier", emoji:"🌐", color:"#c77dff", kind:"strategy",
    blurb:"Builds a broad basket instead of making a few concentrated bets. It spreads smaller, flatter positions across many high-conviction ideas to reduce single-market risk and show how the whole suggestion pool performs.",
    rank:(s)=>[...s].sort((a,b)=>b.conviction-a.conviction),
-   maxNew:4, maxFrac:0.025, minConv:58, kelly:0.08, flat:true},
+   maxNew:6, maxFrac:0.04, minConv:50, kelly:0.12, flat:true},
   {id:"copycat", name:"The Copycat", emoji:"🐒", color:"#ec4899", kind:"copycat",
    blurb:"A meta-agent that does not pick markets directly. It watches the in-house strategies, scores their return trend, MACD, recent momentum, and drawdown risk, then mirrors the agent most likely to keep improving rather than blindly chasing the current leader."},
   {id:"whale1", name:"Apex Mirror", emoji:"🐋", color:"#2dd4bf", kind:"whale", slot:0,
@@ -940,11 +940,11 @@ async function fetchMarketPrice(id){
 
 /* ---------- Analysis engine ---------- */
 const W={LIQ:0.25,MOM:0.25,MIS:0.30,TIME:0.20};
-const MIN_VOLUME=18000;
-const MIN_LIQUIDITY=1500;
-const MIN_ENTRY_EDGE=0.03;
-const EDGE_SCALE=0.14;
-const MAX_STRATEGY_POSITIONS=14;
+const MIN_VOLUME=12000;
+const MIN_LIQUIDITY=900;
+const MIN_ENTRY_EDGE=0.022;
+const EDGE_SCALE=0.11;
+const MAX_STRATEGY_POSITIONS=22;
 const SUGGESTION_TOTAL=180;
 const SUGGESTION_PER_CATEGORY=40;
 const VISIBLE_SUGGESTIONS=120;
@@ -1081,27 +1081,27 @@ function recentReturnDelta(p){
 function adaptiveDecision(cfg,p,rank,total,leaderEq){
   const eq=equity(p),ret=(eq/p.starting_balance-1)*100,trail=((leaderEq||eq)-eq)/p.starting_balance*100;
   const trend=recentReturnDelta(p);
-  let minConv=cfg.minConv??0,maxNew=cfg.maxNew??12,maxFrac=cfg.maxFrac??0.34,reserve=0.10,mode="Balanced",reason="following its base strategy while keeping a larger cash cushion.";
+  let minConv=cfg.minConv??0,maxNew=cfg.maxNew??12,maxFrac=cfg.maxFrac??0.34,reserve=0.07,mode="Balanced",reason="following its base strategy while keeping enough cash for better entries.";
   if(rank===1){
-    mode="Defend";minConv+=6;maxNew=Math.max(1,maxNew-1);maxFrac*=0.75;reserve=0.15;
-    reason="leading the race, so it raises standards and protects cash instead of overtrading.";
+    mode="Defend";minConv+=3;maxNew=Math.max(2,maxNew-1);maxFrac*=0.88;reserve=0.10;
+    reason="leading the race, so it protects the lead without going completely inactive.";
   }else if(trail>6){
-    mode="Selective Chase";minConv+=2;maxFrac*=0.90;reserve=0.09;
-    reason="far behind the leader, so it looks for cleaner catch-up trades instead of forcing risk.";
+    mode="Selective Chase";minConv-=2;maxNew+=1;maxFrac*=1.10;reserve=0.055;
+    reason="far behind the leader, so it widens its search and takes slightly larger catch-up shots.";
   }else if(trend>1.5){
-    mode="Measured Press";minConv+=2;maxFrac*=0.92;reserve=0.08;
-    reason="recent momentum is positive, so it keeps participating without lowering standards.";
+    mode="Measured Press";minConv-=1;maxNew+=1;maxFrac*=1.08;reserve=0.055;
+    reason="recent momentum is positive, so it presses the advantage while risk caps stay active.";
   }
   if(ret<-5){
-    mode="Recover";minConv+=8;maxNew=Math.max(1,maxNew-1);maxFrac*=0.55;reserve=0.16;
-    reason="in drawdown, so it tightens entries, shrinks bets, and waits for stronger confirmation.";
+    mode="Recover";minConv+=4;maxNew=Math.max(2,maxNew-1);maxFrac*=0.75;reserve=0.11;
+    reason="in drawdown, so it gets pickier but still allows enough trades to recover.";
   }
   if(ret<-18){
-    mode="Crisis Guard";minConv+=14;maxNew=1;maxFrac=Math.min(maxFrac*0.35,0.025);reserve=0.25;
+    mode="Crisis Guard";minConv+=12;maxNew=1;maxFrac=Math.min(maxFrac*0.45,0.035);reserve=0.20;
     reason="down more than 18%, so it stops chasing, keeps more cash, and only allows one high-conviction recovery trade.";
   }
-  if((p.cash/Math.max(eq,1))<0.20){maxNew=1;reason+=" Cash is tight, so new entries are rationed.";}
-  const maxCap=cfg.kind==="whale"?0.34:0.08;
+  if((p.cash/Math.max(eq,1))<0.12){maxNew=Math.max(1,Math.min(maxNew,2));reason+=" Cash is tight, so new entries are rationed.";}
+  const maxCap=cfg.kind==="whale"?0.34:0.12;
   return {mode,reason,minConv:Math.max(0,Math.round(minConv)),maxNew:Math.max(1,Math.round(maxNew)),maxFrac:+Math.min(maxCap,Math.max(0.01,maxFrac)).toFixed(3),reserve};
 }
 const stopKey=(posOrId)=>typeof posOrId==="string"?posOrId:String(posOrId.asset||posOrId.market_id||"");
@@ -1252,7 +1252,7 @@ function exitReason(pos,fresh,analysis,cfg){
   if(daysHeld(pos)>=EXIT_STALE_DAYS)return `Stale exit after ${Math.floor(daysHeld(pos))} days`;
   if(analysis.side==="HOLD")return "Edge faded";
   if(analysis.side&&analysis.side!==pos.side)return `Model flipped to ${analysis.side}`;
-  const minExit=Math.max(35,(cfg&&cfg.minConv?cfg.minConv:45)-5);
+  const minExit=Math.max(30,(cfg&&cfg.minConv?cfg.minConv:45)-8);
   if(analysis.conviction<minExit)return `Conviction faded to ${Math.round(analysis.conviction)}`;
   return null;
 }
