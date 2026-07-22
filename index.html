@@ -768,6 +768,7 @@ const PERSONAL_MODE = new URLSearchParams(location.search).get("personal") === "
 const PERSONAL_USER_ID = "local-readiness-user";
 const CATEGORIES = ["All","Politics","Sports","Crypto","Economy","Pop Culture","Other"];
 const SYNC_KEYS=[AGENTS_KEY,SUG_KEY,FOCUS_KEY,VIEW_KEY,PF_SORT_KEY,CHART_RANGE_KEY,INVEST_KEY,PAPER_KEY,LIVE_KEY];
+const SYNC_LIMITS={closed:80,history:160,snapshots:240,suggestions:120,paperHistory:120,paperSnapshots:120,audit:120};
 const CAT_COLORS = {Politics:"#fb7185",Sports:"#34d399",Crypto:"#fbbf24",Economy:"#7c8cff",
   "Pop Culture":"#c77dff",Other:"#94a1bb",All:"#7c8cff",Copy:"#22d3ee"};
 const DATA_API = "https://data-api.polymarket.com";
@@ -1017,11 +1018,72 @@ function loadState(){
   if(!st.last_cycle_hour&&st.last_run)st.last_cycle_hour=cycleHourFromIso(st.last_run);
   return st;
 }
-function saveState(st){localStorage.setItem(AGENTS_KEY,JSON.stringify(st));}
+function compactPortfolioForSync(p,limits=SYNC_LIMITS){
+  if(!p||typeof p!=="object")return p;
+  const out=Object.assign({},p);
+  out.positions=Array.isArray(p.positions)?p.positions:[];
+  out.closed=Array.isArray(p.closed)?p.closed.slice(-limits.closed):[];
+  out.history=Array.isArray(p.history)?p.history.slice(-limits.history):[];
+  out.snapshots=Array.isArray(p.snapshots)?p.snapshots.slice(-limits.snapshots):[];
+  if(p.stopped&&typeof p.stopped==="object"){
+    out.stopped=Object.fromEntries(Object.entries(p.stopped).slice(-80));
+  }
+  return out;
+}
+function compactAgentStateForSync(st,limits=SYNC_LIMITS){
+  if(!st||typeof st!=="object")return st;
+  const out=Object.assign({},st,{agents:{}});
+  AGENTS.forEach(a=>{out.agents[a.id]=compactPortfolioForSync(st.agents&&st.agents[a.id],limits)||defaultPortfolio();});
+  out.whales=st.whales||{};
+  return out;
+}
+function compactSuggestionForSync(s){
+  if(!s||typeof s!=="object")return s;
+  return {
+    market_id:s.market_id,question:s.question,event:s.event,url:s.url,category:s.category,
+    clob_yes:s.clob_yes,clob_no:s.clob_no,yes_price:s.yes_price,no_price:s.no_price,
+    fair_value:s.fair_value,edge:s.edge,side:s.side,entry_price:s.entry_price,
+    conviction:s.conviction,volume:s.volume,volume_24hr:s.volume_24hr,
+    days_to_resolution:s.days_to_resolution,drivers:s.drivers,rationale:s.rationale,
+  };
+}
+function compactSuggestionsForSync(payload,limits=SYNC_LIMITS){
+  if(!payload||typeof payload!=="object")return payload;
+  return Object.assign({},payload,{suggestions:(payload.suggestions||[]).slice(0,limits.suggestions).map(compactSuggestionForSync)});
+}
+function compactPaperStoreForSync(store,limits=SYNC_LIMITS){
+  if(!store||typeof store!=="object"||!store.accounts)return store;
+  const accounts={};
+  Object.entries(store.accounts).forEach(([id,acct])=>{
+    accounts[id]=Object.assign({},acct,{
+      history:Array.isArray(acct.history)?acct.history.slice(-limits.paperHistory):[],
+      snapshots:Array.isArray(acct.snapshots)?acct.snapshots.slice(-limits.paperSnapshots):[],
+    });
+  });
+  return Object.assign({},store,{accounts});
+}
+function compactSyncItems(items,limits=SYNC_LIMITS){
+  const out=Object.assign({},items||{});
+  try{if(out[AGENTS_KEY])out[AGENTS_KEY]=JSON.stringify(compactAgentStateForSync(JSON.parse(out[AGENTS_KEY]),limits));}catch(e){}
+  try{if(out[SUG_KEY])out[SUG_KEY]=JSON.stringify(compactSuggestionsForSync(JSON.parse(out[SUG_KEY]),limits));}catch(e){}
+  try{if(out[PAPER_KEY])out[PAPER_KEY]=JSON.stringify(compactPaperStoreForSync(JSON.parse(out[PAPER_KEY]),limits));}catch(e){}
+  try{if(out[LIVE_KEY]){const live=JSON.parse(out[LIVE_KEY]);if(Array.isArray(live.audit))live.audit=live.audit.slice(-limits.audit);out[LIVE_KEY]=JSON.stringify(live);}}catch(e){}
+  return out;
+}
+function saveState(st){localStorage.setItem(AGENTS_KEY,JSON.stringify(compactAgentStateForSync(st)));}
 function loadSuggestions(){try{const s=localStorage.getItem(SUG_KEY);return s?JSON.parse(s):{date:null,suggestions:[]};}catch(e){return {date:null,suggestions:[]};}}
-function saveSuggestions(sugs,marketCount=0){const p={date:todayStr(),generated_at:nowIso(),engine_version:SUGGESTION_ENGINE_VERSION,market_count:marketCount,suggestion_cap:SUGGESTION_TOTAL,suggestions:sugs};localStorage.setItem(SUG_KEY,JSON.stringify(p));return p;}
-function collectSyncItems(){const items={};SYNC_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!=null)items[k]=v;});return items;}
-function applySyncItems(items){if(!items||typeof items!=="object")return false;SYNC_KEYS.forEach(k=>{if(items[k]!=null)localStorage.setItem(k,items[k]);});return true;}
+function saveSuggestions(sugs,marketCount=0){const p={date:todayStr(),generated_at:nowIso(),engine_version:SUGGESTION_ENGINE_VERSION,market_count:marketCount,suggestion_cap:SUGGESTION_TOTAL,suggestions:sugs};const compact=compactSuggestionsForSync(p);localStorage.setItem(SUG_KEY,JSON.stringify(compact));return compact;}
+function collectSyncItems(){const items={};SYNC_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!=null)items[k]=v;});return compactSyncItems(items);}
+function applySyncItems(items){
+  if(!items||typeof items!=="object")return false;
+  const compact=compactSyncItems(items);
+  try{SYNC_KEYS.forEach(k=>{if(compact[k]!=null)localStorage.setItem(k,compact[k]);});return true;}
+  catch(e){
+    const tighter=compactSyncItems(items,{closed:30,history:60,snapshots:90,suggestions:60,paperHistory:60,paperSnapshots:60,audit:60});
+    try{SYNC_KEYS.forEach(k=>{if(tighter[k]!=null)localStorage.setItem(k,tighter[k]);});toast("Loaded a compact mobile state.");return true;}
+    catch(err){setStatus("storage full",false);toast("This device's browser storage is full. Open in a normal tab or clear site data.");return false;}
+  }
+}
 function stateFromSyncItems(items){
   try{return items&&items[AGENTS_KEY]?JSON.parse(items[AGENTS_KEY]):null;}
   catch(e){return null;}
