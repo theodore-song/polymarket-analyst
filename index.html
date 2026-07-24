@@ -726,7 +726,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build growth-tune+mobile-sync · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build peer-emotion-agents · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -1143,9 +1143,19 @@ function recentReturnDelta(p){
   if(snaps.length<2)return 0;
   return (snaps[snaps.length-1].return_pct||0)-(snaps[0].return_pct||0);
 }
+function emotionalState(ret,trail,trend,rank){
+  if(ret<-18)return {mood:"alarmed",urgency:0.95,label:"Crisis pressure"};
+  if(ret<-8&&trail>10)return {mood:"frustrated",urgency:0.82,label:"Comeback urgency"};
+  if(trail>14)return {mood:"impatient",urgency:0.78,label:"Leaderboard envy"};
+  if(trend>2)return {mood:"confident",urgency:0.62,label:"Hot hand"};
+  if(rank===1)return {mood:"protective",urgency:0.38,label:"Defending lead"};
+  if(ret<0)return {mood:"restless",urgency:0.58,label:"Need progress"};
+  return {mood:"focused",urgency:0.50,label:"Focused"};
+}
 function adaptiveDecision(cfg,p,rank,total,leaderEq){
   const eq=equity(p),ret=(eq/p.starting_balance-1)*100,trail=((leaderEq||eq)-eq)/p.starting_balance*100;
   const trend=recentReturnDelta(p);
+  const emo=emotionalState(ret,trail,trend,rank);
   let minConv=cfg.minConv??0,maxNew=cfg.maxNew??12,maxFrac=cfg.maxFrac??0.34,reserve=0.07,mode="Balanced",reason="following its base strategy while keeping enough cash for better entries.";
   if(rank===1){
     mode="Defend";minConv+=3;maxNew=Math.max(2,maxNew-1);maxFrac*=0.88;reserve=0.10;
@@ -1165,9 +1175,19 @@ function adaptiveDecision(cfg,p,rank,total,leaderEq){
     mode="Crisis Guard";minConv+=12;maxNew=1;maxFrac=Math.min(maxFrac*0.45,0.035);reserve=0.20;
     reason="down more than 18%, so it stops chasing, keeps more cash, and only allows one high-conviction recovery trade.";
   }
+  if(emo.mood==="impatient"||emo.mood==="frustrated"){
+    minConv-=2;maxNew+=1;maxFrac*=1.08;reserve=Math.max(0.04,reserve-0.015);
+    reason+=` Emotion layer: ${emo.label.toLowerCase()} makes it seek extra upside, but only inside the caps.`;
+  }else if(emo.mood==="confident"){
+    maxNew+=1;maxFrac*=1.05;
+    reason+=` Emotion layer: confidence lets it press winners a little harder.`;
+  }else if(emo.mood==="alarmed"){
+    maxNew=1;maxFrac=Math.min(maxFrac,0.035);reserve=Math.max(reserve,0.20);
+    reason+=` Emotion layer: alarm keeps it from revenge trading.`;
+  }
   if((p.cash/Math.max(eq,1))<0.12){maxNew=Math.max(1,Math.min(maxNew,2));reason+=" Cash is tight, so new entries are rationed.";}
   const maxCap=cfg.kind==="whale"?0.34:0.12;
-  return {mode,reason,minConv:Math.max(0,Math.round(minConv)),maxNew:Math.max(1,Math.round(maxNew)),maxFrac:+Math.min(maxCap,Math.max(0.01,maxFrac)).toFixed(3),reserve};
+  return {mode,reason,emotion:emo.mood,urgency:+emo.urgency.toFixed(2),minConv:Math.max(0,Math.round(minConv)),maxNew:Math.max(1,Math.round(maxNew)),maxFrac:+Math.min(maxCap,Math.max(0.01,maxFrac)).toFixed(3),reserve};
 }
 const stopKey=(posOrId)=>typeof posOrId==="string"?posOrId:String(posOrId.asset||posOrId.market_id||"");
 const hasStoppedToday=(p,posOrId)=>p.stopped&&p.stopped[stopKey(posOrId)]===logDay();
@@ -1343,12 +1363,41 @@ function markToMarket(p,priceMap,cfg=null,{policyExits=false}={}){
   }
   p.positions=stillOpen;
 }
-function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds){
+function peerMarketStats(st,selfId){
+  const stats={};
+  AGENTS.forEach(a=>{
+    if(a.id===selfId)return;
+    const p=st.agents&&st.agents[a.id]; if(!p)return;
+    const ret=(equity(p)/Math.max(p.starting_balance||STARTING_BALANCE,1)-1)*100;
+    (p.positions||[]).forEach(pos=>{
+      const id=pos.market_id||pos.asset; if(!id)return;
+      const key=`${id}:${pos.side}`;
+      const opp=`${id}:${pos.side==="YES"?"NO":"YES"}`;
+      if(!stats[key])stats[key]={same:0,samePnl:0,bestRet:-Infinity,names:[]};
+      stats[key].same++;stats[key].samePnl+=Number(pos.unrealized_pnl||0);stats[key].bestRet=Math.max(stats[key].bestRet,ret);stats[key].names.push(a.name);
+      if(!stats[opp])stats[opp]={same:0,samePnl:0,bestRet:-Infinity,names:[]};
+      stats[opp].opposite=(stats[opp].opposite||0)+1;
+      stats[opp].oppositePnl=(stats[opp].oppositePnl||0)+Number(pos.unrealized_pnl||0);
+    });
+  });
+  return stats;
+}
+function peerAdjustedSuggestion(s,peer){
+  const m=(peer&&peer[`${s.market_id}:${s.side}`])||{};
+  let boost=0,peerNote="";
+  if(m.same&&m.samePnl>50){boost+=Math.min(8,2+m.same*1.5);peerNote=`peer confirmation from ${m.names.slice(0,3).join(", ")}`;}
+  if(m.same&&m.samePnl< -50){boost-=Math.min(10,3+m.same*2);peerNote=`peer warning: same-side holders are losing`;}
+  if(m.opposite&&m.oppositePnl>50){boost-=Math.min(12,4+m.opposite*2);peerNote=`peer warning: opposite-side holders are winning`;}
+  if(m.bestRet>8&&m.same){boost+=3;peerNote=peerNote||`leaderboard winner also owns this side`;}
+  return Object.assign({},s,{peer_boost:boost,peer_note:peerNote,peer_conviction:+(Number(s.conviction||0)+boost).toFixed(1)});
+}
+function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=null){
   const d=decision||{minConv:cfg.minConv,maxNew:cfg.maxNew,maxFrac:cfg.maxFrac,reserve:0.05};
   p.lastDecision=decision||null;
   if((p.positions||[]).length>=MAX_STRATEGY_POSITIONS)return [];
-  const cands=rankedSugs.filter(s=>(s.side==="YES"||s.side==="NO")&&s.conviction>=d.minConv
-    &&Math.abs(s.edge)>=MIN_ENTRY_EDGE&&!hasPosition(p,s.market_id)&&!hasStoppedToday(p,s.market_id)&&(focus==="All"||!focus||s.category===focus));
+  const cands=rankedSugs.map(s=>peerAdjustedSuggestion(s,peerStats)).filter(s=>(s.side==="YES"||s.side==="NO")&&s.peer_conviction>=d.minConv
+    &&Math.abs(s.edge)>=MIN_ENTRY_EDGE&&!hasPosition(p,s.market_id)&&!hasStoppedToday(p,s.market_id)&&(focus==="All"||!focus||s.category===focus))
+    .sort((a,b)=>(b.peer_conviction-a.peer_conviction)||((b.peer_boost||0)-(a.peer_boost||0)));
   const avoid=avoidMarketIds||new Set();
   const ordered=cands.filter(s=>!avoid.has(s.market_id)).concat(cands.filter(s=>avoid.has(s.market_id)));
   let opened=0,openedIds=[];
@@ -1359,7 +1408,9 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds){
     if(investable<=50)break;
     let frac;
     if(cfg.flat){frac=d.maxFrac;}
-    else{const base=(s.conviction/100)*Math.min(1,Math.abs(s.edge)/EDGE_SCALE);frac=Math.min(d.maxFrac,cfg.kelly*base);}
+    else{const base=(s.peer_conviction/100)*Math.min(1,Math.abs(s.edge)/EDGE_SCALE);frac=Math.min(d.maxFrac,cfg.kelly*base);}
+    if(s.peer_boost<0)frac*=0.82;
+    if(s.peer_boost>0&&decision&&decision.urgency>0.65)frac*=1.08;
     let stake=Math.min(eq*frac,investable);
     if(stake<50)continue;
     const entry=s.entry_price; if(entry<=0||entry>=1)continue;
@@ -1369,10 +1420,11 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds){
     p.positions.push({market_id:s.market_id,question:s.question,side:s.side,shares,
       token_id:(s.side==="YES"?s.clob_yes:s.clob_no)||null,
       entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,
-      original_shares:shares,original_cost:cost,unrealized_pnl:0,conviction:s.conviction,category:s.category,opened_at:cycleIso(),url:s.url||"",
+      original_shares:shares,original_cost:cost,unrealized_pnl:0,conviction:s.peer_conviction,category:s.category,opened_at:cycleIso(),url:s.url||"",
+      peer_note:s.peer_note||"",
       gain_stops:{},stop_losses:{}});
     p.history.push({date:logDay(),action:"OPEN",question:s.question,side:s.side,
-      detail:`${decision?decision.mode+" mode — ":""}Bought ${shares} ${s.side} '${s.question.slice(0,40)}' @ ${pct(entry)} for ${fmtUSD(cost)}`});
+      detail:`${decision?decision.mode+" mode — ":""}Bought ${shares} ${s.side} '${s.question.slice(0,40)}' @ ${pct(entry)} for ${fmtUSD(cost)}${s.peer_note?` (${s.peer_note})`:""}`});
     opened++;openedIds.push(s.market_id);
   }
   return openedIds;
@@ -1660,7 +1712,7 @@ async function backtestWeek(st){
     for(const cfg of AGENTS.filter(a=>a.kind==="strategy")){
       const p=st.agents[cfg.id];
       markToMarket(p,priceMap,cfg,{policyExits:true});
-      openPositions(p,cfg,cfg.rank(sugs),focus,null,claimedMarkets).forEach(id=>claimedMarkets.add(id));
+      openPositions(p,cfg,cfg.rank(sugs),focus,null,claimedMarkets,peerMarketStats(st,cfg.id)).forEach(id=>claimedMarkets.add(id));
       recordSnapshot(p);
     }
     const copyPick=chooseCopycatLeader(st);
@@ -1713,7 +1765,7 @@ async function runDailyCycle(){
       markToMarket(p,priceMap,cfg,{policyExits:true});
       const rank=preBoard.findIndex(x=>x.id===cfg.id)+1||preBoard.length;
       const decision=adaptiveDecision(cfg,p,rank,preBoard.length,leaderEq);
-      openPositions(p,cfg,cfg.rank(sugs),focus,decision,claimedMarkets).forEach(id=>claimedMarkets.add(id));
+      openPositions(p,cfg,cfg.rank(sugs),focus,decision,claimedMarkets,peerMarketStats(st,cfg.id)).forEach(id=>claimedMarkets.add(id));
       recordSnapshot(p);
     }
     // 2) copycat shadows the in-house agent with the strongest MACD/momentum score
@@ -1809,7 +1861,8 @@ function bestAndWorst(p){
 function decisionSummary(p){
   const d=p.lastDecision;
   if(!d)return "No live adaptation yet; this agent is still using its base rulebook.";
-  return `${d.mode} mode: ${d.reason} Limits now: ${d.maxNew} new trade${d.maxNew===1?"":"s"}, max ${(d.maxFrac*100).toFixed(1)}% per position${d.minConv?`, conviction ${d.minConv}+`:""}.`;
+  const emotion=d.emotion?` Emotion: ${d.emotion}${d.urgency!=null?` (${Math.round(d.urgency*100)}% urgency)`:""}.`:"";
+  return `${d.mode} mode: ${d.reason}${emotion} Limits now: ${d.maxNew} new trade${d.maxNew===1?"":"s"}, max ${(d.maxFrac*100).toFixed(1)}% per position${d.minConv?`, conviction ${d.minConv}+`:""}.`;
 }
 function renderAgentBrief(cfg,p,st){
   const root=$("agentBrief"); if(!root)return;
@@ -2468,6 +2521,7 @@ function renderPositions(positions){
     return `<div class="pos"><div>
       <div class="pq">${title}</div>
       <div class="sub">${p.category?`<span class="cat-badge" style="background:${col}22;color:${col}">${esc(p.category)}</span> `:""}${p.shares} ${p.side} @ ${Math.round(p.entry_price*100)}¢ → ${Math.round(p.current_price*100)}¢</div>
+      ${p.peer_note?`<div class="sub">Peer read: ${esc(p.peer_note)}</div>`:""}
       <div class="sub">${esc(stopLossLabel(p))}</div>
       <div class="sub">${esc(gainStopLabel(p))}</div>
       <div class="sub"><a class="market-link" href="${esc(positionUrl(p))}" target="_blank" rel="noopener">Open exact market</a></div>
