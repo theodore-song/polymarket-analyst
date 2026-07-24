@@ -726,7 +726,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build peer-emotion-agents · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build performance-repair · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -947,6 +947,7 @@ const W={LIQ:0.25,MOM:0.25,MIS:0.30,TIME:0.20};
 const MIN_VOLUME=12000;
 const MIN_LIQUIDITY=900;
 const MIN_ENTRY_EDGE=0.022;
+const MIN_ENTRY_DAYS=2.5;
 const EDGE_SCALE=0.11;
 const MAX_STRATEGY_POSITIONS=22;
 const SUGGESTION_TOTAL=180;
@@ -1186,7 +1187,7 @@ function adaptiveDecision(cfg,p,rank,total,leaderEq){
     reason+=` Emotion layer: alarm keeps it from revenge trading.`;
   }
   if((p.cash/Math.max(eq,1))<0.12){maxNew=Math.max(1,Math.min(maxNew,2));reason+=" Cash is tight, so new entries are rationed.";}
-  const maxCap=cfg.kind==="whale"?0.34:0.12;
+  const maxCap=cfg.kind==="whale"?0.16:0.12;
   return {mode,reason,emotion:emo.mood,urgency:+emo.urgency.toFixed(2),minConv:Math.max(0,Math.round(minConv)),maxNew:Math.max(1,Math.round(maxNew)),maxFrac:+Math.min(maxCap,Math.max(0.01,maxFrac)).toFixed(3),reserve};
 }
 const stopKey=(posOrId)=>typeof posOrId==="string"?posOrId:String(posOrId.asset||posOrId.market_id||"");
@@ -1396,7 +1397,8 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
   p.lastDecision=decision||null;
   if((p.positions||[]).length>=MAX_STRATEGY_POSITIONS)return [];
   const cands=rankedSugs.map(s=>peerAdjustedSuggestion(s,peerStats)).filter(s=>(s.side==="YES"||s.side==="NO")&&s.peer_conviction>=d.minConv
-    &&Math.abs(s.edge)>=MIN_ENTRY_EDGE&&!hasPosition(p,s.market_id)&&!hasStoppedToday(p,s.market_id)&&(focus==="All"||!focus||s.category===focus))
+    &&Math.abs(s.edge)>=MIN_ENTRY_EDGE&&(s.days_to_resolution==null||s.days_to_resolution>=MIN_ENTRY_DAYS)
+    &&!hasPosition(p,s.market_id)&&!hasStoppedToday(p,s.market_id)&&(focus==="All"||!focus||s.category===focus))
     .sort((a,b)=>(b.peer_conviction-a.peer_conviction)||((b.peer_boost||0)-(a.peer_boost||0)));
   const avoid=avoidMarketIds||new Set();
   const ordered=cands.filter(s=>!avoid.has(s.market_id)).concat(cands.filter(s=>avoid.has(s.market_id)));
@@ -1471,8 +1473,9 @@ function copycatCandidateScore(cfg,p){
 }
 function chooseCopycatLeader(st){
   const cands=AGENTS.filter(a=>a.kind==="strategy").map(cfg=>copycatCandidateScore(cfg,st.agents[cfg.id]||defaultPortfolio()));
-  cands.sort((a,b)=>b.score-a.score);
-  return cands[0]||null;
+  const eligible=cands.filter(c=>c.m.last>0&&c.m.recent>-3&&c.openPnl>-300);
+  (eligible.length?eligible:cands).sort((a,b)=>b.score-a.score);
+  return (eligible.length?eligible:cands)[0]||null;
 }
 function copycatReason(candidate){
   if(!candidate)return "No eligible strategy has enough data, so the copycat is waiting.";
@@ -1525,7 +1528,7 @@ async function discoverWhales(){
   return picked;
 }
 async function runWhaleAgent(p,wallet,decision){
-  const d=decision||{maxNew:12,maxFrac:0.34,reserve:0.05};
+  const d=decision||{maxNew:6,maxFrac:0.12,reserve:0.12};
   p.lastDecision=decision||null;
   // mark existing copied positions to market via CLOB token price
   for(const pos of p.positions){
@@ -1547,13 +1550,14 @@ async function runWhaleAgent(p,wallet,decision){
     }
   }
   p.positions=keep;
-  const targets=[...tps].sort((a,b)=>b.value-a.value).slice(0,d.maxNew); // copy their biggest bets, adapted by stance
+  const maxNew=Math.min(d.maxNew||6,6),maxFrac=Math.min(d.maxFrac||0.12,0.16),reserve=Math.max(d.reserve||0.12,0.10);
+  const targets=[...tps].filter(t=>t.curPrice>=0.06&&t.curPrice<=0.94).sort((a,b)=>b.value-a.value).slice(0,maxNew); // copy their biggest bets, adapted by stance
   const book=targets.reduce((s,t)=>s+t.value,0)||1;
   for(const t of targets){
     if(hasAsset(p,t.asset)||hasStoppedToday(p,t.asset))continue;
-    const eq=equity(p),investable=p.cash-eq*d.reserve; if(investable<=50)break;
+    const eq=equity(p),investable=p.cash-eq*reserve; if(investable<=50)break;
     const weight=t.value/book;
-    const stake=Math.min(eq*Math.min(d.maxFrac,weight),investable);
+    const stake=Math.min(eq*Math.min(maxFrac,weight),investable);
     if(stake<40)continue;
     const entry=t.curPrice; const shares=+(stake/entry).toFixed(2),cost=+(shares*entry).toFixed(2);
     if(cost>p.cash)continue;
@@ -1571,11 +1575,20 @@ async function runWhaleAgent(p,wallet,decision){
 /* ---------- Copycat: shadow the strongest momentum/MACD strategy ---------- */
 function runCopycat(p,leader,priceMap,candidate=null){
   const reason=candidate?copycatReason(candidate):"watching the strategy board and rotating toward the account with the best momentum/MACD setup.";
-  p.lastDecision={mode:"Momentum Copy",reason,minConv:0,maxNew:leader.positions.length,maxFrac:0.2,reserve:0.05,
+  const safeToCopy=candidate&&candidate.m.last>0&&candidate.m.recent>-3&&candidate.openPnl>-300;
+  p.lastDecision={mode:safeToCopy?"Selective Momentum Copy":"Copycat Guard",reason:safeToCopy?reason:`No strategy is healthy enough to copy aggressively, so I am protecting cash instead. ${reason}`,minConv:0,maxNew:safeToCopy?leader.positions.length:0,maxFrac:0.1,reserve:0.12,
     copyScore:candidate?+candidate.score.toFixed(2):null,
     macd:candidate?+candidate.m.macd.toFixed(2):null,
     momentum:candidate?+candidate.m.recent.toFixed(2):null};
   markToMarket(p,priceMap);
+  if(!safeToCopy){
+    for(const pos of [...p.positions]){
+      if((pos.unrealized_pnl||0)<-75)closePosition(p,pos,"Copycat guard cut weak copied position","EXIT");
+    }
+    p.positions=p.positions.filter(pos=>!pos.closed_at);
+    recordSnapshot(p);
+    return;
+  }
   const held=new Set(leader.positions.map(x=>x.market_id));
   const keep=[];
   for(const pos of p.positions){
@@ -1584,12 +1597,13 @@ function runCopycat(p,leader,priceMap,candidate=null){
     }else keep.push(pos);
   }
   p.positions=keep;
-  const book=leader.positions.reduce((s,x)=>s+(x.value||x.cost),0)||1;
-  for(const lp of [...leader.positions].sort((a,b)=>(b.value||b.cost)-(a.value||a.cost))){
+  const leaderPicks=leader.positions.filter(x=>(x.unrealized_pnl||0)>=-50&&(x.current_price||0)>0.05&&(x.current_price||0)<0.95);
+  const book=leaderPicks.reduce((s,x)=>s+(x.value||x.cost),0)||1;
+  for(const lp of [...leaderPicks].sort((a,b)=>(b.value||b.cost)-(a.value||a.cost))){
     if(hasPosition(p,lp.market_id)||hasStoppedToday(p,lp.market_id))continue;
     const eq=equity(p),investable=p.cash-eq*0.05; if(investable<=50)break;
     const weight=(lp.value||lp.cost)/book;
-    const stake=Math.min(eq*Math.min(0.2,weight),investable);
+    const stake=Math.min(eq*Math.min(0.1,weight),investable);
     if(stake<50)continue;
     const entry=lp.current_price; if(entry<=0||entry>=1)continue;
     const shares=+(stake/entry).toFixed(2),cost=+(shares*entry).toFixed(2);
@@ -1812,11 +1826,13 @@ function renderAll(){renderOverview();renderLeaderboard();renderSuggestions();re
 function renderOverview(){
   const b=board(); const lead=b[0];
   const avgRet=b.reduce((s,r)=>s+r.ret,0)/b.length;
+  const core=b.filter(r=>r.c.kind==="strategy"),coreAvg=core.reduce((s,r)=>s+r.ret,0)/Math.max(1,core.length);
   const sugCount=(loadSuggestions().suggestions||[]).length;
   const stats=[
     {ic:lead.c.emoji,label:"Leader",value:lead.c.name.split(" ")[0]},
     {ic:"📈",label:"Leader return",value:fmtPct(lead.ret),cls:signClass(lead.pnl)},
-    {ic:"⚖️",label:"Avg return",value:fmtPct(avgRet),cls:signClass(avgRet)},
+    {ic:"⚖️",label:"All-agent avg",value:fmtPct(avgRet),cls:signClass(avgRet)},
+    {ic:"🧠",label:"Core strategy avg",value:fmtPct(coreAvg),cls:signClass(coreAvg)},
     {ic:"💡",label:"Scored ideas",value:sugCount},
     {ic:"🏆",label:"Agents",value:AGENTS.length},
   ];
@@ -2034,7 +2050,9 @@ function drawCombo(svgId,legendId){
   svg.innerHTML=inner;
   if($(legendId)){
     const b=board();const avg=b.reduce((s,r)=>s+r.ret,0)/b.length;
-    $(legendId).innerHTML=`<span class="leg"><span class="legdot" style="background:#fff"></span>Average <b class="${signClass(avg)}">${fmtPct(avg)}</b></span>`+
+    const core=b.filter(r=>r.c.kind==="strategy"),coreAvg=core.reduce((s,r)=>s+r.ret,0)/Math.max(1,core.length);
+    $(legendId).innerHTML=`<span class="leg"><span class="legdot" style="background:#fff"></span>All Avg <b class="${signClass(avg)}">${fmtPct(avg)}</b></span>`+
+      `<span class="leg"><span class="legdot" style="background:#38d2e6"></span>Core Avg <b class="${signClass(coreAvg)}">${fmtPct(coreAvg)}</b></span>`+
       b.map(r=>`<span class="leg"><span class="legdot" style="background:${r.c.color}"></span>${r.c.emoji} ${r.c.name} <b class="${signClass(r.pnl)}">${fmtPct(r.ret)}</b></span>`).join("");
   }
 }
