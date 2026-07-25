@@ -396,6 +396,17 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
         <div id="topPicks"></div>
       </div>
     </div>
+
+    <div class="card">
+      <div class="card-h"><h3>Trade Email Alerts</h3><span class="small muted" id="emailAlertMeta">off</span></div>
+      <div class="account-row">
+        <input class="input" id="emailAlertInput" type="email" placeholder="you@example.com">
+        <button class="btn" id="saveEmailAlertsBtn">Save alerts</button>
+        <button class="btn ghost" id="testEmailAlertsBtn">Send test</button>
+      </div>
+      <div class="chiprow" id="emailAlertEvents" style="margin-top:10px"></div>
+      <div class="small muted" id="emailAlertStatus" style="margin-top:8px">Send a digest whenever agents open, close, stop out, or take gains during a cycle.</div>
+    </div>
   </section>
 
   <!-- ============ LEADERBOARD ============ -->
@@ -726,7 +737,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build performance-repair · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build email-alerts · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -763,11 +774,12 @@ const PAPER_KEY = "pma_paper_accounts_v1";
 const LIVE_KEY = "pma_live_readiness_v1";
 const CHAT_KEY = "pma_agent_chat_v1";
 const PAID_AGENT_CHAT_KEY = "pma_paid_agent_chat_v1";
+const EMAIL_ALERT_KEY = "pma_trade_email_alerts_v1";
 const PAPER_SESSION_PREFIX = "pma_cloud_session_";
 const PERSONAL_MODE = new URLSearchParams(location.search).get("personal") === "1";
 const PERSONAL_USER_ID = "local-readiness-user";
 const CATEGORIES = ["All","Politics","Sports","Crypto","Economy","Pop Culture","Other"];
-const SYNC_KEYS=[AGENTS_KEY,SUG_KEY,FOCUS_KEY,VIEW_KEY,PF_SORT_KEY,CHART_RANGE_KEY,INVEST_KEY,PAPER_KEY,LIVE_KEY];
+const SYNC_KEYS=[AGENTS_KEY,SUG_KEY,FOCUS_KEY,VIEW_KEY,PF_SORT_KEY,CHART_RANGE_KEY,INVEST_KEY,PAPER_KEY,LIVE_KEY,EMAIL_ALERT_KEY];
 const SYNC_LIMITS={closed:80,history:160,snapshots:240,suggestions:120,paperHistory:120,paperSnapshots:120,audit:120};
 const CAT_COLORS = {Politics:"#fb7185",Sports:"#34d399",Crypto:"#fbbf24",Economy:"#7c8cff",
   "Pop Culture":"#c77dff",Other:"#94a1bb",All:"#7c8cff",Copy:"#22d3ee"};
@@ -1134,6 +1146,80 @@ async function refreshFromCloudAndRender(silent=true){
     if(!silent)toast("Cloud sync is unavailable. Results may be stale until it reconnects.");
   }
   return cloud;
+}
+
+const EMAIL_ALERT_TYPES=[
+  {id:"OPEN",label:"Opens"},
+  {id:"CLOSE",label:"Closes"},
+  {id:"EXIT",label:"Policy exits"},
+  {id:"STOP",label:"Stop losses"},
+  {id:"GAIN",label:"Gain stops"},
+];
+function defaultEmailAlerts(){
+  return {enabled:false,email:"",events:{OPEN:true,CLOSE:true,EXIT:true,STOP:true,GAIN:true},last_sent_at:null,last_error:null};
+}
+function loadEmailAlerts(){
+  try{return Object.assign(defaultEmailAlerts(),JSON.parse(localStorage.getItem(EMAIL_ALERT_KEY)||"{}"));}
+  catch(e){return defaultEmailAlerts();}
+}
+function saveEmailAlerts(cfg){
+  const base=defaultEmailAlerts();
+  const merged=Object.assign(base,cfg||{});
+  merged.email=String(merged.email||"").trim();
+  merged.events=Object.assign(base.events,(cfg&&cfg.events)||{});
+  merged.enabled=Boolean(merged.enabled&&validEmail(merged.email));
+  localStorage.setItem(EMAIL_ALERT_KEY,JSON.stringify(merged));
+  return merged;
+}
+function validEmail(email){return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email||"").trim());}
+function agentHistoryOffsets(st){
+  const offsets={};
+  AGENTS.forEach(a=>{offsets[a.id]=((st.agents[a.id]&&st.agents[a.id].history)||[]).length;});
+  return offsets;
+}
+function collectNewAgentEvents(st,offsets){
+  const cfg=loadEmailAlerts();
+  if(!cfg.enabled||!validEmail(cfg.email))return [];
+  const enabled=cfg.events||{};
+  return AGENTS.flatMap(a=>{
+    const p=st.agents[a.id]||defaultPortfolio();
+    const start=Math.max(0,offsets[a.id]||0);
+    return (p.history||[]).slice(start).filter(h=>enabled[h.action]).map(h=>({
+      agent_id:a.id,
+      agent_name:a.name,
+      agent_emoji:a.emoji,
+      action:h.action,
+      date:h.date,
+      question:h.question||"",
+      side:h.side||"",
+      detail:h.detail||"",
+      equity:+equity(p).toFixed(2),
+      return_pct:+((equity(p)/STARTING_BALANCE-1)*100).toFixed(2),
+    }));
+  }).slice(0,100);
+}
+async function notifyTradeDigest(events,{test=false}={}){
+  const cfg=loadEmailAlerts();
+  if(!events.length||!cfg.enabled||!validEmail(cfg.email))return {ok:false,skipped:true};
+  try{
+    const r=await fetch("/api/live",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+      action:"trade_email",
+      to:cfg.email,
+      events,
+      test,
+      app_url:location.origin+location.pathname,
+    })});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(d.error||"Email alert failed");
+    saveEmailAlerts(Object.assign(cfg,{last_sent_at:nowIso(),last_error:null}));
+    if(test)toast("Test email sent.");
+    return d;
+  }catch(e){
+    saveEmailAlerts(Object.assign(cfg,{last_error:e.message||"Email alert failed"}));
+    if(test)toast(e.message||"Email alert failed.");
+    else toast("Trade email alert failed. Check email provider settings.");
+    return {ok:false,error:e.message};
+  }finally{renderEmailAlerts();}
 }
 
 /* ---------- Agent mechanics ---------- */
@@ -1761,6 +1847,7 @@ async function runDailyCycle(){
     const sugs=generateSuggestions(markets);
     saveSuggestions(sugs,markets.length);
     st=loadState();
+    const emailOffsets=agentHistoryOffsets(st);
     const focus=getFocus();
     // Price map for suggestion-market positions (strategy + copycat only).
     const ids=new Set();
@@ -1803,10 +1890,12 @@ async function runDailyCycle(){
       catch(e){recordSnapshot(st.agents[a.id]);}
     }
     st.date=todayStr();st.last_run=SNAP_TS;st.last_cycle_hour=hour;
+    const emailEvents=collectNewAgentEvents(st,emailOffsets);
     saveState(st);
     const pushed=await pushCloudState();
     setStatus("up to date",false);
     if(!pushed)return {suggestions:(loadSuggestions().suggestions||[]).length,skipped:true,hour};
+    await notifyTradeDigest(emailEvents);
     return {suggestions:sugs.length};
   }finally{SNAP_TS=null;CYCLE_RUNNING=false;}
 }
@@ -1821,7 +1910,7 @@ function board(){
 const MEDALS=["🥇","🥈","🥉"];
 
 /* ---------- Rendering ---------- */
-function renderAll(){renderOverview();renderLeaderboard();renderSuggestions();renderPortfolioTab();renderInvestTab();renderPaperTab();renderLiveMoneyTab();renderAbout();}
+function renderAll(){renderOverview();renderEmailAlerts();renderLeaderboard();renderSuggestions();renderPortfolioTab();renderInvestTab();renderPaperTab();renderLiveMoneyTab();renderAbout();}
 
 function renderOverview(){
   const b=board(); const lead=b[0];
@@ -1850,6 +1939,55 @@ function renderTopPicks(){
     <div class="pq">${s.url?`<a class="market-title" href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.question.slice(0,58))}${s.question.length>58?"…":""}</a>`:`${esc(s.question.slice(0,58))}${s.question.length>58?"…":""}`}</div>
     <div class="sub"><span class="cat-badge" style="background:${catColor(s.category)}22;color:${catColor(s.category)}">${esc(s.category)}</span> BUY ${s.side} @ ${Math.round(s.entry_price*100)}¢</div>
   </div><div class="right"><div style="font-family:'Space Grotesk';font-weight:700">${Math.round(s.conviction)}</div><div class="sub">conviction</div></div></div>`).join("");
+}
+function renderEmailAlerts(){
+  const input=$("emailAlertInput"),eventsRoot=$("emailAlertEvents"),meta=$("emailAlertMeta"),status=$("emailAlertStatus");
+  if(!input||!eventsRoot)return;
+  const cfg=loadEmailAlerts();
+  input.value=cfg.email||"";
+  meta.textContent=cfg.enabled?`on for ${cfg.email}`:"off";
+  eventsRoot.innerHTML=EMAIL_ALERT_TYPES.map(t=>`
+    <label class="chip ${cfg.events&&cfg.events[t.id]?"active":""}" style="cursor:pointer">
+      <input type="checkbox" data-email-event="${t.id}" ${cfg.events&&cfg.events[t.id]?"checked":""} style="display:none"> ${t.label}
+    </label>`).join("");
+  status.textContent=cfg.last_error
+    ? `Last error: ${cfg.last_error}`
+    : (cfg.last_sent_at?`Last sent ${new Date(cfg.last_sent_at).toLocaleString()}.`:"Send a digest whenever agents open, close, stop out, or take gains during a cycle.");
+  $("saveEmailAlertsBtn").onclick=()=>{
+    const email=input.value.trim();
+    const events={};
+    document.querySelectorAll("[data-email-event]").forEach(el=>{events[el.dataset.emailEvent]=el.checked;});
+    const saved=saveEmailAlerts({enabled:validEmail(email),email,events,last_error:validEmail(email)?null:"Enter a valid email address."});
+    toast(saved.enabled?"Trade email alerts saved.":"Enter a valid email to turn alerts on.");
+    renderEmailAlerts();pushCloudState(true);
+  };
+  $("testEmailAlertsBtn").onclick=async()=>{
+    const email=input.value.trim();
+    const events={};
+    document.querySelectorAll("[data-email-event]").forEach(el=>{events[el.dataset.emailEvent]=el.checked;});
+    const saved=saveEmailAlerts({enabled:validEmail(email),email,events,last_error:null});
+    if(!saved.enabled){toast("Enter a valid email first.");renderEmailAlerts();return;}
+    await notifyTradeDigest([{
+      agent_id:"test",
+      agent_name:"Test Agent",
+      agent_emoji:"✉️",
+      action:"OPEN",
+      date:todayStr(),
+      question:"Test alert from Poly Arena",
+      side:"YES",
+      detail:"This confirms trade email alerts are connected.",
+      equity:STARTING_BALANCE,
+      return_pct:0,
+    }],{test:true});
+    pushCloudState(true);
+  };
+  document.querySelectorAll("[data-email-event]").forEach(el=>el.onchange=()=>{
+    const email=input.value.trim();
+    const events={};
+    document.querySelectorAll("[data-email-event]").forEach(box=>{events[box.dataset.emailEvent]=box.checked;});
+    saveEmailAlerts({enabled:validEmail(email),email,events,last_error:null});
+    renderEmailAlerts();pushCloudState(true);
+  });
 }
 function miniSpark(snaps,color){
   if(!snaps||snaps.length<2)return `<svg width="120" height="34"></svg>`;

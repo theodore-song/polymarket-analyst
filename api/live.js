@@ -245,12 +245,114 @@ function validateIntent(intent) {
 const VALID_TICKET_STATUSES = new Set(["staged", "reviewed", "placed_manually", "skipped", "cancelled"]);
 const VALID_FILL_ACTIONS = new Set(["BUY", "SELL"]);
 const VALID_CAPITAL_ACTIONS = new Set(["DEPOSIT", "WITHDRAW", "BUY_AGENT", "SELL_AGENT"]);
+const VALID_TRADE_EMAIL_ACTIONS = new Set(["OPEN", "CLOSE", "EXIT", "STOP", "GAIN"]);
 const AGENT_CHAT_MAX_HISTORY = 12;
 const AGENT_CHAT_MAX_POSITIONS = 10;
 const AGENT_CHAT_MAX_SUGGESTIONS = 8;
 
 function cleanAgentText(value, max = 1200) {
   return String(value || "").replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+function cleanTradeEmailText(value, max = 500) {
+  return String(value || "").replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+function escapeHtml(value) {
+  return String(value || "").replace(/[&<>"]/g, (c) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "\"": "&quot;",
+  }[c]));
+}
+
+function normalizeTradeEmailEvents(events) {
+  return (Array.isArray(events) ? events : []).slice(0, 100).map((event) => {
+    const action = cleanTradeEmailText(event?.action, 12).toUpperCase();
+    if (!VALID_TRADE_EMAIL_ACTIONS.has(action)) return null;
+    return {
+      agent_name: cleanTradeEmailText(event?.agent_name, 80),
+      agent_emoji: cleanTradeEmailText(event?.agent_emoji, 8),
+      agent_id: cleanTradeEmailText(event?.agent_id, 60),
+      action,
+      date: cleanTradeEmailText(event?.date, 40),
+      question: cleanTradeEmailText(event?.question, 220),
+      side: cleanTradeEmailText(event?.side, 12).toUpperCase(),
+      detail: cleanTradeEmailText(event?.detail, 320),
+      equity: Number.isFinite(Number(event?.equity)) ? Number(event.equity) : null,
+      return_pct: Number.isFinite(Number(event?.return_pct)) ? Number(event.return_pct) : null,
+    };
+  }).filter(Boolean);
+}
+
+function tradeEmailBody({ events, appUrl, test }) {
+  const title = test ? "Poly Arena test trade alert" : `Poly Arena trade alerts: ${events.length} new action${events.length === 1 ? "" : "s"}`;
+  const rows = events.map((event) => {
+    const perf = event.return_pct === null ? "" : ` · ${event.return_pct >= 0 ? "+" : ""}${event.return_pct.toFixed(2)}%`;
+    return `${event.agent_emoji || ""} ${event.agent_name || event.agent_id} ${event.action} ${event.side || ""}: ${event.question}${event.detail ? `\n  ${event.detail}` : ""}${event.equity === null ? "" : `\n  Equity: $${event.equity.toLocaleString("en-US", { maximumFractionDigits: 2 })}${perf}`}`;
+  }).join("\n\n");
+  const text = `${title}\n\n${rows}\n\nPaper-trading alert only. Poly Arena did not place a live order or manage private keys.${appUrl ? `\n\nOpen Poly Arena: ${appUrl}` : ""}`;
+  const htmlRows = events.map((event) => {
+    const perf = event.return_pct === null ? "" : ` · ${event.return_pct >= 0 ? "+" : ""}${event.return_pct.toFixed(2)}%`;
+    return `<tr>
+      <td style="padding:10px;border-bottom:1px solid #e5e7eb"><b>${escapeHtml(event.agent_emoji || "")} ${escapeHtml(event.agent_name || event.agent_id)}</b><br><span style="color:#6b7280">${escapeHtml(event.date)}</span></td>
+      <td style="padding:10px;border-bottom:1px solid #e5e7eb"><b>${escapeHtml(event.action)} ${escapeHtml(event.side || "")}</b><br>${escapeHtml(event.question)}${event.detail ? `<br><span style="color:#6b7280">${escapeHtml(event.detail)}</span>` : ""}</td>
+      <td style="padding:10px;border-bottom:1px solid #e5e7eb;text-align:right">${event.equity === null ? "" : `$${event.equity.toLocaleString("en-US", { maximumFractionDigits: 2 })}<br><span style="color:${event.return_pct >= 0 ? "#047857" : "#dc2626"}">${perf}</span>`}</td>
+    </tr>`;
+  }).join("");
+  const html = `<div style="font-family:Inter,Arial,sans-serif;color:#111827">
+    <h2>${escapeHtml(title)}</h2>
+    <table style="border-collapse:collapse;width:100%;font-size:14px">${htmlRows}</table>
+    <p style="color:#6b7280;font-size:12px;margin-top:16px">Paper-trading alert only. Poly Arena did not place a live order or manage private keys.</p>
+    ${appUrl ? `<p><a href="${escapeHtml(appUrl)}">Open Poly Arena</a></p>` : ""}
+  </div>`;
+  return { subject: title, text, html };
+}
+
+async function sendTradeEmail({ to, events, appUrl, test }) {
+  const email = cleanTradeEmailText(to, 180);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { status: 400, body: { ok: false, error: "Enter a valid email address." } };
+  }
+  if (!events.length) {
+    return { status: 400, body: { ok: false, error: "No trade events to send." } };
+  }
+  const payload = tradeEmailBody({ events, appUrl: cleanTradeEmailText(appUrl, 240), test });
+
+  if (process.env.RESEND_API_KEY) {
+    const from = process.env.TRADE_EMAIL_FROM || process.env.ADMIN_ALERT_EMAIL || "Poly Arena <onboarding@resend.dev>";
+    const replyTo = process.env.TRADE_EMAIL_REPLY_TO || process.env.CUSTOMER_SUPPORT_EMAIL || undefined;
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ from, to: email, reply_to: replyTo, subject: payload.subject, text: payload.text, html: payload.html }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return { status: response.status, body: { ok: false, error: data?.message || data?.error || "Email provider rejected the alert." } };
+    return { status: 200, body: { ok: true, provider: "resend", id: data?.id || null, sent: events.length } };
+  }
+
+  if (process.env.TRADE_EMAIL_WEBHOOK_URL) {
+    const response = await fetch(process.env.TRADE_EMAIL_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to: email, ...payload, events }),
+    });
+    if (!response.ok) return { status: response.status, body: { ok: false, error: "Trade email webhook rejected the alert." } };
+    return { status: 200, body: { ok: true, provider: "webhook", sent: events.length } };
+  }
+
+  return {
+    status: 501,
+    body: {
+      ok: false,
+      error: "Email alerts need RESEND_API_KEY plus TRADE_EMAIL_FROM, or TRADE_EMAIL_WEBHOOK_URL, in Vercel environment variables.",
+    },
+  };
 }
 
 function safeAgentNumber(value, fallback = 0) {
@@ -522,6 +624,25 @@ export default async function handler(req, res) {
 
   if (req.method === "POST") {
     const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
+
+    if (body.action === "trade_email") {
+      const events = normalizeTradeEmailEvents(body.events);
+      const result = await sendTradeEmail({
+        to: body.to,
+        events,
+        appUrl: body.app_url,
+        test: Boolean(body.test),
+      });
+      if (result.body?.ok) {
+        await recordAuditEvent("TRADE_EMAIL_ALERT_SENT", {
+          to_domain: String(body.to || "").split("@")[1] || null,
+          event_count: events.length,
+          test: Boolean(body.test),
+          provider: result.body.provider,
+        });
+      }
+      return res.status(result.status).json(result.body);
+    }
 
     if (body.action === "agent_chat") {
       return handleAgentChat(body, res);
