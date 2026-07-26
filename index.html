@@ -739,7 +739,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build stricter-edge-engine · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build all-market-suggestions · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -766,7 +766,7 @@ const EXIT_STALE_DAYS = 10;
 const EXIT_RESOLUTION_DAYS = 2;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const SUGGESTION_ENGINE_VERSION = 7;
+const SUGGESTION_ENGINE_VERSION = 8;
 const FOCUS_KEY = "pma_focus_v1";
 const VIEW_KEY = "pma_view_v1";
 const PF_SORT_KEY = "pma_portfolio_sort_v1";
@@ -782,7 +782,7 @@ const PERSONAL_MODE = new URLSearchParams(location.search).get("personal") === "
 const PERSONAL_USER_ID = "local-readiness-user";
 const CATEGORIES = ["All","Politics","Sports","Crypto","Economy","Pop Culture","Other"];
 const SYNC_KEYS=[AGENTS_KEY,SUG_KEY,FOCUS_KEY,VIEW_KEY,PF_SORT_KEY,CHART_RANGE_KEY,INVEST_KEY,PAPER_KEY,LIVE_KEY,EMAIL_ALERT_KEY];
-const SYNC_LIMITS={closed:80,history:160,snapshots:240,suggestions:120,paperHistory:120,paperSnapshots:120,audit:120};
+const SYNC_LIMITS={closed:80,history:160,snapshots:240,suggestions:900,paperHistory:120,paperSnapshots:120,audit:120};
 const CAT_COLORS = {Politics:"#fb7185",Sports:"#34d399",Crypto:"#fbbf24",Economy:"#7c8cff",
   "Pop Culture":"#c77dff",Other:"#94a1bb",All:"#7c8cff",Copy:"#22d3ee"};
 const DATA_API = "https://data-api.polymarket.com";
@@ -948,15 +948,23 @@ function normalizeMarket(raw){
 }
 async function fetchMarkets(pages=Infinity,perPage=100,onProgress=null){
   const all=[];
-  const maxPages=Number.isFinite(pages)?pages:250;
+  const maxPages=Number.isFinite(pages)?pages:MAX_ACTIVE_MARKET_PAGES;
+  const seen=new Set();
   for(let i=0;i<maxPages;i++){
     const params=new URLSearchParams({closed:"false",active:"true",archived:"false",include_tag:"true",
       limit:String(perPage),offset:String(i*perPage),order:"volume24hr",ascending:"false"});
     const r=await fetch(`${GAMMA}/markets?${params}`);
     if(!r.ok){if(i===0)throw new Error("Polymarket API "+r.status);break;}
-    const raw=await r.json(); if(!raw.length)break; all.push(...raw);
+    const raw=await r.json(); if(!raw.length)break;
+    let added=0;
+    for(const m of raw){
+      const id=String(m.id||"");
+      if(id&&seen.has(id))continue;
+      if(id)seen.add(id);
+      all.push(m);added++;
+    }
     if(onProgress)onProgress(all.length);
-    if(raw.length<perPage)break;
+    if(raw.length<perPage||added===0)break;
   }
   return all.map(normalizeMarket).filter(m=>m&&m.question);
 }
@@ -973,9 +981,10 @@ const MIN_ENTRY_EDGE=0.032;
 const MIN_ENTRY_DAYS=3.0;
 const EDGE_SCALE=0.13;
 const MAX_STRATEGY_POSITIONS=16;
-const SUGGESTION_TOTAL=180;
-const SUGGESTION_PER_CATEGORY=40;
-const VISIBLE_SUGGESTIONS=120;
+const MAX_ACTIVE_MARKET_PAGES=1000;
+const SUGGESTION_TOTAL=900;
+const SUGGESTION_PER_CATEGORY=180;
+const VISIBLE_SUGGESTIONS=500;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function liquiditySignal(m){const vol=Math.min(1,Math.log10(m.volume+1)/6.0);const liq=Math.min(1,Math.log10(m.liquidity+1)/5.3);return 0.6*vol+0.4*liq;}
 function momentumSignal(m){const da=m.volume_1wk?m.volume_1wk/7:0;if(da<=0)return m.volume_24hr>0?0.3:0;return clamp((m.volume_24hr/da-0.5)/2.0,0,1);}
@@ -1105,7 +1114,7 @@ function applySyncItems(items){
   const compact=compactSyncItems(items);
   try{SYNC_KEYS.forEach(k=>{if(compact[k]!=null)localStorage.setItem(k,compact[k]);});return true;}
   catch(e){
-    const tighter=compactSyncItems(items,{closed:30,history:60,snapshots:90,suggestions:60,paperHistory:60,paperSnapshots:60,audit:60});
+    const tighter=compactSyncItems(items,{closed:30,history:60,snapshots:90,suggestions:300,paperHistory:60,paperSnapshots:60,audit:60});
     try{SYNC_KEYS.forEach(k=>{if(tighter[k]!=null)localStorage.setItem(k,tighter[k]);});toast("Loaded a compact mobile state.");return true;}
     catch(err){setStatus("storage full",false);toast("This device's browser storage is full. Open in a normal tab or clear site data.");return false;}
   }
@@ -3096,7 +3105,7 @@ async function loadPaperMarketPage(reset=false,loadAll=false){
   try{
     if(reset){PAPER_SEARCH_RESULTS=[];PAPER_MARKET_OFFSET=0;}
     let loaded=0,rawCount=0,keepGoing=true;
-    const limit=100,maxPages=loadAll?250:1;
+    const limit=100,maxPages=loadAll?MAX_ACTIVE_MARKET_PAGES:1;
     for(let page=0;page<maxPages&&keepGoing;page++){
       const params=new URLSearchParams({closed:"false",active:"true",archived:"false",include_tag:"true",limit:String(limit),offset:String(PAPER_MARKET_OFFSET),order:"volume24hr",ascending:"false"});
       if(q)params.set("search",q);
@@ -3457,7 +3466,7 @@ async function loadLiveMarketPage(reset=false,loadAll=false){
   try{
     if(reset){LIVE_SEARCH_RESULTS=[];LIVE_MARKET_OFFSET=0;}
     let loaded=0,rawCount=0,keepGoing=true;
-    const limit=100,maxPages=loadAll?250:1;
+    const limit=100,maxPages=loadAll?MAX_ACTIVE_MARKET_PAGES:1;
     for(let page=0;page<maxPages&&keepGoing;page++){
       const params=new URLSearchParams({closed:"false",active:"true",archived:"false",include_tag:"true",limit:String(limit),offset:String(LIVE_MARKET_OFFSET),order:"volume24hr",ascending:"false"});
       if(q)params.set("search",q);
