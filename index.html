@@ -739,7 +739,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build overlap-guard · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build evidence-engine · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -766,7 +766,7 @@ const EXIT_STALE_DAYS = 10;
 const EXIT_RESOLUTION_DAYS = 2;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const SUGGESTION_ENGINE_VERSION = 12;
+const SUGGESTION_ENGINE_VERSION = 13;
 const FOCUS_KEY = "pma_focus_v1";
 const VIEW_KEY = "pma_view_v1";
 const PF_SORT_KEY = "pma_portfolio_sort_v1";
@@ -847,24 +847,24 @@ async function refreshTradeEmailStatus(){
    Each shares the same frequently refreshed suggestions but ranks/sizes them differently. */
 const AGENTS = [
   {id:"value", name:"Value Hunter", emoji:"🎯", color:"#7c8cff", kind:"strategy",
-   blurb:"Looks for the widest gap between the model's fair value and the current market price. It prefers trades where the crowd appears too pessimistic or too optimistic, then sizes positions moderately so one bad read does not dominate the portfolio.",
-   rank:(s)=>[...s].sort((a,b)=>b.conviction-a.conviction),
+   blurb:"Looks for the widest net gap between model fair value and current market price after liquidity friction, chase penalties, and real-world evidence checks. It prefers trades where the crowd appears too pessimistic or too optimistic, then sizes positions moderately so one bad read does not dominate the portfolio.",
+   rank:(s)=>[...s].sort((a,b)=>(Math.abs(b.net_edge||b.edge||0)*120+b.conviction+Number(b.evidence_score||0)*18)-(Math.abs(a.net_edge||a.edge||0)*120+a.conviction+Number(a.evidence_score||0)*18)),
    maxNew:3, maxFrac:0.09, minConv:54, kelly:0.20},
   {id:"momentum", name:"Momentum Chaser", emoji:"🚀", color:"#34d399", kind:"strategy",
-   blurb:"Chases markets where attention is accelerating. It weights conviction by fresh 24-hour volume, so it tends to enter fast-moving events with strong liquidity and recent trader interest.",
-   rank:(s)=>[...s].sort((a,b)=>(b.volume_24hr*(b.conviction+20))-(a.volume_24hr*(a.conviction+20))),
+   blurb:"Chases markets where attention is accelerating, but only after the move still leaves positive net edge. It weights conviction by fresh 24-hour volume and evidence quality so it is less likely to buy a move after the useful repricing already happened.",
+   rank:(s)=>[...s].sort((a,b)=>(b.volume_24hr*(b.conviction+20)*Math.max(.4,Math.abs(b.net_edge||b.edge||0)*18))-(a.volume_24hr*(a.conviction+20)*Math.max(.4,Math.abs(a.net_edge||a.edge||0)*18))),
    maxNew:4, maxFrac:0.10, minConv:52, kelly:0.24},
   {id:"favorite", name:"Favorite Backer", emoji:"🛡️", color:"#38d2e6", kind:"strategy",
-   blurb:"A lower-drama agent that only considers outcomes already priced as favorites. It tries to grind out steadier returns by backing high-probability markets when the model still sees a useful edge.",
-   rank:(s)=>[...s].filter(x=>x.entry_price>=0.6).sort((a,b)=>b.entry_price-a.entry_price||b.conviction-a.conviction),
+   blurb:"A lower-drama agent that only considers outcomes already priced as favorites. It tries to grind out steadier returns by backing high-probability markets only when net edge and evidence quality survive the stricter checks.",
+   rank:(s)=>[...s].filter(x=>x.entry_price>=0.6).sort((a,b)=>(b.entry_price+Math.abs(b.net_edge||b.edge||0)+Number(b.evidence_score||0)*.2)-(a.entry_price+Math.abs(a.net_edge||a.edge||0)+Number(a.evidence_score||0)*.2)||b.conviction-a.conviction),
    maxNew:3, maxFrac:0.095, minConv:50, kelly:0.22},
   {id:"longshot", name:"Longshot Hunter", emoji:"🎰", color:"#fbbf24", kind:"strategy",
-   blurb:"The swing-for-upside strategy. It hunts cheaper contracts that the model thinks are being ignored, accepting more volatility in exchange for the chance that one mispriced longshot rerates sharply.",
-   rank:(s)=>[...s].filter(x=>x.entry_price<=0.4).sort((a,b)=>a.entry_price-b.entry_price||b.conviction-a.conviction),
+   blurb:"The swing-for-upside strategy. It hunts cheaper contracts that the model thinks are being ignored, but now discounts thin tails unless evidence and net edge are strong enough to justify the volatility.",
+   rank:(s)=>[...s].filter(x=>x.entry_price<=0.4).sort((a,b)=>(Math.abs(b.net_edge||b.edge||0)*100+b.conviction+Number(b.evidence_score||0)*22-b.entry_price*12)-(Math.abs(a.net_edge||a.edge||0)*100+a.conviction+Number(a.evidence_score||0)*22-a.entry_price*12)),
    maxNew:3, maxFrac:0.055, minConv:56, kelly:0.12},
   {id:"diversifier", name:"The Diversifier", emoji:"🌐", color:"#c77dff", kind:"strategy",
-   blurb:"Builds a broad basket instead of making a few concentrated bets. It spreads smaller, flatter positions across many high-conviction ideas to reduce single-market risk and show how the whole suggestion pool performs.",
-   rank:(s)=>[...s].sort((a,b)=>b.conviction-a.conviction),
+   blurb:"Builds a broad basket instead of making a few concentrated bets. It spreads smaller, flatter positions across high-conviction, evidence-backed ideas while avoiding crowded overlap and weak net-edge fillers.",
+   rank:(s)=>[...s].sort((a,b)=>(b.conviction+Number(b.evidence_score||0)*15+Math.abs(b.net_edge||b.edge||0)*55)-(a.conviction+Number(a.evidence_score||0)*15+Math.abs(a.net_edge||a.edge||0)*55)),
    maxNew:6, maxFrac:0.04, minConv:50, kelly:0.12, flat:true},
   {id:"copycat", name:"The Copycat", emoji:"🐒", color:"#ec4899", kind:"copycat",
    blurb:"A meta-agent that does not pick markets directly. It watches the in-house strategies, scores their return trend, MACD, recent momentum, and drawdown risk, then mirrors the agent most likely to keep improving rather than blindly chasing the current leader."},
@@ -998,9 +998,59 @@ const MAX_ACTIVE_MARKET_PAGES=1000;
 const SUGGESTION_TOTAL=900;
 const SUGGESTION_PER_CATEGORY=180;
 const VISIBLE_SUGGESTIONS=900;
+const REAL_WORLD_SIGNAL_LIMIT=120;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function liquiditySignal(m){const vol=Math.min(1,Math.log10(m.volume+1)/6.0);const liq=Math.min(1,Math.log10(m.liquidity+1)/5.3);return 0.6*vol+0.4*liq;}
 function momentumSignal(m){const da=m.volume_1wk?m.volume_1wk/7:0;if(da<=0)return m.volume_24hr>0?0.3:0;return clamp((m.volume_24hr/da-0.5)/2.0,0,1);}
+function categoryPolicy(cat){
+  return ({
+    Politics:{minEdge:0.052,minVol:30000,minLiq:2500,minEvidence:0.58,uncertainty:0.012,label:"politics needs outside confirmation"},
+    Sports:{minEdge:0.045,minVol:22000,minLiq:1800,minEvidence:0.54,uncertainty:0.008,label:"sports needs fresh event context"},
+    Crypto:{minEdge:0.040,minVol:26000,minLiq:2200,minEvidence:0.52,uncertainty:0.006,label:"crypto allows faster trend reaction"},
+    Economy:{minEdge:0.055,minVol:28000,minLiq:2400,minEvidence:0.58,uncertainty:0.014,label:"macro markets need stronger evidence"},
+    "Pop Culture":{minEdge:0.048,minVol:18000,minLiq:1600,minEvidence:0.53,uncertainty:0.010,label:"culture markets need attention confirmation"},
+    Other:{minEdge:0.060,minVol:32000,minLiq:2600,minEvidence:0.62,uncertainty:0.018,label:"uncategorized markets need the highest proof"},
+  })[cat||"Other"]||({minEdge:0.060,minVol:32000,minLiq:2600,minEvidence:0.62,uncertainty:0.018,label:"uncategorized markets need the highest proof"});
+}
+function frictionPenalty(m){
+  const liq=liquiditySignal(m);
+  const price=Math.min(m.yes_price,m.no_price);
+  const thinPenalty=0.026*(1-liq);
+  const tailPenalty=price<0.12?0.012:0;
+  const lowLiqPenalty=m.liquidity<MIN_LIQUIDITY?0.014:0;
+  return clamp(thinPenalty+tailPenalty+lowLiqPenalty,0.004,0.055);
+}
+function chasePenalty(m,rawEdge){
+  const mom=momentumSignal(m),absEdge=Math.abs(rawEdge);
+  if(mom<0.72)return 0;
+  return clamp((mom-0.72)*0.035+(absEdge<0.07?0.010:0),0,0.026);
+}
+function textEvidenceSignal(m,external={}){
+  const text=`${m.question||""} ${(m.tags||[]).join(" ")}`.toLowerCase();
+  let evidence=0.42;
+  const drivers=[];
+  if(/\b(poll|approval|election|primary|senate|house|minister|president)\b/.test(text)){evidence+=0.08;drivers.push("political-event context");}
+  if(/\b(injury|starter|lineup|playoff|final|championship|tournament|wins?|score)\b/.test(text)){evidence+=0.09;drivers.push("sports-event context");}
+  if(/\b(bitcoin|btc|ethereum|eth|solana|crypto|etf|fed|cpi|inflation|rates?)\b/.test(text)){evidence+=0.08;drivers.push("macro/crypto context");}
+  if(/\b(release|box office|views|album|movie|stream|award)\b/.test(text)){evidence+=0.06;drivers.push("culture-attention context");}
+  if(m.days_to_resolution!=null&&m.days_to_resolution<=14){evidence+=0.07;drivers.push("near-term resolution");}
+  if(m.volume_24hr>1500){evidence+=0.05;drivers.push("fresh market activity");}
+  if(external.source_count){evidence+=Math.min(0.16,0.04*external.source_count);drivers.push(`${external.source_count} recent news/context hit${external.source_count===1?"":"s"}`);}
+  if(external.latest_title)drivers.push(`latest context: ${external.latest_title.slice(0,72)}${external.latest_title.length>72?"...":""}`);
+  return {score:clamp(evidence,0,1),drivers,source_count:external.source_count||0,latest_title:external.latest_title||""};
+}
+async function fetchRealWorldSignals(markets){
+  const selected=[...markets].sort((a,b)=>(b.volume_24hr-a.volume_24hr)||(b.volume-a.volume)).slice(0,REAL_WORLD_SIGNAL_LIMIT);
+  try{
+    const r=await fetch("/api/live",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+      action:"market_context",
+      markets:selected.map(m=>({id:m.id,question:m.question,category:m.category,tags:m.tags})),
+    })});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok||!d.ok)return {};
+    return d.signals||{};
+  }catch(e){return {};}
+}
 function fairValue(m){const p=m.yes_price,mom=momentumSignal(m),liq=liquiditySignal(m);
   if(p>0.92)return Math.min(0.995,p+0.025*liq*(1-p)*4);
   if(p<0.08)return Math.max(0.005,p-0.12*p);
@@ -1008,27 +1058,33 @@ function fairValue(m){const p=m.yes_price,mom=momentumSignal(m),liq=liquiditySig
   const liquidBump=(liq-0.55)*0.012;
   return clamp(p+directional+liquidBump,0.03,0.97);}
 function timingSignal(d){if(d==null)return 0.4;if(d<1)return 0.1;if(d<=3)return 0.5;if(d<=90)return 1.0-(d-3)/87.0*0.4;return 0.35;}
-function analyzeMarket(m){
+function analyzeMarket(m,realWorldSignals={}){
   if(m.volume<MIN_SCOUT_VOLUME||m.liquidity<MIN_SCOUT_LIQUIDITY)return null;
-  const p=m.yes_price,fair=fairValue(m),edgeYes=fair-p,edge=Math.abs(edgeYes);
+  const p=m.yes_price,fair=fairValue(m),edgeYes=fair-p,edge=Math.abs(edgeYes),policy=categoryPolicy(m.category);
   if(edge<MIN_SCOUT_EDGE)return null;
-  const liq=liquiditySignal(m),mom=momentumSignal(m),timing=timingSignal(m.days_to_resolution);
-  const mis=Math.min(1,edge/EDGE_SCALE);
-  const conviction=+((W.LIQ*liq+W.MOM*mom+W.MIS*mis+W.TIME*timing)*100).toFixed(1);
-  const tradeReady=edge>=MIN_ENTRY_EDGE&&m.volume>=MIN_VOLUME&&m.liquidity>=MIN_LIQUIDITY;
+  const liq=liquiditySignal(m),mom=momentumSignal(m),timing=timingSignal(m.days_to_resolution),evidence=textEvidenceSignal(m,realWorldSignals[m.id]||{});
+  const friction=frictionPenalty(m),chase=chasePenalty(m,edgeYes),rawNet=Math.max(0,edge-friction-chase-policy.uncertainty);
+  const netEdge=+(Math.sign(edgeYes)*rawNet).toFixed(4),absNet=Math.abs(netEdge);
+  const mis=Math.min(1,absNet/EDGE_SCALE);
+  const conviction=+((W.LIQ*liq+W.MOM*mom+W.MIS*mis+W.TIME*timing)*82+evidence.score*18).toFixed(1);
+  const minEdge=Math.max(MIN_ENTRY_EDGE,policy.minEdge);
+  const tradeReady=absNet>=minEdge&&m.volume>=Math.max(MIN_VOLUME,policy.minVol)&&m.liquidity>=Math.max(MIN_LIQUIDITY,policy.minLiq)&&evidence.score>=policy.minEvidence;
   let side=edgeYes>=0?"YES":"NO",entry=side==="YES"?p:m.no_price,rationale;
-  if(tradeReady&&edgeYes>0){rationale=`Trade-ready: model fair value ${pct(fair)} vs market ${pct(p)} — YES looks underpriced by ~${(edgeYes*100).toFixed(1)}c.`;}
-  else if(tradeReady&&edgeYes<0){rationale=`Trade-ready: model fair value ${pct(fair)} vs market ${pct(p)} — YES looks overpriced, so NO at ${pct(m.no_price)} has the edge.`;}
-  else{rationale=`Scout idea: model sees a smaller ${(edge*100).toFixed(1)}c gap, so agents can monitor it but need stricter edge/liquidity before buying.`;}
-  const drivers=[];
+  if(tradeReady&&edgeYes>0){rationale=`Trade-ready after costs: fair value ${pct(fair)} vs market ${pct(p)} leaves ${(absNet*100).toFixed(1)}c net edge for YES after liquidity, chase, and ${m.category} evidence checks.`;}
+  else if(tradeReady&&edgeYes<0){rationale=`Trade-ready after costs: fair value ${pct(fair)} vs market ${pct(p)} makes YES look overpriced; NO has ${(absNet*100).toFixed(1)}c net edge after penalties.`;}
+  else{rationale=`Watch only: raw gap ${(edge*100).toFixed(1)}c becomes ${(absNet*100).toFixed(1)}c after friction/chase/category penalties, so agents need stronger evidence before buying.`;}
+  const drivers=[policy.label];
   if(liq>0.6)drivers.push("deep/liquid market");
   if(mom>0.6)drivers.push("strong fresh volume (24h surge)");
   if(timing>0.8)drivers.push("resolves in a good window");
-  if(mis>0.4)drivers.push("notable price/value gap");
+  if(mis>0.4)drivers.push("net price/value gap after costs");
+  drivers.push(...evidence.drivers.slice(0,3));
   if(!drivers.length)drivers.push("thin signal");
   return {market_id:m.id,question:m.question,event:m.event,url:m.url,category:m.category,tags:m.tags,
     clob_yes:(m.clob_token_ids||[])[0]||null,clob_no:(m.clob_token_ids||[])[1]||null,
     yes_price:p,no_price:m.no_price,fair_value:+fair.toFixed(4),edge:+edgeYes.toFixed(4),
+    net_edge:netEdge,friction:+friction.toFixed(4),chase_penalty:+chase.toFixed(4),evidence_score:+evidence.score.toFixed(2),
+    quality:tradeReady?"EV+":"watch",
     side,entry_price:+entry.toFixed(4),conviction,volume:m.volume,volume_24hr:m.volume_24hr,liquidity:m.liquidity,
     trade_ready:tradeReady,
     days_to_resolution:m.days_to_resolution!=null?+m.days_to_resolution.toFixed(1):null,drivers,rationale};
@@ -1039,27 +1095,30 @@ function suggestionBand(s){
   if(s.entry_price>0.65)return "favorite";
   return "balanced";
 }
-function marketWatchSuggestion(m){
+function marketWatchSuggestion(m,realWorldSignals={}){
   if(!m||!m.question)return null;
   const p=m.yes_price,fair=fairValue(m),edgeYes=fair-p;
-  const liq=liquiditySignal(m),mom=momentumSignal(m),timing=timingSignal(m.days_to_resolution);
+  const liq=liquiditySignal(m),mom=momentumSignal(m),timing=timingSignal(m.days_to_resolution),policy=categoryPolicy(m.category),evidence=textEvidenceSignal(m,realWorldSignals[m.id]||{});
+  const friction=frictionPenalty(m),chase=chasePenalty(m,edgeYes),rawNet=Math.max(0,Math.abs(edgeYes)-friction-chase-policy.uncertainty),netEdge=+(Math.sign(edgeYes)*rawNet).toFixed(4);
   const side=edgeYes>=0?"YES":"NO";
   const entry=side==="YES"?p:m.no_price;
-  const conviction=+((0.38*liq+0.32*mom+0.20*timing+0.10*Math.min(1,Math.abs(edgeYes)/EDGE_SCALE))*100).toFixed(1);
+  const conviction=+((0.36*liq+0.28*mom+0.18*timing+0.10*Math.min(1,Math.abs(netEdge)/EDGE_SCALE)+0.08*evidence.score)*100).toFixed(1);
   const drivers=["broad market scan"];
   if(m.volume>MIN_VOLUME)drivers.push("meaningful total volume");
   if(m.volume_24hr>500)drivers.push("fresh 24h activity");
   if(m.liquidity>MIN_LIQUIDITY)drivers.push("usable liquidity");
+  drivers.push(...evidence.drivers.slice(0,2));
   return {market_id:m.id,question:m.question,event:m.event,url:m.url,category:m.category,tags:m.tags,
     clob_yes:(m.clob_token_ids||[])[0]||null,clob_no:(m.clob_token_ids||[])[1]||null,
     yes_price:p,no_price:m.no_price,fair_value:+fair.toFixed(4),edge:+edgeYes.toFixed(4),
+    net_edge:netEdge,friction:+friction.toFixed(4),chase_penalty:+chase.toFixed(4),evidence_score:+evidence.score.toFixed(2),quality:"watch",
     side,entry_price:+entry.toFixed(4),conviction,volume:m.volume,volume_24hr:m.volume_24hr,liquidity:m.liquidity,
     trade_ready:false,watch_only:true,
     days_to_resolution:m.days_to_resolution!=null?+m.days_to_resolution.toFixed(1):null,drivers,
-    rationale:`Market watchlist: included for coverage from the full Polymarket scan. The model does not see a trade-ready edge yet, so agents will not buy it unless conditions improve.`};
+    rationale:`Market watchlist: included for coverage from the full Polymarket scan. Net edge is ${(Math.abs(netEdge)*100).toFixed(1)}c and evidence score is ${Math.round(evidence.score*100)}, so agents will not buy it unless conditions improve.`};
 }
-function generateSuggestions(markets,total=SUGGESTION_TOTAL,perCategory=SUGGESTION_PER_CATEGORY){
-  const actionable=markets.map(analyzeMarket).filter(Boolean).filter(a=>a.side!=="HOLD").sort((a,b)=>b.conviction-a.conviction);
+function generateSuggestions(markets,total=SUGGESTION_TOTAL,perCategory=SUGGESTION_PER_CATEGORY,realWorldSignals={}){
+  const actionable=markets.map(m=>analyzeMarket(m,realWorldSignals)).filter(Boolean).filter(a=>a.side!=="HOLD").sort((a,b)=>b.conviction-a.conviction);
   const byCat={},byBucket={},seen=new Set(),out=[];
   const add=(a,bucketCap=3,ignoreCategoryCap=false)=>{
     if(out.length>=total||seen.has(a.market_id))return false;
@@ -1070,7 +1129,7 @@ function generateSuggestions(markets,total=SUGGESTION_TOTAL,perCategory=SUGGESTI
   };
   for(const a of actionable)add(a,3);      // first pass: category, side, and price-band diversity
   for(const a of actionable)add(a,999);    // second pass: fill remaining slots with the best leftovers
-  const watchlist=markets.map(marketWatchSuggestion).filter(Boolean)
+  const watchlist=markets.map(m=>marketWatchSuggestion(m,realWorldSignals)).filter(Boolean)
     .filter(a=>!seen.has(a.market_id))
     .sort((a,b)=>(b.volume_24hr-a.volume_24hr)||(b.volume-a.volume)||(b.conviction-a.conviction));
   for(const a of watchlist)add(a,999,true); // final pass: show broad market coverage even when no trade edge is present
@@ -1117,6 +1176,7 @@ function compactSuggestionForSync(s){
     market_id:s.market_id,question:s.question,event:s.event,url:s.url,category:s.category,
     clob_yes:s.clob_yes,clob_no:s.clob_no,yes_price:s.yes_price,no_price:s.no_price,
     fair_value:s.fair_value,edge:s.edge,side:s.side,entry_price:s.entry_price,
+    net_edge:s.net_edge,friction:s.friction,chase_penalty:s.chase_penalty,evidence_score:s.evidence_score,quality:s.quality,
     conviction:s.conviction,volume:s.volume,volume_24hr:s.volume_24hr,liquidity:s.liquidity,
     trade_ready:s.trade_ready,watch_only:s.watch_only,
     days_to_resolution:s.days_to_resolution,drivers:s.drivers,rationale:s.rationale,
@@ -1503,6 +1563,8 @@ function exitReason(pos,fresh,analysis,cfg){
   if(daysHeld(pos)>=EXIT_STALE_DAYS)return `Stale exit after ${Math.floor(daysHeld(pos))} days`;
   if(analysis.side==="HOLD")return "Edge faded";
   if(analysis.side&&analysis.side!==pos.side)return `Model flipped to ${analysis.side}`;
+  if(analysis.net_edge!=null&&Math.abs(analysis.net_edge)<MIN_ENTRY_EDGE*0.45)return "Net edge faded after costs";
+  if(analysis.evidence_score!=null&&analysis.evidence_score<0.42)return "Evidence score faded";
   const minExit=Math.max(30,(cfg&&cfg.minConv?cfg.minConv:45)-8);
   if(analysis.conviction<minExit)return `Conviction faded to ${Math.round(analysis.conviction)}`;
   return null;
@@ -1602,8 +1664,9 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
   const avoid=avoidMarketIds||new Set();
   const cands=rankedSugs.map(s=>peerAdjustedSuggestion(s,peerStats)).filter(s=>s.trade_ready&&(s.side==="YES"||s.side==="NO")&&s.peer_conviction>=d.minConv
     &&s.conviction>=48&&s.entry_price>=0.08&&s.entry_price<=0.92
-    &&Math.abs(s.edge)>=MIN_ENTRY_EDGE&&(s.days_to_resolution==null||s.days_to_resolution>=MIN_ENTRY_DAYS)
+    &&Math.abs(s.net_edge!=null?s.net_edge:s.edge)>=MIN_ENTRY_EDGE&&(s.days_to_resolution==null||s.days_to_resolution>=MIN_ENTRY_DAYS)
     &&s.volume>=MIN_VOLUME&&s.liquidity>=MIN_LIQUIDITY&&(s.volume_24hr>=500||s.conviction>=62)
+    &&(s.evidence_score==null||s.evidence_score>=0.50)
     &&!avoid.has(String(s.market_id))&&!hasPosition(p,s.market_id)&&!hasStoppedToday(p,s.market_id)&&(focus==="All"||!focus||s.category===focus))
     .sort((a,b)=>(b.peer_conviction-a.peer_conviction)||((b.peer_boost||0)-(a.peer_boost||0)));
   let opened=0,openedIds=[];
@@ -1614,7 +1677,7 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
     if(investable<=50)break;
     let frac;
     if(cfg.flat){frac=d.maxFrac;}
-    else{const base=(s.peer_conviction/100)*Math.min(1,Math.abs(s.edge)/EDGE_SCALE);frac=Math.min(d.maxFrac,cfg.kelly*base);}
+    else{const base=(s.peer_conviction/100)*Math.min(1,Math.abs(s.net_edge!=null?s.net_edge:s.edge)/EDGE_SCALE);frac=Math.min(d.maxFrac,cfg.kelly*base);}
     if(s.peer_boost<0)frac*=0.82;
     if(s.peer_boost>0&&decision&&decision.urgency>0.65)frac*=1.08;
     let stake=Math.min(eq*frac,investable);
@@ -1627,10 +1690,10 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
       token_id:(s.side==="YES"?s.clob_yes:s.clob_no)||null,
       entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,
       original_shares:shares,original_cost:cost,unrealized_pnl:0,conviction:s.peer_conviction,category:s.category,opened_at:cycleIso(),url:s.url||"",
-      peer_note:s.peer_note||"",
+      peer_note:s.peer_note||"",entry_reason:s.rationale||"",net_edge:s.net_edge,evidence_score:s.evidence_score,friction:s.friction,chase_penalty:s.chase_penalty,quality:s.quality,
       gain_stops:{},stop_losses:{}});
     p.history.push({date:logDay(),action:"OPEN",question:s.question,side:s.side,
-      detail:`${decision?decision.mode+" mode — ":""}Bought ${shares} ${s.side} '${s.question.slice(0,40)}' @ ${pct(entry)} for ${fmtUSD(cost)}${s.peer_note?` (${s.peer_note})`:""}`});
+      detail:`${decision?decision.mode+" mode — ":""}Bought ${shares} ${s.side} '${s.question.slice(0,40)}' @ ${pct(entry)} for ${fmtUSD(cost)} · net edge ${((Math.abs(s.net_edge!=null?s.net_edge:s.edge))*100).toFixed(1)}c · evidence ${Math.round((s.evidence_score||0)*100)}${s.peer_note?` (${s.peer_note})`:""}`});
     opened++;openedIds.push(String(s.market_id));
   }
   return openedIds;
@@ -1970,8 +2033,10 @@ async function runDailyCycle(){
     SNAP_TS=nowIso();
     setStatus("fetching markets…",true);
     const markets=await fetchMarkets(Infinity,100,count=>setStatus(`fetching all active markets (${count})…`,true));
-    setStatus("analyzing…",true);
-    const sugs=generateSuggestions(markets);
+    setStatus("checking real-world context…",true);
+    const realWorldSignals=await fetchRealWorldSignals(markets);
+    setStatus("analyzing expected value…",true);
+    const sugs=generateSuggestions(markets,SUGGESTION_TOTAL,SUGGESTION_PER_CATEGORY,realWorldSignals);
     saveSuggestions(sugs,markets.length);
     st=loadState();
     const emailOffsets=agentHistoryOffsets(st);
@@ -2364,9 +2429,10 @@ function renderSuggestions(){
   const pool=(focus==="All"?all:all.filter(s=>s.category===focus));
   const filtered=pool.slice(0,VISIBLE_SUGGESTIONS);
   const buyCount=all.filter(s=>s.trade_ready).length,watchCount=all.length-buyCount;
+  const evAvg=all.length?Math.round(all.reduce((s,x)=>s+Number(x.evidence_score||0),0)/all.length*100):0;
   $("focusNote").textContent=focus==="All"
-    ? `Scanned ${Number(data.market_count||0).toLocaleString()} active markets and kept ${all.length} ideas (${buyCount} BUY, ${watchCount} WATCH). Showing ${filtered.length}; agents only trade BUY ideas.`
-    : `Scanned ${Number(data.market_count||0).toLocaleString()} active markets. Showing ${filtered.length} of ${pool.length} ${focus} ideas; agents only open BUY ${focus} positions while this is selected.`;
+    ? `Scanned ${Number(data.market_count||0).toLocaleString()} active markets and kept ${all.length} ideas (${buyCount} BUY, ${watchCount} WATCH). Showing ${filtered.length}; agents trade only EV+ ideas after liquidity, chase, and real-world evidence checks. Avg evidence ${evAvg}.`
+    : `Scanned ${Number(data.market_count||0).toLocaleString()} active markets. Showing ${filtered.length} of ${pool.length} ${focus} ideas; agents only open EV+ BUY ${focus} positions while this is selected.`;
   if(!filtered.length){root.innerHTML=`<div class="empty" style="grid-column:1/-1">No ${esc(focus)} suggestions in this live batch.</div>`;return;}
   root.innerHTML=filtered.map(s=>{
     const col=catColor(s.category);
@@ -2385,6 +2451,7 @@ function renderSuggestions(){
       <div class="rationale">${esc(s.rationale)}</div>
       <div class="drivers">${drivers}</div>
       <div class="metrics">
+        <span>Net edge <b>${((Math.abs(s.net_edge!=null?s.net_edge:s.edge))*100).toFixed(1)}c</b></span><span>Evidence <b>${Math.round((s.evidence_score||0)*100)}</b></span>
         <span>Vol <b>${fmtUSD(s.volume)}</b></span><span>24h <b>${fmtUSD(s.volume_24hr)}</b></span><span>Resolves <b>${days}</b></span>
         ${s.url?`<a class="market-link" href="${esc(s.url)}" target="_blank" rel="noopener">Open on Polymarket ↗</a>`:""}
         ${PERSONAL_MODE?`<button class="btn ghost" data-stage-suggestion="${esc(s.market_id)}">Stage ticket</button>`:""}
@@ -2518,6 +2585,15 @@ function reportPositionLine(p){
   if(best===worst)return `Current focus: ${best.question.slice(0,58)}${best.question.length>58?"...":""}, marked ${best.unrealized_pnl>=0?"+":""}${fmtUSD(best.unrealized_pnl||0)}.`;
   return `Best mark: ${best.question.slice(0,42)}${best.question.length>42?"...":""} (${best.unrealized_pnl>=0?"+":""}${fmtUSD(best.unrealized_pnl||0)}). Watch item: ${worst.question.slice(0,42)}${worst.question.length>42?"...":""} (${fmtUSD(worst.unrealized_pnl||0)}).`;
 }
+function attributionLine(pos){
+  if(!pos)return "No single trade explains the move.";
+  const bits=[];
+  if(pos.entry_reason)bits.push(pos.entry_reason);
+  if(pos.net_edge!=null)bits.push(`entry net edge ${((Math.abs(pos.net_edge))*100).toFixed(1)}c`);
+  if(pos.evidence_score!=null)bits.push(`evidence ${Math.round(Number(pos.evidence_score||0)*100)}`);
+  if(pos.friction!=null)bits.push(`friction ${((Number(pos.friction||0))*100).toFixed(1)}c`);
+  return bits.length?bits.join(" · "):"This older position was opened before detailed attribution was stored.";
+}
 function dailyPerformanceExplanation(row){
   const snaps=(row.p.snapshots||[]).slice().sort((a,b)=>snapTime(a)-snapTime(b));
   const last=snaps[snaps.length-1];
@@ -2541,11 +2617,11 @@ function dailyPerformanceExplanation(row){
     : "There were no major realized closes in the past day.";
   if(delta>0.25){
     const openText=best?`The strongest open position helping it is '${shortQuestion(best.question)}' at ${best.unrealized_pnl>=0?"+":""}${fmtUSD(best.unrealized_pnl||0)}.`:"It benefited mostly from cash discipline and closed-trade results rather than a single open winner.";
-    return `Past 24h: up ${delta.toFixed(2)} return points (${fmtUSD(equityDelta)}). ${openText} ${closedText} Trade behavior: ${actions}. Technical pressure: ${macdText}.`;
+    return `Past 24h: up ${delta.toFixed(2)} return points (${fmtUSD(equityDelta)}). ${openText} Attribution: ${attributionLine(best)} ${closedText} Trade behavior: ${actions}. Technical pressure: ${macdText}.`;
   }
   if(delta<-0.25){
     const openText=worst?`The biggest open drag is '${shortQuestion(worst.question)}' at ${fmtUSD(worst.unrealized_pnl||0)}.`:"The decline came more from broad mark-downs or realized losses than one obvious open position.";
-    return `Past 24h: down ${Math.abs(delta).toFixed(2)} return points (${fmtUSD(equityDelta)}). ${openText} ${closedText} Trade behavior: ${actions}. Technical pressure: ${macdText}.`;
+    return `Past 24h: down ${Math.abs(delta).toFixed(2)} return points (${fmtUSD(equityDelta)}). ${openText} Attribution: ${attributionLine(worst)} ${closedText} Trade behavior: ${actions}. Technical pressure: ${macdText}.`;
   }
   const openText=best&&worst&&best!==worst
     ? `Best open mark is '${shortQuestion(best.question,36)}' (${best.unrealized_pnl>=0?"+":""}${fmtUSD(best.unrealized_pnl||0)}) while the weakest is '${shortQuestion(worst.question,36)}' (${fmtUSD(worst.unrealized_pnl||0)}).`
@@ -2830,6 +2906,7 @@ function renderPositions(positions){
       <div class="pq">${title}</div>
       <div class="sub">${p.category?`<span class="cat-badge" style="background:${col}22;color:${col}">${esc(p.category)}</span> `:""}${p.shares} ${p.side} @ ${Math.round(p.entry_price*100)}¢ → ${Math.round(p.current_price*100)}¢</div>
       ${p.peer_note?`<div class="sub">Peer read: ${esc(p.peer_note)}</div>`:""}
+      ${p.net_edge!=null||p.evidence_score!=null?`<div class="sub">Entry quality: ${p.net_edge!=null?`net edge ${((Math.abs(p.net_edge))*100).toFixed(1)}c`:"net edge n/a"} · ${p.evidence_score!=null?`evidence ${Math.round(Number(p.evidence_score||0)*100)}`:"evidence n/a"}</div>`:""}
       <div class="sub">${esc(stopLossLabel(p))}</div>
       <div class="sub">${esc(gainStopLabel(p))}</div>
       <div class="sub"><a class="market-link" href="${esc(positionUrl(p))}" target="_blank" rel="noopener">Open exact market</a></div>

@@ -650,6 +650,83 @@ function validateCapitalAction(action) {
   return errors;
 }
 
+function stripTags(value) {
+  return String(value || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function decodeXml(value) {
+  return String(value || "")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, "\"")
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+}
+
+function cleanMarketContextText(value, max = 220) {
+  return String(value || "").replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+function contextQuery(market) {
+  const q = cleanMarketContextText(market?.question, 140)
+    .replace(/\bwill\b/ig, "")
+    .replace(/\?/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const cat = cleanMarketContextText(market?.category, 40);
+  if (cat === "Sports") return `${q} injury lineup odds`;
+  if (cat === "Politics") return `${q} poll election news`;
+  if (cat === "Crypto") return `${q} crypto market news`;
+  if (cat === "Economy") return `${q} economy fed inflation news`;
+  if (cat === "Pop Culture") return `${q} entertainment latest`;
+  return `${q} latest news`;
+}
+
+async function fetchNewsContext(market) {
+  const query = contextQuery(market);
+  if (!query || query.length < 8) return { source_count: 0, latest_title: "", query };
+  const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 900);
+  try {
+    const response = await fetch(url, {
+      headers: { "User-Agent": "PolyArenaContext/1.0" },
+      signal: controller.signal,
+    });
+    if (!response.ok) return { source_count: 0, latest_title: "", query };
+    const xml = await response.text();
+    const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 5);
+    const titles = items.map((item) => {
+      const match = item[1].match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>|<title>([\s\S]*?)<\/title>/);
+      return cleanMarketContextText(decodeXml(stripTags(match ? (match[1] || match[2]) : "")), 160);
+    }).filter(Boolean);
+    return { source_count: titles.length, latest_title: titles[0] || "", query };
+  } catch (err) {
+    return { source_count: 0, latest_title: "", query, error: err?.name === "AbortError" ? "timeout" : "unavailable" };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function handleMarketContext(body, res) {
+  const markets = (Array.isArray(body.markets) ? body.markets : []).slice(0, 120).map((market) => ({
+    id: cleanMarketContextText(market?.id, 80),
+    question: cleanMarketContextText(market?.question, 220),
+    category: cleanMarketContextText(market?.category, 60),
+    tags: Array.isArray(market?.tags) ? market.tags.slice(0, 6).map((tag) => cleanMarketContextText(tag, 40)) : [],
+  })).filter((market) => market.id && market.question);
+  const signals = {};
+  const batchSize = 24;
+  for (let i = 0; i < markets.length; i += batchSize) {
+    const batch = markets.slice(i, i + batchSize);
+    const results = await Promise.all(batch.map(fetchNewsContext));
+    results.forEach((signal, idx) => {
+      signals[batch[idx].id] = signal;
+    });
+  }
+  return res.status(200).json({ ok: true, count: Object.keys(signals).length, signals });
+}
+
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
 
@@ -705,6 +782,10 @@ export default async function handler(req, res) {
 
     if (body.action === "agent_chat") {
       return handleAgentChat(body, res);
+    }
+
+    if (body.action === "market_context") {
+      return handleMarketContext(body, res);
     }
 
     if (body.action === "ticket") {
