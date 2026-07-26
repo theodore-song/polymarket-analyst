@@ -739,7 +739,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build keyset-market-scan · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build expanded-scout-suggestions · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -766,7 +766,7 @@ const EXIT_STALE_DAYS = 10;
 const EXIT_RESOLUTION_DAYS = 2;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const SUGGESTION_ENGINE_VERSION = 9;
+const SUGGESTION_ENGINE_VERSION = 10;
 const FOCUS_KEY = "pma_focus_v1";
 const VIEW_KEY = "pma_view_v1";
 const PF_SORT_KEY = "pma_portfolio_sort_v1";
@@ -987,6 +987,9 @@ async function fetchMarketPrice(id){
 const W={LIQ:0.28,MOM:0.22,MIS:0.34,TIME:0.16};
 const MIN_VOLUME=18000;
 const MIN_LIQUIDITY=1400;
+const MIN_SCOUT_VOLUME=1500;
+const MIN_SCOUT_LIQUIDITY=150;
+const MIN_SCOUT_EDGE=0.006;
 const MIN_ENTRY_EDGE=0.032;
 const MIN_ENTRY_DAYS=3.0;
 const EDGE_SCALE=0.13;
@@ -1006,15 +1009,17 @@ function fairValue(m){const p=m.yes_price,mom=momentumSignal(m),liq=liquiditySig
   return clamp(p+directional+liquidBump,0.03,0.97);}
 function timingSignal(d){if(d==null)return 0.4;if(d<1)return 0.1;if(d<=3)return 0.5;if(d<=90)return 1.0-(d-3)/87.0*0.4;return 0.35;}
 function analyzeMarket(m){
-  if(m.volume<MIN_VOLUME||m.liquidity<MIN_LIQUIDITY)return null;
+  if(m.volume<MIN_SCOUT_VOLUME||m.liquidity<MIN_SCOUT_LIQUIDITY)return null;
   const p=m.yes_price,fair=fairValue(m),edgeYes=fair-p,edge=Math.abs(edgeYes);
+  if(edge<MIN_SCOUT_EDGE)return null;
   const liq=liquiditySignal(m),mom=momentumSignal(m),timing=timingSignal(m.days_to_resolution);
   const mis=Math.min(1,edge/EDGE_SCALE);
   const conviction=+((W.LIQ*liq+W.MOM*mom+W.MIS*mis+W.TIME*timing)*100).toFixed(1);
-  let side,entry,rationale;
-  if(edgeYes>MIN_ENTRY_EDGE){side="YES";entry=p;rationale=`Model fair value ${pct(fair)} vs market ${pct(p)} — YES looks underpriced by ~${(edgeYes*100).toFixed(1)}c.`;}
-  else if(edgeYes<-MIN_ENTRY_EDGE){side="NO";entry=m.no_price;rationale=`Model fair value ${pct(fair)} vs market ${pct(p)} — YES looks overpriced, so NO at ${pct(m.no_price)} has the edge.`;}
-  else{side="HOLD";entry=p;rationale=`Price ${pct(p)} is close to model fair value ${pct(fair)}; no clear edge — watch only.`;}
+  const tradeReady=edge>=MIN_ENTRY_EDGE&&m.volume>=MIN_VOLUME&&m.liquidity>=MIN_LIQUIDITY;
+  let side=edgeYes>=0?"YES":"NO",entry=side==="YES"?p:m.no_price,rationale;
+  if(tradeReady&&edgeYes>0){rationale=`Trade-ready: model fair value ${pct(fair)} vs market ${pct(p)} — YES looks underpriced by ~${(edgeYes*100).toFixed(1)}c.`;}
+  else if(tradeReady&&edgeYes<0){rationale=`Trade-ready: model fair value ${pct(fair)} vs market ${pct(p)} — YES looks overpriced, so NO at ${pct(m.no_price)} has the edge.`;}
+  else{rationale=`Scout idea: model sees a smaller ${(edge*100).toFixed(1)}c gap, so agents can monitor it but need stricter edge/liquidity before buying.`;}
   const drivers=[];
   if(liq>0.6)drivers.push("deep/liquid market");
   if(mom>0.6)drivers.push("strong fresh volume (24h surge)");
@@ -1024,7 +1029,8 @@ function analyzeMarket(m){
   return {market_id:m.id,question:m.question,event:m.event,url:m.url,category:m.category,tags:m.tags,
     clob_yes:(m.clob_token_ids||[])[0]||null,clob_no:(m.clob_token_ids||[])[1]||null,
     yes_price:p,no_price:m.no_price,fair_value:+fair.toFixed(4),edge:+edgeYes.toFixed(4),
-    side,entry_price:+entry.toFixed(4),conviction,volume:m.volume,volume_24hr:m.volume_24hr,
+    side,entry_price:+entry.toFixed(4),conviction,volume:m.volume,volume_24hr:m.volume_24hr,liquidity:m.liquidity,
+    trade_ready:tradeReady,
     days_to_resolution:m.days_to_resolution!=null?+m.days_to_resolution.toFixed(1):null,drivers,rationale};
 }
 const pct=(x)=>Math.round(x*100)+"%";
@@ -1088,7 +1094,8 @@ function compactSuggestionForSync(s){
     market_id:s.market_id,question:s.question,event:s.event,url:s.url,category:s.category,
     clob_yes:s.clob_yes,clob_no:s.clob_no,yes_price:s.yes_price,no_price:s.no_price,
     fair_value:s.fair_value,edge:s.edge,side:s.side,entry_price:s.entry_price,
-    conviction:s.conviction,volume:s.volume,volume_24hr:s.volume_24hr,
+    conviction:s.conviction,volume:s.volume,volume_24hr:s.volume_24hr,liquidity:s.liquidity,
+    trade_ready:s.trade_ready,
     days_to_resolution:s.days_to_resolution,drivers:s.drivers,rationale:s.rationale,
   };
 }
@@ -1531,10 +1538,10 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
   const d=decision||{minConv:cfg.minConv,maxNew:cfg.maxNew,maxFrac:cfg.maxFrac,reserve:0.05};
   p.lastDecision=decision||null;
   if((p.positions||[]).length>=MAX_STRATEGY_POSITIONS)return [];
-  const cands=rankedSugs.map(s=>peerAdjustedSuggestion(s,peerStats)).filter(s=>(s.side==="YES"||s.side==="NO")&&s.peer_conviction>=d.minConv
+  const cands=rankedSugs.map(s=>peerAdjustedSuggestion(s,peerStats)).filter(s=>s.trade_ready&&(s.side==="YES"||s.side==="NO")&&s.peer_conviction>=d.minConv
     &&s.conviction>=48&&s.entry_price>=0.08&&s.entry_price<=0.92
     &&Math.abs(s.edge)>=MIN_ENTRY_EDGE&&(s.days_to_resolution==null||s.days_to_resolution>=MIN_ENTRY_DAYS)
-    &&(s.volume_24hr>=500||s.conviction>=62)
+    &&s.volume>=MIN_VOLUME&&s.liquidity>=MIN_LIQUIDITY&&(s.volume_24hr>=500||s.conviction>=62)
     &&!hasPosition(p,s.market_id)&&!hasStoppedToday(p,s.market_id)&&(focus==="All"||!focus||s.category===focus))
     .sort((a,b)=>(b.peer_conviction-a.peer_conviction)||((b.peer_boost||0)-(a.peer_boost||0)));
   const avoid=avoidMarketIds||new Set();
@@ -2294,7 +2301,7 @@ function renderSuggestions(){
       <div class="q">${s.url?`<a class="market-title" href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.question)}</a>`:esc(s.question)}</div>
       <div class="event">${esc(s.event||"")}</div>
       <div class="sug-row">
-        <span class="pill ${s.side}">BUY ${s.side}</span>
+        <span class="pill ${s.side}">${s.trade_ready?"BUY":"WATCH"} ${s.side}</span>
         <span class="muted small">@ ${Math.round(s.entry_price*100)}¢</span>
         <div class="conv-bar"><span style="width:${s.conviction}%"></span></div>
         <span class="muted small">${Math.round(s.conviction)}</span>

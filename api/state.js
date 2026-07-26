@@ -51,7 +51,8 @@ function compactSuggestion(s) {
     market_id: s.market_id, question: s.question, event: s.event, url: s.url, category: s.category,
     clob_yes: s.clob_yes, clob_no: s.clob_no, yes_price: s.yes_price, no_price: s.no_price,
     fair_value: s.fair_value, edge: s.edge, side: s.side, entry_price: s.entry_price,
-    conviction: s.conviction, volume: s.volume, volume_24hr: s.volume_24hr,
+    conviction: s.conviction, volume: s.volume, volume_24hr: s.volume_24hr, liquidity: s.liquidity,
+    trade_ready: s.trade_ready,
     days_to_resolution: s.days_to_resolution, drivers: s.drivers, rationale: s.rationale,
   };
 }
