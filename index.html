@@ -739,7 +739,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build evidence-engine · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build hold-fix · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -766,7 +766,7 @@ const EXIT_STALE_DAYS = 10;
 const EXIT_RESOLUTION_DAYS = 2;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const SUGGESTION_ENGINE_VERSION = 13;
+const SUGGESTION_ENGINE_VERSION = 14;
 const FOCUS_KEY = "pma_focus_v1";
 const VIEW_KEY = "pma_view_v1";
 const PF_SORT_KEY = "pma_portfolio_sort_v1";
@@ -1004,26 +1004,26 @@ function liquiditySignal(m){const vol=Math.min(1,Math.log10(m.volume+1)/6.0);con
 function momentumSignal(m){const da=m.volume_1wk?m.volume_1wk/7:0;if(da<=0)return m.volume_24hr>0?0.3:0;return clamp((m.volume_24hr/da-0.5)/2.0,0,1);}
 function categoryPolicy(cat){
   return ({
-    Politics:{minEdge:0.052,minVol:30000,minLiq:2500,minEvidence:0.58,uncertainty:0.012,label:"politics needs outside confirmation"},
-    Sports:{minEdge:0.045,minVol:22000,minLiq:1800,minEvidence:0.54,uncertainty:0.008,label:"sports needs fresh event context"},
-    Crypto:{minEdge:0.040,minVol:26000,minLiq:2200,minEvidence:0.52,uncertainty:0.006,label:"crypto allows faster trend reaction"},
-    Economy:{minEdge:0.055,minVol:28000,minLiq:2400,minEvidence:0.58,uncertainty:0.014,label:"macro markets need stronger evidence"},
-    "Pop Culture":{minEdge:0.048,minVol:18000,minLiq:1600,minEvidence:0.53,uncertainty:0.010,label:"culture markets need attention confirmation"},
-    Other:{minEdge:0.060,minVol:32000,minLiq:2600,minEvidence:0.62,uncertainty:0.018,label:"uncategorized markets need the highest proof"},
-  })[cat||"Other"]||({minEdge:0.060,minVol:32000,minLiq:2600,minEvidence:0.62,uncertainty:0.018,label:"uncategorized markets need the highest proof"});
+    Politics:{minEdge:0.040,minVol:22000,minLiq:1800,minEvidence:0.48,uncertainty:0.006,label:"politics needs outside confirmation"},
+    Sports:{minEdge:0.038,minVol:18000,minLiq:1400,minEvidence:0.47,uncertainty:0.004,label:"sports needs fresh event context"},
+    Crypto:{minEdge:0.035,minVol:20000,minLiq:1600,minEvidence:0.46,uncertainty:0.003,label:"crypto allows faster trend reaction"},
+    Economy:{minEdge:0.044,minVol:22000,minLiq:1800,minEvidence:0.50,uncertainty:0.007,label:"macro markets need stronger evidence"},
+    "Pop Culture":{minEdge:0.040,minVol:16000,minLiq:1300,minEvidence:0.46,uncertainty:0.005,label:"culture markets need attention confirmation"},
+    Other:{minEdge:0.048,minVol:24000,minLiq:1900,minEvidence:0.50,uncertainty:0.009,label:"uncategorized markets need the highest proof"},
+  })[cat||"Other"]||({minEdge:0.048,minVol:24000,minLiq:1900,minEvidence:0.50,uncertainty:0.009,label:"uncategorized markets need the highest proof"});
 }
 function frictionPenalty(m){
   const liq=liquiditySignal(m);
   const price=Math.min(m.yes_price,m.no_price);
-  const thinPenalty=0.026*(1-liq);
-  const tailPenalty=price<0.12?0.012:0;
-  const lowLiqPenalty=m.liquidity<MIN_LIQUIDITY?0.014:0;
-  return clamp(thinPenalty+tailPenalty+lowLiqPenalty,0.004,0.055);
+  const thinPenalty=0.016*(1-liq);
+  const tailPenalty=price<0.12?0.007:0;
+  const lowLiqPenalty=m.liquidity<MIN_LIQUIDITY?0.008:0;
+  return clamp(thinPenalty+tailPenalty+lowLiqPenalty,0.002,0.034);
 }
 function chasePenalty(m,rawEdge){
   const mom=momentumSignal(m),absEdge=Math.abs(rawEdge);
   if(mom<0.72)return 0;
-  return clamp((mom-0.72)*0.035+(absEdge<0.07?0.010:0),0,0.026);
+  return clamp((mom-0.72)*0.018+(absEdge<0.07?0.005:0),0,0.016);
 }
 function textEvidenceSignal(m,external={}){
   const text=`${m.question||""} ${(m.tags||[]).join(" ")}`.toLowerCase();
@@ -1558,15 +1558,13 @@ function daysHeld(pos){
   return Math.max(0,(end-start)/86400000);
 }
 function exitReason(pos,fresh,analysis,cfg){
-  if(!analysis)return "Model can no longer score";
   if(fresh.days_to_resolution!=null&&fresh.days_to_resolution<=EXIT_RESOLUTION_DAYS)return `Close before resolution (${fresh.days_to_resolution.toFixed(1)}d left)`;
   if(daysHeld(pos)>=EXIT_STALE_DAYS)return `Stale exit after ${Math.floor(daysHeld(pos))} days`;
-  if(analysis.side==="HOLD")return "Edge faded";
-  if(analysis.side&&analysis.side!==pos.side)return `Model flipped to ${analysis.side}`;
-  if(analysis.net_edge!=null&&Math.abs(analysis.net_edge)<MIN_ENTRY_EDGE*0.45)return "Net edge faded after costs";
-  if(analysis.evidence_score!=null&&analysis.evidence_score<0.42)return "Evidence score faded";
+  if(!analysis)return null;
+  const net=Math.abs(analysis.net_edge!=null?analysis.net_edge:analysis.edge||0);
+  if(analysis.side&&analysis.side!==pos.side&&net>=MIN_ENTRY_EDGE)return `Model flipped to ${analysis.side}`;
   const minExit=Math.max(30,(cfg&&cfg.minConv?cfg.minConv:45)-8);
-  if(analysis.conviction<minExit)return `Conviction faded to ${Math.round(analysis.conviction)}`;
+  if((pos.unrealized_pnl||0)<0&&analysis.conviction<minExit&&net<MIN_ENTRY_EDGE*0.25)return `Conviction faded to ${Math.round(analysis.conviction)}`;
   return null;
 }
 function markToMarket(p,priceMap,cfg=null,{policyExits=false}={}){
@@ -2511,14 +2509,14 @@ function renderAgentTechnical(agentId){
   let inner=`<rect x="${padL}" y="${padT}" width="${W-padL-padR}" height="${priceH-padT}" rx="12" fill="rgba(255,255,255,.025)" stroke="rgba(255,255,255,.08)"/>`;
   for(let i=0;i<5;i++){const v=mn+(span*i/4),yy=y(v);inner+=`<line x1="${padL}" x2="${W-padR}" y1="${yy}" y2="${yy}" stroke="rgba(255,255,255,.06)"/><text x="${padL-10}" y="${yy+4}" text-anchor="end" fill="rgba(224,234,255,.62)" font-size="11">${fmtUSD(v)}</text>`;}
   const w=Math.max(3,(W-padL-padR)/snaps.length*.48);
-  closes.forEach((c,i)=>{const o=i?closes[i-1]:c,hi=Math.max(o,c)*(1+0.003),lo=Math.min(o,c)*(1-0.003),up=c>=o,col=up?getComputedStyle(document.documentElement).getPropertyValue("--green").trim():getComputedStyle(document.documentElement).getPropertyValue("--red").trim();const xx=x(i);
-    inner+=`<line x1="${xx}" x2="${xx}" y1="${y(hi)}" y2="${y(lo)}" stroke="${col}" stroke-width="1.2"/><rect x="${xx-w/2}" y="${y(Math.max(o,c))}" width="${w}" height="${Math.max(2,Math.abs(y(c)-y(o)))}" fill="${col}" opacity=".85"/>`;});
+  closes.forEach((c,i)=>{const o=i?closes[i-1]:c,up=c>=o,col=up?"#7c8cff":"#fb7185";const xx=x(i);
+    inner+=`<rect x="${xx-w/2}" y="${y(Math.max(o,c))}" width="${w}" height="${Math.max(2,Math.abs(y(c)-y(o)))}" rx="1.5" fill="${col}" opacity=".68"/>`;});
   const path=(arr)=>arr.map((v,i)=>`${i?"L":"M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
   inner+=`<path d="${path(ma5)}" fill="none" stroke="#fbbf24" stroke-width="2.4"/><path d="${path(ma10)}" fill="none" stroke="#38d2e6" stroke-width="2.4"/>`;
   inner+=`<line x1="${padL}" x2="${W-padR}" y1="${my(0)}" y2="${my(0)}" stroke="rgba(255,255,255,.18)"/>`;
-  hist.forEach((v,i)=>{const xx=x(i),yy=my(Math.max(0,v)),hh=Math.abs(my(v)-my(0));inner+=`<rect x="${xx-w/2}" y="${v>=0?yy:my(0)}" width="${w}" height="${Math.max(1,hh)}" fill="${v>=0?"#34d399":"#fb7185"}" opacity=".7"/>`;});
+  hist.forEach((v,i)=>{const xx=x(i),yy=my(Math.max(0,v)),hh=Math.abs(my(v)-my(0));inner+=`<rect x="${xx-w/2}" y="${v>=0?yy:my(0)}" width="${w}" height="${Math.max(1,hh)}" fill="${v>=0?"#94a3b8":"#fb7185"}" opacity=".55"/>`;});
   for(const tick of chartTicks(times,4)){inner+=`<text x="${x(tick.i)}" y="${H-14}" text-anchor="middle" fill="rgba(224,234,255,.7)" font-size="11">${chartDateLabel(tick.t,true)}</text>`;}
-  inner+=`<text x="${padL}" y="18" fill="rgba(224,234,255,.7)" font-size="12">${cfg.name} equity candles · MA5 yellow · MA10 cyan · MACD bars</text>`;
+  inner+=`<text x="${padL}" y="18" fill="rgba(224,234,255,.7)" font-size="12">${cfg.name} equity candles · MA5 yellow · MA10 cyan · neutral MACD bars</text>`;
   svg.innerHTML=inner;
   const last=closes.length-1,trend=ma5[last]>=ma10[last]?"bullish":"bearish",mom=hist[last]>=0?"positive":"negative";
   readout.innerHTML=`<div class="invest-num"><div class="k">Trend</div><div class="v">${trend}</div></div>
