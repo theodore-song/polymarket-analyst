@@ -405,6 +405,8 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
         <button class="btn ghost" id="testEmailAlertsBtn">Send test</button>
       </div>
       <div class="chiprow" id="emailAlertEvents" style="margin-top:10px"></div>
+      <div class="small muted" style="margin-top:12px">Agents to include</div>
+      <div class="chiprow" id="emailAlertAgents" style="margin-top:8px"></div>
       <div class="small muted" id="emailAlertStatus" style="margin-top:8px">Send a digest whenever agents open, close, stop out, or take gains during a cycle.</div>
     </div>
   </section>
@@ -737,7 +739,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build email-alerts · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build agent-email-filters · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -1156,10 +1158,24 @@ const EMAIL_ALERT_TYPES=[
   {id:"GAIN",label:"Gain stops"},
 ];
 function defaultEmailAlerts(){
-  return {enabled:false,email:"",events:{OPEN:true,CLOSE:true,EXIT:true,STOP:true,GAIN:true},last_sent_at:null,last_error:null};
+  return {
+    enabled:false,
+    email:"",
+    events:{OPEN:true,CLOSE:true,EXIT:true,STOP:true,GAIN:true},
+    agents:Object.fromEntries(AGENTS.map(a=>[a.id,true])),
+    last_sent_at:null,
+    last_error:null,
+  };
 }
 function loadEmailAlerts(){
-  try{return Object.assign(defaultEmailAlerts(),JSON.parse(localStorage.getItem(EMAIL_ALERT_KEY)||"{}"));}
+  try{
+    const base=defaultEmailAlerts();
+    const saved=JSON.parse(localStorage.getItem(EMAIL_ALERT_KEY)||"{}");
+    const merged=Object.assign(base,saved||{});
+    merged.events=Object.assign(base.events,(saved&&saved.events)||{});
+    merged.agents=Object.assign(base.agents,(saved&&saved.agents)||{});
+    return merged;
+  }
   catch(e){return defaultEmailAlerts();}
 }
 function saveEmailAlerts(cfg){
@@ -1167,6 +1183,7 @@ function saveEmailAlerts(cfg){
   const merged=Object.assign(base,cfg||{});
   merged.email=String(merged.email||"").trim();
   merged.events=Object.assign(base.events,(cfg&&cfg.events)||{});
+  merged.agents=Object.assign(base.agents,(cfg&&cfg.agents)||{});
   merged.enabled=Boolean(merged.enabled&&validEmail(merged.email));
   localStorage.setItem(EMAIL_ALERT_KEY,JSON.stringify(merged));
   return merged;
@@ -1181,7 +1198,9 @@ function collectNewAgentEvents(st,offsets){
   const cfg=loadEmailAlerts();
   if(!cfg.enabled||!validEmail(cfg.email))return [];
   const enabled=cfg.events||{};
+  const selected=cfg.agents||{};
   return AGENTS.flatMap(a=>{
+    if(!selected[a.id])return [];
     const p=st.agents[a.id]||defaultPortfolio();
     const start=Math.max(0,offsets[a.id]||0);
     return (p.history||[]).slice(start).filter(h=>enabled[h.action]).map(h=>({
@@ -1941,51 +1960,62 @@ function renderTopPicks(){
   </div><div class="right"><div style="font-family:'Space Grotesk';font-weight:700">${Math.round(s.conviction)}</div><div class="sub">conviction</div></div></div>`).join("");
 }
 function renderEmailAlerts(){
-  const input=$("emailAlertInput"),eventsRoot=$("emailAlertEvents"),meta=$("emailAlertMeta"),status=$("emailAlertStatus");
-  if(!input||!eventsRoot)return;
+  const input=$("emailAlertInput"),eventsRoot=$("emailAlertEvents"),agentsRoot=$("emailAlertAgents"),meta=$("emailAlertMeta"),status=$("emailAlertStatus");
+  if(!input||!eventsRoot||!agentsRoot)return;
   const cfg=loadEmailAlerts();
   input.value=cfg.email||"";
-  meta.textContent=cfg.enabled?`on for ${cfg.email}`:"off";
+  const selectedCount=AGENTS.filter(a=>cfg.agents&&cfg.agents[a.id]).length;
+  meta.textContent=cfg.enabled?`on for ${cfg.email} · ${selectedCount}/${AGENTS.length} agents`:"off";
   eventsRoot.innerHTML=EMAIL_ALERT_TYPES.map(t=>`
     <label class="chip ${cfg.events&&cfg.events[t.id]?"active":""}" style="cursor:pointer">
       <input type="checkbox" data-email-event="${t.id}" ${cfg.events&&cfg.events[t.id]?"checked":""} style="display:none"> ${t.label}
     </label>`).join("");
+  agentsRoot.innerHTML=AGENTS.map(a=>`
+    <label class="chip ${cfg.agents&&cfg.agents[a.id]?"active":""}" style="cursor:pointer;border-color:${cfg.agents&&cfg.agents[a.id]?a.color:""}">
+      <input type="checkbox" data-email-agent="${esc(a.id)}" ${cfg.agents&&cfg.agents[a.id]?"checked":""} style="display:none"> ${a.emoji} ${esc(a.name)}
+    </label>`).join("");
   status.textContent=cfg.last_error
     ? `Last error: ${cfg.last_error}`
-    : (cfg.last_sent_at?`Last sent ${new Date(cfg.last_sent_at).toLocaleString()}.`:"Send a digest whenever agents open, close, stop out, or take gains during a cycle.");
-  $("saveEmailAlertsBtn").onclick=()=>{
+    : (cfg.last_sent_at?`Last sent ${new Date(cfg.last_sent_at).toLocaleString()}.`:"Send a digest whenever selected agents open, close, stop out, or take gains during a cycle.");
+  const readAlertForm=()=>{
     const email=input.value.trim();
     const events={};
+    const agents={};
     document.querySelectorAll("[data-email-event]").forEach(el=>{events[el.dataset.emailEvent]=el.checked;});
-    const saved=saveEmailAlerts({enabled:validEmail(email),email,events,last_error:validEmail(email)?null:"Enter a valid email address."});
-    toast(saved.enabled?"Trade email alerts saved.":"Enter a valid email to turn alerts on.");
+    document.querySelectorAll("[data-email-agent]").forEach(el=>{agents[el.dataset.emailAgent]=el.checked;});
+    return {email,events,agents};
+  };
+  const hasSelectedAgent=(agents)=>Object.values(agents||{}).some(Boolean);
+  $("saveEmailAlertsBtn").onclick=()=>{
+    const form=readAlertForm();
+    const anyAgent=hasSelectedAgent(form.agents);
+    const saved=saveEmailAlerts({enabled:validEmail(form.email)&&anyAgent,email:form.email,events:form.events,agents:form.agents,last_error:validEmail(form.email)?(anyAgent?null:"Select at least one agent."):"Enter a valid email address."});
+    toast(saved.enabled?"Trade email alerts saved.":(anyAgent?"Enter a valid email to turn alerts on.":"Select at least one agent."));
     renderEmailAlerts();pushCloudState(true);
   };
   $("testEmailAlertsBtn").onclick=async()=>{
-    const email=input.value.trim();
-    const events={};
-    document.querySelectorAll("[data-email-event]").forEach(el=>{events[el.dataset.emailEvent]=el.checked;});
-    const saved=saveEmailAlerts({enabled:validEmail(email),email,events,last_error:null});
-    if(!saved.enabled){toast("Enter a valid email first.");renderEmailAlerts();return;}
+    const form=readAlertForm();
+    const anyAgent=hasSelectedAgent(form.agents);
+    const saved=saveEmailAlerts({enabled:validEmail(form.email)&&anyAgent,email:form.email,events:form.events,agents:form.agents,last_error:anyAgent?null:"Select at least one agent."});
+    if(!saved.enabled){toast(anyAgent?"Enter a valid email first.":"Select at least one agent.");renderEmailAlerts();return;}
+    const testAgent=AGENTS.find(a=>saved.agents&&saved.agents[a.id])||AGENTS[0];
     await notifyTradeDigest([{
-      agent_id:"test",
-      agent_name:"Test Agent",
-      agent_emoji:"✉️",
+      agent_id:testAgent.id,
+      agent_name:testAgent.name,
+      agent_emoji:testAgent.emoji,
       action:"OPEN",
       date:todayStr(),
       question:"Test alert from Poly Arena",
       side:"YES",
-      detail:"This confirms trade email alerts are connected.",
+      detail:`This confirms trade email alerts are connected for ${testAgent.name}.`,
       equity:STARTING_BALANCE,
       return_pct:0,
     }],{test:true});
     pushCloudState(true);
   };
-  document.querySelectorAll("[data-email-event]").forEach(el=>el.onchange=()=>{
-    const email=input.value.trim();
-    const events={};
-    document.querySelectorAll("[data-email-event]").forEach(box=>{events[box.dataset.emailEvent]=box.checked;});
-    saveEmailAlerts({enabled:validEmail(email),email,events,last_error:null});
+  document.querySelectorAll("[data-email-event],[data-email-agent]").forEach(el=>el.onchange=()=>{
+    const form=readAlertForm();
+    saveEmailAlerts({enabled:validEmail(form.email)&&hasSelectedAgent(form.agents),email:form.email,events:form.events,agents:form.agents,last_error:null});
     renderEmailAlerts();pushCloudState(true);
   });
 }
