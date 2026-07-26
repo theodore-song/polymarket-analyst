@@ -739,7 +739,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build email-provider-smtp · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build stricter-edge-engine · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -766,7 +766,7 @@ const EXIT_STALE_DAYS = 10;
 const EXIT_RESOLUTION_DAYS = 2;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const SUGGESTION_ENGINE_VERSION = 6;
+const SUGGESTION_ENGINE_VERSION = 7;
 const FOCUS_KEY = "pma_focus_v1";
 const VIEW_KEY = "pma_view_v1";
 const PF_SORT_KEY = "pma_portfolio_sort_v1";
@@ -966,13 +966,13 @@ async function fetchMarketPrice(id){
 }
 
 /* ---------- Analysis engine ---------- */
-const W={LIQ:0.25,MOM:0.25,MIS:0.30,TIME:0.20};
-const MIN_VOLUME=12000;
-const MIN_LIQUIDITY=900;
-const MIN_ENTRY_EDGE=0.022;
-const MIN_ENTRY_DAYS=2.5;
-const EDGE_SCALE=0.11;
-const MAX_STRATEGY_POSITIONS=22;
+const W={LIQ:0.28,MOM:0.22,MIS:0.34,TIME:0.16};
+const MIN_VOLUME=18000;
+const MIN_LIQUIDITY=1400;
+const MIN_ENTRY_EDGE=0.032;
+const MIN_ENTRY_DAYS=3.0;
+const EDGE_SCALE=0.13;
+const MAX_STRATEGY_POSITIONS=16;
 const SUGGESTION_TOTAL=180;
 const SUGGESTION_PER_CATEGORY=40;
 const VISIBLE_SUGGESTIONS=120;
@@ -980,9 +980,11 @@ const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function liquiditySignal(m){const vol=Math.min(1,Math.log10(m.volume+1)/6.0);const liq=Math.min(1,Math.log10(m.liquidity+1)/5.3);return 0.6*vol+0.4*liq;}
 function momentumSignal(m){const da=m.volume_1wk?m.volume_1wk/7:0;if(da<=0)return m.volume_24hr>0?0.3:0;return clamp((m.volume_24hr/da-0.5)/2.0,0,1);}
 function fairValue(m){const p=m.yes_price,mom=momentumSignal(m),liq=liquiditySignal(m);
-  if(p>0.92)return Math.min(0.995,p+0.04*liq*(1-p)*4);
-  if(p<0.08)return Math.max(0.005,p-0.20*p);
-  return clamp(p+(mom-0.5)*0.06,0.02,0.98);}
+  if(p>0.92)return Math.min(0.995,p+0.025*liq*(1-p)*4);
+  if(p<0.08)return Math.max(0.005,p-0.12*p);
+  const directional=mom>0.62?(mom-0.62)*0.08:(mom<0.26?(mom-0.26)*0.035:0);
+  const liquidBump=(liq-0.55)*0.012;
+  return clamp(p+directional+liquidBump,0.03,0.97);}
 function timingSignal(d){if(d==null)return 0.4;if(d<1)return 0.1;if(d<=3)return 0.5;if(d<=90)return 1.0-(d-3)/87.0*0.4;return 0.35;}
 function analyzeMarket(m){
   if(m.volume<MIN_VOLUME||m.liquidity<MIN_LIQUIDITY)return null;
@@ -1276,8 +1278,8 @@ function adaptiveDecision(cfg,p,rank,total,leaderEq){
     mode="Defend";minConv+=3;maxNew=Math.max(2,maxNew-1);maxFrac*=0.88;reserve=0.10;
     reason="leading the race, so it protects the lead without going completely inactive.";
   }else if(trail>6){
-    mode="Selective Chase";minConv-=2;maxNew+=1;maxFrac*=1.10;reserve=0.055;
-    reason="far behind the leader, so it widens its search and takes slightly larger catch-up shots.";
+    mode="Selective Catch-Up";minConv+=2;maxNew=Math.max(2,maxNew);maxFrac*=0.94;reserve=0.085;
+    reason="behind the leader, so it tries to recover through cleaner edges instead of forcing lower-quality catch-up trades.";
   }else if(trend>1.5){
     mode="Measured Press";minConv-=1;maxNew+=1;maxFrac*=1.08;reserve=0.055;
     reason="recent momentum is positive, so it presses the advantage while risk caps stay active.";
@@ -1291,8 +1293,8 @@ function adaptiveDecision(cfg,p,rank,total,leaderEq){
     reason="down more than 18%, so it stops chasing, keeps more cash, and only allows one high-conviction recovery trade.";
   }
   if(emo.mood==="impatient"||emo.mood==="frustrated"){
-    minConv-=2;maxNew+=1;maxFrac*=1.08;reserve=Math.max(0.04,reserve-0.015);
-    reason+=` Emotion layer: ${emo.label.toLowerCase()} makes it seek extra upside, but only inside the caps.`;
+    minConv+=2;maxNew=Math.max(1,maxNew-1);maxFrac*=0.92;reserve=Math.max(0.09,reserve);
+    reason+=` Emotion layer: ${emo.label.toLowerCase()} raises its standards so it does not turn frustration into bad entries.`;
   }else if(emo.mood==="confident"){
     maxNew+=1;maxFrac*=1.05;
     reason+=` Emotion layer: confidence lets it press winners a little harder.`;
@@ -1511,7 +1513,9 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
   p.lastDecision=decision||null;
   if((p.positions||[]).length>=MAX_STRATEGY_POSITIONS)return [];
   const cands=rankedSugs.map(s=>peerAdjustedSuggestion(s,peerStats)).filter(s=>(s.side==="YES"||s.side==="NO")&&s.peer_conviction>=d.minConv
+    &&s.conviction>=48&&s.entry_price>=0.08&&s.entry_price<=0.92
     &&Math.abs(s.edge)>=MIN_ENTRY_EDGE&&(s.days_to_resolution==null||s.days_to_resolution>=MIN_ENTRY_DAYS)
+    &&(s.volume_24hr>=500||s.conviction>=62)
     &&!hasPosition(p,s.market_id)&&!hasStoppedToday(p,s.market_id)&&(focus==="All"||!focus||s.category===focus))
     .sort((a,b)=>(b.peer_conviction-a.peer_conviction)||((b.peer_boost||0)-(a.peer_boost||0)));
   const avoid=avoidMarketIds||new Set();
@@ -1664,8 +1668,8 @@ async function runWhaleAgent(p,wallet,decision){
     }
   }
   p.positions=keep;
-  const maxNew=Math.min(d.maxNew||6,6),maxFrac=Math.min(d.maxFrac||0.12,0.16),reserve=Math.max(d.reserve||0.12,0.10);
-  const targets=[...tps].filter(t=>t.curPrice>=0.06&&t.curPrice<=0.94).sort((a,b)=>b.value-a.value).slice(0,maxNew); // copy their biggest bets, adapted by stance
+  const maxNew=Math.min(d.maxNew||6,4),maxFrac=Math.min(d.maxFrac||0.10,0.12),reserve=Math.max(d.reserve||0.14,0.12);
+  const targets=[...tps].filter(t=>t.curPrice>=0.12&&t.curPrice<=0.88&&t.value>=20).sort((a,b)=>b.value-a.value).slice(0,maxNew); // copy their strongest liquid bets, adapted by stance
   const book=targets.reduce((s,t)=>s+t.value,0)||1;
   for(const t of targets){
     if(hasAsset(p,t.asset)||hasStoppedToday(p,t.asset))continue;
