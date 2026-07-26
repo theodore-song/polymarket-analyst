@@ -739,7 +739,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build expanded-scout-suggestions · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build filled-900-suggestions · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -766,7 +766,7 @@ const EXIT_STALE_DAYS = 10;
 const EXIT_RESOLUTION_DAYS = 2;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const SUGGESTION_ENGINE_VERSION = 10;
+const SUGGESTION_ENGINE_VERSION = 11;
 const FOCUS_KEY = "pma_focus_v1";
 const VIEW_KEY = "pma_view_v1";
 const PF_SORT_KEY = "pma_portfolio_sort_v1";
@@ -997,7 +997,7 @@ const MAX_STRATEGY_POSITIONS=16;
 const MAX_ACTIVE_MARKET_PAGES=1000;
 const SUGGESTION_TOTAL=900;
 const SUGGESTION_PER_CATEGORY=180;
-const VISIBLE_SUGGESTIONS=500;
+const VISIBLE_SUGGESTIONS=900;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function liquiditySignal(m){const vol=Math.min(1,Math.log10(m.volume+1)/6.0);const liq=Math.min(1,Math.log10(m.liquidity+1)/5.3);return 0.6*vol+0.4*liq;}
 function momentumSignal(m){const da=m.volume_1wk?m.volume_1wk/7:0;if(da<=0)return m.volume_24hr>0?0.3:0;return clamp((m.volume_24hr/da-0.5)/2.0,0,1);}
@@ -1039,18 +1039,41 @@ function suggestionBand(s){
   if(s.entry_price>0.65)return "favorite";
   return "balanced";
 }
+function marketWatchSuggestion(m){
+  if(!m||!m.question)return null;
+  const p=m.yes_price,fair=fairValue(m),edgeYes=fair-p;
+  const liq=liquiditySignal(m),mom=momentumSignal(m),timing=timingSignal(m.days_to_resolution);
+  const side=edgeYes>=0?"YES":"NO";
+  const entry=side==="YES"?p:m.no_price;
+  const conviction=+((0.38*liq+0.32*mom+0.20*timing+0.10*Math.min(1,Math.abs(edgeYes)/EDGE_SCALE))*100).toFixed(1);
+  const drivers=["broad market scan"];
+  if(m.volume>MIN_VOLUME)drivers.push("meaningful total volume");
+  if(m.volume_24hr>500)drivers.push("fresh 24h activity");
+  if(m.liquidity>MIN_LIQUIDITY)drivers.push("usable liquidity");
+  return {market_id:m.id,question:m.question,event:m.event,url:m.url,category:m.category,tags:m.tags,
+    clob_yes:(m.clob_token_ids||[])[0]||null,clob_no:(m.clob_token_ids||[])[1]||null,
+    yes_price:p,no_price:m.no_price,fair_value:+fair.toFixed(4),edge:+edgeYes.toFixed(4),
+    side,entry_price:+entry.toFixed(4),conviction,volume:m.volume,volume_24hr:m.volume_24hr,liquidity:m.liquidity,
+    trade_ready:false,watch_only:true,
+    days_to_resolution:m.days_to_resolution!=null?+m.days_to_resolution.toFixed(1):null,drivers,
+    rationale:`Market watchlist: included for coverage from the full Polymarket scan. The model does not see a trade-ready edge yet, so agents will not buy it unless conditions improve.`};
+}
 function generateSuggestions(markets,total=SUGGESTION_TOTAL,perCategory=SUGGESTION_PER_CATEGORY){
   const actionable=markets.map(analyzeMarket).filter(Boolean).filter(a=>a.side!=="HOLD").sort((a,b)=>b.conviction-a.conviction);
   const byCat={},byBucket={},seen=new Set(),out=[];
-  const add=(a,bucketCap=3)=>{
+  const add=(a,bucketCap=3,ignoreCategoryCap=false)=>{
     if(out.length>=total||seen.has(a.market_id))return false;
     const c=a.category||"Other",bucket=`${c}:${a.side}:${suggestionBand(a)}`;
-    if((byCat[c]||0)>=perCategory||(byBucket[bucket]||0)>=bucketCap)return false;
+    if((!ignoreCategoryCap&&(byCat[c]||0)>=perCategory)||(byBucket[bucket]||0)>=bucketCap)return false;
     byCat[c]=(byCat[c]||0)+1;byBucket[bucket]=(byBucket[bucket]||0)+1;seen.add(a.market_id);out.push(a);
     return true;
   };
   for(const a of actionable)add(a,3);      // first pass: category, side, and price-band diversity
   for(const a of actionable)add(a,999);    // second pass: fill remaining slots with the best leftovers
+  const watchlist=markets.map(marketWatchSuggestion).filter(Boolean)
+    .filter(a=>!seen.has(a.market_id))
+    .sort((a,b)=>(b.volume_24hr-a.volume_24hr)||(b.volume-a.volume)||(b.conviction-a.conviction));
+  for(const a of watchlist)add(a,999,true); // final pass: show broad market coverage even when no trade edge is present
   return out.sort((a,b)=>b.conviction-a.conviction);
 }
 
@@ -1095,7 +1118,7 @@ function compactSuggestionForSync(s){
     clob_yes:s.clob_yes,clob_no:s.clob_no,yes_price:s.yes_price,no_price:s.no_price,
     fair_value:s.fair_value,edge:s.edge,side:s.side,entry_price:s.entry_price,
     conviction:s.conviction,volume:s.volume,volume_24hr:s.volume_24hr,liquidity:s.liquidity,
-    trade_ready:s.trade_ready,
+    trade_ready:s.trade_ready,watch_only:s.watch_only,
     days_to_resolution:s.days_to_resolution,drivers:s.drivers,rationale:s.rationale,
   };
 }
@@ -2288,9 +2311,10 @@ function renderSuggestions(){
   const focus=getFocus();
   const pool=(focus==="All"?all:all.filter(s=>s.category===focus));
   const filtered=pool.slice(0,VISIBLE_SUGGESTIONS);
+  const buyCount=all.filter(s=>s.trade_ready).length,watchCount=all.length-buyCount;
   $("focusNote").textContent=focus==="All"
-    ? `Scanned ${Number(data.market_count||0).toLocaleString()} active markets and kept ${all.length} scored ideas. Showing ${filtered.length}; agents trade from the full wider pool.`
-    : `Scanned ${Number(data.market_count||0).toLocaleString()} active markets. Showing ${filtered.length} of ${pool.length} ${focus} ideas; agents only open new ${focus} positions while this is selected.`;
+    ? `Scanned ${Number(data.market_count||0).toLocaleString()} active markets and kept ${all.length} ideas (${buyCount} BUY, ${watchCount} WATCH). Showing ${filtered.length}; agents only trade BUY ideas.`
+    : `Scanned ${Number(data.market_count||0).toLocaleString()} active markets. Showing ${filtered.length} of ${pool.length} ${focus} ideas; agents only open BUY ${focus} positions while this is selected.`;
   if(!filtered.length){root.innerHTML=`<div class="empty" style="grid-column:1/-1">No ${esc(focus)} suggestions in this live batch.</div>`;return;}
   root.innerHTML=filtered.map(s=>{
     const col=catColor(s.category);
