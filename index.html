@@ -739,7 +739,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build filled-900-suggestions · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build overlap-guard · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -766,7 +766,7 @@ const EXIT_STALE_DAYS = 10;
 const EXIT_RESOLUTION_DAYS = 2;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const SUGGESTION_ENGINE_VERSION = 11;
+const SUGGESTION_ENGINE_VERSION = 12;
 const FOCUS_KEY = "pma_focus_v1";
 const VIEW_KEY = "pma_view_v1";
 const PF_SORT_KEY = "pma_portfolio_sort_v1";
@@ -1551,26 +1551,63 @@ function peerMarketStats(st,selfId){
 function peerAdjustedSuggestion(s,peer){
   const m=(peer&&peer[`${s.market_id}:${s.side}`])||{};
   let boost=0,peerNote="";
-  if(m.same&&m.samePnl>50){boost+=Math.min(8,2+m.same*1.5);peerNote=`peer confirmation from ${m.names.slice(0,3).join(", ")}`;}
-  if(m.same&&m.samePnl< -50){boost-=Math.min(10,3+m.same*2);peerNote=`peer warning: same-side holders are losing`;}
+  if(m.same){
+    boost-=Math.min(14,4+m.same*3);
+    peerNote=`diversity guard: ${m.names.slice(0,3).join(", ")} already hold this side`;
+  }
+  if(m.same&&m.samePnl< -50){boost-=Math.min(8,2+m.same*1.5);peerNote=`peer warning: same-side holders are losing`;}
   if(m.opposite&&m.oppositePnl>50){boost-=Math.min(12,4+m.opposite*2);peerNote=`peer warning: opposite-side holders are winning`;}
-  if(m.bestRet>8&&m.same){boost+=3;peerNote=peerNote||`leaderboard winner also owns this side`;}
   return Object.assign({},s,{peer_boost:boost,peer_note:peerNote,peer_conviction:+(Number(s.conviction||0)+boost).toFixed(1)});
+}
+function addPortfolioMarketsToSet(set,p){
+  (p&&p.positions||[]).forEach(pos=>{const id=pos.market_id||pos.asset;if(id)set.add(String(id));});
+  return set;
+}
+function occupiedStrategyMarkets(st,selfId=null){
+  const ids=new Set();
+  AGENTS.filter(a=>a.kind==="strategy").forEach(a=>{
+    if(a.id===selfId)return;
+    addPortfolioMarketsToSet(ids,st.agents&&st.agents[a.id]);
+  });
+  return ids;
+}
+function overlapKeeperScore(pos,cfg){
+  const conviction=Number(pos.conviction||cfg.minConv||50);
+  const pnlBoost=Math.max(-8,Math.min(8,Number(pos.unrealized_pnl||0)/75));
+  const valueBoost=Math.min(5,Number(pos.value||pos.cost||0)/1000);
+  return conviction+pnlBoost+valueBoost;
+}
+function reduceStrategyOverlap(st){
+  const groups={};
+  AGENTS.filter(a=>a.kind==="strategy").forEach(cfg=>{
+    const p=st.agents&&st.agents[cfg.id]; if(!p)return;
+    (p.positions||[]).forEach(pos=>{
+      const id=pos.market_id||pos.asset; if(!id)return;
+      if(!groups[id])groups[id]=[];
+      groups[id].push({cfg,p,pos,score:overlapKeeperScore(pos,cfg)});
+    });
+  });
+  Object.values(groups).filter(g=>g.length>1).forEach(group=>{
+    group.sort((a,b)=>(b.score-a.score)||((b.pos.value||0)-(a.pos.value||0)));
+    group.slice(1).forEach(({p,pos})=>closePosition(p,pos,"Overlap guard rotated this agent into a different market","EXIT"));
+  });
+  AGENTS.filter(a=>a.kind==="strategy").forEach(cfg=>{
+    const p=st.agents&&st.agents[cfg.id]; if(p)p.positions=(p.positions||[]).filter(pos=>!pos.closed_at);
+  });
 }
 function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=null){
   const d=decision||{minConv:cfg.minConv,maxNew:cfg.maxNew,maxFrac:cfg.maxFrac,reserve:0.05};
   p.lastDecision=decision||null;
   if((p.positions||[]).length>=MAX_STRATEGY_POSITIONS)return [];
+  const avoid=avoidMarketIds||new Set();
   const cands=rankedSugs.map(s=>peerAdjustedSuggestion(s,peerStats)).filter(s=>s.trade_ready&&(s.side==="YES"||s.side==="NO")&&s.peer_conviction>=d.minConv
     &&s.conviction>=48&&s.entry_price>=0.08&&s.entry_price<=0.92
     &&Math.abs(s.edge)>=MIN_ENTRY_EDGE&&(s.days_to_resolution==null||s.days_to_resolution>=MIN_ENTRY_DAYS)
     &&s.volume>=MIN_VOLUME&&s.liquidity>=MIN_LIQUIDITY&&(s.volume_24hr>=500||s.conviction>=62)
-    &&!hasPosition(p,s.market_id)&&!hasStoppedToday(p,s.market_id)&&(focus==="All"||!focus||s.category===focus))
+    &&!avoid.has(String(s.market_id))&&!hasPosition(p,s.market_id)&&!hasStoppedToday(p,s.market_id)&&(focus==="All"||!focus||s.category===focus))
     .sort((a,b)=>(b.peer_conviction-a.peer_conviction)||((b.peer_boost||0)-(a.peer_boost||0)));
-  const avoid=avoidMarketIds||new Set();
-  const ordered=cands.filter(s=>!avoid.has(s.market_id)).concat(cands.filter(s=>avoid.has(s.market_id)));
   let opened=0,openedIds=[];
-  for(const s of ordered){
+  for(const s of cands){
     if(opened>=d.maxNew)break;
     if((p.positions||[]).length>=MAX_STRATEGY_POSITIONS)break;
     const eq=equity(p),investable=p.cash-eq*d.reserve;
@@ -1594,7 +1631,7 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
       gain_stops:{},stop_losses:{}});
     p.history.push({date:logDay(),action:"OPEN",question:s.question,side:s.side,
       detail:`${decision?decision.mode+" mode — ":""}Bought ${shares} ${s.side} '${s.question.slice(0,40)}' @ ${pct(entry)} for ${fmtUSD(cost)}${s.peer_note?` (${s.peer_note})`:""}`});
-    opened++;openedIds.push(s.market_id);
+    opened++;openedIds.push(String(s.market_id));
   }
   return openedIds;
 }
@@ -1743,7 +1780,8 @@ async function runWhaleAgent(p,wallet,decision){
 function runCopycat(p,leader,priceMap,candidate=null){
   const reason=candidate?copycatReason(candidate):"watching the strategy board and rotating toward the account with the best momentum/MACD setup.";
   const safeToCopy=candidate&&candidate.m.last>0&&candidate.m.recent>-3&&candidate.openPnl>-300;
-  p.lastDecision={mode:safeToCopy?"Selective Momentum Copy":"Copycat Guard",reason:safeToCopy?reason:`No strategy is healthy enough to copy aggressively, so I am protecting cash instead. ${reason}`,minConv:0,maxNew:safeToCopy?leader.positions.length:0,maxFrac:0.1,reserve:0.12,
+  const copyLimit=4;
+  p.lastDecision={mode:safeToCopy?"Selective Momentum Copy":"Copycat Guard",reason:safeToCopy?reason:`No strategy is healthy enough to copy aggressively, so I am protecting cash instead. ${reason}`,minConv:0,maxNew:safeToCopy?Math.min(copyLimit,leader.positions.length):0,maxFrac:0.07,reserve:0.12,
     copyScore:candidate?+candidate.score.toFixed(2):null,
     macd:candidate?+candidate.m.macd.toFixed(2):null,
     momentum:candidate?+candidate.m.recent.toFixed(2):null};
@@ -1764,13 +1802,15 @@ function runCopycat(p,leader,priceMap,candidate=null){
     }else keep.push(pos);
   }
   p.positions=keep;
-  const leaderPicks=leader.positions.filter(x=>(x.unrealized_pnl||0)>=-50&&(x.current_price||0)>0.05&&(x.current_price||0)<0.95);
+  const leaderPicks=leader.positions.filter(x=>(x.unrealized_pnl||0)>=-50&&(x.current_price||0)>0.05&&(x.current_price||0)<0.95)
+    .sort((a,b)=>((b.unrealized_pnl||0)/(b.cost||1))-((a.unrealized_pnl||0)/(a.cost||1))||((b.conviction||0)-(a.conviction||0))||((b.value||b.cost)-(a.value||a.cost)))
+    .slice(0,copyLimit);
   const book=leaderPicks.reduce((s,x)=>s+(x.value||x.cost),0)||1;
   for(const lp of [...leaderPicks].sort((a,b)=>(b.value||b.cost)-(a.value||a.cost))){
     if(hasPosition(p,lp.market_id)||hasStoppedToday(p,lp.market_id))continue;
-    const eq=equity(p),investable=p.cash-eq*0.05; if(investable<=50)break;
+    const eq=equity(p),investable=p.cash-eq*0.12; if(investable<=50)break;
     const weight=(lp.value||lp.cost)/book;
-    const stake=Math.min(eq*Math.min(0.1,weight),investable);
+    const stake=Math.min(eq*Math.min(0.07,weight),investable);
     if(stake<50)continue;
     const entry=lp.current_price; if(entry<=0||entry>=1)continue;
     const shares=+(stake/entry).toFixed(2),cost=+(shares*entry).toFixed(2);
@@ -1889,11 +1929,17 @@ async function backtestWeek(st){
     }
     const sugs=generateSuggestions(snaps);
     const priceMap={}; snaps.forEach(s=>priceMap[s.id]={yes_price:s.yes_price,no_price:s.no_price});
-    const claimedMarkets=new Set();
     for(const cfg of AGENTS.filter(a=>a.kind==="strategy")){
       const p=st.agents[cfg.id];
       markToMarket(p,priceMap,cfg,{policyExits:true});
-      openPositions(p,cfg,cfg.rank(sugs),focus,null,claimedMarkets,peerMarketStats(st,cfg.id)).forEach(id=>claimedMarkets.add(id));
+    }
+    reduceStrategyOverlap(st);
+    const claimedMarkets=new Set();
+    for(const cfg of AGENTS.filter(a=>a.kind==="strategy")){
+      const p=st.agents[cfg.id];
+      const occupied=occupiedStrategyMarkets(st,cfg.id);
+      claimedMarkets.forEach(id=>occupied.add(id));
+      openPositions(p,cfg,cfg.rank(sugs),focus,null,occupied,peerMarketStats(st,cfg.id)).forEach(id=>claimedMarkets.add(id));
       recordSnapshot(p);
     }
     const copyPick=chooseCopycatLeader(st);
@@ -1941,13 +1987,19 @@ async function runDailyCycle(){
     setStatus("strategy agents trading…",true);
     const preBoard=AGENTS.filter(a=>a.kind==="strategy").map(a=>({id:a.id,eq:equity(st.agents[a.id])})).sort((x,y)=>y.eq-x.eq);
     const leaderEq=preBoard[0]?preBoard[0].eq:STARTING_BALANCE;
-    const claimedMarkets=new Set();
     for(const cfg of AGENTS.filter(a=>a.kind==="strategy")){
       const p=st.agents[cfg.id];
       markToMarket(p,priceMap,cfg,{policyExits:true});
+    }
+    reduceStrategyOverlap(st);
+    const claimedMarkets=new Set();
+    for(const cfg of AGENTS.filter(a=>a.kind==="strategy")){
+      const p=st.agents[cfg.id];
       const rank=preBoard.findIndex(x=>x.id===cfg.id)+1||preBoard.length;
       const decision=adaptiveDecision(cfg,p,rank,preBoard.length,leaderEq);
-      openPositions(p,cfg,cfg.rank(sugs),focus,decision,claimedMarkets,peerMarketStats(st,cfg.id)).forEach(id=>claimedMarkets.add(id));
+      const occupied=occupiedStrategyMarkets(st,cfg.id);
+      claimedMarkets.forEach(id=>occupied.add(id));
+      openPositions(p,cfg,cfg.rank(sugs),focus,decision,occupied,peerMarketStats(st,cfg.id)).forEach(id=>claimedMarkets.add(id));
       recordSnapshot(p);
     }
     // 2) copycat shadows the in-house agent with the strongest MACD/momentum score
