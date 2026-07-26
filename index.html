@@ -739,7 +739,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build agent-email-filters · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build email-provider-smtp · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -796,6 +796,7 @@ let LIVE_MARKET_OFFSET = 0;
 let LIVE_MARKET_QUERY = "";
 let LIVE_BACKEND_STATUS = null;
 let LIVE_POLICY_STATUS = null;
+let TRADE_EMAIL_STATUS = null;
 let PERSONAL_TICKETS = [];
 let REAL_PORTFOLIO = {positions:[],fills:[]};
 let PERSONAL_CAPITAL = {account:{cash:0},allocations:[],events:[]};
@@ -832,6 +833,14 @@ async function initProviderConfig(){
       document.head.appendChild(script);
     }
   }catch(e){}
+}
+async function refreshTradeEmailStatus(){
+  try{
+    const r=await fetch("/api/live",{cache:"no-store"});
+    const d=await r.json();
+    TRADE_EMAIL_STATUS=d&&d.trade_email?d.trade_email:null;
+  }catch(e){TRADE_EMAIL_STATUS=null;}
+  renderEmailAlerts();
 }
 
 /* ---------- the ten competing agents ----------
@@ -1974,9 +1983,15 @@ function renderEmailAlerts(){
     <label class="chip ${cfg.agents&&cfg.agents[a.id]?"active":""}" style="cursor:pointer;border-color:${cfg.agents&&cfg.agents[a.id]?a.color:""}">
       <input type="checkbox" data-email-agent="${esc(a.id)}" ${cfg.agents&&cfg.agents[a.id]?"checked":""} style="display:none"> ${a.emoji} ${esc(a.name)}
     </label>`).join("");
+  const providerLine=TRADE_EMAIL_STATUS
+    ? (TRADE_EMAIL_STATUS.configured
+      ? `Email backend ready via ${TRADE_EMAIL_STATUS.provider}.`
+      : `Email backend missing: add Resend, SMTP, or webhook env vars in Vercel.`)
+    : "Checking email backend...";
+  const sentLine=cfg.last_sent_at?` Last sent ${new Date(cfg.last_sent_at).toLocaleString()}.`:"";
   status.textContent=cfg.last_error
     ? `Last error: ${cfg.last_error}`
-    : (cfg.last_sent_at?`Last sent ${new Date(cfg.last_sent_at).toLocaleString()}.`:"Send a digest whenever selected agents open, close, stop out, or take gains during a cycle.");
+    : `${providerLine}${sentLine} Sends a digest whenever selected agents trade during a cycle.`;
   const readAlertForm=()=>{
     const email=input.value.trim();
     const events={};
@@ -2011,6 +2026,7 @@ function renderEmailAlerts(){
       equity:STARTING_BALANCE,
       return_pct:0,
     }],{test:true});
+    await refreshTradeEmailStatus();
     pushCloudState(true);
   };
   document.querySelectorAll("[data-email-event],[data-email-agent]").forEach(el=>el.onchange=()=>{
@@ -3564,6 +3580,7 @@ window.addEventListener("hashchange",()=>showTab(location.hash.slice(1)));
 /* ---------- Wire up ---------- */
 applyPersonalMode();
 initProviderConfig();
+refreshTradeEmailStatus();
 $("runBtn").addEventListener("click",async()=>{
   const btn=$("runBtn");btn.disabled=true;btn.textContent="Running…";
   try{const r=await runDailyCycle();const b=board();toast(r.busy?`Cycle already running · ${b[0].c.emoji} ${b[0].c.name} leads`:r.skipped?`Already ran this minute · ${b[0].c.emoji} ${b[0].c.name} leads`:`Cycle done · ${r.suggestions} ideas · ${b[0].c.emoji} ${b[0].c.name} leads`);renderAll();}

@@ -9,6 +9,7 @@ import {
   updateRealPositionMark,
   updateTradeTicketStatus,
 } from "./_db.js";
+import nodemailer from "nodemailer";
 
 const REQUIRED_ENV = [
   ["PRODUCTION_APP_URL", "Production app URL"],
@@ -173,6 +174,28 @@ function stackStatus() {
   });
 }
 
+function tradeEmailStatus() {
+  const resend = Boolean(process.env.RESEND_API_KEY);
+  const webhook = Boolean(process.env.TRADE_EMAIL_WEBHOOK_URL);
+  const smtpMissing = ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS"].filter((key) => !process.env[key]);
+  const smtp = smtpMissing.length === 0;
+  const provider = resend ? "resend" : (smtp ? "smtp" : (webhook ? "webhook" : null));
+  return {
+    configured: Boolean(provider),
+    provider,
+    options: {
+      resend: { configured: resend, missing: resend ? [] : ["RESEND_API_KEY"] },
+      smtp: { configured: smtp, missing: smtpMissing },
+      webhook: { configured: webhook, missing: webhook ? [] : ["TRADE_EMAIL_WEBHOOK_URL"] },
+    },
+    missing_any_one_of: provider ? [] : [
+      "RESEND_API_KEY",
+      "or SMTP_HOST + SMTP_PORT + SMTP_USER + SMTP_PASS",
+      "or TRADE_EMAIL_WEBHOOK_URL",
+    ],
+  };
+}
+
 function liveTradingReady() {
   const requiredConfigured = providerStatus().every((x) => x.configured);
   const liveFlagEnabled = process.env.LIVE_TRADING_ENABLED === "true";
@@ -214,6 +237,7 @@ function baseStatus() {
       : "Live trading is locked until eligibility, payments, wallet/deposit-wallet signing, Polymarket CLOB credentials, audit storage, monitoring, and LIVE_TRADING_ENABLED=true are configured.",
     providers,
     provider_stack: stackStatus(),
+    trade_email: tradeEmailStatus(),
     personal_requirements: personal,
     launch_requirements: LAUNCH_REQUIREMENTS.map(([key, label]) => ({ key, label })),
     webhooks: WEBHOOK_ROUTES.map(([provider, label, path]) => ({
@@ -336,6 +360,31 @@ async function sendTradeEmail({ to, events, appUrl, test }) {
     return { status: 200, body: { ok: true, provider: "resend", id: data?.id || null, sent: events.length } };
   }
 
+  if (process.env.SMTP_HOST && process.env.SMTP_PORT && process.env.SMTP_USER && process.env.SMTP_PASS) {
+    const port = Number(process.env.SMTP_PORT);
+    const secure = String(process.env.SMTP_SECURE || "").toLowerCase() === "true" || port === 465;
+    const from = process.env.TRADE_EMAIL_FROM || process.env.SMTP_FROM || process.env.SMTP_USER;
+    const replyTo = process.env.TRADE_EMAIL_REPLY_TO || process.env.CUSTOMER_SUPPORT_EMAIL || undefined;
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port,
+      secure,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
+    const info = await transporter.sendMail({
+      from,
+      to: email,
+      replyTo,
+      subject: payload.subject,
+      text: payload.text,
+      html: payload.html,
+    });
+    return { status: 200, body: { ok: true, provider: "smtp", id: info?.messageId || null, sent: events.length } };
+  }
+
   if (process.env.TRADE_EMAIL_WEBHOOK_URL) {
     const response = await fetch(process.env.TRADE_EMAIL_WEBHOOK_URL, {
       method: "POST",
@@ -350,7 +399,8 @@ async function sendTradeEmail({ to, events, appUrl, test }) {
     status: 501,
     body: {
       ok: false,
-      error: "Email alerts need RESEND_API_KEY plus TRADE_EMAIL_FROM, or TRADE_EMAIL_WEBHOOK_URL, in Vercel environment variables.",
+      error: "Email alerts need a delivery provider in Vercel: RESEND_API_KEY, or SMTP_HOST + SMTP_PORT + SMTP_USER + SMTP_PASS, or TRADE_EMAIL_WEBHOOK_URL.",
+      trade_email: tradeEmailStatus(),
     },
   };
 }
@@ -627,12 +677,21 @@ export default async function handler(req, res) {
 
     if (body.action === "trade_email") {
       const events = normalizeTradeEmailEvents(body.events);
-      const result = await sendTradeEmail({
-        to: body.to,
-        events,
-        appUrl: body.app_url,
-        test: Boolean(body.test),
-      });
+      let result;
+      try {
+        result = await sendTradeEmail({
+          to: body.to,
+          events,
+          appUrl: body.app_url,
+          test: Boolean(body.test),
+        });
+      } catch (err) {
+        return res.status(502).json({
+          ok: false,
+          error: err?.response || err?.message || "Email provider failed to send the alert.",
+          trade_email: tradeEmailStatus(),
+        });
+      }
       if (result.body?.ok) {
         await recordAuditEvent("TRADE_EMAIL_ALERT_SENT", {
           to_domain: String(body.to || "").split("@")[1] || null,
