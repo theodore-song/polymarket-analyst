@@ -338,7 +338,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · strategies, copycats &amp; whales</div><div class="build-badge">Top 5,000 analysis · v16</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · strategies, copycats &amp; whales</div><div class="build-badge">Top 5,000 analysis · v17</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -374,12 +374,12 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
         <g fill="#d9b4ff"><circle cx="380" cy="40" r="6"/></g>
       </svg>
       <h1>Ten AI agents race to <span class="grad">beat the market</span></h1>
-      <p>Five in-house strategies, a copycat that follows the strongest MACD/momentum profile, and four agents that mirror the live positions of the top traders on Polymarket — all paper-trading for the top of the leaderboard.</p>
+      <p>Each cycle ranks the active Polymarket universe, then deeply analyzes only the top 5,000 markets by activity, liquidity, timing, and estimated price gap before agents trade.</p>
       <div class="badges">
         <span class="hbadge">🏆 10 competing agents</span>
-        <span class="hbadge">🐋 Copies real Polymarket whales</span>
-        <span class="hbadge">🐒 Copycat meta-agent</span>
-        <span class="hbadge">🔴 Live data</span>
+        <span class="hbadge">Top 5,000 market analysis</span>
+        <span class="hbadge">Ranked by activity + gap</span>
+        <span class="hbadge">Live Polymarket data</span>
       </div>
     </div>
 
@@ -740,7 +740,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build top-5000-analysis-v16 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build top-5000-analysis-v17 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -767,7 +767,7 @@ const EXIT_STALE_DAYS = 10;
 const EXIT_RESOLUTION_DAYS = 2;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const SUGGESTION_ENGINE_VERSION = 16;
+const SUGGESTION_ENGINE_VERSION = 17;
 const FOCUS_KEY = "pma_focus_v1";
 const VIEW_KEY = "pma_view_v1";
 const PF_SORT_KEY = "pma_portfolio_sort_v1";
@@ -2048,8 +2048,8 @@ async function runDailyCycle(){
       return {suggestions:(loadSuggestions().suggestions||[]).length,skipped:true,hour};
     }
     SNAP_TS=nowIso();
-    setStatus("fetching markets…",true);
-    const markets=await fetchMarkets(Infinity,100,count=>setStatus(`fetching all active markets (${count})…`,true));
+    setStatus("loading market universe for top-5,000 ranking…",true);
+    const markets=await fetchMarkets(Infinity,100,count=>setStatus(`ranking active markets (${count}) before top-5,000 analysis…`,true));
     const analysisMarkets=selectMarketsForAnalysis(markets);
     setStatus(`selected top ${analysisMarkets.length.toLocaleString()} markets for analysis…`,true);
     setStatus("checking real-world context…",true);
