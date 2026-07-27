@@ -135,7 +135,7 @@ export default async function handler(req, res) {
         access: "private",
         allowOverwrite: true,
         contentType: "application/json",
-        cacheControlMaxAge: 60,
+        cacheControlMaxAge: 0,
       });
       return res.status(200).json({ ok: true, state });
     }
