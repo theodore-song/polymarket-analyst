@@ -1,6 +1,7 @@
-import { get, put } from "@vercel/blob";
+import { get, list, put } from "@vercel/blob";
 
 const STATE_PATH = process.env.PMA_STATE_PATH || "shared/state.json";
+const STATE_VERSION_PREFIX = process.env.PMA_STATE_VERSION_PREFIX || "shared/state-versions/";
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
 const PAPER_KEY = "pma_paper_accounts_v1";
@@ -9,10 +10,56 @@ const AGENT_IDS = ["value", "momentum", "favorite", "longshot", "diversifier", "
 const LIMITS = { closed: 80, history: 160, snapshots: 240, suggestions: 900, paperHistory: 120, paperSnapshots: 120, audit: 120 };
 
 async function readJsonBlob() {
+  const latest = await latestVersionedStateBlob();
+  if (latest) return latest;
   const blob = await get(STATE_PATH, { access: "private" });
   if (!blob || blob.statusCode !== 200 || !blob.stream) return null;
   const text = await new Response(blob.stream).text();
   return text ? JSON.parse(text) : null;
+}
+
+async function latestVersionedStateBlob() {
+  let cursor;
+  let newest = null;
+  do {
+    const page = await list({ prefix: STATE_VERSION_PREFIX, limit: 1000, cursor });
+    for (const blob of page.blobs || []) {
+      if (!newest || new Date(blob.uploadedAt).getTime() > new Date(newest.uploadedAt).getTime()) newest = blob;
+    }
+    cursor = page.cursor;
+  } while (cursor);
+  if (!newest) return null;
+  const blob = await get(newest.url, {
+    access: "private",
+    headers: { "cache-control": "no-cache" },
+  });
+  if (!blob || blob.statusCode !== 200 || !blob.stream) return null;
+  const text = await new Response(blob.stream).text();
+  return text ? JSON.parse(text) : null;
+}
+
+function cycleVersion(cycle = "") {
+  const m = String(cycle).match(/\|v(\d+)$/);
+  return m ? Number(m[1]) : 0;
+}
+
+function openPositionCount(st) {
+  if (!st || !st.agents) return 0;
+  return AGENT_IDS.reduce((sum, id) => sum + (Array.isArray(st.agents[id]?.positions) ? st.agents[id].positions.length : 0), 0);
+}
+
+function shouldRejectStaleAgentWrite(currentAgents, incomingAgents) {
+  if (!currentAgents || !incomingAgents) return false;
+  const currentCycle = currentAgents.last_cycle_hour || "";
+  const incomingCycle = incomingAgents.last_cycle_hour || "";
+  if (!currentCycle || !incomingCycle) return false;
+  const currentVersion = cycleVersion(currentCycle);
+  const incomingVersion = cycleVersion(incomingCycle);
+  if (incomingVersion < currentVersion) return true;
+  if (incomingVersion === currentVersion && incomingCycle < currentCycle) return true;
+  const currentOpen = openPositionCount(currentAgents);
+  const incomingOpen = openPositionCount(incomingAgents);
+  return incomingVersion === currentVersion && incomingCycle === currentCycle && currentOpen > 0 && incomingOpen === 0;
 }
 
 function agentStateFromItems(items) {
@@ -132,7 +179,17 @@ export default async function handler(req, res) {
           return conflictResponse(res, "This cycle already has a cloud result", current);
         }
       }
+      if (!body.force && shouldRejectStaleAgentWrite(currentAgents, incomingAgents)) {
+        return conflictResponse(res, "Incoming state would replace newer active positions with stale cash-only data", current);
+      }
       const state = { version: 1, updated_at: new Date().toISOString(), items: compactItems(body.items) };
+      const versionedPath = `${STATE_VERSION_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2)}.json`;
+      await put(versionedPath, JSON.stringify(state), {
+        access: "private",
+        allowOverwrite: false,
+        contentType: "application/json",
+        cacheControlMaxAge: 0,
+      });
       await put(STATE_PATH, JSON.stringify(state), {
         access: "private",
         allowOverwrite: true,
