@@ -340,7 +340,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · strategies, copycats &amp; whales</div><div class="build-badge">Top 500 active · v19</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · strategies, copycats &amp; whales</div><div class="build-badge">Risk-calibrated · v20</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -362,7 +362,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build v19 active:</b> agents load the 500 most active Polymarket markets, rank them by activity/liquidity/gap, and use a selective BUY fallback so core agents do not sit entirely in cash.</div>
+  <div class="live-build-banner"><b>Build v20 active:</b> agents scan the 500 most active markets, trade only positive after-cost signals, avoid fast-settling event bets, and cap risk by position, category, and daily drawdown.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -743,7 +743,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build top-500-active-v19 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build durable-risk-v20 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -770,7 +770,7 @@ const EXIT_STALE_DAYS = 10;
 const EXIT_RESOLUTION_DAYS = 2;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const SUGGESTION_ENGINE_VERSION = 19;
+const SUGGESTION_ENGINE_VERSION = 20;
 const FOCUS_KEY = "pma_focus_v1";
 const VIEW_KEY = "pma_view_v1";
 const PF_SORT_KEY = "pma_portfolio_sort_v1";
@@ -933,12 +933,13 @@ function classifyCategory(tags){
   for(const [cat,keys] of CATEGORY_RULES){if(slugs.some(s=>keys.includes(s)))return cat;}
   return "Other";
 }
-function normalizeMarket(raw){
+function normalizeMarket(raw,{allowClosed=false}={}){
   const outcomes=parseJsonField(raw.outcomes);
   const prices=parseJsonField(raw.outcomePrices).map(p=>toNum(p));
   if(outcomes.length!==2||prices.length!==2)return null;
-  if(raw.acceptingOrders===false||raw.closed)return null;
-  const yes=prices[0]; if(yes<=0||yes>=1)return null;
+  if(!allowClosed&&(raw.acceptingOrders===false||raw.closed))return null;
+  const yes=prices[0];
+  if(!Number.isFinite(yes)||yes<0||yes>1||(!allowClosed&&(yes<=0||yes>=1)))return null;
   const events=raw.events||[]; const ev=events.length?events[0]:{};
   const tags=Array.isArray(raw.tags)?raw.tags:[];
   return {category:classifyCategory(tags),tags:tags.map(t=>t.label).filter(Boolean).slice(0,4),
@@ -948,6 +949,7 @@ function normalizeMarket(raw){
     volume:toNum(raw.volumeNum||raw.volume),volume_24hr:toNum(raw.volume24hr),volume_1wk:toNum(raw.volume1wk),
     liquidity:toNum(raw.liquidityNum||raw.liquidity),end_date:raw.endDateIso||raw.endDate,
     days_to_resolution:daysUntil(raw.endDate),image:raw.image||"",
+    closed:Boolean(raw.closed),accepting_orders:raw.acceptingOrders!==false,
     url:ev.slug?`https://polymarket.com/event/${ev.slug}`:""};
 }
 async function fetchMarkets(pages=Infinity,perPage=100,onProgress=null){
@@ -983,7 +985,7 @@ async function fetchMarkets(pages=Infinity,perPage=100,onProgress=null){
   return all.map(normalizeMarket).filter(m=>m&&m.question);
 }
 async function fetchMarketPrice(id){
-  try{const r=await fetch(`${GAMMA}/markets/${id}`);if(!r.ok)return null;return normalizeMarket(await r.json());}
+  try{const r=await fetch(`${GAMMA}/markets/${id}`);if(!r.ok)return null;return normalizeMarket(await r.json(),{allowClosed:true});}
   catch(e){return null;}
 }
 
@@ -995,10 +997,13 @@ const MIN_SCOUT_VOLUME=1500;
 const MIN_SCOUT_LIQUIDITY=150;
 const MIN_SCOUT_EDGE=0.006;
 const MIN_ENTRY_EDGE=0.032;
-const MIN_SELECTIVE_ENTRY_EDGE=0.020;
+const MIN_SELECTIVE_ENTRY_EDGE=0.022;
 const MIN_ENTRY_DAYS=3.0;
 const EDGE_SCALE=0.13;
 const MAX_STRATEGY_POSITIONS=16;
+const MAX_NEW_POSITION_PCT=0.035;
+const MAX_CATEGORY_EXPOSURE_PCT=0.20;
+const MAX_CYCLE_DRAWDOWN_PCT=3;
 const MAX_ACTIVE_MARKET_PAGES=1000;
 const MARKET_ANALYSIS_LIMIT=500;
 const ACTIVE_MARKET_FETCH_LIMIT=500;
@@ -1082,11 +1087,19 @@ function selectMarketsForAnalysis(markets,limit=MARKET_ANALYSIS_LIMIT){
     .slice(0,limit);
 }
 function timingSignal(d){if(d==null)return 0.4;if(d<1)return 0.1;if(d<=3)return 0.5;if(d<=90)return 1.0-(d-3)/87.0*0.4;return 0.35;}
+function fastSettlementRisk(m){
+  const text=`${m&&m.question||""} ${m&&m.event||""}`.toLowerCase();
+  if(/\bexact score\b|\bscore:\s*\d|\bposts? \d+-\d+|\bnumber of (tweets|posts)\b/.test(text))return true;
+  if(/\bvs\.?\b/.test(text)&&(m.days_to_resolution==null||m.days_to_resolution<7))return true;
+  if((m&&m.category)==="Sports"){
+    if(/\bwin on \d{4}-\d{2}-\d{2}\b|\bmatch winner\b/.test(text))return true;
+    if(m.days_to_resolution==null||m.days_to_resolution<7)return true;
+  }
+  return false;
+}
 function effectiveEntryEdge(s){
   const net=Math.abs(Number(s&&s.net_edge));
-  const raw=Math.abs(Number(s&&s.edge));
-  if(Number.isFinite(net)&&net>0)return Math.max(net,raw*0.72);
-  return Number.isFinite(raw)?raw:0;
+  return Number.isFinite(net)?net:0;
 }
 function analyzeMarket(m,realWorldSignals={}){
   if(m.volume<MIN_SCOUT_VOLUME||m.liquidity<MIN_SCOUT_LIQUIDITY)return null;
@@ -1099,12 +1112,14 @@ function analyzeMarket(m,realWorldSignals={}){
   const conviction=+((W.LIQ*liq+W.MOM*mom+W.MIS*mis+W.TIME*timing)*82+evidence.score*18).toFixed(1);
   const minEdge=Math.max(MIN_ENTRY_EDGE,policy.minEdge);
   const strictTradeReady=absNet>=minEdge&&m.volume>=Math.max(MIN_VOLUME,policy.minVol)&&m.liquidity>=Math.max(MIN_LIQUIDITY,policy.minLiq)&&evidence.score>=policy.minEvidence;
-  const selectiveTradeReady=edge>=MIN_SELECTIVE_ENTRY_EDGE&&conviction>=58&&m.volume>=MIN_VOLUME&&m.liquidity>=MIN_LIQUIDITY&&evidence.score>=0.42&&m.yes_price>=0.08&&m.yes_price<=0.92;
-  const tradeReady=strictTradeReady||selectiveTradeReady;
+  const jumpRisk=fastSettlementRisk(m);
+  const selectiveTradeReady=absNet>=MIN_SELECTIVE_ENTRY_EDGE&&conviction>=62&&m.volume>=MIN_VOLUME&&m.liquidity>=MIN_LIQUIDITY&&evidence.score>=0.50&&m.yes_price>=0.08&&m.yes_price<=0.92&&!jumpRisk;
+  const tradeReady=(strictTradeReady||selectiveTradeReady)&&!jumpRisk;
   let side=edgeYes>=0?"YES":"NO",entry=side==="YES"?p:m.no_price,rationale;
   if(selectiveTradeReady&&!strictTradeReady){rationale=`Selective BUY from top-500 active scan: raw gap ${(edge*100).toFixed(1)}c, conviction ${Math.round(conviction)}, high activity/liquidity, and evidence ${Math.round(evidence.score*100)}. Net edge is conservative, so sizing stays disciplined.`;}
   else if(tradeReady&&edgeYes>0){rationale=`Trade-ready after costs: fair value ${pct(fair)} vs market ${pct(p)} leaves ${(absNet*100).toFixed(1)}c net edge for YES after liquidity, chase, and ${m.category} evidence checks.`;}
   else if(tradeReady&&edgeYes<0){rationale=`Trade-ready after costs: fair value ${pct(fair)} vs market ${pct(p)} makes YES look overpriced; NO has ${(absNet*100).toFixed(1)}c net edge after penalties.`;}
+  else if(jumpRisk){rationale="Watch only: this market can jump directly to settlement before an hourly stop can protect the position, so agents will not buy it.";}
   else{rationale=`Watch only: raw gap ${(edge*100).toFixed(1)}c becomes ${(absNet*100).toFixed(1)}c after friction/chase/category penalties, so agents need stronger evidence before buying.`;}
   const drivers=[policy.label];
   if(liq>0.6)drivers.push("deep/liquid market");
@@ -1119,7 +1134,7 @@ function analyzeMarket(m,realWorldSignals={}){
     net_edge:netEdge,friction:+friction.toFixed(4),chase_penalty:+chase.toFixed(4),evidence_score:+evidence.score.toFixed(2),
     quality:strictTradeReady?"EV+":(tradeReady?"selective":"watch"),
     side,entry_price:+entry.toFixed(4),conviction,volume:m.volume,volume_24hr:m.volume_24hr,liquidity:m.liquidity,
-    trade_ready:tradeReady,
+    trade_ready:tradeReady,jump_risk:jumpRisk,
     days_to_resolution:m.days_to_resolution!=null?+m.days_to_resolution.toFixed(1):null,drivers,rationale};
 }
 const pct=(x)=>Math.round(x*100)+"%";
@@ -1211,7 +1226,7 @@ function compactSuggestionForSync(s){
     fair_value:s.fair_value,edge:s.edge,side:s.side,entry_price:s.entry_price,
     net_edge:s.net_edge,friction:s.friction,chase_penalty:s.chase_penalty,evidence_score:s.evidence_score,quality:s.quality,
     conviction:s.conviction,volume:s.volume,volume_24hr:s.volume_24hr,liquidity:s.liquidity,
-    trade_ready:s.trade_ready,watch_only:s.watch_only,
+    trade_ready:s.trade_ready,watch_only:s.watch_only,jump_risk:s.jump_risk,
     days_to_resolution:s.days_to_resolution,drivers:s.drivers,rationale:s.rationale,
   };
 }
@@ -1445,8 +1460,15 @@ function adaptiveDecision(cfg,p,rank,total,leaderEq){
     reason+=` Emotion layer: alarm keeps it from revenge trading.`;
   }
   if((p.cash/Math.max(eq,1))<0.12){maxNew=Math.max(1,Math.min(maxNew,2));reason+=" Cash is tight, so new entries are rationed.";}
-  const maxCap=cfg.kind==="whale"?0.16:0.12;
-  return {mode,reason,emotion:emo.mood,urgency:+emo.urgency.toFixed(2),minConv:Math.max(0,Math.round(minConv)),maxNew:Math.max(1,Math.round(maxNew)),maxFrac:+Math.min(maxCap,Math.max(0.01,maxFrac)).toFixed(3),reserve};
+  const todaySnaps=(p.snapshots||[]).filter(s=>s.date===todayStr());
+  const cycleStart=todaySnaps.length?Number(todaySnaps[0].equity||eq):eq;
+  const cycleDrawdown=cycleStart>0?(eq/cycleStart-1)*100:0;
+  if(cycleDrawdown<=-MAX_CYCLE_DRAWDOWN_PCT){
+    mode="Daily Risk Pause";maxNew=0;reserve=1;
+    reason=`down ${Math.abs(cycleDrawdown).toFixed(1)}% since today's first snapshot, so it will not add risk until the next trading day.`;
+  }
+  const maxCap=cfg.kind==="whale"?0.03:MAX_NEW_POSITION_PCT;
+  return {mode,reason,emotion:emo.mood,urgency:+emo.urgency.toFixed(2),minConv:Math.max(0,Math.round(minConv)),maxNew:Math.max(0,Math.round(maxNew)),maxFrac:+Math.min(maxCap,Math.max(0.01,maxFrac)).toFixed(3),reserve};
 }
 const stopKey=(posOrId)=>typeof posOrId==="string"?posOrId:String(posOrId.asset||posOrId.market_id||"");
 const hasStoppedToday=(p,posOrId)=>p.stopped&&p.stopped[stopKey(posOrId)]===logDay();
@@ -1591,6 +1613,7 @@ function daysHeld(pos){
   return Math.max(0,(end-start)/86400000);
 }
 function exitReason(pos,fresh,analysis,cfg){
+  if(fastSettlementRisk(fresh))return "Risk policy removed fast-settling event exposure";
   if(fresh.days_to_resolution!=null&&fresh.days_to_resolution<=EXIT_RESOLUTION_DAYS)return `Close before resolution (${fresh.days_to_resolution.toFixed(1)}d left)`;
   if(daysHeld(pos)>=EXIT_STALE_DAYS)return `Stale exit after ${Math.floor(daysHeld(pos))} days`;
   if(!analysis)return null;
@@ -1605,15 +1628,21 @@ function markToMarket(p,priceMap,cfg=null,{policyExits=false}={}){
   for(const pos of p.positions){
     const fresh=priceMap[pos.market_id];
     if(fresh==null){
-      closePosition(p,pos,"Settled/removed market");
+      pos.price_status="unavailable";
+      stillOpen.push(pos);
       continue;
     }
     const price=pos.side==="YES"?fresh.yes_price:fresh.no_price;
     pos.current_price=+price.toFixed(4);pos.value=+(pos.shares*price).toFixed(2);
     pos.unrealized_pnl=+(pos.value-pos.cost).toFixed(2);
+    delete pos.price_status;
     for(const stopTier of triggeredStopLosses(pos))scaleStopLossPosition(p,pos,stopTier);
     if(pos._closedByStop){delete pos._closedByStop;continue;}
     for(const gainTier of triggeredGainStops(pos))takeProfitPosition(p,pos,gainTier);
+    if(fresh.closed||fresh.accepting_orders===false){
+      closePosition(p,pos,"Market settled","CLOSE");
+      continue;
+    }
     if(policyExits){
       const reason=exitReason(pos,fresh,analyzeMarket(fresh),cfg);
       if(reason){closePosition(p,pos,reason,"EXIT");continue;}
@@ -1691,7 +1720,7 @@ function reduceStrategyOverlap(st){
 function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=null){
   const d=decision||{minConv:cfg.minConv,maxNew:cfg.maxNew,maxFrac:cfg.maxFrac,reserve:0.05};
   p.lastDecision=decision||null;
-  if((p.positions||[]).length>=MAX_STRATEGY_POSITIONS)return [];
+  if((p.positions||[]).length>=MAX_STRATEGY_POSITIONS||d.maxNew<=0)return [];
   const avoid=avoidMarketIds||new Set();
   const cands=rankedSugs.map(s=>peerAdjustedSuggestion(s,peerStats)).filter(s=>s.trade_ready&&(s.side==="YES"||s.side==="NO")&&s.peer_conviction>=d.minConv
     &&s.conviction>=48&&s.entry_price>=0.08&&s.entry_price<=0.92
@@ -1712,6 +1741,8 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
     if(s.peer_boost<0)frac*=0.82;
     if(s.peer_boost>0&&decision&&decision.urgency>0.65)frac*=1.08;
     let stake=Math.min(eq*frac,investable);
+    const categoryValue=(p.positions||[]).filter(pos=>(pos.category||"Other")===(s.category||"Other")).reduce((sum,pos)=>sum+Number(pos.value||0),0);
+    stake=Math.min(stake,Math.max(0,eq*MAX_CATEGORY_EXPOSURE_PCT-categoryValue));
     if(stake<50)continue;
     const entry=s.entry_price; if(entry<=0||entry>=1)continue;
     const shares=+(stake/entry).toFixed(2),cost=+(shares*entry).toFixed(2);
@@ -1811,6 +1842,10 @@ function rawPositionUrl(p){
   const slug=p.eventSlug||p.event_slug||p.slug||p.marketSlug||p.market_slug;
   return slug?`https://polymarket.com/event/${slug}`:marketSearchUrl(p.title||p.question||"");
 }
+function riskyCopiedMarket(title){
+  const text=String(title||"").toLowerCase();
+  return /\bexact score\b|\bscore:\s*\d|\bvs\.?\b|\bwin on \d{4}-\d{2}-\d{2}\b|\bposts? \d+-\d+/.test(text);
+}
 async function discoverWhales(){
   const picked=[];
   try{
@@ -1849,7 +1884,7 @@ async function runWhaleAgent(p,wallet,decision){
   }
   p.positions=keep;
   const maxNew=Math.min(d.maxNew||6,4),maxFrac=Math.min(d.maxFrac||0.10,0.12),reserve=Math.max(d.reserve||0.14,0.12);
-  const targets=[...tps].filter(t=>t.curPrice>=0.12&&t.curPrice<=0.88&&t.value>=20).sort((a,b)=>b.value-a.value).slice(0,maxNew); // copy their strongest liquid bets, adapted by stance
+  const targets=[...tps].filter(t=>t.curPrice>=0.15&&t.curPrice<=0.85&&t.value>=100&&!riskyCopiedMarket(t.title)).sort((a,b)=>b.value-a.value).slice(0,maxNew);
   const book=targets.reduce((s,t)=>s+t.value,0)||1;
   for(const t of targets){
     if(hasAsset(p,t.asset)||hasStoppedToday(p,t.asset))continue;
@@ -1896,7 +1931,9 @@ function runCopycat(p,leader,priceMap,candidate=null){
     }else keep.push(pos);
   }
   p.positions=keep;
-  const leaderPicks=leader.positions.filter(x=>(x.unrealized_pnl||0)>=-50&&(x.current_price||0)>0.05&&(x.current_price||0)<0.95)
+  const leaderPicks=leader.positions.filter(x=>(x.unrealized_pnl||0)>=-50&&(x.current_price||0)>0.08&&(x.current_price||0)<0.92
+      &&x.quality==="EV+"&&Math.abs(Number(x.net_edge||0))>=MIN_ENTRY_EDGE&&daysHeld(x)<=2
+      &&Number(x.current_price||0)<=Number(x.entry_price||0)*1.10&&!fastSettlementRisk(x))
     .sort((a,b)=>((b.unrealized_pnl||0)/(b.cost||1))-((a.unrealized_pnl||0)/(a.cost||1))||((b.conviction||0)-(a.conviction||0))||((b.value||b.cost)-(a.value||a.cost)))
     .slice(0,copyLimit);
   const book=leaderPicks.reduce((s,x)=>s+(x.value||x.cost),0)||1;
