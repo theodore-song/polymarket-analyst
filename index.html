@@ -340,7 +340,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · strategies, copycats &amp; whales</div><div class="build-badge">Active risk engine · v21</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · strategies, copycats &amp; whales</div><div class="build-badge">Broad signal engine · v22</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -362,7 +362,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build v21 active:</b> agents scan the 500 most active markets, combine strict EV entries with small trend and liquidity probes, avoid last-minute event bets, and cap risk by position, category, and daily drawdown.</div>
+  <div class="live-build-banner"><b>Build v22 active:</b> agents scan the 500 most active markets and separate strict EV entries, trend probes, and a much broader set of tiny exploration trades while keeping settlement, spread, category, and drawdown limits.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -743,7 +743,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build active-risk-v21 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build broad-signals-v22 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -770,7 +770,7 @@ const EXIT_STALE_DAYS = 10;
 const EXIT_RESOLUTION_DAYS = 2;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const SUGGESTION_ENGINE_VERSION = 21;
+const SUGGESTION_ENGINE_VERSION = 22;
 const FOCUS_KEY = "pma_focus_v1";
 const VIEW_KEY = "pma_view_v1";
 const PF_SORT_KEY = "pma_portfolio_sort_v1";
@@ -1006,6 +1006,7 @@ const EDGE_SCALE=0.13;
 const MAX_STRATEGY_POSITIONS=16;
 const MAX_NEW_POSITION_PCT=0.035;
 const MAX_PROBE_POSITION_PCT=0.025;
+const MAX_EXPLORATION_POSITION_PCT=0.009;
 const MAX_CATEGORY_EXPOSURE_PCT=0.20;
 const MAX_CYCLE_DRAWDOWN_PCT=3;
 const MAX_ACTIVE_MARKET_PAGES=1000;
@@ -1134,12 +1135,17 @@ function analyzeMarket(m,realWorldSignals={}){
     &&conviction>=68&&evidence.score>=0.50&&m.spread>0&&m.spread<=0.025
     &&m.volume_24hr>=1000&&m.liquidity>=2000&&m.days_to_resolution!=null&&m.days_to_resolution>=MIN_ENTRY_DAYS
     &&p>=0.12&&p<=0.88&&Math.abs(m.price_change_1d||0)<=0.08;
-  const tradeReady=(strictTradeReady||selectiveTradeReady||trendTradeReady||liquidityTradeReady)&&!jumpRisk;
-  const tradeConviction=trendTradeReady?Math.max(conviction,55+trend.strength*35):(liquidityTradeReady?Math.max(conviction,70):conviction);
-  let side=trendTradeReady?trend.side:(liquidityTradeReady?(p>=0.5?"YES":"NO"):(edgeYes>=0?"YES":"NO"));
+  const explorationTradeReady=!strictTradeReady&&!selectiveTradeReady&&!trendTradeReady&&!liquidityTradeReady&&!jumpRisk
+    &&m.spread>0&&m.spread<=0.05&&m.volume_24hr>=20&&m.liquidity>=250
+    &&m.days_to_resolution!=null&&m.days_to_resolution>=MIN_ENTRY_DAYS
+    &&p>=0.05&&p<=0.95&&Math.abs(m.price_change_1d||0)<=0.15;
+  const tradeReady=(strictTradeReady||selectiveTradeReady||trendTradeReady||liquidityTradeReady||explorationTradeReady)&&!jumpRisk;
+  const tradeConviction=trendTradeReady?Math.max(conviction,55+trend.strength*35):(liquidityTradeReady?Math.max(conviction,70):(explorationTradeReady?Math.max(conviction,60):conviction));
+  let side=trendTradeReady?trend.side:(liquidityTradeReady?(p>=0.5?"YES":"NO"):(explorationTradeReady?(trend.side||(p>=0.5?"YES":"NO")):(edgeYes>=0?"YES":"NO")));
   let entry=side==="YES"?p:m.no_price,rationale;
   if(trendTradeReady){rationale=`Small trend probe: ${side} is supported by aligned one-day and one-week price movement, ${Math.round(trend.strength*100)} trend strength, ${pct(m.spread)} spread, and enough time before resolution. This is momentum exposure, not a claimed fair-value edge.`;}
   else if(liquidityTradeReady){rationale=`Small liquidity probe: ${side} is the market favorite in a high-conviction, tight-spread market with enough time before resolution. Position size stays small because this is diversified exposure, not a claimed fair-value edge.`;}
+  else if(explorationTradeReady){rationale=`Tiny exploration trade: ${side} adds a new market to the agents' learning pool with live activity, usable liquidity, a controlled spread, and enough time before resolution. Size is capped below 1% because this is broad signal discovery, not a claimed fair-value edge.`;}
   else if(selectiveTradeReady&&!strictTradeReady){rationale=`Selective BUY from top-500 active scan: raw gap ${(edge*100).toFixed(1)}c, conviction ${Math.round(conviction)}, high activity/liquidity, and evidence ${Math.round(evidence.score*100)}. Net edge is conservative, so sizing stays disciplined.`;}
   else if(tradeReady&&edgeYes>0){rationale=`Trade-ready after costs: fair value ${pct(fair)} vs market ${pct(p)} leaves ${(absNet*100).toFixed(1)}c net edge for YES after liquidity, chase, and ${m.category} evidence checks.`;}
   else if(tradeReady&&edgeYes<0){rationale=`Trade-ready after costs: fair value ${pct(fair)} vs market ${pct(p)} makes YES look overpriced; NO has ${(absNet*100).toFixed(1)}c net edge after penalties.`;}
@@ -1156,7 +1162,7 @@ function analyzeMarket(m,realWorldSignals={}){
     clob_yes:(m.clob_token_ids||[])[0]||null,clob_no:(m.clob_token_ids||[])[1]||null,
     yes_price:p,no_price:m.no_price,fair_value:+fair.toFixed(4),edge:+edgeYes.toFixed(4),
     net_edge:netEdge,friction:+friction.toFixed(4),chase_penalty:+chase.toFixed(4),evidence_score:+evidence.score.toFixed(2),
-    quality:strictTradeReady?"EV+":(selectiveTradeReady?"selective":(trendTradeReady?"trend":(liquidityTradeReady?"liquidity":"watch"))),
+    quality:strictTradeReady?"EV+":(selectiveTradeReady?"selective":(trendTradeReady?"trend":(liquidityTradeReady?"liquidity":(explorationTradeReady?"explore":"watch")))),
     side,entry_price:+entry.toFixed(4),conviction:+tradeConviction.toFixed(1),volume:m.volume,volume_24hr:m.volume_24hr,liquidity:m.liquidity,
     spread:m.spread,price_change_1h:m.price_change_1h,price_change_1d:m.price_change_1d,price_change_1w:m.price_change_1w,
     momentum_strength:+trend.strength.toFixed(2),trade_ready:tradeReady,jump_risk:jumpRisk,
@@ -1737,7 +1743,7 @@ function reduceStrategyOverlap(st){
   });
   Object.values(groups).filter(g=>g.length>1).forEach(group=>{
     group.sort((a,b)=>(b.score-a.score)||((b.pos.value||0)-(a.pos.value||0)));
-    const probeOnly=group.every(({pos})=>["trend","liquidity"].includes(pos.quality));
+    const probeOnly=group.every(({pos})=>["trend","liquidity","explore"].includes(pos.quality));
     group.slice(probeOnly?2:1).forEach(({p,pos})=>closePosition(p,pos,"Overlap guard rotated this agent into a different market","EXIT"));
   });
   AGENTS.filter(a=>a.kind==="strategy").forEach(cfg=>{
@@ -1751,10 +1757,10 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
   const avoid=avoidMarketIds||new Set();
   const cands=rankedSugs.map(s=>peerAdjustedSuggestion(s,peerStats)).filter(s=>s.trade_ready&&(s.side==="YES"||s.side==="NO")&&s.peer_conviction>=d.minConv
     &&s.conviction>=48&&s.entry_price>=0.08&&s.entry_price<=0.92
-    &&(["trend","liquidity"].includes(s.quality)||effectiveEntryEdge(s)>=MIN_SELECTIVE_ENTRY_EDGE)&&(s.days_to_resolution==null||s.days_to_resolution>=MIN_ENTRY_DAYS)
+    &&(["trend","liquidity","explore"].includes(s.quality)||effectiveEntryEdge(s)>=MIN_SELECTIVE_ENTRY_EDGE)&&(s.days_to_resolution==null||s.days_to_resolution>=MIN_ENTRY_DAYS)
     &&s.volume>=MIN_VOLUME&&s.liquidity>=MIN_LIQUIDITY&&(s.volume_24hr>=500||s.conviction>=62)
     &&(s.evidence_score==null||s.evidence_score>=0.40||s.conviction>=62)
-    &&(!avoid.has(String(s.market_id))||(["trend","liquidity"].includes(s.quality)&&Number((peerStats&&peerStats[`${s.market_id}:${s.side}`]||{}).same||0)<2))
+    &&(!avoid.has(String(s.market_id))||(["trend","liquidity","explore"].includes(s.quality)&&Number((peerStats&&peerStats[`${s.market_id}:${s.side}`]||{}).same||0)<2))
     &&!hasPosition(p,s.market_id)&&!hasStoppedToday(p,s.market_id)&&(focus==="All"||!focus||s.category===focus))
     .sort((a,b)=>(b.peer_conviction-a.peer_conviction)||((b.peer_boost||0)-(a.peer_boost||0)));
   let opened=0,openedIds=[];
@@ -1764,7 +1770,8 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
     const eq=equity(p),investable=p.cash-eq*d.reserve;
     if(investable<=50)break;
     let frac;
-    if(["trend","liquidity"].includes(s.quality)){frac=Math.min(d.maxFrac,MAX_PROBE_POSITION_PCT);}
+    if(s.quality==="explore"){frac=Math.min(d.maxFrac,MAX_EXPLORATION_POSITION_PCT);}
+    else if(["trend","liquidity"].includes(s.quality)){frac=Math.min(d.maxFrac,MAX_PROBE_POSITION_PCT);}
     else if(cfg.flat){frac=d.maxFrac;}
     else{const base=(s.peer_conviction/100)*Math.min(1,effectiveEntryEdge(s)/EDGE_SCALE);frac=Math.min(d.maxFrac,cfg.kelly*base);}
     if(s.peer_boost<0)frac*=0.82;
@@ -2536,8 +2543,8 @@ function renderSuggestions(){
   const scanned=Number(data.market_count||0).toLocaleString();
   const analyzed=Number(data.analyzed_count||data.market_count||0).toLocaleString();
   $("focusNote").textContent=focus==="All"
-    ? `Loaded the ${scanned} most active markets, analyzed ${analyzed} by activity, liquidity, spread, and price direction, and kept ${all.length} ideas (${buyCount} BUY, ${watchCount} WATCH). Showing ${filtered.length}; BUY includes strict EV entries plus smaller trend/liquidity probes. Avg evidence ${evAvg}.`
-    : `Loaded the ${scanned} most active markets and analyzed ${analyzed}. Showing ${filtered.length} of ${pool.length} ${focus} ideas; agents may open strict EV entries or smaller risk-capped probes while this is selected.`;
+    ? `Loaded the ${scanned} most active markets, analyzed ${analyzed} by activity, liquidity, spread, and price direction, and kept ${all.length} ideas (${buyCount} BUY, ${watchCount} WATCH). Showing ${filtered.length}; BUY is tiered into strict EV, trend/liquidity probes, and sub-1% exploration trades. Avg evidence ${evAvg}.`
+    : `Loaded the ${scanned} most active markets and analyzed ${analyzed}. Showing ${filtered.length} of ${pool.length} ${focus} ideas; agents may open strict EV entries, risk-capped probes, or tiny exploration trades while this is selected.`;
   if(!filtered.length){root.innerHTML=`<div class="empty" style="grid-column:1/-1">No ${esc(focus)} suggestions in this live batch.</div>`;return;}
   root.innerHTML=filtered.map(s=>{
     const col=catColor(s.category);
@@ -2549,6 +2556,7 @@ function renderSuggestions(){
       <div class="event">${esc(s.event||"")}</div>
       <div class="sug-row">
         <span class="pill ${s.side}">${s.trade_ready?"BUY":"WATCH"} ${s.side}</span>
+        <span class="muted small">${esc(String(s.quality||"watch").toUpperCase())}</span>
         <span class="muted small">@ ${Math.round(s.entry_price*100)}¢</span>
         <div class="conv-bar"><span style="width:${s.conviction}%"></span></div>
         <span class="muted small">${Math.round(s.conviction)}</span>
