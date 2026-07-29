@@ -340,7 +340,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · strategies, copycats &amp; whales</div><div class="build-badge">Broad signal engine · v22</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · strategies, copycats &amp; whales</div><div class="build-badge">Broad signal engine · v23</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -362,7 +362,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build v22 active:</b> agents scan the 500 most active markets and separate strict EV entries, trend probes, and a much broader set of tiny exploration trades while keeping settlement, spread, category, and drawdown limits.</div>
+  <div class="live-build-banner"><b>Build v23 active:</b> every agent and paper portfolio now shows a rolling 24-hour equity change alongside total return, while the broad tiered signal engine keeps its existing risk limits.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -743,7 +743,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build broad-signals-v22 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build portfolio-24h-v23 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -770,7 +770,7 @@ const EXIT_STALE_DAYS = 10;
 const EXIT_RESOLUTION_DAYS = 2;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const SUGGESTION_ENGINE_VERSION = 22;
+const SUGGESTION_ENGINE_VERSION = 23;
 const FOCUS_KEY = "pma_focus_v1";
 const VIEW_KEY = "pma_view_v1";
 const PF_SORT_KEY = "pma_portfolio_sort_v1";
@@ -2209,10 +2209,35 @@ async function runDailyCycle(){
 }
 
 /* ---------- Leaderboard helpers ---------- */
+function portfolioChange24h(p,currentEquity=null){
+  const snaps=(p&&p.snapshots||[]).filter(s=>{
+    const t=new Date(s.timestamp||`${s.date}T12:00:00Z`).getTime();
+    return Number.isFinite(t)&&Number.isFinite(Number(s.equity));
+  }).sort((a,b)=>new Date(a.timestamp||`${a.date}T12:00:00Z`)-new Date(b.timestamp||`${b.date}T12:00:00Z`));
+  if(snaps.length<2)return {available:false,pct:null,delta:null,hours:0};
+  const latest=snaps[snaps.length-1],latestTime=new Date(latest.timestamp||`${latest.date}T12:00:00Z`).getTime();
+  const cutoff=latestTime-86400000;
+  let baseline=null;
+  for(const snap of snaps){
+    const t=new Date(snap.timestamp||`${snap.date}T12:00:00Z`).getTime();
+    if(t<=cutoff)baseline=snap;
+    else break;
+  }
+  if(!baseline)baseline=snaps[0];
+  const base=Number(baseline.equity),current=Number.isFinite(Number(currentEquity))?Number(currentEquity):Number(latest.equity);
+  const baseTime=new Date(baseline.timestamp||`${baseline.date}T12:00:00Z`).getTime();
+  if(!(base>0)||!Number.isFinite(current))return {available:false,pct:null,delta:null,hours:0};
+  return {available:true,pct:(current/base-1)*100,delta:current-base,hours:Math.max(0,(latestTime-baseTime)/3600000)};
+}
+function format24h(change){
+  if(!change||!change.available)return "—";
+  const value=fmtPct(change.pct);
+  return change.hours>=20?value:`${value} (${Math.max(1,Math.round(change.hours))}h)`;
+}
 function board(){
   const st=loadState();
   return AGENTS.map(c=>{const p=st.agents[c.id]||defaultPortfolio();const eq=equity(p);
-    return {c,p,eq,pnl:eq-STARTING_BALANCE,ret:(eq/STARTING_BALANCE-1)*100};})
+    return {c,p,eq,pnl:eq-STARTING_BALANCE,ret:(eq/STARTING_BALANCE-1)*100,change24h:portfolioChange24h(p,eq)};})
     .sort((a,b)=>b.eq-a.eq);
 }
 const MEDALS=["🥇","🥈","🥉"];
@@ -2372,7 +2397,7 @@ function renderLeaderboard(){
       <span class="rankpill">#${i+1}</span>
       <div class="lb-top"><span class="medal">${MEDALS[i]||""}</span><span class="lb-emoji">${r.c.emoji}</span>
         <div><div class="lb-name">${r.c.name}</div><div class="lb-blurb">${agentBlurb(r.c,st)}</div></div></div>
-      <div class="lb-mid"><div class="lb-eq">${fmtUSD(r.eq)}</div><div class="lb-ret ${signClass(r.pnl)}">${fmtPct(r.ret)}</div></div>
+      <div class="lb-mid"><div class="lb-eq">${fmtUSD(r.eq)}</div><div><div class="lb-ret ${signClass(r.pnl)}">${fmtPct(r.ret)}</div><div class="small ${signClass(r.change24h.pct)}">24h ${format24h(r.change24h)}</div></div></div>
       <div class="lb-foot"><span class="muted small">${r.p.positions.length} open · ${r.p.closed.length} closed</span>${miniSpark(r.p.snapshots,r.c.color)}</div>
     </div>`).join("");
   document.querySelectorAll("#leaderboard .lb-card").forEach(el=>{
@@ -2582,12 +2607,14 @@ function renderPortfolioTab(){
     return `<span class="segbtn ${active?"active":""}" data-agent="${a.id}" style="${style}">${a.emoji} ${a.name}</span>`;}).join("");
   document.querySelectorAll("#agentSel .segbtn").forEach(el=>el.addEventListener("click",()=>{localStorage.setItem(VIEW_KEY,el.dataset.agent);renderPortfolioTab();}));
   const p=st.agents[viewId]||defaultPortfolio();const eq=equity(p),pnl=eq-p.starting_balance;
+  const change24h=portfolioChange24h(p,eq);
   renderAgentBrief(cfg,p,st);
   const stats=[
     {ic:"💰",label:"Equity",value:fmtUSD(eq)},
     {ic:"💵",label:"Cash",value:fmtUSD(p.cash)},
     {ic:"📈",label:"P&L",value:fmtUSD(pnl),cls:signClass(pnl)},
     {ic:"🎯",label:"Return",value:fmtPct((eq/p.starting_balance-1)*100),cls:signClass(pnl)},
+    {ic:"🕒",label:"24h change",value:format24h(change24h),cls:signClass(change24h.pct)},
     {ic:"📂",label:"Open",value:p.positions.length},
   ];
   $("statsPf").innerHTML=stats.map(s=>`<div class="stat"><div class="ic">${s.ic}</div><div class="label">${s.label}</div><div class="value ${s.cls||""}">${s.value}</div></div>`).join("");
@@ -3249,7 +3276,7 @@ function renderInvestTab(){
       <div class="lb-emoji">${row.c.emoji}</div>
       <div>
         <div class="invest-name">${row.c.name}</div>
-        <div class="invest-copy">${fmtPct(row.ret)} return · ${row.p.positions.length} open · ${pct.toFixed(1)}% of draft allocation</div>
+        <div class="invest-copy">${fmtPct(row.ret)} return · 24h ${format24h(row.change24h)} · ${row.p.positions.length} open · ${pct.toFixed(1)}% of draft allocation</div>
         <div style="margin-top:8px">${agentExposureSummary(row.c,row.p,row.amount)}</div>
       </div>
       <label class="small muted">Amount<br><input type="number" min="0" step="25" value="${row.amount||""}" placeholder="$0" data-invest-agent="${row.c.id}" aria-label="Allocation for ${esc(row.c.name)}"></label>
@@ -3301,11 +3328,13 @@ function renderPaperTab(){
   }
   const eq=paperEquity(acct),pnl=eq-acct.starting_balance;
   recordPaperSnapshot(acct);
+  const change24h=portfolioChange24h(acct,eq);
   $("paperStats").innerHTML=[
     {ic:"💰",label:"Equity",value:fmtUSD(eq)},
     {ic:"💵",label:"Cash",value:fmtUSD(acct.cash)},
     {ic:"📈",label:"P&L",value:fmtUSD(pnl),cls:signClass(pnl)},
     {ic:"🎯",label:"Return",value:fmtPct((eq/acct.starting_balance-1)*100),cls:signClass(pnl)},
+    {ic:"🕒",label:"24h change",value:format24h(change24h),cls:signClass(change24h.pct)},
   ].map(s=>`<div class="stat"><div class="ic">${s.ic}</div><div class="label">${s.label}</div><div class="value ${s.cls||""}">${s.value}</div></div>`).join("");
   renderPaperPositions(acct);
   renderPaperMarkets();
@@ -3360,8 +3389,8 @@ function renderPaperHistory(acct){
 }
 function renderPaperLeaderboard(store){
   const root=$("paperLeaderboard");if(!root)return;
-  const rows=Object.values(store.accounts).map(a=>{markPaperToMarket(a);const eq=paperEquity(a),ret=(eq/a.starting_balance-1)*100;return {a,eq,ret};}).sort((x,y)=>y.ret-x.ret);
-  root.innerHTML=rows.map((r,i)=>`<div class="leader-row"><div><b>#${i+1} ${esc(r.a.name)}</b><div class="small muted">${r.a.positions.length} open · ${fmtUSD(r.eq)} equity</div></div><div class="${signClass(r.ret)}"><b>${fmtPct(r.ret)}</b></div></div>`).join("");
+  const rows=Object.values(store.accounts).map(a=>{markPaperToMarket(a);const eq=paperEquity(a),ret=(eq/a.starting_balance-1)*100;return {a,eq,ret,change24h:portfolioChange24h(a,eq)};}).sort((x,y)=>y.ret-x.ret);
+  root.innerHTML=rows.map((r,i)=>`<div class="leader-row"><div><b>#${i+1} ${esc(r.a.name)}</b><div class="small muted">${r.a.positions.length} open · ${fmtUSD(r.eq)} equity</div></div><div style="text-align:right"><div class="${signClass(r.ret)}"><b>${fmtPct(r.ret)}</b></div><div class="small ${signClass(r.change24h.pct)}">24h ${format24h(r.change24h)}</div></div></div>`).join("");
 }
 function renderPaperPortfolioChart(acct){
   const svg=$("paperPortfolioChart");if(!svg)return;
