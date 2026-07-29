@@ -340,7 +340,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · strategies, copycats &amp; whales</div><div class="build-badge">Risk-calibrated · v20</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · strategies, copycats &amp; whales</div><div class="build-badge">Active risk engine · v21</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -362,7 +362,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build v20 active:</b> agents scan the 500 most active markets, trade only positive after-cost signals, avoid fast-settling event bets, and cap risk by position, category, and daily drawdown.</div>
+  <div class="live-build-banner"><b>Build v21 active:</b> agents scan the 500 most active markets, combine strict EV entries with small trend and liquidity probes, avoid last-minute event bets, and cap risk by position, category, and daily drawdown.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -743,7 +743,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build durable-risk-v20 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build active-risk-v21 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -770,7 +770,7 @@ const EXIT_STALE_DAYS = 10;
 const EXIT_RESOLUTION_DAYS = 2;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const SUGGESTION_ENGINE_VERSION = 20;
+const SUGGESTION_ENGINE_VERSION = 21;
 const FOCUS_KEY = "pma_focus_v1";
 const VIEW_KEY = "pma_view_v1";
 const PF_SORT_KEY = "pma_portfolio_sort_v1";
@@ -855,7 +855,7 @@ const AGENTS = [
    rank:(s)=>[...s].sort((a,b)=>(Math.abs(b.net_edge||b.edge||0)*120+b.conviction+Number(b.evidence_score||0)*18)-(Math.abs(a.net_edge||a.edge||0)*120+a.conviction+Number(a.evidence_score||0)*18)),
    maxNew:3, maxFrac:0.09, minConv:54, kelly:0.20},
   {id:"momentum", name:"Momentum Chaser", emoji:"🚀", color:"#34d399", kind:"strategy",
-   blurb:"Chases markets where attention is accelerating, but only after the move still leaves positive net edge. It weights conviction by fresh 24-hour volume and evidence quality so it is less likely to buy a move after the useful repricing already happened.",
+   blurb:"Chases markets where attention and price are accelerating together. It prioritizes true positive-edge entries, then uses tightly sized trend probes when one-day and one-week price direction agree, spreads are narrow, and enough time remains before settlement.",
    rank:(s)=>[...s].sort((a,b)=>(b.volume_24hr*(b.conviction+20)*Math.max(.4,Math.abs(b.net_edge||b.edge||0)*18))-(a.volume_24hr*(a.conviction+20)*Math.max(.4,Math.abs(a.net_edge||a.edge||0)*18))),
    maxNew:4, maxFrac:0.10, minConv:52, kelly:0.24},
   {id:"favorite", name:"Favorite Backer", emoji:"🛡️", color:"#38d2e6", kind:"strategy",
@@ -948,6 +948,9 @@ function normalizeMarket(raw,{allowClosed=false}={}){
     yes_price:+yes.toFixed(4),no_price:+prices[1].toFixed(4),
     volume:toNum(raw.volumeNum||raw.volume),volume_24hr:toNum(raw.volume24hr),volume_1wk:toNum(raw.volume1wk),
     liquidity:toNum(raw.liquidityNum||raw.liquidity),end_date:raw.endDateIso||raw.endDate,
+    spread:toNum(raw.spread),best_bid:toNum(raw.bestBid),best_ask:toNum(raw.bestAsk),
+    price_change_1h:toNum(raw.oneHourPriceChange),price_change_1d:toNum(raw.oneDayPriceChange),
+    price_change_1w:toNum(raw.oneWeekPriceChange),price_change_1m:toNum(raw.oneMonthPriceChange),
     days_to_resolution:daysUntil(raw.endDate),image:raw.image||"",
     closed:Boolean(raw.closed),accepting_orders:raw.acceptingOrders!==false,
     url:ev.slug?`https://polymarket.com/event/${ev.slug}`:""};
@@ -1002,6 +1005,7 @@ const MIN_ENTRY_DAYS=3.0;
 const EDGE_SCALE=0.13;
 const MAX_STRATEGY_POSITIONS=16;
 const MAX_NEW_POSITION_PCT=0.035;
+const MAX_PROBE_POSITION_PCT=0.025;
 const MAX_CATEGORY_EXPOSURE_PCT=0.20;
 const MAX_CYCLE_DRAWDOWN_PCT=3;
 const MAX_ACTIVE_MARKET_PAGES=1000;
@@ -1090,12 +1094,21 @@ function timingSignal(d){if(d==null)return 0.4;if(d<1)return 0.1;if(d<=3)return 
 function fastSettlementRisk(m){
   const text=`${m&&m.question||""} ${m&&m.event||""}`.toLowerCase();
   if(/\bexact score\b|\bscore:\s*\d|\bposts? \d+-\d+|\bnumber of (tweets|posts)\b/.test(text))return true;
-  if(/\bvs\.?\b/.test(text)&&(m.days_to_resolution==null||m.days_to_resolution<7))return true;
+  if(/\bvs\.?\b/.test(text)&&(m.days_to_resolution==null||m.days_to_resolution<MIN_ENTRY_DAYS))return true;
   if((m&&m.category)==="Sports"){
     if(/\bwin on \d{4}-\d{2}-\d{2}\b|\bmatch winner\b/.test(text))return true;
     if(m.days_to_resolution==null||m.days_to_resolution<7)return true;
   }
   return false;
+}
+function directionalPriceSignal(m){
+  const hour=Number(m.price_change_1h||0),day=Number(m.price_change_1d||0),week=Number(m.price_change_1w||0);
+  const anchor=Math.abs(day)>=0.006?Math.sign(day):Math.sign(week);
+  if(!anchor)return {side:null,strength:0,aligned:false};
+  const contrary=Math.sign(day)&&Math.sign(week)&&Math.sign(day)!==Math.sign(week)&&Math.abs(day)>=0.012&&Math.abs(week)>=0.02;
+  const aligned=!contrary&&(Math.abs(day)>=0.006||Math.abs(week)>=0.012)&&(Math.abs(hour)<0.02||!Math.sign(hour)||Math.sign(hour)===anchor);
+  const strength=aligned?clamp(0.28+Math.abs(day)*3.2+Math.abs(week)*1.5+(Math.sign(day)===Math.sign(week)?0.18:0),0,1):0;
+  return {side:anchor>0?"YES":"NO",strength,aligned};
 }
 function effectiveEntryEdge(s){
   const net=Math.abs(Number(s&&s.net_edge));
@@ -1104,7 +1117,6 @@ function effectiveEntryEdge(s){
 function analyzeMarket(m,realWorldSignals={}){
   if(m.volume<MIN_SCOUT_VOLUME||m.liquidity<MIN_SCOUT_LIQUIDITY)return null;
   const p=m.yes_price,fair=fairValue(m),edgeYes=fair-p,edge=Math.abs(edgeYes),policy=categoryPolicy(m.category);
-  if(edge<MIN_SCOUT_EDGE)return null;
   const liq=liquiditySignal(m),mom=momentumSignal(m),timing=timingSignal(m.days_to_resolution),evidence=textEvidenceSignal(m,realWorldSignals[m.id]||{});
   const friction=frictionPenalty(m),chase=chasePenalty(m,edgeYes),rawNet=Math.max(0,edge-friction-chase-policy.uncertainty);
   const netEdge=+(Math.sign(edgeYes)*rawNet).toFixed(4),absNet=Math.abs(netEdge);
@@ -1114,9 +1126,21 @@ function analyzeMarket(m,realWorldSignals={}){
   const strictTradeReady=absNet>=minEdge&&m.volume>=Math.max(MIN_VOLUME,policy.minVol)&&m.liquidity>=Math.max(MIN_LIQUIDITY,policy.minLiq)&&evidence.score>=policy.minEvidence;
   const jumpRisk=fastSettlementRisk(m);
   const selectiveTradeReady=absNet>=MIN_SELECTIVE_ENTRY_EDGE&&conviction>=62&&m.volume>=MIN_VOLUME&&m.liquidity>=MIN_LIQUIDITY&&evidence.score>=0.50&&m.yes_price>=0.08&&m.yes_price<=0.92&&!jumpRisk;
-  const tradeReady=(strictTradeReady||selectiveTradeReady)&&!jumpRisk;
-  let side=edgeYes>=0?"YES":"NO",entry=side==="YES"?p:m.no_price,rationale;
-  if(selectiveTradeReady&&!strictTradeReady){rationale=`Selective BUY from top-500 active scan: raw gap ${(edge*100).toFixed(1)}c, conviction ${Math.round(conviction)}, high activity/liquidity, and evidence ${Math.round(evidence.score*100)}. Net edge is conservative, so sizing stays disciplined.`;}
+  const trend=directionalPriceSignal(m);
+  const trendTradeReady=!strictTradeReady&&!selectiveTradeReady&&trend.aligned&&trend.strength>=0.48&&!jumpRisk
+    &&m.spread>0&&m.spread<=0.03&&m.volume_24hr>=500&&m.liquidity>=1000
+    &&m.days_to_resolution!=null&&m.days_to_resolution>=MIN_ENTRY_DAYS&&p>=0.08&&p<=0.92;
+  const liquidityTradeReady=!strictTradeReady&&!selectiveTradeReady&&!trendTradeReady&&!jumpRisk
+    &&conviction>=68&&evidence.score>=0.50&&m.spread>0&&m.spread<=0.025
+    &&m.volume_24hr>=1000&&m.liquidity>=2000&&m.days_to_resolution!=null&&m.days_to_resolution>=MIN_ENTRY_DAYS
+    &&p>=0.12&&p<=0.88&&Math.abs(m.price_change_1d||0)<=0.08;
+  const tradeReady=(strictTradeReady||selectiveTradeReady||trendTradeReady||liquidityTradeReady)&&!jumpRisk;
+  const tradeConviction=trendTradeReady?Math.max(conviction,55+trend.strength*35):(liquidityTradeReady?Math.max(conviction,70):conviction);
+  let side=trendTradeReady?trend.side:(liquidityTradeReady?(p>=0.5?"YES":"NO"):(edgeYes>=0?"YES":"NO"));
+  let entry=side==="YES"?p:m.no_price,rationale;
+  if(trendTradeReady){rationale=`Small trend probe: ${side} is supported by aligned one-day and one-week price movement, ${Math.round(trend.strength*100)} trend strength, ${pct(m.spread)} spread, and enough time before resolution. This is momentum exposure, not a claimed fair-value edge.`;}
+  else if(liquidityTradeReady){rationale=`Small liquidity probe: ${side} is the market favorite in a high-conviction, tight-spread market with enough time before resolution. Position size stays small because this is diversified exposure, not a claimed fair-value edge.`;}
+  else if(selectiveTradeReady&&!strictTradeReady){rationale=`Selective BUY from top-500 active scan: raw gap ${(edge*100).toFixed(1)}c, conviction ${Math.round(conviction)}, high activity/liquidity, and evidence ${Math.round(evidence.score*100)}. Net edge is conservative, so sizing stays disciplined.`;}
   else if(tradeReady&&edgeYes>0){rationale=`Trade-ready after costs: fair value ${pct(fair)} vs market ${pct(p)} leaves ${(absNet*100).toFixed(1)}c net edge for YES after liquidity, chase, and ${m.category} evidence checks.`;}
   else if(tradeReady&&edgeYes<0){rationale=`Trade-ready after costs: fair value ${pct(fair)} vs market ${pct(p)} makes YES look overpriced; NO has ${(absNet*100).toFixed(1)}c net edge after penalties.`;}
   else if(jumpRisk){rationale="Watch only: this market can jump directly to settlement before an hourly stop can protect the position, so agents will not buy it.";}
@@ -1132,9 +1156,10 @@ function analyzeMarket(m,realWorldSignals={}){
     clob_yes:(m.clob_token_ids||[])[0]||null,clob_no:(m.clob_token_ids||[])[1]||null,
     yes_price:p,no_price:m.no_price,fair_value:+fair.toFixed(4),edge:+edgeYes.toFixed(4),
     net_edge:netEdge,friction:+friction.toFixed(4),chase_penalty:+chase.toFixed(4),evidence_score:+evidence.score.toFixed(2),
-    quality:strictTradeReady?"EV+":(tradeReady?"selective":"watch"),
-    side,entry_price:+entry.toFixed(4),conviction,volume:m.volume,volume_24hr:m.volume_24hr,liquidity:m.liquidity,
-    trade_ready:tradeReady,jump_risk:jumpRisk,
+    quality:strictTradeReady?"EV+":(selectiveTradeReady?"selective":(trendTradeReady?"trend":(liquidityTradeReady?"liquidity":"watch"))),
+    side,entry_price:+entry.toFixed(4),conviction:+tradeConviction.toFixed(1),volume:m.volume,volume_24hr:m.volume_24hr,liquidity:m.liquidity,
+    spread:m.spread,price_change_1h:m.price_change_1h,price_change_1d:m.price_change_1d,price_change_1w:m.price_change_1w,
+    momentum_strength:+trend.strength.toFixed(2),trade_ready:tradeReady,jump_risk:jumpRisk,
     days_to_resolution:m.days_to_resolution!=null?+m.days_to_resolution.toFixed(1):null,drivers,rationale};
 }
 const pct=(x)=>Math.round(x*100)+"%";
@@ -1226,6 +1251,7 @@ function compactSuggestionForSync(s){
     fair_value:s.fair_value,edge:s.edge,side:s.side,entry_price:s.entry_price,
     net_edge:s.net_edge,friction:s.friction,chase_penalty:s.chase_penalty,evidence_score:s.evidence_score,quality:s.quality,
     conviction:s.conviction,volume:s.volume,volume_24hr:s.volume_24hr,liquidity:s.liquidity,
+    spread:s.spread,price_change_1h:s.price_change_1h,price_change_1d:s.price_change_1d,price_change_1w:s.price_change_1w,momentum_strength:s.momentum_strength,
     trade_ready:s.trade_ready,watch_only:s.watch_only,jump_risk:s.jump_risk,
     days_to_resolution:s.days_to_resolution,drivers:s.drivers,rationale:s.rationale,
   };
@@ -1711,7 +1737,8 @@ function reduceStrategyOverlap(st){
   });
   Object.values(groups).filter(g=>g.length>1).forEach(group=>{
     group.sort((a,b)=>(b.score-a.score)||((b.pos.value||0)-(a.pos.value||0)));
-    group.slice(1).forEach(({p,pos})=>closePosition(p,pos,"Overlap guard rotated this agent into a different market","EXIT"));
+    const probeOnly=group.every(({pos})=>["trend","liquidity"].includes(pos.quality));
+    group.slice(probeOnly?2:1).forEach(({p,pos})=>closePosition(p,pos,"Overlap guard rotated this agent into a different market","EXIT"));
   });
   AGENTS.filter(a=>a.kind==="strategy").forEach(cfg=>{
     const p=st.agents&&st.agents[cfg.id]; if(p)p.positions=(p.positions||[]).filter(pos=>!pos.closed_at);
@@ -1724,10 +1751,11 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
   const avoid=avoidMarketIds||new Set();
   const cands=rankedSugs.map(s=>peerAdjustedSuggestion(s,peerStats)).filter(s=>s.trade_ready&&(s.side==="YES"||s.side==="NO")&&s.peer_conviction>=d.minConv
     &&s.conviction>=48&&s.entry_price>=0.08&&s.entry_price<=0.92
-    &&effectiveEntryEdge(s)>=MIN_SELECTIVE_ENTRY_EDGE&&(s.days_to_resolution==null||s.days_to_resolution>=MIN_ENTRY_DAYS)
+    &&(["trend","liquidity"].includes(s.quality)||effectiveEntryEdge(s)>=MIN_SELECTIVE_ENTRY_EDGE)&&(s.days_to_resolution==null||s.days_to_resolution>=MIN_ENTRY_DAYS)
     &&s.volume>=MIN_VOLUME&&s.liquidity>=MIN_LIQUIDITY&&(s.volume_24hr>=500||s.conviction>=62)
     &&(s.evidence_score==null||s.evidence_score>=0.40||s.conviction>=62)
-    &&!avoid.has(String(s.market_id))&&!hasPosition(p,s.market_id)&&!hasStoppedToday(p,s.market_id)&&(focus==="All"||!focus||s.category===focus))
+    &&(!avoid.has(String(s.market_id))||(["trend","liquidity"].includes(s.quality)&&Number((peerStats&&peerStats[`${s.market_id}:${s.side}`]||{}).same||0)<2))
+    &&!hasPosition(p,s.market_id)&&!hasStoppedToday(p,s.market_id)&&(focus==="All"||!focus||s.category===focus))
     .sort((a,b)=>(b.peer_conviction-a.peer_conviction)||((b.peer_boost||0)-(a.peer_boost||0)));
   let opened=0,openedIds=[];
   for(const s of cands){
@@ -1736,7 +1764,8 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
     const eq=equity(p),investable=p.cash-eq*d.reserve;
     if(investable<=50)break;
     let frac;
-    if(cfg.flat){frac=d.maxFrac;}
+    if(["trend","liquidity"].includes(s.quality)){frac=Math.min(d.maxFrac,MAX_PROBE_POSITION_PCT);}
+    else if(cfg.flat){frac=d.maxFrac;}
     else{const base=(s.peer_conviction/100)*Math.min(1,effectiveEntryEdge(s)/EDGE_SCALE);frac=Math.min(d.maxFrac,cfg.kelly*base);}
     if(s.peer_boost<0)frac*=0.82;
     if(s.peer_boost>0&&decision&&decision.urgency>0.65)frac*=1.08;
@@ -1753,6 +1782,7 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
       entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,
       original_shares:shares,original_cost:cost,unrealized_pnl:0,conviction:s.peer_conviction,category:s.category,opened_at:cycleIso(),url:s.url||"",
       peer_note:s.peer_note||"",entry_reason:s.rationale||"",net_edge:s.net_edge,evidence_score:s.evidence_score,friction:s.friction,chase_penalty:s.chase_penalty,quality:s.quality,
+      momentum_strength:s.momentum_strength,price_change_1d:s.price_change_1d,price_change_1w:s.price_change_1w,
       gain_stops:{},stop_losses:{}});
     p.history.push({date:logDay(),action:"OPEN",question:s.question,side:s.side,
       detail:`${decision?decision.mode+" mode — ":""}Bought ${shares} ${s.side} '${s.question.slice(0,40)}' @ ${pct(entry)} for ${fmtUSD(cost)} · net edge ${((Math.abs(s.net_edge!=null?s.net_edge:s.edge))*100).toFixed(1)}c · evidence ${Math.round((s.evidence_score||0)*100)}${s.peer_note?` (${s.peer_note})`:""}`});
@@ -1932,7 +1962,8 @@ function runCopycat(p,leader,priceMap,candidate=null){
   }
   p.positions=keep;
   const leaderPicks=leader.positions.filter(x=>(x.unrealized_pnl||0)>=-50&&(x.current_price||0)>0.08&&(x.current_price||0)<0.92
-      &&x.quality==="EV+"&&Math.abs(Number(x.net_edge||0))>=MIN_ENTRY_EDGE&&daysHeld(x)<=2
+      &&(x.quality==="EV+"||["trend","liquidity"].includes(x.quality))
+      &&(x.quality==="EV+"?Math.abs(Number(x.net_edge||0))>=MIN_ENTRY_EDGE:Number(x.momentum_strength||0)>=0.48)&&daysHeld(x)<=2
       &&Number(x.current_price||0)<=Number(x.entry_price||0)*1.10&&!fastSettlementRisk(x))
     .sort((a,b)=>((b.unrealized_pnl||0)/(b.cost||1))-((a.unrealized_pnl||0)/(a.cost||1))||((b.conviction||0)-(a.conviction||0))||((b.value||b.cost)-(a.value||a.cost)))
     .slice(0,copyLimit);
@@ -1941,7 +1972,8 @@ function runCopycat(p,leader,priceMap,candidate=null){
     if(hasPosition(p,lp.market_id)||hasStoppedToday(p,lp.market_id))continue;
     const eq=equity(p),investable=p.cash-eq*0.12; if(investable<=50)break;
     const weight=(lp.value||lp.cost)/book;
-    const stake=Math.min(eq*Math.min(0.07,weight),investable);
+    const probe=["trend","liquidity"].includes(lp.quality);
+    const stake=Math.min(eq*Math.min(probe?0.018:0.04,weight),investable);
     if(stake<50)continue;
     const entry=lp.current_price; if(entry<=0||entry>=1)continue;
     const shares=+(stake/entry).toFixed(2),cost=+(shares*entry).toFixed(2);
@@ -1950,6 +1982,7 @@ function runCopycat(p,leader,priceMap,candidate=null){
     p.positions.push({market_id:lp.market_id,token_id:lp.token_id||null,question:lp.question,side:lp.side,category:lp.category,
       shares,entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,
       original_shares:shares,original_cost:cost,unrealized_pnl:0,conviction:lp.conviction,opened_at:cycleIso(),url:lp.url||"",
+      quality:lp.quality,net_edge:lp.net_edge,momentum_strength:lp.momentum_strength,
       gain_stops:{},stop_losses:{}});
     p.history.push({date:logDay(),action:"OPEN",question:lp.question,side:lp.side,
       detail:`Copied ${(candidate&&candidate.cfg&&candidate.cfg.name)||"momentum leader"} — ${shares} ${lp.side} '${lp.question.slice(0,36)}' @ ${pct(entry)}`});
@@ -2503,8 +2536,8 @@ function renderSuggestions(){
   const scanned=Number(data.market_count||0).toLocaleString();
   const analyzed=Number(data.analyzed_count||data.market_count||0).toLocaleString();
   $("focusNote").textContent=focus==="All"
-    ? `Loaded the ${scanned} most active markets, analyzed ${analyzed} by activity/liquidity/gap, and kept ${all.length} ideas (${buyCount} BUY, ${watchCount} WATCH). Showing ${filtered.length}; agents trade only EV+ ideas after liquidity, chase, and real-world evidence checks. Avg evidence ${evAvg}.`
-    : `Loaded the ${scanned} most active markets and analyzed ${analyzed}. Showing ${filtered.length} of ${pool.length} ${focus} ideas; agents only open EV+ BUY ${focus} positions while this is selected.`;
+    ? `Loaded the ${scanned} most active markets, analyzed ${analyzed} by activity, liquidity, spread, and price direction, and kept ${all.length} ideas (${buyCount} BUY, ${watchCount} WATCH). Showing ${filtered.length}; BUY includes strict EV entries plus smaller trend/liquidity probes. Avg evidence ${evAvg}.`
+    : `Loaded the ${scanned} most active markets and analyzed ${analyzed}. Showing ${filtered.length} of ${pool.length} ${focus} ideas; agents may open strict EV entries or smaller risk-capped probes while this is selected.`;
   if(!filtered.length){root.innerHTML=`<div class="empty" style="grid-column:1/-1">No ${esc(focus)} suggestions in this live batch.</div>`;return;}
   root.innerHTML=filtered.map(s=>{
     const col=catColor(s.category);
