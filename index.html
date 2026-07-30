@@ -340,7 +340,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">5 core agents · profit-seeking strategies</div><div class="build-badge">Active strategy engine · v25</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">5 core agents · profit-seeking strategies</div><div class="build-badge">Active strategy engine · v26</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -362,7 +362,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build v25 active:</b> the five core strategies can hold up to 40 positions, deploy larger exploratory stakes, and make more entries per cycle. Stop-loss and settlement protections remain active.</div>
+  <div class="live-build-banner"><b>Build v26 active:</b> the five core strategies can hold up to 40 positions, deploy larger exploratory stakes, and share strong probe trades across at most three agents. Stop-loss and settlement protections remain active.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -743,7 +743,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build core-five-active-v25 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build core-five-active-v26 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -1697,7 +1697,7 @@ function peerAdjustedSuggestion(s,peer){
   const m=(peer&&peer[`${s.market_id}:${s.side}`])||{};
   let boost=0,peerNote="";
   if(m.same){
-    boost-=Math.min(14,4+m.same*3);
+    boost-=Math.min(10,2+m.same*2);
     peerNote=`diversity guard: ${m.names.slice(0,3).join(", ")} already hold this side`;
   }
   if(m.same&&m.samePnl< -50){boost-=Math.min(8,2+m.same*1.5);peerNote=`peer warning: same-side holders are losing`;}
@@ -1735,7 +1735,7 @@ function reduceStrategyOverlap(st){
   Object.values(groups).filter(g=>g.length>1).forEach(group=>{
     group.sort((a,b)=>(b.score-a.score)||((b.pos.value||0)-(a.pos.value||0)));
     const probeOnly=group.every(({pos})=>["trend","liquidity","explore"].includes(pos.quality));
-    group.slice(probeOnly?2:1).forEach(({p,pos})=>closePosition(p,pos,"Overlap guard rotated this agent into a different market","EXIT"));
+    group.slice(probeOnly?3:1).forEach(({p,pos})=>closePosition(p,pos,"Overlap guard rotated this agent into a different market","EXIT"));
   });
   AGENTS.filter(a=>a.kind==="strategy").forEach(cfg=>{
     const p=st.agents&&st.agents[cfg.id]; if(p)p.positions=(p.positions||[]).filter(pos=>!pos.closed_at);
@@ -1751,7 +1751,7 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
     &&(["trend","liquidity","explore"].includes(s.quality)||effectiveEntryEdge(s)>=MIN_SELECTIVE_ENTRY_EDGE)&&(s.days_to_resolution==null||s.days_to_resolution>=MIN_ENTRY_DAYS)
     &&s.volume>=MIN_VOLUME&&s.liquidity>=MIN_LIQUIDITY&&(s.volume_24hr>=500||s.conviction>=62)
     &&(s.evidence_score==null||s.evidence_score>=0.40||s.conviction>=62)
-    &&(!avoid.has(String(s.market_id))||(["trend","liquidity","explore"].includes(s.quality)&&Number((peerStats&&peerStats[`${s.market_id}:${s.side}`]||{}).same||0)<2))
+    &&(!avoid.has(String(s.market_id))||(["trend","liquidity","explore"].includes(s.quality)&&Number((peerStats&&peerStats[`${s.market_id}:${s.side}`]||{}).same||0)<3))
     &&!hasPosition(p,s.market_id)&&!hasStoppedToday(p,s.market_id)&&(focus==="All"||!focus||s.category===focus))
     .sort((a,b)=>(b.peer_conviction-a.peer_conviction)||((b.peer_boost||0)-(a.peer_boost||0)));
   let opened=0,openedIds=[];
