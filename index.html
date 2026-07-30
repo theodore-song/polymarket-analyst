@@ -340,7 +340,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">5 core agents · profit-seeking strategies</div><div class="build-badge">Active strategy engine · v24</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">5 core agents · profit-seeking strategies</div><div class="build-badge">Active strategy engine · v25</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -362,7 +362,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build v24 active:</b> the arena now contains only the five core strategies, with higher deployment targets, more positions per agent, and less restrictive recovery rules. Stop-loss and settlement protections remain active.</div>
+  <div class="live-build-banner"><b>Build v25 active:</b> the five core strategies can hold up to 40 positions, deploy larger exploratory stakes, and make more entries per cycle. Stop-loss and settlement protections remain active.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -743,7 +743,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build core-five-active-v24 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build core-five-active-v25 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -851,23 +851,23 @@ const AGENTS = [
   {id:"value", name:"Value Hunter", emoji:"🎯", color:"#7c8cff", kind:"strategy",
    blurb:"Looks for the widest net gap between model fair value and current market price after liquidity friction, chase penalties, and real-world evidence checks. It prefers trades where the crowd appears too pessimistic or too optimistic, then sizes positions moderately so one bad read does not dominate the portfolio.",
    rank:(s)=>[...s].sort((a,b)=>(Math.abs(b.net_edge||b.edge||0)*120+b.conviction+Number(b.evidence_score||0)*18)-(Math.abs(a.net_edge||a.edge||0)*120+a.conviction+Number(a.evidence_score||0)*18)),
-   maxNew:6, maxFrac:0.055, minConv:52, kelly:0.24},
+   maxNew:8, maxFrac:0.055, minConv:52, kelly:0.24},
   {id:"momentum", name:"Momentum Chaser", emoji:"🚀", color:"#34d399", kind:"strategy",
    blurb:"Chases markets where attention and price are accelerating together. It prioritizes true positive-edge entries, then uses tightly sized trend probes when one-day and one-week price direction agree, spreads are narrow, and enough time remains before settlement.",
    rank:(s)=>[...s].sort((a,b)=>(b.volume_24hr*(b.conviction+20)*Math.max(.4,Math.abs(b.net_edge||b.edge||0)*18))-(a.volume_24hr*(a.conviction+20)*Math.max(.4,Math.abs(a.net_edge||a.edge||0)*18))),
-   maxNew:8, maxFrac:0.06, minConv:50, kelly:0.30},
+   maxNew:10, maxFrac:0.06, minConv:50, kelly:0.30},
   {id:"favorite", name:"Favorite Backer", emoji:"🛡️", color:"#38d2e6", kind:"strategy",
    blurb:"A lower-drama agent that only considers outcomes already priced as favorites. It tries to grind out steadier returns by backing high-probability markets only when net edge and evidence quality survive the stricter checks.",
    rank:(s)=>[...s].filter(x=>x.entry_price>=0.6).sort((a,b)=>(b.entry_price+Math.abs(b.net_edge||b.edge||0)+Number(b.evidence_score||0)*.2)-(a.entry_price+Math.abs(a.net_edge||a.edge||0)+Number(a.evidence_score||0)*.2)||b.conviction-a.conviction),
-   maxNew:6, maxFrac:0.055, minConv:49, kelly:0.27},
+   maxNew:8, maxFrac:0.055, minConv:49, kelly:0.27},
   {id:"longshot", name:"Longshot Hunter", emoji:"🎰", color:"#fbbf24", kind:"strategy",
    blurb:"The swing-for-upside strategy. It hunts cheaper contracts that the model thinks are being ignored, but now discounts thin tails unless evidence and net edge are strong enough to justify the volatility.",
    rank:(s)=>[...s].filter(x=>x.entry_price<=0.4).sort((a,b)=>(Math.abs(b.net_edge||b.edge||0)*100+b.conviction+Number(b.evidence_score||0)*22-b.entry_price*12)-(Math.abs(a.net_edge||a.edge||0)*100+a.conviction+Number(a.evidence_score||0)*22-a.entry_price*12)),
-   maxNew:6, maxFrac:0.045, minConv:53, kelly:0.18},
+   maxNew:10, maxFrac:0.045, minConv:51, kelly:0.18},
   {id:"diversifier", name:"The Diversifier", emoji:"🌐", color:"#c77dff", kind:"strategy",
    blurb:"Builds a broad basket instead of making a few concentrated bets. It spreads smaller, flatter positions across high-conviction, evidence-backed ideas while avoiding crowded overlap and weak net-edge fillers.",
    rank:(s)=>[...s].sort((a,b)=>(b.conviction+Number(b.evidence_score||0)*15+Math.abs(b.net_edge||b.edge||0)*55)-(a.conviction+Number(a.evidence_score||0)*15+Math.abs(a.net_edge||a.edge||0)*55)),
-   maxNew:10, maxFrac:0.038, minConv:48, kelly:0.16, flat:true},
+   maxNew:12, maxFrac:0.038, minConv:48, kelly:0.16, flat:true},
 ];
 const agentById = (id) => AGENTS.find(a=>a.id===id) || AGENTS[0];
 
@@ -991,10 +991,10 @@ const MIN_ENTRY_EDGE=0.032;
 const MIN_SELECTIVE_ENTRY_EDGE=0.022;
 const MIN_ENTRY_DAYS=3.0;
 const EDGE_SCALE=0.13;
-const MAX_STRATEGY_POSITIONS=28;
+const MAX_STRATEGY_POSITIONS=40;
 const MAX_NEW_POSITION_PCT=0.06;
 const MAX_PROBE_POSITION_PCT=0.045;
-const MAX_EXPLORATION_POSITION_PCT=0.018;
+const MAX_EXPLORATION_POSITION_PCT=0.025;
 const MAX_CATEGORY_EXPOSURE_PCT=0.35;
 const MAX_CYCLE_DRAWDOWN_PCT=6;
 const MAX_ACTIVE_MARKET_PAGES=1000;
