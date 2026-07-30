@@ -6,8 +6,8 @@
 <meta http-equiv="Cache-Control" content="no-store, max-age=0, must-revalidate" />
 <meta http-equiv="Pragma" content="no-cache" />
 <meta http-equiv="Expires" content="0" />
-<title>Polymarket Analyst — 10 AI Agents Compete to Trade Prediction Markets</title>
-<meta name="description" content="Frequent AI analysis of Polymarket with ten competing autonomous paper-trading agents, whale-copy portfolios, and a live leaderboard." />
+<title>Polymarket Analyst — 5 AI Agents Compete to Trade Prediction Markets</title>
+<meta name="description" content="Frequent AI analysis of Polymarket with five competing autonomous paper-trading strategies and a live leaderboard." />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
@@ -340,7 +340,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · strategies, copycats &amp; whales</div><div class="build-badge">Broad signal engine · v23</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">5 core agents · profit-seeking strategies</div><div class="build-badge">Active strategy engine · v24</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -362,7 +362,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build v23 active:</b> every agent and paper portfolio now shows a rolling 24-hour equity change alongside total return, while the broad tiered signal engine keeps its existing risk limits.</div>
+  <div class="live-build-banner"><b>Build v24 active:</b> the arena now contains only the five core strategies, with higher deployment targets, more positions per agent, and less restrictive recovery rules. Stop-loss and settlement protections remain active.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -376,10 +376,10 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
         </g>
         <g fill="#d9b4ff"><circle cx="380" cy="40" r="6"/></g>
       </svg>
-      <h1>Ten AI agents race to <span class="grad">beat the market</span></h1>
+      <h1>Five AI agents race to <span class="grad">beat the market</span></h1>
       <p>Each cycle loads the 500 most active Polymarket markets, ranks them by activity, liquidity, timing, and estimated price gap, then lets agents trade from that tighter pool.</p>
       <div class="badges">
-        <span class="hbadge">🏆 10 competing agents</span>
+        <span class="hbadge">🏆 5 core agents</span>
         <span class="hbadge">Top 500 active markets</span>
         <span class="hbadge">Ranked by activity + gap</span>
         <span class="hbadge">Live Polymarket data</span>
@@ -712,7 +712,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <!-- ============ ABOUT ============ -->
   <section class="tabpanel" data-tab="about">
     <div class="section-title">ℹ️ The competition</div>
-    <p class="muted" style="margin-top:-6px;max-width:820px">Every agent starts with <b>$10,000</b> in paper money. The five in-house strategies trade the same frequently refreshed suggestions their own way; the <b>Copycat</b> follows the strategy with the strongest MACD, momentum, and drawdown-adjusted return profile; and the four leading-account copy agents mirror live positions from high-profit real traders on Polymarket (auto-discovered from its public leaderboard). All mark to market on each cycle and climb — or sink — the board.</p>
+    <p class="muted" style="margin-top:-6px;max-width:820px">Every agent starts with <b>$10,000</b> in paper money. The five core strategies trade the same frequently refreshed suggestions in distinct ways: value, momentum, favorites, longshots, and broad diversification. They target high capital deployment when qualifying opportunities exist, mark every position to market on each cycle, and remain subject to stop-loss, gain-stop, settlement, and exposure protections.</p>
     <div class="about-grid" id="aboutAgents"></div>
     <div class="card" style="margin-top:16px">
       <div class="card-h"><h3>The live cycle</h3></div>
@@ -743,7 +743,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build portfolio-24h-v23 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build core-five-active-v24 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -752,7 +752,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
 "use strict";
 /* ============================================================
    Polymarket Arena — fully client-side.
-   Fetches live markets, scores them, and runs ten competing
+   Fetches live markets, scores them, and runs five competing
    paper-trading agents. State syncs through /api/state when configured and uses localStorage as the on-device cache.
 ============================================================ */
 
@@ -788,9 +788,7 @@ const CATEGORIES = ["All","Politics","Sports","Crypto","Economy","Pop Culture","
 const SYNC_KEYS=[AGENTS_KEY,SUG_KEY,FOCUS_KEY,VIEW_KEY,PF_SORT_KEY,CHART_RANGE_KEY,INVEST_KEY,PAPER_KEY,LIVE_KEY,EMAIL_ALERT_KEY];
 const SYNC_LIMITS={closed:80,history:160,snapshots:240,suggestions:900,paperHistory:120,paperSnapshots:120,audit:120};
 const CAT_COLORS = {Politics:"#fb7185",Sports:"#34d399",Crypto:"#fbbf24",Economy:"#7c8cff",
-  "Pop Culture":"#c77dff",Other:"#94a1bb",All:"#7c8cff",Copy:"#22d3ee"};
-const DATA_API = "https://data-api.polymarket.com";
-const LB_API = "https://lb-api.polymarket.com";
+  "Pop Culture":"#c77dff",Other:"#94a1bb",All:"#7c8cff"};
 const CLOB = "https://clob.polymarket.com";
 let PAPER_SEARCH_RESULTS = null;
 let PAPER_MARKET_OFFSET = 0;
@@ -847,39 +845,29 @@ async function refreshTradeEmailStatus(){
   renderEmailAlerts();
 }
 
-/* ---------- the ten competing agents ----------
+/* ---------- the five core competing agents ----------
    Each shares the same frequently refreshed suggestions but ranks/sizes them differently. */
 const AGENTS = [
   {id:"value", name:"Value Hunter", emoji:"🎯", color:"#7c8cff", kind:"strategy",
    blurb:"Looks for the widest net gap between model fair value and current market price after liquidity friction, chase penalties, and real-world evidence checks. It prefers trades where the crowd appears too pessimistic or too optimistic, then sizes positions moderately so one bad read does not dominate the portfolio.",
    rank:(s)=>[...s].sort((a,b)=>(Math.abs(b.net_edge||b.edge||0)*120+b.conviction+Number(b.evidence_score||0)*18)-(Math.abs(a.net_edge||a.edge||0)*120+a.conviction+Number(a.evidence_score||0)*18)),
-   maxNew:3, maxFrac:0.09, minConv:54, kelly:0.20},
+   maxNew:6, maxFrac:0.055, minConv:52, kelly:0.24},
   {id:"momentum", name:"Momentum Chaser", emoji:"🚀", color:"#34d399", kind:"strategy",
    blurb:"Chases markets where attention and price are accelerating together. It prioritizes true positive-edge entries, then uses tightly sized trend probes when one-day and one-week price direction agree, spreads are narrow, and enough time remains before settlement.",
    rank:(s)=>[...s].sort((a,b)=>(b.volume_24hr*(b.conviction+20)*Math.max(.4,Math.abs(b.net_edge||b.edge||0)*18))-(a.volume_24hr*(a.conviction+20)*Math.max(.4,Math.abs(a.net_edge||a.edge||0)*18))),
-   maxNew:4, maxFrac:0.10, minConv:52, kelly:0.24},
+   maxNew:8, maxFrac:0.06, minConv:50, kelly:0.30},
   {id:"favorite", name:"Favorite Backer", emoji:"🛡️", color:"#38d2e6", kind:"strategy",
    blurb:"A lower-drama agent that only considers outcomes already priced as favorites. It tries to grind out steadier returns by backing high-probability markets only when net edge and evidence quality survive the stricter checks.",
    rank:(s)=>[...s].filter(x=>x.entry_price>=0.6).sort((a,b)=>(b.entry_price+Math.abs(b.net_edge||b.edge||0)+Number(b.evidence_score||0)*.2)-(a.entry_price+Math.abs(a.net_edge||a.edge||0)+Number(a.evidence_score||0)*.2)||b.conviction-a.conviction),
-   maxNew:3, maxFrac:0.095, minConv:50, kelly:0.22},
+   maxNew:6, maxFrac:0.055, minConv:49, kelly:0.27},
   {id:"longshot", name:"Longshot Hunter", emoji:"🎰", color:"#fbbf24", kind:"strategy",
    blurb:"The swing-for-upside strategy. It hunts cheaper contracts that the model thinks are being ignored, but now discounts thin tails unless evidence and net edge are strong enough to justify the volatility.",
    rank:(s)=>[...s].filter(x=>x.entry_price<=0.4).sort((a,b)=>(Math.abs(b.net_edge||b.edge||0)*100+b.conviction+Number(b.evidence_score||0)*22-b.entry_price*12)-(Math.abs(a.net_edge||a.edge||0)*100+a.conviction+Number(a.evidence_score||0)*22-a.entry_price*12)),
-   maxNew:3, maxFrac:0.055, minConv:56, kelly:0.12},
+   maxNew:6, maxFrac:0.045, minConv:53, kelly:0.18},
   {id:"diversifier", name:"The Diversifier", emoji:"🌐", color:"#c77dff", kind:"strategy",
    blurb:"Builds a broad basket instead of making a few concentrated bets. It spreads smaller, flatter positions across high-conviction, evidence-backed ideas while avoiding crowded overlap and weak net-edge fillers.",
    rank:(s)=>[...s].sort((a,b)=>(b.conviction+Number(b.evidence_score||0)*15+Math.abs(b.net_edge||b.edge||0)*55)-(a.conviction+Number(a.evidence_score||0)*15+Math.abs(a.net_edge||a.edge||0)*55)),
-   maxNew:6, maxFrac:0.04, minConv:50, kelly:0.12, flat:true},
-  {id:"copycat", name:"The Copycat", emoji:"🐒", color:"#ec4899", kind:"copycat",
-   blurb:"A meta-agent that does not pick markets directly. It watches the in-house strategies, scores their return trend, MACD, recent momentum, and drawdown risk, then mirrors the agent most likely to keep improving rather than blindly chasing the current leader."},
-  {id:"whale1", name:"Apex Mirror", emoji:"🐋", color:"#2dd4bf", kind:"whale", slot:0,
-   blurb:"Copies one of the highest-profit real Polymarket traders discovered from the public leaderboard. It mirrors that trader's largest live positions, then applies the same paper-trading risk rules as the other agents."},
-  {id:"whale2", name:"Deepwater Echo", emoji:"🐳", color:"#fb923c", kind:"whale", slot:1,
-   blurb:"Tracks a second leaderboard trader so the race is not dependent on a single whale. Its portfolio shows how another successful wallet's live exposure would behave inside the same $10,000 paper bankroll."},
-  {id:"whale3", name:"Signal Shark", emoji:"🦈", color:"#a3e635", kind:"whale", slot:2,
-   blurb:"Follows a third high-profit trader with a separate set of live holdings. This agent is useful for comparing whether different whale styles cluster around the same markets or take totally different risks."},
-  {id:"whale4", name:"Tide Rider", emoji:"🐡", color:"#60a5fa", kind:"whale", slot:3,
-   blurb:"Rounds out the whale bench by mirroring a fourth public leaderboard trader. It gives the competition another real-world reference point alongside the model-driven strategies."},
+   maxNew:10, maxFrac:0.038, minConv:48, kelly:0.16, flat:true},
 ];
 const agentById = (id) => AGENTS.find(a=>a.id===id) || AGENTS[0];
 
@@ -1003,12 +991,12 @@ const MIN_ENTRY_EDGE=0.032;
 const MIN_SELECTIVE_ENTRY_EDGE=0.022;
 const MIN_ENTRY_DAYS=3.0;
 const EDGE_SCALE=0.13;
-const MAX_STRATEGY_POSITIONS=16;
-const MAX_NEW_POSITION_PCT=0.035;
-const MAX_PROBE_POSITION_PCT=0.025;
-const MAX_EXPLORATION_POSITION_PCT=0.009;
-const MAX_CATEGORY_EXPOSURE_PCT=0.20;
-const MAX_CYCLE_DRAWDOWN_PCT=3;
+const MAX_STRATEGY_POSITIONS=28;
+const MAX_NEW_POSITION_PCT=0.06;
+const MAX_PROBE_POSITION_PCT=0.045;
+const MAX_EXPLORATION_POSITION_PCT=0.018;
+const MAX_CATEGORY_EXPOSURE_PCT=0.35;
+const MAX_CYCLE_DRAWDOWN_PCT=6;
 const MAX_ACTIVE_MARKET_PAGES=1000;
 const MARKET_ANALYSIS_LIMIT=500;
 const ACTIVE_MARKET_FETCH_LIMIT=500;
@@ -1217,16 +1205,19 @@ function generateSuggestions(markets,total=SUGGESTION_TOTAL,perCategory=SUGGESTI
 
 /* ---------- Multi-agent store ---------- */
 function defaultPortfolio(){return {cash:STARTING_BALANCE,starting_balance:STARTING_BALANCE,positions:[],closed:[],history:[],snapshots:[],stopped:{},lastDecision:null};}
-function defaultState(){const agents={};AGENTS.forEach(a=>agents[a.id]=defaultPortfolio());return {date:null,last_run:null,last_cycle_hour:null,agents,whales:{},copycatLeader:null,seeded:false};}
+function defaultState(){const agents={};AGENTS.forEach(a=>agents[a.id]=defaultPortfolio());return {date:null,last_run:null,last_cycle_hour:null,agents,seeded:false};}
 function loadState(){
   let st; try{st=JSON.parse(localStorage.getItem(AGENTS_KEY));}catch(e){st=null;}
   if(!st||!st.agents)st=defaultState();
+  const activeIds=new Set(AGENTS.map(a=>a.id));
+  Object.keys(st.agents).forEach(id=>{if(!activeIds.has(id))delete st.agents[id];});
+  delete st.whales;
+  delete st.copycatLeader;
   AGENTS.forEach(a=>{
     if(!st.agents[a.id])st.agents[a.id]=defaultPortfolio();
     if(!st.agents[a.id].stopped)st.agents[a.id].stopped={};
     if(!("lastDecision" in st.agents[a.id]))st.agents[a.id].lastDecision=null;
   });
-  if(!st.whales)st.whales={};
   if(!st.last_cycle_hour&&st.last_run)st.last_cycle_hour=cycleHourFromIso(st.last_run);
   return st;
 }
@@ -1246,7 +1237,8 @@ function compactAgentStateForSync(st,limits=SYNC_LIMITS){
   if(!st||typeof st!=="object")return st;
   const out=Object.assign({},st,{agents:{}});
   AGENTS.forEach(a=>{out.agents[a.id]=compactPortfolioForSync(st.agents&&st.agents[a.id],limits)||defaultPortfolio();});
-  out.whales=st.whales||{};
+  delete out.whales;
+  delete out.copycatLeader;
   return out;
 }
 function compactSuggestionForSync(s){
@@ -1462,36 +1454,36 @@ function adaptiveDecision(cfg,p,rank,total,leaderEq){
   const eq=equity(p),ret=(eq/p.starting_balance-1)*100,trail=((leaderEq||eq)-eq)/p.starting_balance*100;
   const trend=recentReturnDelta(p);
   const emo=emotionalState(ret,trail,trend,rank);
-  let minConv=cfg.minConv??0,maxNew=cfg.maxNew??12,maxFrac=cfg.maxFrac??0.34,reserve=0.07,mode="Balanced",reason="following its base strategy while keeping enough cash for better entries.";
+  let minConv=cfg.minConv??0,maxNew=cfg.maxNew??12,maxFrac=cfg.maxFrac??0.06,reserve=0.03,mode="Active",reason="following its base strategy with a high deployment target and a small reserve for new opportunities.";
   if(rank===1){
-    mode="Defend";minConv+=3;maxNew=Math.max(2,maxNew-1);maxFrac*=0.88;reserve=0.10;
-    reason="leading the race, so it protects the lead without going completely inactive.";
+    mode="Press the Lead";minConv+=1;maxFrac*=0.97;reserve=0.05;
+    reason="leading the race, so it stays invested while slightly favoring cleaner entries.";
   }else if(trail>6){
-    mode="Selective Catch-Up";minConv+=2;maxNew=Math.max(2,maxNew);maxFrac*=0.94;reserve=0.085;
-    reason="behind the leader, so it tries to recover through cleaner edges instead of forcing lower-quality catch-up trades.";
+    mode="Catch-Up";minConv-=1;maxNew+=1;maxFrac*=1.05;reserve=0.025;
+    reason="behind the leader, so it widens its qualifying set and deploys more capital into ranked opportunities.";
   }else if(trend>1.5){
-    mode="Measured Press";minConv-=1;maxNew+=1;maxFrac*=1.08;reserve=0.055;
+    mode="Momentum Press";minConv-=1;maxNew+=1;maxFrac*=1.08;reserve=0.02;
     reason="recent momentum is positive, so it presses the advantage while risk caps stay active.";
   }
   if(ret<-5){
-    mode="Recover";minConv+=4;maxNew=Math.max(2,maxNew-1);maxFrac*=0.75;reserve=0.11;
-    reason="in drawdown, so it gets pickier but still allows enough trades to recover.";
+    mode="Active Recovery";minConv+=1;maxNew=Math.max(3,maxNew);maxFrac*=0.90;reserve=0.05;
+    reason="in drawdown, so it keeps trading the strongest ranked ideas with moderately smaller sizing instead of retreating to cash.";
   }
   if(ret<-18){
-    mode="Crisis Guard";minConv+=12;maxNew=1;maxFrac=Math.min(maxFrac*0.45,0.035);reserve=0.20;
-    reason="down more than 18%, so it stops chasing, keeps more cash, and only allows one high-conviction recovery trade.";
+    mode="Controlled Recovery";minConv+=5;maxNew=Math.max(3,Math.min(maxNew,5));maxFrac=Math.min(maxFrac,0.04);reserve=0.10;
+    reason="down more than 18%, so it continues pursuing high-conviction recovery trades with reduced position size and a 10% reserve.";
   }
   if(emo.mood==="impatient"||emo.mood==="frustrated"){
-    minConv+=2;maxNew=Math.max(1,maxNew-1);maxFrac*=0.92;reserve=Math.max(0.09,reserve);
-    reason+=` Emotion layer: ${emo.label.toLowerCase()} raises its standards so it does not turn frustration into bad entries.`;
+    maxNew+=1;maxFrac*=1.02;reserve=Math.min(reserve,0.04);
+    reason+=` Emotion layer: ${emo.label.toLowerCase()} adds urgency and one extra ranked entry without disabling risk controls.`;
   }else if(emo.mood==="confident"){
     maxNew+=1;maxFrac*=1.05;
     reason+=` Emotion layer: confidence lets it press winners a little harder.`;
   }else if(emo.mood==="alarmed"){
-    maxNew=1;maxFrac=Math.min(maxFrac,0.035);reserve=Math.max(reserve,0.20);
-    reason+=` Emotion layer: alarm keeps it from revenge trading.`;
+    maxNew=Math.max(3,Math.min(maxNew,5));maxFrac=Math.min(maxFrac,0.04);reserve=Math.max(reserve,0.10);
+    reason+=` Emotion layer: alarm concentrates activity in the strongest setups rather than shutting the portfolio down.`;
   }
-  if((p.cash/Math.max(eq,1))<0.12){maxNew=Math.max(1,Math.min(maxNew,2));reason+=" Cash is tight, so new entries are rationed.";}
+  if((p.cash/Math.max(eq,1))<0.06){maxNew=Math.max(1,Math.min(maxNew,2));reason+=" Cash is below the 6% operating reserve, so new entries are temporarily rationed.";}
   const todaySnaps=(p.snapshots||[]).filter(s=>s.date===todayStr());
   const cycleStart=todaySnaps.length?Number(todaySnaps[0].equity||eq):eq;
   const cycleDrawdown=cycleStart>0?(eq/cycleStart-1)*100:0;
@@ -1499,8 +1491,7 @@ function adaptiveDecision(cfg,p,rank,total,leaderEq){
     mode="Daily Risk Pause";maxNew=0;reserve=1;
     reason=`down ${Math.abs(cycleDrawdown).toFixed(1)}% since today's first snapshot, so it will not add risk until the next trading day.`;
   }
-  const maxCap=cfg.kind==="whale"?0.03:MAX_NEW_POSITION_PCT;
-  return {mode,reason,emotion:emo.mood,urgency:+emo.urgency.toFixed(2),minConv:Math.max(0,Math.round(minConv)),maxNew:Math.max(0,Math.round(maxNew)),maxFrac:+Math.min(maxCap,Math.max(0.01,maxFrac)).toFixed(3),reserve};
+  return {mode,reason,emotion:emo.mood,urgency:+emo.urgency.toFixed(2),minConv:Math.max(0,Math.round(minConv)),maxNew:Math.max(0,Math.round(maxNew)),maxFrac:+Math.min(MAX_NEW_POSITION_PCT,Math.max(0.01,maxFrac)).toFixed(3),reserve};
 }
 const stopKey=(posOrId)=>typeof posOrId==="string"?posOrId:String(posOrId.asset||posOrId.market_id||"");
 const hasStoppedToday=(p,posOrId)=>p.stopped&&p.stopped[stopKey(posOrId)]===logDay();
@@ -1805,198 +1796,6 @@ function recordSnapshot(p){
   p.snapshots=SIM_DAY?p.snapshots.filter(s=>s.date!==snap.date):p.snapshots.filter(s=>s.timestamp!==snap.timestamp);
   p.snapshots.push(snap);p.snapshots.sort((a,b)=>new Date(a.timestamp||a.date)-new Date(b.timestamp||b.date));
 }
-function agentMomentumStats(p){
-  const snaps=(p.snapshots||[]).slice().filter(s=>Number.isFinite(s.return_pct)).sort((a,b)=>snapTime(a)-snapTime(b));
-  const returns=snaps.map(s=>Number(s.return_pct||0));
-  const last=returns[returns.length-1]||0;
-  const prev=returns[returns.length-2]??last;
-  const recent=returns.length>4?last-returns[returns.length-4]:last-prev;
-  const emaFast=returns.length?ema(returns,3):[0];
-  const emaSlow=returns.length?ema(returns,7):[0];
-  const macd=emaFast[emaFast.length-1]-emaSlow[emaSlow.length-1];
-  const signalArr=ema(returns.map((_,i)=>emaFast[i]-emaSlow[i]),3);
-  const macdHist=macd-(signalArr[signalArr.length-1]||0);
-  const high=Math.max(...returns,last,0);
-  const drawdown=last-high;
-  return {last,prev,recent,macd,macdHist,drawdown,snaps};
-}
-function copycatCandidateScore(cfg,p){
-  const m=agentMomentumStats(p);
-  const eq=equity(p);
-  const open=(p.positions||[]).length;
-  const openPnl=(p.positions||[]).reduce((sum,pos)=>sum+(pos.unrealized_pnl||0),0);
-  const cashRatio=p.cash/Math.max(eq,1);
-  const score=
-    m.last*0.40+
-    m.recent*1.20+
-    m.macd*1.60+
-    m.macdHist*1.80+
-    Math.min(8,openPnl/100)*0.35+
-    Math.min(3,open)*0.45+
-    Math.max(-8,m.drawdown)*0.35+
-    cashRatio*0.60;
-  return {id:cfg.id,cfg,p,score,m,openPnl,cashRatio};
-}
-function chooseCopycatLeader(st){
-  const cands=AGENTS.filter(a=>a.kind==="strategy").map(cfg=>copycatCandidateScore(cfg,st.agents[cfg.id]||defaultPortfolio()));
-  const eligible=cands.filter(c=>c.m.last>0&&c.m.recent>-3&&c.openPnl>-300);
-  (eligible.length?eligible:cands).sort((a,b)=>b.score-a.score);
-  return (eligible.length?eligible:cands)[0]||null;
-}
-function copycatReason(candidate){
-  if(!candidate)return "No eligible strategy has enough data, so the copycat is waiting.";
-  const m=candidate.m;
-  const bits=[
-    `return ${fmtPct(m.last)}`,
-    `recent momentum ${m.recent>=0?"+":""}${m.recent.toFixed(2)} pts`,
-    `MACD ${m.macd>=0?"+":""}${m.macd.toFixed(2)}`,
-    `histogram ${m.macdHist>=0?"+":""}${m.macdHist.toFixed(2)}`,
-  ];
-  if(m.drawdown<0)bits.push(`drawdown ${m.drawdown.toFixed(2)} pts`);
-  return `copying ${candidate.cfg.name} because it has the strongest forward score: ${bits.join(", ")}.`;
-}
-/* ---------- Copy-trading: Polymarket leaders ---------- */
-const hasAsset=(p,a)=>p.positions.some(x=>x.asset===a);
-async function fetchTokenPrice(asset){
-  try{const r=await fetch(`${CLOB}/midpoint?token_id=${asset}`);
-    if(r.ok){const d=await r.json();const m=parseFloat(d.mid);if(m>0&&m<1)return m;}}catch(e){}
-  return null;
-}
-async function fetchTraderPositions(wallet){
-  try{const r=await fetch(`${DATA_API}/positions?user=${wallet}&sizeThreshold=1&limit=80`);
-    if(!r.ok)return [];
-    const d=await r.json();
-    return d.filter(p=>(p.outcome==="Yes"||p.outcome==="No")&&p.curPrice>0.02&&p.curPrice<0.98&&!p.redeemable&&p.size*p.curPrice>=1)
-      .map(p=>({asset:String(p.asset),conditionId:p.conditionId,outcome:p.outcome,side:String(p.outcome).toUpperCase(),
-        curPrice:+p.curPrice,title:p.title||"market",value:p.size*p.curPrice,url:rawPositionUrl(p)}));
-  }catch(e){return [];}
-}
-function prettyName(n,w){
-  if(n&&!/^0x/i.test(n))return n;              // real display name / pseudonym
-  return "0x"+String(w).slice(2,6)+"…"+String(w).slice(-4); // anonymous → short wallet
-}
-function rawPositionUrl(p){
-  const slug=p.eventSlug||p.event_slug||p.slug||p.marketSlug||p.market_slug;
-  return slug?`https://polymarket.com/event/${slug}`:marketSearchUrl(p.title||p.question||"");
-}
-function riskyCopiedMarket(title){
-  const text=String(title||"").toLowerCase();
-  return /\bexact score\b|\bscore:\s*\d|\bvs\.?\b|\bwin on \d{4}-\d{2}-\d{2}\b|\bposts? \d+-\d+/.test(text);
-}
-async function discoverWhales(){
-  const picked=[];
-  try{
-    const r=await fetch(`${LB_API}/profit?window=all&limit=40`);
-    const leaders=r.ok?await r.json():[];
-    for(const L of leaders){
-      if(picked.length>=4)break;
-      const tps=await fetchTraderPositions(L.proxyWallet);
-      if(tps.length>=1)picked.push({wallet:L.proxyWallet,
-        name:prettyName(L.name||L.pseudonym,L.proxyWallet),profit:Math.round(L.amount||0)});
-    }
-  }catch(e){}
-  return picked;
-}
-async function runWhaleAgent(p,wallet,decision){
-  const d=decision||{maxNew:6,maxFrac:0.12,reserve:0.12};
-  p.lastDecision=decision||null;
-  // mark existing copied positions to market via CLOB token price
-  for(const pos of p.positions){
-    const pr=await fetchTokenPrice(pos.asset);
-    if(pr!=null){pos.current_price=+pr.toFixed(4);pos.value=+(pos.shares*pr).toFixed(2);pos.unrealized_pnl=+(pos.value-pos.cost).toFixed(2);}
-  }
-  const tps=await fetchTraderPositions(wallet);
-  const held=new Set(tps.map(t=>t.asset));
-  const keep=[];
-  for(const pos of p.positions){
-    for(const stopTier of triggeredStopLosses(pos))scaleStopLossPosition(p,pos,stopTier);
-    if(pos._closedByStop){
-      delete pos._closedByStop;
-    }else if(!held.has(pos.asset)){
-      closePosition(p,pos,"Copied trader exited");
-    }else{
-      for(const gainTier of triggeredGainStops(pos))takeProfitPosition(p,pos,gainTier);
-      keep.push(pos);
-    }
-  }
-  p.positions=keep;
-  const maxNew=Math.min(d.maxNew||6,4),maxFrac=Math.min(d.maxFrac||0.10,0.12),reserve=Math.max(d.reserve||0.14,0.12);
-  const targets=[...tps].filter(t=>t.curPrice>=0.15&&t.curPrice<=0.85&&t.value>=100&&!riskyCopiedMarket(t.title)).sort((a,b)=>b.value-a.value).slice(0,maxNew);
-  const book=targets.reduce((s,t)=>s+t.value,0)||1;
-  for(const t of targets){
-    if(hasAsset(p,t.asset)||hasStoppedToday(p,t.asset))continue;
-    const eq=equity(p),investable=p.cash-eq*reserve; if(investable<=50)break;
-    const weight=t.value/book;
-    const stake=Math.min(eq*Math.min(maxFrac,weight),investable);
-    if(stake<40)continue;
-    const entry=t.curPrice; const shares=+(stake/entry).toFixed(2),cost=+(shares*entry).toFixed(2);
-    if(cost>p.cash)continue;
-    p.cash=+(p.cash-cost).toFixed(2);
-    p.positions.push({asset:t.asset,token_id:t.asset,market_id:t.conditionId,question:t.title,side:t.side,category:"Copy",
-      shares,entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,
-      original_shares:shares,original_cost:cost,unrealized_pnl:0,conviction:null,opened_at:cycleIso(),url:t.url||marketSearchUrl(t.title),
-      gain_stops:{},stop_losses:{}});
-    p.history.push({date:logDay(),action:"OPEN",question:t.title,side:t.side,
-      detail:`Copied trade — ${shares} ${t.side} '${t.title.slice(0,36)}' @ ${pct(entry)} for ${fmtUSD(cost)}`});
-  }
-  recordSnapshot(p);
-}
-
-/* ---------- Copycat: shadow the strongest momentum/MACD strategy ---------- */
-function runCopycat(p,leader,priceMap,candidate=null){
-  const reason=candidate?copycatReason(candidate):"watching the strategy board and rotating toward the account with the best momentum/MACD setup.";
-  const safeToCopy=candidate&&candidate.m.last>0&&candidate.m.recent>-3&&candidate.openPnl>-300;
-  const copyLimit=4;
-  p.lastDecision={mode:safeToCopy?"Selective Momentum Copy":"Copycat Guard",reason:safeToCopy?reason:`No strategy is healthy enough to copy aggressively, so I am protecting cash instead. ${reason}`,minConv:0,maxNew:safeToCopy?Math.min(copyLimit,leader.positions.length):0,maxFrac:0.07,reserve:0.12,
-    copyScore:candidate?+candidate.score.toFixed(2):null,
-    macd:candidate?+candidate.m.macd.toFixed(2):null,
-    momentum:candidate?+candidate.m.recent.toFixed(2):null};
-  markToMarket(p,priceMap);
-  if(!safeToCopy){
-    for(const pos of [...p.positions]){
-      if((pos.unrealized_pnl||0)<-75)closePosition(p,pos,"Copycat guard cut weak copied position","EXIT");
-    }
-    p.positions=p.positions.filter(pos=>!pos.closed_at);
-    recordSnapshot(p);
-    return;
-  }
-  const held=new Set(leader.positions.map(x=>x.market_id));
-  const keep=[];
-  for(const pos of p.positions){
-    if(!held.has(pos.market_id)){
-      closePosition(p,pos,"Leader exited");
-    }else keep.push(pos);
-  }
-  p.positions=keep;
-  const leaderPicks=leader.positions.filter(x=>(x.unrealized_pnl||0)>=-50&&(x.current_price||0)>0.08&&(x.current_price||0)<0.92
-      &&(x.quality==="EV+"||["trend","liquidity"].includes(x.quality))
-      &&(x.quality==="EV+"?Math.abs(Number(x.net_edge||0))>=MIN_ENTRY_EDGE:Number(x.momentum_strength||0)>=0.48)&&daysHeld(x)<=2
-      &&Number(x.current_price||0)<=Number(x.entry_price||0)*1.10&&!fastSettlementRisk(x))
-    .sort((a,b)=>((b.unrealized_pnl||0)/(b.cost||1))-((a.unrealized_pnl||0)/(a.cost||1))||((b.conviction||0)-(a.conviction||0))||((b.value||b.cost)-(a.value||a.cost)))
-    .slice(0,copyLimit);
-  const book=leaderPicks.reduce((s,x)=>s+(x.value||x.cost),0)||1;
-  for(const lp of [...leaderPicks].sort((a,b)=>(b.value||b.cost)-(a.value||a.cost))){
-    if(hasPosition(p,lp.market_id)||hasStoppedToday(p,lp.market_id))continue;
-    const eq=equity(p),investable=p.cash-eq*0.12; if(investable<=50)break;
-    const weight=(lp.value||lp.cost)/book;
-    const probe=["trend","liquidity"].includes(lp.quality);
-    const stake=Math.min(eq*Math.min(probe?0.018:0.04,weight),investable);
-    if(stake<50)continue;
-    const entry=lp.current_price; if(entry<=0||entry>=1)continue;
-    const shares=+(stake/entry).toFixed(2),cost=+(shares*entry).toFixed(2);
-    if(cost>p.cash)continue;
-    p.cash=+(p.cash-cost).toFixed(2);
-    p.positions.push({market_id:lp.market_id,token_id:lp.token_id||null,question:lp.question,side:lp.side,category:lp.category,
-      shares,entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,
-      original_shares:shares,original_cost:cost,unrealized_pnl:0,conviction:lp.conviction,opened_at:cycleIso(),url:lp.url||"",
-      quality:lp.quality,net_edge:lp.net_edge,momentum_strength:lp.momentum_strength,
-      gain_stops:{},stop_losses:{}});
-    p.history.push({date:logDay(),action:"OPEN",question:lp.question,side:lp.side,
-      detail:`Copied ${(candidate&&candidate.cfg&&candidate.cfg.name)||"momentum leader"} — ${shares} ${lp.side} '${lp.question.slice(0,36)}' @ ${pct(entry)}`});
-  }
-  recordSnapshot(p);
-}
-
 /* ---------- Trailing-week backtest seeding ----------
    Marks each agent's CURRENT holdings against real Polymarket price history
    so the equity curves show a plausible past week instead of a flat line. */
@@ -2017,57 +1816,6 @@ function priceOnDay(map,day,fallback){
   if(best!=null)return best;
   const ks=Object.keys(map).sort();return ks.length?map[ks[0]]:fallback;
 }
-async function fetchTraderActivity(wallet){
-  try{const r=await fetch(`${DATA_API}/activity?user=${wallet}&limit=500&type=TRADE`);
-    if(!r.ok)return [];const d=await r.json();
-    return d.filter(x=>x.asset&&(x.side==="BUY"||x.side==="SELL"))
-      .map(x=>({asset:String(x.asset),side:x.side,size:+x.size||0,ts:x.timestamp}));}catch(e){return [];}
-}
-async function fetchTraderPositionsRaw(wallet){
-  try{const r=await fetch(`${DATA_API}/positions?user=${wallet}&sizeThreshold=1&limit=100`);
-    if(!r.ok)return [];const d=await r.json();
-    return d.filter(p=>(p.outcome==="Yes"||p.outcome==="No")&&!p.redeemable&&p.curPrice>0.02&&p.curPrice<0.98)
-      .map(p=>({asset:String(p.asset),size:+p.size||0,curPrice:+p.curPrice,title:p.title||""}));}catch(e){return [];}
-}
-/* Replay each whale by reconstructing its past holdings from on-chain trade
-   activity (current size minus net trades after each day), valued at real
-   historical token prices — then scaled to the $10k paper bankroll. */
-async function backtestWhales(st,dates){
-  for(const a of AGENTS.filter(x=>x.kind==="whale")){
-    const p=st.agents[a.id], wh=st.whales[a.id];
-    const flat=()=>{for(const d of dates){SIM_DAY=d;recordSnapshot(p);}SIM_DAY=null;};
-    if(!wh){flat();continue;}
-    setStatus(`backtest: replaying ${wh.name}…`,true);
-    let cur=[],acts=[];
-    try{cur=await fetchTraderPositionsRaw(wh.wallet);}catch(e){}
-    try{acts=await fetchTraderActivity(wh.wallet);}catch(e){}
-    cur.sort((x,y)=>y.size*y.curPrice-x.size*x.curPrice);
-    const top=cur.slice(0,12);
-    if(!top.length){flat();continue;}
-    const histA={};
-    for(const t of top)histA[t.asset]=await fetchPriceHistory(t.asset);
-    const dayVal={};
-    for(const day of dates){
-      const endTs=Math.floor(new Date(day+"T23:59:59Z").getTime()/1000);
-      let v=0;
-      for(const t of top){
-        let netAfter=0;
-        for(const ac of acts)if(ac.asset===t.asset&&ac.ts>endTs)netAfter+=(ac.side==="BUY"?ac.size:-ac.size);
-        const holdings=Math.max(0,t.size-netAfter);
-        v+=holdings*priceOnDay(histA[t.asset],day,t.curPrice);
-      }
-      dayVal[day]=v;
-    }
-    const anchor=dayVal[dates[dates.length-1]]||1;
-    p.snapshots=dates.map(day=>{
-      const eq=10000*(dayVal[day]/(anchor||1));
-      return {date:day,timestamp:new Date(day+"T12:00:00Z").toISOString(),cash:0,
-        equity:+eq.toFixed(2),pnl:+(eq-10000).toFixed(2),return_pct:+((eq/10000-1)*100).toFixed(2),
-        open_positions:top.length,seeded:true};
-    });
-  }
-  SIM_DAY=null;
-}
 /* Full day-by-day backtest: for each of the past 7 days, rebuild each sampled market's
    state from that day's real price (+ correct time-to-resolution), re-run the
    scoring engine, and step every strategy agent through a day of trading.
@@ -2076,11 +1824,6 @@ async function backtestWhales(st,dates){
 async function backtestWeek(st){
   const dates=lastNDates(7), start=dates[0];
   AGENTS.forEach(a=>{st.agents[a.id]=defaultPortfolio();});
-  if(AGENTS.some(a=>a.kind==="whale"&&!st.whales[a.id])){
-    setStatus("backtest: finding top Polymarket traders…",true);
-    const picked=await discoverWhales();
-    AGENTS.filter(a=>a.kind==="whale").forEach(a=>{if(!st.whales[a.id]&&picked[a.slot])st.whales[a.id]=picked[a.slot];});
-  }
   setStatus("backtest: loading markets…",true);
   const markets=await fetchMarkets(2,100);
   const uni=markets.filter(m=>m.clob_token_ids&&m.clob_token_ids.length===2&&(!m.end_date||m.end_date>=start)).slice(0,100);
@@ -2113,16 +1856,9 @@ async function backtestWeek(st){
       openPositions(p,cfg,cfg.rank(sugs),focus,null,occupied,peerMarketStats(st,cfg.id)).forEach(id=>claimedMarkets.add(id));
       recordSnapshot(p);
     }
-    const copyPick=chooseCopycatLeader(st);
-    const leaderId=copyPick?copyPick.id:AGENTS.filter(a=>a.kind==="strategy")[0].id;
-    st.copycatLeader=leaderId;
-    runCopycat(st.agents.copycat,st.agents[leaderId],priceMap,copyPick);
     if(day===dates[dates.length-1])saveSuggestions(sugs,markets.length); // latest live-ish board for the Suggestions tab
   }
   SIM_DAY=null;
-  await backtestWhales(st,dates);
-  // establish current whale paper positions so live tracking continues
-  for(const a of AGENTS.filter(x=>x.kind==="whale")){const wh=st.whales[a.id];if(wh){try{await runWhaleAgent(st.agents[a.id],wh.wallet);}catch(e){}}}
   st.seeded=true;
 }
 
@@ -2151,24 +1887,23 @@ async function runDailyCycle(){
     st=loadState();
     const emailOffsets=agentHistoryOffsets(st);
     const focus=getFocus();
-    // Price map for suggestion-market positions (strategy + copycat only).
+    // Price map for all open core-strategy positions.
     const ids=new Set();
-    AGENTS.filter(a=>a.kind==="strategy"||a.kind==="copycat").forEach(a=>
+    AGENTS.forEach(a=>
       (st.agents[a.id].positions||[]).forEach(pos=>{if(pos.market_id)ids.add(pos.market_id);}));
     setStatus("marking positions…",true);
     const priceMap={};
     for(const id of ids){priceMap[id]=await fetchMarketPrice(id);}
-    // 1) in-house strategy agents
-    setStatus("strategy agents trading…",true);
-    const preBoard=AGENTS.filter(a=>a.kind==="strategy").map(a=>({id:a.id,eq:equity(st.agents[a.id])})).sort((x,y)=>y.eq-x.eq);
+    setStatus("core strategy agents trading…",true);
+    const preBoard=AGENTS.map(a=>({id:a.id,eq:equity(st.agents[a.id])})).sort((x,y)=>y.eq-x.eq);
     const leaderEq=preBoard[0]?preBoard[0].eq:STARTING_BALANCE;
-    for(const cfg of AGENTS.filter(a=>a.kind==="strategy")){
+    for(const cfg of AGENTS){
       const p=st.agents[cfg.id];
       markToMarket(p,priceMap,cfg,{policyExits:true});
     }
     reduceStrategyOverlap(st);
     const claimedMarkets=new Set();
-    for(const cfg of AGENTS.filter(a=>a.kind==="strategy")){
+    for(const cfg of AGENTS){
       const p=st.agents[cfg.id];
       const rank=preBoard.findIndex(x=>x.id===cfg.id)+1||preBoard.length;
       const decision=adaptiveDecision(cfg,p,rank,preBoard.length,leaderEq);
@@ -2176,26 +1911,6 @@ async function runDailyCycle(){
       claimedMarkets.forEach(id=>occupied.add(id));
       openPositions(p,cfg,cfg.rank(sugs),focus,decision,occupied,peerMarketStats(st,cfg.id)).forEach(id=>claimedMarkets.add(id));
       recordSnapshot(p);
-    }
-    // 2) copycat shadows the in-house agent with the strongest MACD/momentum score
-    const copyPick=chooseCopycatLeader(st);
-    st.copycatLeader=copyPick?copyPick.id:AGENTS.filter(a=>a.kind==="strategy")[0].id;
-    runCopycat(st.agents["copycat"],st.agents[st.copycatLeader],priceMap,copyPick);
-    // 3) whale-copy agents mirror top Polymarket traders
-    if(AGENTS.some(a=>a.kind==="whale"&&!st.whales[a.id])){
-      setStatus("finding top Polymarket traders…",true);
-      const picked=await discoverWhales();
-      AGENTS.filter(a=>a.kind==="whale").forEach(a=>{if(!st.whales[a.id]&&picked[a.slot])st.whales[a.id]=picked[a.slot];});
-    }
-    for(const a of AGENTS.filter(x=>x.kind==="whale")){
-      const wh=st.whales[a.id];
-      if(!wh){recordSnapshot(st.agents[a.id]);continue;}
-      setStatus(`copying ${wh.name}…`,true);
-      const allBoard=AGENTS.map(c=>({id:c.id,eq:equity(st.agents[c.id])})).sort((x,y)=>y.eq-x.eq);
-      const rank=allBoard.findIndex(x=>x.id===a.id)+1||allBoard.length;
-      const decision=adaptiveDecision(a,st.agents[a.id],rank,allBoard.length,allBoard[0]?allBoard[0].eq:STARTING_BALANCE);
-      try{await runWhaleAgent(st.agents[a.id],wh.wallet,decision);}
-      catch(e){recordSnapshot(st.agents[a.id]);}
     }
     st.date=todayStr();st.last_run=SNAP_TS;st.last_cycle_hour=hour;
     const emailEvents=collectNewAgentEvents(st,emailOffsets);
@@ -2349,8 +2064,6 @@ function miniSpark(snaps,color){
   return `<svg width="${W}" height="${H}"><path d="${d}" fill="none" stroke="${color}" stroke-width="2"/></svg>`;
 }
 function agentBlurb(cfg,st){
-  if(cfg.kind==="whale"){const w=st.whales[cfg.id];return w?`🐋 Mirrors <b>${esc(w.name)}</b>${w.profit?` · $${(w.profit/1e6).toFixed(1)}M profit`:""}. ${esc(cfg.blurb)}`:`${esc(cfg.blurb)} The trader is selected on the first successful run.`;}
-  if(cfg.kind==="copycat"){const L=AGENTS.find(a=>a.id===st.copycatLeader),p=st.agents.copycat||defaultPortfolio();return `🐒 Currently copying <b>${L?esc(L.name):"the strongest momentum setup"}</b>. ${esc(p.lastDecision&&p.lastDecision.reason?p.lastDecision.reason:cfg.blurb)}`;}
   return cfg.blurb;
 }
 function agentPlainBlurb(cfg,st){
@@ -2372,9 +2085,9 @@ function decisionSummary(p){
 function renderAgentBrief(cfg,p,st){
   const root=$("agentBrief"); if(!root)return;
   const bw=bestAndWorst(p);
-  const risk=cfg.kind==="whale"?"Mirror risk":cfg.kind==="copycat"?"Adaptive":cfg.maxFrac>=0.12?"Higher risk":cfg.maxFrac<=0.05?"Lower risk":"Balanced";
-  const cadence=cfg.kind==="whale"?"Copies biggest live holdings":cfg.kind==="copycat"?"Follows MACD/momentum leader":`${cfg.maxNew||0} new trades max`;
-  const exitRule=cfg.kind==="strategy"?`Exit if edge fades, conviction weakens, <${EXIT_RESOLUTION_DAYS}d to resolve, or ${EXIT_STALE_DAYS}d stale`:cfg.kind==="copycat"?"Exit when momentum leader exits":"Exit when copied trader exits";
+  const risk=cfg.maxFrac>=0.055?"Aggressive":cfg.maxFrac<=0.04?"Broad active":"Active";
+  const cadence=`${cfg.maxNew||0} new trades max per cycle`;
+  const exitRule=`Exit if edge fades, conviction weakens, <${EXIT_RESOLUTION_DAYS}d to resolve, or ${EXIT_STALE_DAYS}d stale`;
   const thesis=agentPlainBlurb(cfg,st);
   root.innerHTML=`
     <div class="brief-main" style="border-top:3px solid ${cfg.color}">
@@ -2666,9 +2379,7 @@ function renderAgentTechnical(agentId){
     <p class="muted">Latest return ${fmtPct(rets[last])}. MA5 is ${fmtUSD(ma5[last])}; MA10 is ${fmtUSD(ma10[last])}. Activity proxy: ${snaps[last].open_positions||0} open positions.</p>`;
 }
 function agentCompetitionPlan(cfg,row,rank,leader){
-  if(rank===1)return "Plan: defend the lead, keep sizing disciplined, and let risk controls protect gains instead of forcing new trades.";
-  if(cfg.kind==="copycat")return `Plan: keep shadowing the strongest MACD/momentum setup, then rotate automatically if another in-house strategy shows better forward pressure.`;
-  if(cfg.kind==="whale")return "Plan: stay close to the copied trader's largest live positions while using the stop-loss and gain-stop rules to avoid blindly riding every swing.";
+  if(rank===1)return "Plan: press the lead through the strongest qualifying trades while keeping stop-loss and exposure limits active.";
   if(cfg.id==="value")return "Plan: close the gap by waiting for the cleanest model-versus-market mispricings and avoiding crowded trades without enough edge.";
   if(cfg.id==="momentum")return "Plan: attack fast-moving markets where fresh volume confirms attention, hoping speed beats slower value strategies.";
   if(cfg.id==="favorite")return "Plan: grind upward through high-probability favorites, aiming to outlast more volatile agents during choppy markets.";
@@ -2798,11 +2509,6 @@ function agentVoice(cfg){
     favorite:{tone:"steady and probability-first",hello:"I like high-probability edges with less drama.",signoff:"My job is compounding, not showing off."},
     longshot:{tone:"opportunistic but risk-aware",hello:"I hunt asymmetric mispricing, but I keep the bet size honest.",signoff:"One repricing can matter, but only if I survive the misses."},
     diversifier:{tone:"calm, portfolio-minded, and broad",hello:"I care about the whole basket more than one perfect call.",signoff:"Many small edges can beat one loud opinion."},
-    copycat:{tone:"adaptive and comparative",hello:"I am watching which strategy has the strongest forward pressure.",signoff:"I rotate when the evidence rotates."},
-    whale1:{tone:"observant and mirror-focused",hello:"I am reading the footprint of a top public trader.",signoff:"I copy exposure, but I still respect the arena risk rules."},
-    whale2:{tone:"measured and copy-trader-like",hello:"I am tracking a different profitable wallet for contrast.",signoff:"The point is to learn which real-world style travels well."},
-    whale3:{tone:"sharp and signal-driven",hello:"I am looking for signal in where strong traders concentrate size.",signoff:"A copied trade still has to survive mark-to-market."},
-    whale4:{tone:"flexible and market-current-aware",hello:"I ride the copied flow, but I do not pretend it is magic.",signoff:"The market gets the last word."},
   };
   return voices[cfg.id]||{tone:"analytical",hello:"I am reading the current book.",signoff:"Ask me where you want to go deeper."};
 }
