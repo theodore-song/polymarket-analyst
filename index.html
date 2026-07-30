@@ -1796,6 +1796,20 @@ function recordSnapshot(p){
   p.snapshots=SIM_DAY?p.snapshots.filter(s=>s.date!==snap.date):p.snapshots.filter(s=>s.timestamp!==snap.timestamp);
   p.snapshots.push(snap);p.snapshots.sort((a,b)=>new Date(a.timestamp||a.date)-new Date(b.timestamp||b.date));
 }
+function agentMomentumStats(p){
+  const snaps=(p.snapshots||[]).slice().filter(s=>Number.isFinite(s.return_pct)).sort((a,b)=>snapTime(a)-snapTime(b));
+  const returns=snaps.map(s=>Number(s.return_pct||0));
+  const last=returns[returns.length-1]||0;
+  const prev=returns[returns.length-2]??last;
+  const recent=returns.length>4?last-returns[returns.length-4]:last-prev;
+  const emaFast=returns.length?ema(returns,3):[0];
+  const emaSlow=returns.length?ema(returns,7):[0];
+  const macd=emaFast[emaFast.length-1]-emaSlow[emaSlow.length-1];
+  const signalArr=ema(returns.map((_,i)=>emaFast[i]-emaSlow[i]),3);
+  const macdHist=macd-(signalArr[signalArr.length-1]||0);
+  const high=Math.max(...returns,last,0);
+  return {last,prev,recent,macd,macdHist,drawdown:last-high,snaps};
+}
 /* ---------- Trailing-week backtest seeding ----------
    Marks each agent's CURRENT holdings against real Polymarket price history
    so the equity curves show a plausible past week instead of a flat line. */
