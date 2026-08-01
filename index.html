@@ -340,7 +340,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Dual-risk engine · v30</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Dual-risk engine · v31</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -362,7 +362,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build v30 active:</b> five quality-first agents compete with five experimental aggressive agents using larger positions, lower cash reserves, and wider drawdown budgets. Every entry still requires a measured post-cost edge. Aggressive agents can lose more; no return is guaranteed.</div>
+  <div class="live-build-banner"><b>Build v31 active:</b> five quality-first agents compete with five experimental aggressive agents. The audit now preserves valid current-version positions, and evidence-heavy core probes can deploy small amounts when strict entries are scarce. Aggressive agents can lose more; no return is guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -394,7 +394,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
         <div class="card-h"><h3>Agent Returns</h3><div><span class="small muted" id="lastRun"></span><div class="rangebar" data-chart-ranges></div></div></div>
         <div class="chart-wrap"><svg id="chart" viewBox="0 0 960 320" preserveAspectRatio="xMidYMid meet"></svg></div>
         <div class="legend" id="comboLegend"></div>
-        <div class="small muted" style="margin-top:10px">Use the range buttons to zoom from one week to all history. New live points are added whenever you click "Run cycle"; the dashed line tracks the average agent return.</div>
+        <div class="small muted" style="margin-top:10px">Use the range buttons to zoom from one week to all history. The dashed line averages all ten agents, including the five aggressive agents from their later launch date; Core Avg is the comparable series for the original five.</div>
       </div>
       <div class="card hoverable">
         <div class="card-h"><h3>Top Picks Today</h3><span class="small muted">highest conviction</span></div>
@@ -744,7 +744,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build dual-risk-v30 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build dual-risk-v31 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -771,7 +771,7 @@ const EXIT_STALE_DAYS = 10;
 const EXIT_RESOLUTION_DAYS = 2;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const SUGGESTION_ENGINE_VERSION = 30;
+const SUGGESTION_ENGINE_VERSION = 31;
 const FOCUS_KEY = "pma_focus_v1";
 const VIEW_KEY = "pma_view_v1";
 const PF_SORT_KEY = "pma_portfolio_sort_v1";
@@ -1012,6 +1012,7 @@ const MIN_ENTRY_EDGE=0.032;
 const MIN_SELECTIVE_ENTRY_EDGE=0.022;
 const MIN_TREND_EDGE=0.012;
 const MIN_LIQUIDITY_EDGE=0.018;
+const MIN_CORE_PROBE_EDGE=0.015;
 const MIN_AGGRESSIVE_EDGE=0.008;
 const MIN_ENTRY_DAYS=7.0;
 const EDGE_SCALE=0.13;
@@ -1151,18 +1152,24 @@ function analyzeMarket(m,realWorldSignals={}){
     &&absNet>=MIN_LIQUIDITY_EDGE&&conviction>=68&&evidence.score>=0.54&&m.spread>0&&m.spread<=0.02
     &&m.volume_24hr>=1000&&m.liquidity>=2000&&m.days_to_resolution!=null&&m.days_to_resolution>=MIN_ENTRY_DAYS
     &&p>=0.12&&p<=0.88&&Math.abs(m.price_change_1d||0)<=0.08;
-  const speculativeTradeReady=!strictTradeReady&&!selectiveTradeReady&&!trendTradeReady&&!liquidityTradeReady&&!jumpRisk
+  const coreProbeTradeReady=!strictTradeReady&&!selectiveTradeReady&&!trendTradeReady&&!liquidityTradeReady&&!jumpRisk
+    &&absNet>=MIN_CORE_PROBE_EDGE&&conviction>=62&&evidence.score>=0.65
+    &&m.spread>0&&m.spread<=0.025&&m.volume_24hr>=25000&&m.liquidity>=10000
+    &&m.days_to_resolution!=null&&m.days_to_resolution>=14&&p>=0.12&&p<=0.88
+    &&Math.abs(m.price_change_1d||0)<=0.08;
+  const speculativeTradeReady=!strictTradeReady&&!selectiveTradeReady&&!trendTradeReady&&!liquidityTradeReady&&!coreProbeTradeReady&&!jumpRisk
     &&absNet>=MIN_AGGRESSIVE_EDGE&&conviction>=55&&evidence.score>=0.48
     &&m.spread>0&&m.spread<=0.03&&m.volume_24hr>=750&&m.liquidity>=1500
     &&m.days_to_resolution!=null&&m.days_to_resolution>=10&&p>=0.10&&p<=0.90
     &&Math.abs(m.price_change_1d||0)<=0.12&&(trend.strength>=0.50||evidence.source_count>=1);
   const explorationTradeReady=false;
-  const tradeReady=(strictTradeReady||selectiveTradeReady||trendTradeReady||liquidityTradeReady||speculativeTradeReady||explorationTradeReady)&&!jumpRisk;
-  const tradeConviction=trendTradeReady?Math.max(conviction,55+trend.strength*35):(liquidityTradeReady?Math.max(conviction,70):(speculativeTradeReady?Math.max(conviction,55):(explorationTradeReady?Math.max(conviction,60):conviction)));
+  const tradeReady=(strictTradeReady||selectiveTradeReady||trendTradeReady||liquidityTradeReady||coreProbeTradeReady||speculativeTradeReady||explorationTradeReady)&&!jumpRisk;
+  const tradeConviction=trendTradeReady?Math.max(conviction,55+trend.strength*35):(liquidityTradeReady?Math.max(conviction,70):(coreProbeTradeReady?Math.max(conviction,62):(speculativeTradeReady?Math.max(conviction,55):(explorationTradeReady?Math.max(conviction,60):conviction))));
   let side=trendTradeReady?trend.side:(edgeYes>=0?"YES":"NO");
   let entry=side==="YES"?p:m.no_price,rationale;
   if(trendTradeReady){rationale=`Confirmed trend trade: ${side} has ${Math.round(trend.strength*100)} trend strength, a ${(absNet*100).toFixed(1)}c post-cost edge, ${pct(m.spread)} spread, strong live activity, and enough time before resolution.`;}
   else if(liquidityTradeReady){rationale=`Liquidity-confirmed trade: ${side} retains a ${(absNet*100).toFixed(1)}c post-cost edge in a high-conviction, tight-spread market with enough time before resolution.`;}
+  else if(coreProbeTradeReady){rationale=`Evidence-heavy core probe: ${side} retains a ${(absNet*100).toFixed(1)}c post-cost edge with ${Math.round(evidence.score*100)} evidence, deep liquidity, strong live volume, and at least two weeks before resolution. Core agents may enter only at probe size.`;}
   else if(speculativeTradeReady){rationale=`Aggressive setup: ${side} retains a measured ${(absNet*100).toFixed(1)}c post-cost edge with ${Math.round(evidence.score*100)} evidence, adequate liquidity, and a live catalyst or directional signal. Only aggressive agents may take this higher-risk entry.`;}
   else if(selectiveTradeReady&&!strictTradeReady){rationale=`Selective BUY from top-500 active scan: raw gap ${(edge*100).toFixed(1)}c, conviction ${Math.round(conviction)}, high activity/liquidity, and evidence ${Math.round(evidence.score*100)}. Net edge is conservative, so sizing stays disciplined.`;}
   else if(tradeReady&&edgeYes>0){rationale=`Trade-ready after costs: fair value ${pct(fair)} vs market ${pct(p)} leaves ${(absNet*100).toFixed(1)}c net edge for YES after liquidity, chase, and ${m.category} evidence checks.`;}
@@ -1180,7 +1187,7 @@ function analyzeMarket(m,realWorldSignals={}){
     clob_yes:(m.clob_token_ids||[])[0]||null,clob_no:(m.clob_token_ids||[])[1]||null,
     yes_price:p,no_price:m.no_price,fair_value:+fair.toFixed(4),edge:+edgeYes.toFixed(4),
     net_edge:netEdge,friction:+friction.toFixed(4),chase_penalty:+chase.toFixed(4),evidence_score:+evidence.score.toFixed(2),evidence_source_count:evidence.source_count||0,
-    quality:strictTradeReady?"EV+":(selectiveTradeReady?"selective":(trendTradeReady?"trend":(liquidityTradeReady?"liquidity":(speculativeTradeReady?"speculative":(explorationTradeReady?"explore":"watch"))))),
+    quality:strictTradeReady?"EV+":(selectiveTradeReady?"selective":(trendTradeReady?"trend":(liquidityTradeReady?"liquidity":(coreProbeTradeReady?"core-probe":(speculativeTradeReady?"speculative":(explorationTradeReady?"explore":"watch")))))),
     side,entry_price:+entry.toFixed(4),conviction:+tradeConviction.toFixed(1),volume:m.volume,volume_24hr:m.volume_24hr,liquidity:m.liquidity,
     spread:m.spread,price_change_1h:m.price_change_1h,price_change_1d:m.price_change_1d,price_change_1w:m.price_change_1w,
     momentum_strength:+trend.strength.toFixed(2),trade_ready:tradeReady,jump_risk:jumpRisk,
@@ -1687,7 +1694,6 @@ function exitReason(pos,fresh,analysis,cfg){
   if(pos.quality==="explore")return "Quality audit retired zero-edge exploration exposure";
   if(pos.quality==="trend"&&entryEdge<MIN_TREND_EDGE)return "Quality audit retired a trend trade without enough post-cost edge";
   if(pos.quality==="liquidity"&&entryEdge<MIN_LIQUIDITY_EDGE)return "Quality audit retired a liquidity trade without enough post-cost edge";
-  if(cfg&&!agentAcceptsSuggestion(cfg,pos))return `Quality audit removed a trade that no longer fits ${cfg.name}`;
   if(!analysis)return null;
   const net=Math.abs(analysis.net_edge!=null?analysis.net_edge:analysis.edge||0);
   if(analysis.side&&analysis.side!==pos.side&&net>=MIN_ENTRY_EDGE)return `Model flipped to ${analysis.side}`;
@@ -1783,7 +1789,7 @@ function reduceStrategyOverlap(st){
   });
   Object.values(groups).filter(g=>g.length>1).forEach(group=>{
     group.sort((a,b)=>(b.score-a.score)||((b.pos.value||0)-(a.pos.value||0)));
-    const probeOnly=group.every(({pos})=>["trend","liquidity","speculative","explore"].includes(pos.quality));
+    const probeOnly=group.every(({pos})=>["trend","liquidity","core-probe","speculative","explore"].includes(pos.quality));
     group.slice(probeOnly?3:1).forEach(({p,pos})=>closePosition(p,pos,"Overlap guard rotated this agent into a different market","EXIT"));
   });
   AGENTS.filter(a=>a.kind==="strategy").forEach(cfg=>{
@@ -1793,15 +1799,18 @@ function reduceStrategyOverlap(st){
 function agentAcceptsSuggestion(cfg,s){
   const quality=s.quality||"watch",edge=effectiveEntryEdge(s),evidence=Number(s.evidence_score||0);
   if(quality==="explore"||quality==="watch")return false;
-  if(cfg.id==="value")return ["EV+","selective"].includes(quality)&&edge>=MIN_SELECTIVE_ENTRY_EDGE;
+  if(cfg.id==="value")return (["EV+","selective"].includes(quality)&&edge>=MIN_SELECTIVE_ENTRY_EDGE)
+    ||(quality==="core-probe"&&edge>=0.017&&evidence>=0.68);
   if(cfg.id==="momentum")return ["EV+","selective"].includes(quality)
-    ||(quality==="trend"&&edge>=0.015&&Number(s.momentum_strength||0)>=0.65&&evidence>=0.54);
+    ||(quality==="trend"&&edge>=0.015&&Number(s.momentum_strength||0)>=0.65&&evidence>=0.54)
+    ||(quality==="core-probe"&&Number(s.momentum_strength||0)>=0.48&&evidence>=0.68);
   if(cfg.id==="favorite")return Number(s.entry_price||0)>=0.62
-    &&["EV+","selective","liquidity"].includes(quality)&&edge>=MIN_LIQUIDITY_EDGE;
+    &&["EV+","selective","liquidity","core-probe"].includes(quality)&&edge>=MIN_CORE_PROBE_EDGE;
   if(cfg.id==="longshot")return Number(s.entry_price||0)<=0.40
-    &&(["EV+","selective"].includes(quality)||(quality==="trend"&&edge>=0.025&&evidence>=0.62));
+    &&(["EV+","selective"].includes(quality)||(quality==="trend"&&edge>=0.025&&evidence>=0.62)||(quality==="core-probe"&&edge>=0.017&&evidence>=0.72));
   if(cfg.id==="diversifier")return ["EV+","selective","liquidity"].includes(quality)&&edge>=MIN_LIQUIDITY_EDGE
-    ||(quality==="trend"&&edge>=0.020&&evidence>=0.58);
+    ||(quality==="trend"&&edge>=0.020&&evidence>=0.58)
+    ||(quality==="core-probe"&&edge>=MIN_CORE_PROBE_EDGE&&evidence>=0.68);
   if(cfg.id==="catalyst")return ["EV+","selective","trend","liquidity","speculative"].includes(quality)
     &&edge>=MIN_AGGRESSIVE_EDGE&&(Number(s.evidence_source_count||0)>=1||evidence>=0.62);
   if(cfg.id==="reversal"){
@@ -1824,10 +1833,10 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
   p.lastDecision=decision||null;
   const maxPositions=cfg.maxPositions||MAX_STRATEGY_POSITIONS;
   const categoryCap=cfg.maxCategoryPct||MAX_CATEGORY_EXPOSURE_PCT;
-  const probeQualities=["trend","liquidity","speculative","explore"];
+  const probeQualities=["trend","liquidity","core-probe","speculative","explore"];
   if((p.positions||[]).length>=maxPositions||d.maxNew<=0)return [];
   const avoid=avoidMarketIds||new Set();
-  const cands=rankedSugs.map(s=>peerAdjustedSuggestion(s,peerStats)).filter(s=>s.trade_ready&&agentAcceptsSuggestion(cfg,s)&&(s.side==="YES"||s.side==="NO")&&(cfg.aggressive?s.conviction:s.peer_conviction)>=d.minConv
+  const cands=rankedSugs.map(s=>peerAdjustedSuggestion(s,peerStats)).filter(s=>s.trade_ready&&agentAcceptsSuggestion(cfg,s)&&(s.side==="YES"||s.side==="NO")&&(cfg.aggressive||s.quality==="core-probe"?s.conviction:s.peer_conviction)>=d.minConv
     &&s.conviction>=48&&s.entry_price>=0.08&&s.entry_price<=0.92
     &&(probeQualities.includes(s.quality)||effectiveEntryEdge(s)>=MIN_SELECTIVE_ENTRY_EDGE)&&(s.days_to_resolution==null||s.days_to_resolution>=MIN_ENTRY_DAYS)
     &&s.volume>=MIN_VOLUME&&s.liquidity>=MIN_LIQUIDITY&&(s.volume_24hr>=500||s.conviction>=62)
@@ -1858,8 +1867,8 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
     p.positions.push({market_id:s.market_id,question:s.question,side:s.side,shares,
       token_id:(s.side==="YES"?s.clob_yes:s.clob_no)||null,
       entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,
-      original_shares:shares,original_cost:cost,unrealized_pnl:0,conviction:s.peer_conviction,category:s.category,opened_at:cycleIso(),url:s.url||"",
-      peer_note:s.peer_note||"",entry_reason:s.rationale||"",net_edge:s.net_edge,evidence_score:s.evidence_score,friction:s.friction,chase_penalty:s.chase_penalty,quality:s.quality,
+      original_shares:shares,original_cost:cost,unrealized_pnl:0,conviction:s.conviction,peer_conviction:s.peer_conviction,category:s.category,opened_at:cycleIso(),url:s.url||"",
+      peer_note:s.peer_note||"",entry_reason:s.rationale||"",net_edge:s.net_edge,evidence_score:s.evidence_score,evidence_source_count:s.evidence_source_count||0,friction:s.friction,chase_penalty:s.chase_penalty,quality:s.quality,
       strategy_version:SUGGESTION_ENGINE_VERSION,
       momentum_strength:s.momentum_strength,price_change_1d:s.price_change_1d,price_change_1w:s.price_change_1w,
       gain_stops:{},stop_losses:{}});
@@ -2064,7 +2073,7 @@ function renderOverview(){
   const stats=[
     {ic:lead.c.emoji,label:"Leader",value:lead.c.name.split(" ")[0]},
     {ic:"📈",label:"Leader return",value:fmtPct(lead.ret),cls:signClass(lead.pnl)},
-    {ic:"⚖️",label:"All-agent avg",value:fmtPct(avgRet),cls:signClass(avgRet)},
+    {ic:"⚖️",label:"Mixed-inception avg",value:fmtPct(avgRet),cls:signClass(avgRet)},
     {ic:"🧠",label:"Core strategy avg",value:fmtPct(coreAvg),cls:signClass(coreAvg)},
     {ic:"⚡",label:"Aggressive avg",value:fmtPct(aggressiveAvg),cls:signClass(aggressiveAvg)},
     {ic:"💡",label:"Scored ideas",value:sugCount},
@@ -2351,7 +2360,7 @@ function drawCombo(svgId,legendId){
     const b=board();const avg=b.reduce((s,r)=>s+r.ret,0)/b.length;
     const core=b.filter(r=>!r.c.aggressive),coreAvg=core.reduce((s,r)=>s+r.ret,0)/Math.max(1,core.length);
     const aggressive=b.filter(r=>r.c.aggressive),aggressiveAvg=aggressive.reduce((s,r)=>s+r.ret,0)/Math.max(1,aggressive.length);
-    $(legendId).innerHTML=`<span class="leg"><span class="legdot" style="background:#fff"></span>All Avg <b class="${signClass(avg)}">${fmtPct(avg)}</b></span>`+
+    $(legendId).innerHTML=`<span class="leg"><span class="legdot" style="background:#fff"></span>Mixed-inception Avg <b class="${signClass(avg)}">${fmtPct(avg)}</b></span>`+
       `<span class="leg"><span class="legdot" style="background:#38d2e6"></span>Core Avg <b class="${signClass(coreAvg)}">${fmtPct(coreAvg)}</b></span>`+
       `<span class="leg"><span class="legdot" style="background:#ff8a4c"></span>Aggressive Avg <b class="${signClass(aggressiveAvg)}">${fmtPct(aggressiveAvg)}</b></span>`+
       b.map(r=>`<span class="leg"><span class="legdot" style="background:${r.c.color}"></span>${r.c.emoji} ${r.c.name} <b class="${signClass(r.pnl)}">${fmtPct(r.ret)}</b></span>`).join("");
