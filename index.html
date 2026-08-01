@@ -340,7 +340,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Dual-risk engine · v31</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Dual-risk engine · v32</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -362,7 +362,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build v31 active:</b> five quality-first agents compete with five experimental aggressive agents. The audit now preserves valid current-version positions, and evidence-heavy core probes can deploy small amounts when strict entries are scarce. Aggressive agents can lose more; no return is guaranteed.</div>
+  <div class="live-build-banner"><b>Build v32 active:</b> five quality-first agents compete with five experimental aggressive agents. The audit preserves valid positions, and each core agent may add one small evidence-heavy probe per cycle without being blocked by an aggressive-only crowd. Aggressive agents can lose more; no return is guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -744,7 +744,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build dual-risk-v31 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build dual-risk-v32 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -771,7 +771,7 @@ const EXIT_STALE_DAYS = 10;
 const EXIT_RESOLUTION_DAYS = 2;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const SUGGESTION_ENGINE_VERSION = 31;
+const SUGGESTION_ENGINE_VERSION = 32;
 const FOCUS_KEY = "pma_focus_v1";
 const VIEW_KEY = "pma_view_v1";
 const PF_SORT_KEY = "pma_portfolio_sort_v1";
@@ -1741,6 +1741,7 @@ function peerMarketStats(st,selfId){
       const opp=`${id}:${pos.side==="YES"?"NO":"YES"}`;
       if(!stats[key])stats[key]={same:0,samePnl:0,bestRet:-Infinity,names:[]};
       stats[key].same++;stats[key].samePnl+=Number(pos.unrealized_pnl||0);stats[key].bestRet=Math.max(stats[key].bestRet,ret);stats[key].names.push(a.name);
+      if(!a.aggressive)stats[key].coreSame=(stats[key].coreSame||0)+1;
       if(!stats[opp])stats[opp]={same:0,samePnl:0,bestRet:-Infinity,names:[]};
       stats[opp].opposite=(stats[opp].opposite||0)+1;
       stats[opp].oppositePnl=(stats[opp].oppositePnl||0)+Number(pos.unrealized_pnl||0);
@@ -1790,7 +1791,8 @@ function reduceStrategyOverlap(st){
   Object.values(groups).filter(g=>g.length>1).forEach(group=>{
     group.sort((a,b)=>(b.score-a.score)||((b.pos.value||0)-(a.pos.value||0)));
     const probeOnly=group.every(({pos})=>["trend","liquidity","core-probe","speculative","explore"].includes(pos.quality));
-    group.slice(probeOnly?3:1).forEach(({p,pos})=>closePosition(p,pos,"Overlap guard rotated this agent into a different market","EXIT"));
+    const coreProbe=group.some(({pos})=>pos.quality==="core-probe");
+    group.slice(coreProbe?4:(probeOnly?3:1)).forEach(({p,pos})=>closePosition(p,pos,"Overlap guard rotated this agent into a different market","EXIT"));
   });
   AGENTS.filter(a=>a.kind==="strategy").forEach(cfg=>{
     const p=st.agents&&st.agents[cfg.id]; if(p)p.positions=(p.positions||[]).filter(pos=>!pos.closed_at);
@@ -1836,18 +1838,22 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
   const probeQualities=["trend","liquidity","core-probe","speculative","explore"];
   if((p.positions||[]).length>=maxPositions||d.maxNew<=0)return [];
   const avoid=avoidMarketIds||new Set();
-  const cands=rankedSugs.map(s=>peerAdjustedSuggestion(s,peerStats)).filter(s=>s.trade_ready&&agentAcceptsSuggestion(cfg,s)&&(s.side==="YES"||s.side==="NO")&&(cfg.aggressive||s.quality==="core-probe"?s.conviction:s.peer_conviction)>=d.minConv
+  const cands=rankedSugs.map(s=>peerAdjustedSuggestion(s,peerStats)).filter(s=>s.trade_ready&&agentAcceptsSuggestion(cfg,s)&&(s.side==="YES"||s.side==="NO")
+    &&(cfg.aggressive?s.conviction>=d.minConv:(s.quality==="core-probe"?s.conviction>=Math.min(d.minConv,60):s.peer_conviction>=d.minConv))
     &&s.conviction>=48&&s.entry_price>=0.08&&s.entry_price<=0.92
     &&(probeQualities.includes(s.quality)||effectiveEntryEdge(s)>=MIN_SELECTIVE_ENTRY_EDGE)&&(s.days_to_resolution==null||s.days_to_resolution>=MIN_ENTRY_DAYS)
     &&s.volume>=MIN_VOLUME&&s.liquidity>=MIN_LIQUIDITY&&(s.volume_24hr>=500||s.conviction>=62)
     &&(s.evidence_score==null||s.evidence_score>=0.40||s.conviction>=62)
-    &&(!avoid.has(String(s.market_id))||(probeQualities.includes(s.quality)&&Number((peerStats&&peerStats[`${s.market_id}:${s.side}`]||{}).same||0)<3))
+    &&(!avoid.has(String(s.market_id))||(s.quality==="core-probe"&&!cfg.aggressive
+      ?Number((peerStats&&peerStats[`${s.market_id}:${s.side}`]||{}).same||0)<4&&Number((peerStats&&peerStats[`${s.market_id}:${s.side}`]||{}).coreSame||0)<1
+      :probeQualities.includes(s.quality)&&Number((peerStats&&peerStats[`${s.market_id}:${s.side}`]||{}).same||0)<3))
     &&!hasPosition(p,s.market_id)&&!hasRecentStop(p,s.market_id)&&(focus==="All"||!focus||s.category===focus))
     .sort((a,b)=>(b.peer_conviction-a.peer_conviction)||((b.peer_boost||0)-(a.peer_boost||0)));
-  let opened=0,openedIds=[];
+  let opened=0,openedCoreProbes=0,openedIds=[];
   for(const s of cands){
     if(opened>=d.maxNew)break;
     if((p.positions||[]).length>=maxPositions)break;
+    if(!cfg.aggressive&&s.quality==="core-probe"&&openedCoreProbes>=1)continue;
     const eq=equity(p),investable=p.cash-eq*d.reserve;
     if(investable<=50)break;
     let frac;
@@ -1874,7 +1880,7 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
       gain_stops:{},stop_losses:{}});
     p.history.push({date:logDay(),action:"OPEN",question:s.question,side:s.side,
       detail:`${decision?decision.mode+" mode — ":""}Bought ${shares} ${s.side} '${s.question.slice(0,40)}' @ ${pct(entry)} for ${fmtUSD(cost)} · net edge ${((Math.abs(s.net_edge!=null?s.net_edge:s.edge))*100).toFixed(1)}c · evidence ${Math.round((s.evidence_score||0)*100)}${s.peer_note?` (${s.peer_note})`:""}`});
-    opened++;openedIds.push(String(s.market_id));
+    opened++;if(!cfg.aggressive&&s.quality==="core-probe")openedCoreProbes++;openedIds.push(String(s.market_id));
   }
   return openedIds;
 }
