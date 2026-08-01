@@ -6,8 +6,8 @@
 <meta http-equiv="Cache-Control" content="no-store, max-age=0, must-revalidate" />
 <meta http-equiv="Pragma" content="no-cache" />
 <meta http-equiv="Expires" content="0" />
-<title>Polymarket Analyst — 5 AI Agents Compete to Trade Prediction Markets</title>
-<meta name="description" content="Frequent AI analysis of Polymarket with five competing autonomous paper-trading strategies and a live leaderboard." />
+<title>Polymarket Analyst — 10 AI Agents Compete to Trade Prediction Markets</title>
+<meta name="description" content="Frequent AI analysis of Polymarket with ten competing autonomous paper-trading strategies and a live leaderboard." />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
@@ -340,7 +340,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">5 core agents · evidence-led strategies</div><div class="build-badge">Quality-first engine · v29</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Dual-risk engine · v30</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -362,7 +362,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build v29 active:</b> agents require measurable post-cost edge, use strategy-specific entry rules, and reject stale strategy data from older browser tabs. No return is guaranteed.</div>
+  <div class="live-build-banner"><b>Build v30 active:</b> five quality-first agents compete with five experimental aggressive agents using larger positions, lower cash reserves, and wider drawdown budgets. Every entry still requires a measured post-cost edge. Aggressive agents can lose more; no return is guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -376,10 +376,11 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
         </g>
         <g fill="#d9b4ff"><circle cx="380" cy="40" r="6"/></g>
       </svg>
-      <h1>Five AI agents race to <span class="grad">beat the market</span></h1>
+      <h1>Ten AI agents race to <span class="grad">beat the market</span></h1>
       <p>Each cycle loads the 500 most active Polymarket markets, ranks them by activity, liquidity, timing, and estimated price gap, then lets agents trade from that tighter pool.</p>
       <div class="badges">
-        <span class="hbadge">🏆 5 core agents</span>
+        <span class="hbadge">🏆 10 competing agents</span>
+        <span class="hbadge">5 aggressive strategies</span>
         <span class="hbadge">Top 500 active markets</span>
         <span class="hbadge">Ranked by activity + gap</span>
         <span class="hbadge">Live Polymarket data</span>
@@ -712,7 +713,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <!-- ============ ABOUT ============ -->
   <section class="tabpanel" data-tab="about">
     <div class="section-title">ℹ️ The competition</div>
-    <p class="muted" style="margin-top:-6px;max-width:820px">Every agent starts with <b>$10,000</b> in paper money. The five core strategies scan the same markets but accept different setups: value gaps, confirmed momentum, priced favorites, evidence-backed longshots, and diversified positive-edge trades. They deploy capital only when a setup clears its post-cost edge floor, then mark every position to market on each cycle.</p>
+    <p class="muted" style="margin-top:-6px;max-width:820px">Every agent starts with <b>$10,000</b> in paper money. Five core strategies use disciplined entry rules, while five aggressive strategies pursue catalysts, reversals, breakouts, asymmetric tails, and concentrated conviction. The aggressive group accepts thinner but still positive measured edges, holds less cash, and risks more per position, so both gains and drawdowns can be substantially larger.</p>
     <div class="about-grid" id="aboutAgents"></div>
     <div class="card" style="margin-top:16px">
       <div class="card-h"><h3>The live cycle</h3></div>
@@ -743,7 +744,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build quality-first-v29 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build dual-risk-v30 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -752,7 +753,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
 "use strict";
 /* ============================================================
    Polymarket Arena — fully client-side.
-   Fetches live markets, scores them, and runs five competing
+   Fetches live markets, scores them, and runs ten competing
    paper-trading agents. State syncs through /api/state when configured and uses localStorage as the on-device cache.
 ============================================================ */
 
@@ -770,7 +771,7 @@ const EXIT_STALE_DAYS = 10;
 const EXIT_RESOLUTION_DAYS = 2;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const SUGGESTION_ENGINE_VERSION = 29;
+const SUGGESTION_ENGINE_VERSION = 30;
 const FOCUS_KEY = "pma_focus_v1";
 const VIEW_KEY = "pma_view_v1";
 const PF_SORT_KEY = "pma_portfolio_sort_v1";
@@ -845,8 +846,8 @@ async function refreshTradeEmailStatus(){
   renderEmailAlerts();
 }
 
-/* ---------- the five core competing agents ----------
-   Each shares the same frequently refreshed suggestions but ranks/sizes them differently. */
+/* ---------- ten competing agents ----------
+   Five core and five aggressive strategies share the same live suggestion pool. */
 const AGENTS = [
   {id:"value", name:"Value Hunter", emoji:"🎯", color:"#7c8cff", kind:"strategy",
    blurb:"Looks for the widest net gap between model fair value and current market price after liquidity friction, chase penalties, and real-world evidence checks. It prefers trades where the crowd appears too pessimistic or too optimistic, then sizes positions moderately so one bad read does not dominate the portfolio.",
@@ -868,6 +869,26 @@ const AGENTS = [
    blurb:"Builds a broad basket instead of making a few concentrated bets. It spreads smaller, flatter positions across high-conviction, evidence-backed ideas while avoiding crowded overlap and weak net-edge fillers.",
    rank:(s)=>[...s].sort((a,b)=>(b.conviction+Number(b.evidence_score||0)*15+Math.abs(b.net_edge||b.edge||0)*55)-(a.conviction+Number(a.evidence_score||0)*15+Math.abs(a.net_edge||a.edge||0)*55)),
    maxNew:6, maxFrac:0.03, minConv:56, kelly:0.15, flat:true},
+  {id:"catalyst", name:"Catalyst Strike", emoji:"⚡", color:"#ff8a4c", kind:"strategy", aggressive:true,
+   blurb:"An aggressive event-driven strategy that concentrates on markets with fresh outside context, multiple evidence signals, and enough activity for a fast repricing. It is willing to enter earlier than the core agents when a measurable catalyst and positive post-cost edge agree, while accepting larger swings to capture the move.",
+   rank:(s)=>[...s].sort((a,b)=>(Number(b.evidence_source_count||0)*28+Number(b.evidence_score||0)*32+effectiveEntryEdge(b)*170+b.conviction+Math.log10(Number(b.volume_24hr||0)+1)*5)-(Number(a.evidence_source_count||0)*28+Number(a.evidence_score||0)*32+effectiveEntryEdge(a)*170+a.conviction+Math.log10(Number(a.volume_24hr||0)+1)*5)),
+   maxNew:7, maxFrac:0.09, minConv:52, kelly:0.46, maxPositions:18, maxCategoryPct:0.40, maxCycleDrawdown:8},
+  {id:"reversal", name:"Reversal Edge", emoji:"↻", color:"#ff5f91", kind:"strategy", aggressive:true,
+   blurb:"A contrarian mean-reversion strategy that looks for sharp one-day moves the fair-value model believes went too far. It buys against the recent direction only when the remaining post-cost gap, evidence, and liquidity support a snapback, then uses larger positions than the core group to make successful reversals matter.",
+   rank:(s)=>[...s].sort((a,b)=>(Math.abs(Number(b.price_change_1d||0))*95+effectiveEntryEdge(b)*190+Number(b.evidence_score||0)*24+b.conviction)-(Math.abs(Number(a.price_change_1d||0))*95+effectiveEntryEdge(a)*190+Number(a.evidence_score||0)*24+a.conviction)),
+   maxNew:6, maxFrac:0.08, minConv:54, kelly:0.42, maxPositions:18, maxCategoryPct:0.40, maxCycleDrawdown:8},
+  {id:"breakout", name:"Breakout Velocity", emoji:"▲", color:"#00d5b5", kind:"strategy", aggressive:true,
+   blurb:"A high-tempo breakout strategy that follows confirmed price direction when momentum, fresh volume, tight spreads, and positive modeled edge line up. It builds positions quickly and keeps less idle cash so strong moves can drive the portfolio, knowing failed breakouts will create sharper drawdowns.",
+   rank:(s)=>[...s].sort((a,b)=>(Number(b.momentum_strength||0)*65+Math.log10(Number(b.volume_24hr||0)+1)*9+effectiveEntryEdge(b)*130+b.conviction)-(Number(a.momentum_strength||0)*65+Math.log10(Number(a.volume_24hr||0)+1)*9+effectiveEntryEdge(a)*130+a.conviction)),
+   maxNew:8, maxFrac:0.075, minConv:50, kelly:0.44, maxPositions:22, maxCategoryPct:0.40, maxCycleDrawdown:8},
+  {id:"tailalpha", name:"Tail Risk Alpha", emoji:"✦", color:"#ffd166", kind:"strategy", aggressive:true,
+   blurb:"An asymmetric-upside strategy focused on cheaper contracts whose implied odds look too low relative to evidence and model value. It accepts a low hit rate and volatile results in exchange for larger potential payoffs, but still requires liquidity, time to resolution, and a positive post-cost edge before entering.",
+   rank:(s)=>[...s].filter(x=>Number(x.entry_price||1)<=0.38).sort((a,b)=>(effectiveEntryEdge(b)*220+Number(b.evidence_score||0)*42+b.conviction-Number(b.entry_price||0)*35)-(effectiveEntryEdge(a)*220+Number(a.evidence_score||0)*42+a.conviction-Number(a.entry_price||0)*35)),
+   maxNew:6, maxFrac:0.06, minConv:55, kelly:0.34, maxPositions:18, maxCategoryPct:0.35, maxCycleDrawdown:8},
+  {id:"conviction", name:"Conviction Max", emoji:"◆", color:"#b58cff", kind:"strategy", aggressive:true,
+   blurb:"A concentrated highest-conviction strategy that ignores mediocre opportunities and commits heavily to the few markets with the strongest combined edge, evidence, and confidence. It deliberately runs a smaller book with position sizes up to ten percent of equity, producing the clearest risk-and-reward behavior of the aggressive group.",
+   rank:(s)=>[...s].sort((a,b)=>(effectiveEntryEdge(b)*250+Number(b.evidence_score||0)*55+b.conviction*1.4+Number(b.evidence_source_count||0)*12)-(effectiveEntryEdge(a)*250+Number(a.evidence_score||0)*55+a.conviction*1.4+Number(a.evidence_source_count||0)*12)),
+   maxNew:4, maxFrac:0.10, minConv:60, kelly:0.58, maxPositions:12, maxCategoryPct:0.45, maxCycleDrawdown:8},
 ];
 const agentById = (id) => AGENTS.find(a=>a.id===id) || AGENTS[0];
 
@@ -991,6 +1012,7 @@ const MIN_ENTRY_EDGE=0.032;
 const MIN_SELECTIVE_ENTRY_EDGE=0.022;
 const MIN_TREND_EDGE=0.012;
 const MIN_LIQUIDITY_EDGE=0.018;
+const MIN_AGGRESSIVE_EDGE=0.008;
 const MIN_ENTRY_DAYS=7.0;
 const EDGE_SCALE=0.13;
 const MAX_STRATEGY_POSITIONS=30;
@@ -1129,13 +1151,19 @@ function analyzeMarket(m,realWorldSignals={}){
     &&absNet>=MIN_LIQUIDITY_EDGE&&conviction>=68&&evidence.score>=0.54&&m.spread>0&&m.spread<=0.02
     &&m.volume_24hr>=1000&&m.liquidity>=2000&&m.days_to_resolution!=null&&m.days_to_resolution>=MIN_ENTRY_DAYS
     &&p>=0.12&&p<=0.88&&Math.abs(m.price_change_1d||0)<=0.08;
+  const speculativeTradeReady=!strictTradeReady&&!selectiveTradeReady&&!trendTradeReady&&!liquidityTradeReady&&!jumpRisk
+    &&absNet>=MIN_AGGRESSIVE_EDGE&&conviction>=55&&evidence.score>=0.48
+    &&m.spread>0&&m.spread<=0.03&&m.volume_24hr>=750&&m.liquidity>=1500
+    &&m.days_to_resolution!=null&&m.days_to_resolution>=10&&p>=0.10&&p<=0.90
+    &&Math.abs(m.price_change_1d||0)<=0.12&&(trend.strength>=0.50||evidence.source_count>=1);
   const explorationTradeReady=false;
-  const tradeReady=(strictTradeReady||selectiveTradeReady||trendTradeReady||liquidityTradeReady||explorationTradeReady)&&!jumpRisk;
-  const tradeConviction=trendTradeReady?Math.max(conviction,55+trend.strength*35):(liquidityTradeReady?Math.max(conviction,70):(explorationTradeReady?Math.max(conviction,60):conviction));
+  const tradeReady=(strictTradeReady||selectiveTradeReady||trendTradeReady||liquidityTradeReady||speculativeTradeReady||explorationTradeReady)&&!jumpRisk;
+  const tradeConviction=trendTradeReady?Math.max(conviction,55+trend.strength*35):(liquidityTradeReady?Math.max(conviction,70):(speculativeTradeReady?Math.max(conviction,55):(explorationTradeReady?Math.max(conviction,60):conviction)));
   let side=trendTradeReady?trend.side:(edgeYes>=0?"YES":"NO");
   let entry=side==="YES"?p:m.no_price,rationale;
   if(trendTradeReady){rationale=`Confirmed trend trade: ${side} has ${Math.round(trend.strength*100)} trend strength, a ${(absNet*100).toFixed(1)}c post-cost edge, ${pct(m.spread)} spread, strong live activity, and enough time before resolution.`;}
   else if(liquidityTradeReady){rationale=`Liquidity-confirmed trade: ${side} retains a ${(absNet*100).toFixed(1)}c post-cost edge in a high-conviction, tight-spread market with enough time before resolution.`;}
+  else if(speculativeTradeReady){rationale=`Aggressive setup: ${side} retains a measured ${(absNet*100).toFixed(1)}c post-cost edge with ${Math.round(evidence.score*100)} evidence, adequate liquidity, and a live catalyst or directional signal. Only aggressive agents may take this higher-risk entry.`;}
   else if(selectiveTradeReady&&!strictTradeReady){rationale=`Selective BUY from top-500 active scan: raw gap ${(edge*100).toFixed(1)}c, conviction ${Math.round(conviction)}, high activity/liquidity, and evidence ${Math.round(evidence.score*100)}. Net edge is conservative, so sizing stays disciplined.`;}
   else if(tradeReady&&edgeYes>0){rationale=`Trade-ready after costs: fair value ${pct(fair)} vs market ${pct(p)} leaves ${(absNet*100).toFixed(1)}c net edge for YES after liquidity, chase, and ${m.category} evidence checks.`;}
   else if(tradeReady&&edgeYes<0){rationale=`Trade-ready after costs: fair value ${pct(fair)} vs market ${pct(p)} makes YES look overpriced; NO has ${(absNet*100).toFixed(1)}c net edge after penalties.`;}
@@ -1152,7 +1180,7 @@ function analyzeMarket(m,realWorldSignals={}){
     clob_yes:(m.clob_token_ids||[])[0]||null,clob_no:(m.clob_token_ids||[])[1]||null,
     yes_price:p,no_price:m.no_price,fair_value:+fair.toFixed(4),edge:+edgeYes.toFixed(4),
     net_edge:netEdge,friction:+friction.toFixed(4),chase_penalty:+chase.toFixed(4),evidence_score:+evidence.score.toFixed(2),evidence_source_count:evidence.source_count||0,
-    quality:strictTradeReady?"EV+":(selectiveTradeReady?"selective":(trendTradeReady?"trend":(liquidityTradeReady?"liquidity":(explorationTradeReady?"explore":"watch")))),
+    quality:strictTradeReady?"EV+":(selectiveTradeReady?"selective":(trendTradeReady?"trend":(liquidityTradeReady?"liquidity":(speculativeTradeReady?"speculative":(explorationTradeReady?"explore":"watch"))))),
     side,entry_price:+entry.toFixed(4),conviction:+tradeConviction.toFixed(1),volume:m.volume,volume_24hr:m.volume_24hr,liquidity:m.liquidity,
     spread:m.spread,price_change_1h:m.price_change_1h,price_change_1d:m.price_change_1d,price_change_1w:m.price_change_1w,
     momentum_strength:+trend.strength.toFixed(2),trade_ready:tradeReady,jump_risk:jumpRisk,
@@ -1456,44 +1484,50 @@ function adaptiveDecision(cfg,p,rank,total,leaderEq){
   const eq=equity(p),ret=(eq/p.starting_balance-1)*100,trail=((leaderEq||eq)-eq)/p.starting_balance*100;
   const trend=recentReturnDelta(p);
   const emo=emotionalState(ret,trail,trend,rank);
-  let minConv=cfg.minConv??0,maxNew=cfg.maxNew??6,maxFrac=cfg.maxFrac??0.06,reserve=0.08,mode="Quality First",reason="deploying capital only when a strategy-specific setup clears its edge and evidence floors.";
+  const aggressive=!!cfg.aggressive;
+  let minConv=cfg.minConv??0,maxNew=cfg.maxNew??6,maxFrac=cfg.maxFrac??0.06,reserve=aggressive?0.02:0.08;
+  let mode=aggressive?"Aggressive Hunt":"Quality First";
+  let reason=aggressive?"keeping cash near 2% and pressing qualified edge with a larger risk budget.":"deploying capital only when a strategy-specific setup clears its edge and evidence floors.";
   if(rank===1){
-    mode="Compound the Lead";minConv+=1;maxFrac*=0.97;reserve=0.10;
-    reason="leading the race, so it compounds only through setups that preserve the quality of its existing book.";
+    mode="Compound the Lead";minConv+=aggressive?0:1;maxFrac*=aggressive?1.02:0.97;reserve=aggressive?0.03:0.10;
+    reason=aggressive?"leading the race and continuing to press its strongest qualifying setups while its wider risk cap remains active.":"leading the race, so it compounds only through setups that preserve the quality of its existing book.";
   }else if(trail>6){
-    mode="Disciplined Catch-Up";minConv+=2;maxFrac*=0.95;reserve=0.10;
-    reason="behind the leader, but it will recover through better expected value rather than increasing low-quality turnover.";
+    mode=aggressive?"Aggressive Catch-Up":"Disciplined Catch-Up";minConv+=aggressive?0:2;maxNew+=aggressive?1:0;maxFrac*=aggressive?1.05:0.95;reserve=aggressive?0.02:0.10;
+    reason=aggressive?"behind the leader, so it can add one more qualified entry and deploy at its full risk budget without weakening the edge floor.":"behind the leader, but it will recover through better expected value rather than increasing low-quality turnover.";
   }else if(trend>1.5){
     mode="Momentum Press";minConv-=1;maxNew+=1;maxFrac*=1.08;reserve=0.02;
     reason="recent momentum is positive, so it presses the advantage while risk caps stay active.";
   }
   if(ret<-5){
-    mode="Selective Recovery";minConv+=4;maxNew=Math.min(maxNew,3);maxFrac*=0.80;reserve=0.15;
-    reason="in drawdown, so it raises its evidence threshold and reduces new-trade size until the signal quality recovers.";
+    mode=aggressive?"Risk-On Recovery":"Selective Recovery";minConv+=aggressive?1:4;maxNew=Math.min(maxNew,aggressive?5:3);maxFrac*=aggressive?0.90:0.80;reserve=aggressive?0.05:0.15;
+    reason=aggressive?"in drawdown, but it remains invested through its best qualifying signals with modestly smaller sizing.":"in drawdown, so it raises its evidence threshold and reduces new-trade size until the signal quality recovers.";
   }
   if(ret<-18){
-    mode="Drawdown Repair";minConv+=8;maxNew=Math.min(maxNew,2);maxFrac=Math.min(maxFrac,0.025);reserve=0.25;
-    reason="down more than 18%, so it stops forcing volume and admits only two unusually strong recovery setups per cycle.";
+    mode=aggressive?"Aggressive Drawdown Control":"Drawdown Repair";minConv+=aggressive?3:8;maxNew=Math.min(maxNew,aggressive?3:2);maxFrac=Math.min(maxFrac,aggressive?0.06:0.025);reserve=aggressive?0.12:0.25;
+    reason=aggressive?"down more than 18%, so it keeps hunting with three high-quality recovery slots while reducing maximum size to 6%.":"down more than 18%, so it stops forcing volume and admits only two unusually strong recovery setups per cycle.";
   }
   if(emo.mood==="impatient"||emo.mood==="frustrated"){
-    minConv+=1;
-    reason+=` Emotion layer: ${emo.label.toLowerCase()} is reported, but it cannot loosen entry standards or increase size.`;
+    if(aggressive)maxNew+=1;else minConv+=1;
+    reason+=aggressive?` Emotion layer: ${emo.label.toLowerCase()} adds one qualified attack slot but cannot weaken the positive-edge rule.`:` Emotion layer: ${emo.label.toLowerCase()} is reported, but it cannot loosen entry standards or increase size.`;
   }else if(emo.mood==="confident"){
     maxNew+=1;maxFrac*=1.05;
     reason+=` Emotion layer: confidence lets it press winners a little harder.`;
   }else if(emo.mood==="alarmed"){
-    maxNew=Math.min(maxNew,2);maxFrac=Math.min(maxFrac,0.025);reserve=Math.max(reserve,0.25);
-    reason+=` Emotion layer: alarm cannot trigger revenge trading; only exceptional setups remain eligible.`;
+    maxNew=Math.min(maxNew,aggressive?3:2);maxFrac=Math.min(maxFrac,aggressive?0.06:0.025);reserve=Math.max(reserve,aggressive?0.12:0.25);
+    reason+=` Emotion layer: alarm cannot trigger revenge trading; only qualifying setups remain eligible.`;
   }
-  if((p.cash/Math.max(eq,1))<0.06){maxNew=Math.max(1,Math.min(maxNew,2));reason+=" Cash is below the 6% operating reserve, so new entries are temporarily rationed.";}
+  const operatingReserve=aggressive?0.025:0.06;
+  if((p.cash/Math.max(eq,1))<operatingReserve){maxNew=Math.max(1,Math.min(maxNew,aggressive?3:2));reason+=` Cash is below the ${Math.round(operatingReserve*1000)/10}% operating reserve, so new entries are temporarily rationed.`;}
   const todaySnaps=(p.snapshots||[]).filter(s=>s.date===todayStr());
   const cycleStart=todaySnaps.length?Number(todaySnaps[0].equity||eq):eq;
   const cycleDrawdown=cycleStart>0?(eq/cycleStart-1)*100:0;
-  if(cycleDrawdown<=-MAX_CYCLE_DRAWDOWN_PCT){
+  const drawdownLimit=cfg.maxCycleDrawdown||MAX_CYCLE_DRAWDOWN_PCT;
+  if(cycleDrawdown<=-drawdownLimit){
     mode="Daily Risk Pause";maxNew=0;reserve=1;
     reason=`down ${Math.abs(cycleDrawdown).toFixed(1)}% since today's first snapshot, so it will not add risk until the next trading day.`;
   }
-  return {mode,reason,emotion:emo.mood,urgency:+emo.urgency.toFixed(2),minConv:Math.max(0,Math.round(minConv)),maxNew:Math.max(0,Math.round(maxNew)),maxFrac:+Math.min(MAX_NEW_POSITION_PCT,Math.max(0.01,maxFrac)).toFixed(3),reserve};
+  const maxPositionPct=aggressive?0.10:MAX_NEW_POSITION_PCT;
+  return {mode,reason,emotion:emo.mood,urgency:+emo.urgency.toFixed(2),minConv:Math.max(0,Math.round(minConv)),maxNew:Math.max(0,Math.round(maxNew)),maxFrac:+Math.min(maxPositionPct,Math.max(0.01,maxFrac)).toFixed(3),reserve};
 }
 const stopKey=(posOrId)=>typeof posOrId==="string"?posOrId:String(posOrId.asset||posOrId.market_id||"");
 function stoppedAt(value){
@@ -1749,7 +1783,7 @@ function reduceStrategyOverlap(st){
   });
   Object.values(groups).filter(g=>g.length>1).forEach(group=>{
     group.sort((a,b)=>(b.score-a.score)||((b.pos.value||0)-(a.pos.value||0)));
-    const probeOnly=group.every(({pos})=>["trend","liquidity","explore"].includes(pos.quality));
+    const probeOnly=group.every(({pos})=>["trend","liquidity","speculative","explore"].includes(pos.quality));
     group.slice(probeOnly?3:1).forEach(({p,pos})=>closePosition(p,pos,"Overlap guard rotated this agent into a different market","EXIT"));
   });
   AGENTS.filter(a=>a.kind==="strategy").forEach(cfg=>{
@@ -1768,36 +1802,54 @@ function agentAcceptsSuggestion(cfg,s){
     &&(["EV+","selective"].includes(quality)||(quality==="trend"&&edge>=0.025&&evidence>=0.62));
   if(cfg.id==="diversifier")return ["EV+","selective","liquidity"].includes(quality)&&edge>=MIN_LIQUIDITY_EDGE
     ||(quality==="trend"&&edge>=0.020&&evidence>=0.58);
+  if(cfg.id==="catalyst")return ["EV+","selective","trend","liquidity","speculative"].includes(quality)
+    &&edge>=MIN_AGGRESSIVE_EDGE&&(Number(s.evidence_source_count||0)>=1||evidence>=0.62);
+  if(cfg.id==="reversal"){
+    const day=Number(s.price_change_1d||0),reversesMove=(s.side==="YES"&&day<=-0.02)||(s.side==="NO"&&day>=0.02);
+    return reversesMove&&["EV+","selective","speculative"].includes(quality)&&edge>=0.012&&evidence>=0.50;
+  }
+  if(cfg.id==="breakout"){
+    const day=Number(s.price_change_1d||0),followsMove=(s.side==="YES"&&day>0)||(s.side==="NO"&&day<0);
+    return followsMove&&["EV+","selective","trend","speculative"].includes(quality)
+      &&edge>=(quality==="speculative"?MIN_AGGRESSIVE_EDGE:MIN_TREND_EDGE)&&Number(s.momentum_strength||0)>=0.50&&evidence>=0.48;
+  }
+  if(cfg.id==="tailalpha")return Number(s.entry_price||0)<=0.38
+    &&["EV+","selective","trend","speculative"].includes(quality)&&edge>=0.012&&evidence>=0.55;
+  if(cfg.id==="conviction")return ["EV+","selective","speculative"].includes(quality)
+    &&edge>=0.015&&Number(s.conviction||0)>=60&&evidence>=0.52;
   return ["EV+","selective"].includes(quality)&&edge>=MIN_SELECTIVE_ENTRY_EDGE;
 }
 function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=null){
   const d=decision||{minConv:cfg.minConv,maxNew:cfg.maxNew,maxFrac:cfg.maxFrac,reserve:0.05};
   p.lastDecision=decision||null;
-  if((p.positions||[]).length>=MAX_STRATEGY_POSITIONS||d.maxNew<=0)return [];
+  const maxPositions=cfg.maxPositions||MAX_STRATEGY_POSITIONS;
+  const categoryCap=cfg.maxCategoryPct||MAX_CATEGORY_EXPOSURE_PCT;
+  const probeQualities=["trend","liquidity","speculative","explore"];
+  if((p.positions||[]).length>=maxPositions||d.maxNew<=0)return [];
   const avoid=avoidMarketIds||new Set();
   const cands=rankedSugs.map(s=>peerAdjustedSuggestion(s,peerStats)).filter(s=>s.trade_ready&&agentAcceptsSuggestion(cfg,s)&&(s.side==="YES"||s.side==="NO")&&s.peer_conviction>=d.minConv
     &&s.conviction>=48&&s.entry_price>=0.08&&s.entry_price<=0.92
-    &&(["trend","liquidity","explore"].includes(s.quality)||effectiveEntryEdge(s)>=MIN_SELECTIVE_ENTRY_EDGE)&&(s.days_to_resolution==null||s.days_to_resolution>=MIN_ENTRY_DAYS)
+    &&(probeQualities.includes(s.quality)||effectiveEntryEdge(s)>=MIN_SELECTIVE_ENTRY_EDGE)&&(s.days_to_resolution==null||s.days_to_resolution>=MIN_ENTRY_DAYS)
     &&s.volume>=MIN_VOLUME&&s.liquidity>=MIN_LIQUIDITY&&(s.volume_24hr>=500||s.conviction>=62)
     &&(s.evidence_score==null||s.evidence_score>=0.40||s.conviction>=62)
-    &&(!avoid.has(String(s.market_id))||(["trend","liquidity","explore"].includes(s.quality)&&Number((peerStats&&peerStats[`${s.market_id}:${s.side}`]||{}).same||0)<3))
+    &&(!avoid.has(String(s.market_id))||(probeQualities.includes(s.quality)&&Number((peerStats&&peerStats[`${s.market_id}:${s.side}`]||{}).same||0)<3))
     &&!hasPosition(p,s.market_id)&&!hasRecentStop(p,s.market_id)&&(focus==="All"||!focus||s.category===focus))
     .sort((a,b)=>(b.peer_conviction-a.peer_conviction)||((b.peer_boost||0)-(a.peer_boost||0)));
   let opened=0,openedIds=[];
   for(const s of cands){
     if(opened>=d.maxNew)break;
-    if((p.positions||[]).length>=MAX_STRATEGY_POSITIONS)break;
+    if((p.positions||[]).length>=maxPositions)break;
     const eq=equity(p),investable=p.cash-eq*d.reserve;
     if(investable<=50)break;
     let frac;
-    if(["trend","liquidity"].includes(s.quality)){frac=Math.min(d.maxFrac,MAX_PROBE_POSITION_PCT);}
+    if(probeQualities.includes(s.quality)){frac=Math.min(d.maxFrac,cfg.aggressive?0.035:MAX_PROBE_POSITION_PCT);}
     else if(cfg.flat){frac=d.maxFrac;}
     else{const base=(s.peer_conviction/100)*Math.min(1,effectiveEntryEdge(s)/EDGE_SCALE);frac=Math.min(d.maxFrac,cfg.kelly*base);}
     if(s.peer_boost<0)frac*=0.82;
     if(s.peer_boost>0&&decision&&decision.urgency>0.65)frac*=1.08;
     let stake=Math.min(eq*frac,investable);
     const categoryValue=(p.positions||[]).filter(pos=>(pos.category||"Other")===(s.category||"Other")).reduce((sum,pos)=>sum+Number(pos.value||0),0);
-    stake=Math.min(stake,Math.max(0,eq*MAX_CATEGORY_EXPOSURE_PCT-categoryValue));
+    stake=Math.min(stake,Math.max(0,eq*categoryCap-categoryValue));
     if(stake<50)continue;
     const entry=s.entry_price; if(entry<=0||entry>=1)continue;
     const shares=+(stake/entry).toFixed(2),cost=+(shares*entry).toFixed(2);
@@ -1930,14 +1982,14 @@ async function runDailyCycle(){
     st=loadState();
     const emailOffsets=agentHistoryOffsets(st);
     const focus=getFocus();
-    // Price map for all open core-strategy positions.
+    // Price map for all open strategy positions.
     const ids=new Set();
     AGENTS.forEach(a=>
       (st.agents[a.id].positions||[]).forEach(pos=>{if(pos.market_id)ids.add(pos.market_id);}));
     setStatus("marking positions…",true);
     const priceMap={};
     for(const id of ids){priceMap[id]=await fetchMarketPrice(id);}
-    setStatus("core strategy agents trading…",true);
+    setStatus("ten strategy agents trading…",true);
     const preBoard=AGENTS.map(a=>({id:a.id,eq:equity(st.agents[a.id])})).sort((x,y)=>y.eq-x.eq);
     const leaderEq=preBoard[0]?preBoard[0].eq:STARTING_BALANCE;
     for(const cfg of AGENTS){
@@ -2006,13 +2058,15 @@ function renderAll(){renderOverview();renderEmailAlerts();renderLeaderboard();re
 function renderOverview(){
   const b=board(); const lead=b[0];
   const avgRet=b.reduce((s,r)=>s+r.ret,0)/b.length;
-  const core=b.filter(r=>r.c.kind==="strategy"),coreAvg=core.reduce((s,r)=>s+r.ret,0)/Math.max(1,core.length);
+  const core=b.filter(r=>!r.c.aggressive),coreAvg=core.reduce((s,r)=>s+r.ret,0)/Math.max(1,core.length);
+  const aggressive=b.filter(r=>r.c.aggressive),aggressiveAvg=aggressive.reduce((s,r)=>s+r.ret,0)/Math.max(1,aggressive.length);
   const sugCount=(loadSuggestions().suggestions||[]).length;
   const stats=[
     {ic:lead.c.emoji,label:"Leader",value:lead.c.name.split(" ")[0]},
     {ic:"📈",label:"Leader return",value:fmtPct(lead.ret),cls:signClass(lead.pnl)},
     {ic:"⚖️",label:"All-agent avg",value:fmtPct(avgRet),cls:signClass(avgRet)},
     {ic:"🧠",label:"Core strategy avg",value:fmtPct(coreAvg),cls:signClass(coreAvg)},
+    {ic:"⚡",label:"Aggressive avg",value:fmtPct(aggressiveAvg),cls:signClass(aggressiveAvg)},
     {ic:"💡",label:"Scored ideas",value:sugCount},
     {ic:"🏆",label:"Agents",value:AGENTS.length},
   ];
@@ -2128,7 +2182,7 @@ function decisionSummary(p){
 function renderAgentBrief(cfg,p,st){
   const root=$("agentBrief"); if(!root)return;
   const bw=bestAndWorst(p);
-  const risk=cfg.maxFrac>=0.055?"Aggressive":cfg.maxFrac<=0.04?"Broad active":"Active";
+  const risk=cfg.aggressive?"Extreme risk":cfg.maxFrac>=0.055?"Active":cfg.maxFrac<=0.04?"Broad active":"Disciplined";
   const cadence=`${cfg.maxNew||0} new trades max per cycle`;
   const exitRule=`Exit if edge fades, conviction weakens, <${EXIT_RESOLUTION_DAYS}d to resolve, or ${EXIT_STALE_DAYS}d stale`;
   const thesis=agentPlainBlurb(cfg,st);
@@ -2295,9 +2349,11 @@ function drawCombo(svgId,legendId){
   svg.innerHTML=inner;
   if($(legendId)){
     const b=board();const avg=b.reduce((s,r)=>s+r.ret,0)/b.length;
-    const core=b.filter(r=>r.c.kind==="strategy"),coreAvg=core.reduce((s,r)=>s+r.ret,0)/Math.max(1,core.length);
+    const core=b.filter(r=>!r.c.aggressive),coreAvg=core.reduce((s,r)=>s+r.ret,0)/Math.max(1,core.length);
+    const aggressive=b.filter(r=>r.c.aggressive),aggressiveAvg=aggressive.reduce((s,r)=>s+r.ret,0)/Math.max(1,aggressive.length);
     $(legendId).innerHTML=`<span class="leg"><span class="legdot" style="background:#fff"></span>All Avg <b class="${signClass(avg)}">${fmtPct(avg)}</b></span>`+
       `<span class="leg"><span class="legdot" style="background:#38d2e6"></span>Core Avg <b class="${signClass(coreAvg)}">${fmtPct(coreAvg)}</b></span>`+
+      `<span class="leg"><span class="legdot" style="background:#ff8a4c"></span>Aggressive Avg <b class="${signClass(aggressiveAvg)}">${fmtPct(aggressiveAvg)}</b></span>`+
       b.map(r=>`<span class="leg"><span class="legdot" style="background:${r.c.color}"></span>${r.c.emoji} ${r.c.name} <b class="${signClass(r.pnl)}">${fmtPct(r.ret)}</b></span>`).join("");
   }
 }
@@ -2428,6 +2484,11 @@ function agentCompetitionPlan(cfg,row,rank,leader){
   if(cfg.id==="favorite")return "Plan: grind upward through high-probability favorites, aiming to outlast more volatile agents during choppy markets.";
   if(cfg.id==="longshot")return "Plan: keep risk small but search for one underpriced outsider that can reprice sharply and leapfrog the leaderboard.";
   if(cfg.id==="diversifier")return "Plan: spread bets broadly, reduce single-market damage, and try to win through consistency rather than one heroic call.";
+  if(cfg.id==="catalyst")return "Plan: deploy quickly when fresh real-world context and measured edge align, then concentrate enough capital for a catalyst repricing to move the account.";
+  if(cfg.id==="reversal")return "Plan: attack overextended one-day moves from the opposite side, looking for liquid mean-reversion setups with enough evidence to justify the contrarian risk.";
+  if(cfg.id==="breakout")return "Plan: stay nearly fully deployed in confirmed momentum setups and press the fastest breakouts where direction, activity, and edge agree.";
+  if(cfg.id==="tailalpha")return "Plan: hunt underpriced low-cost contracts with asymmetric upside, accepting a volatile hit rate while keeping each tail position survivable.";
+  if(cfg.id==="conviction")return "Plan: ignore marginal trades and commit the largest allowed stakes to a compact book of the strongest edge-and-evidence combinations.";
   return "Plan: keep following its rulebook and use fresh market data to pressure the leaderboard.";
 }
 function recentActionSummary(p){
@@ -2531,7 +2592,7 @@ function renderAgentReports(){
     const thesis=agentPlainBlurb(row.c,st);
     const plan=agentCompetitionPlan(row.c,row,rank,leader);
     const line=reportPositionLine(row.p);
-    const crash=row.ret<-18?`<p><b>Drawdown guard:</b> This account is down more than 18%, so new trades are throttled to one high-conviction entry with extra cash reserve. It is not trying to force a comeback.</p>`:"";
+    const crash=row.ret<-18?`<p><b>Drawdown guard:</b> ${row.c.aggressive?"This aggressive account remains active with up to three recovery entries, a 6% position ceiling, and a 12% cash reserve.":"This core account is limited to two unusually strong entries, a 2.5% position ceiling, and a 25% cash reserve."}</p>`:"";
     return `<article class="report" style="border-top-color:${row.c.color}">
       <div class="report-title"><div class="report-name">${row.c.emoji} ${row.c.name}</div><div class="report-rank">#${rank} · ${ret}</div></div>
       <p><b>Strategy:</b> ${esc(thesis)}</p>
@@ -2552,6 +2613,11 @@ function agentVoice(cfg){
     favorite:{tone:"steady and probability-first",hello:"I like high-probability edges with less drama.",signoff:"My job is compounding, not showing off."},
     longshot:{tone:"opportunistic but risk-aware",hello:"I hunt asymmetric mispricing, but I keep the bet size honest.",signoff:"One repricing can matter, but only if I survive the misses."},
     diversifier:{tone:"calm, portfolio-minded, and broad",hello:"I care about the whole basket more than one perfect call.",signoff:"Many small edges can beat one loud opinion."},
+    catalyst:{tone:"urgent, evidence-driven, and decisive",hello:"I am hunting the next event that can force a fast repricing.",signoff:"A catalyst only matters when the numbers agree."},
+    reversal:{tone:"contrarian, sharp, and skeptical",hello:"I am looking for a crowd move that has gone too far.",signoff:"The best snapbacks begin where consensus gets stretched."},
+    breakout:{tone:"fast, aggressive, and momentum-led",hello:"I am scanning for direction that is strengthening right now.",signoff:"I press confirmed speed and cut failed momentum."},
+    tailalpha:{tone:"bold, asymmetric, and probability-aware",hello:"I am searching for cheap contracts with mispriced upside.",signoff:"A low hit rate can work when the payoff is truly asymmetric."},
+    conviction:{tone:"concentrated, demanding, and direct",hello:"I only want the few trades strong enough to deserve real weight.",signoff:"When evidence and edge align, I size with conviction."},
   };
   return voices[cfg.id]||{tone:"analytical",hello:"I am reading the current book.",signoff:"Ask me where you want to go deeper."};
 }
@@ -3194,7 +3260,7 @@ function renderAbout(){
   const root=$("aboutAgents");if(!root)return;
   const st=loadState();
   root.innerHTML=AGENTS.map(a=>`<div class="feature" style="border-top:3px solid ${a.color}">
-    <div class="fic">${a.emoji}</div><h4>${a.name}</h4><p>${agentBlurb(a,st)}</p></div>`).join("");
+    <div class="fic">${a.emoji}</div><h4>${a.name}</h4><div class="small ${a.aggressive?"neg-val":"muted"}">${a.aggressive?"Aggressive · higher risk":"Core · disciplined risk"}</div><p>${agentBlurb(a,st)}</p></div>`).join("");
 }
 const LIVE_CHECKS=[
   ["personal_scope","I will use only my own money and my own Polymarket/deposit wallet"],
