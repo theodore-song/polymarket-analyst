@@ -1827,7 +1827,7 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
   const probeQualities=["trend","liquidity","speculative","explore"];
   if((p.positions||[]).length>=maxPositions||d.maxNew<=0)return [];
   const avoid=avoidMarketIds||new Set();
-  const cands=rankedSugs.map(s=>peerAdjustedSuggestion(s,peerStats)).filter(s=>s.trade_ready&&agentAcceptsSuggestion(cfg,s)&&(s.side==="YES"||s.side==="NO")&&s.peer_conviction>=d.minConv
+  const cands=rankedSugs.map(s=>peerAdjustedSuggestion(s,peerStats)).filter(s=>s.trade_ready&&agentAcceptsSuggestion(cfg,s)&&(s.side==="YES"||s.side==="NO")&&(cfg.aggressive?s.conviction:s.peer_conviction)>=d.minConv
     &&s.conviction>=48&&s.entry_price>=0.08&&s.entry_price<=0.92
     &&(probeQualities.includes(s.quality)||effectiveEntryEdge(s)>=MIN_SELECTIVE_ENTRY_EDGE)&&(s.days_to_resolution==null||s.days_to_resolution>=MIN_ENTRY_DAYS)
     &&s.volume>=MIN_VOLUME&&s.liquidity>=MIN_LIQUIDITY&&(s.volume_24hr>=500||s.conviction>=62)
@@ -1842,7 +1842,7 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
     const eq=equity(p),investable=p.cash-eq*d.reserve;
     if(investable<=50)break;
     let frac;
-    if(probeQualities.includes(s.quality)){frac=Math.min(d.maxFrac,cfg.aggressive?0.035:MAX_PROBE_POSITION_PCT);}
+    if(probeQualities.includes(s.quality)){frac=Math.min(d.maxFrac,cfg.aggressive?0.06:MAX_PROBE_POSITION_PCT);}
     else if(cfg.flat){frac=d.maxFrac;}
     else{const base=(s.peer_conviction/100)*Math.min(1,effectiveEntryEdge(s)/EDGE_SCALE);frac=Math.min(d.maxFrac,cfg.kelly*base);}
     if(s.peer_boost<0)frac*=0.82;
