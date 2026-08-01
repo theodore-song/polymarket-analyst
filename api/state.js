@@ -6,7 +6,7 @@ const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
 const PAPER_KEY = "pma_paper_accounts_v1";
 const LIVE_KEY = "pma_live_readiness_v1";
-const AGENT_IDS = ["value", "momentum", "favorite", "longshot", "diversifier", "copycat", "whale1", "whale2", "whale3", "whale4"];
+const AGENT_IDS = ["value", "momentum", "favorite", "longshot", "diversifier"];
 const LIMITS = { closed: 80, history: 160, snapshots: 240, suggestions: 900, paperHistory: 120, paperSnapshots: 120, audit: 120 };
 
 async function readJsonBlob() {
@@ -71,6 +71,15 @@ function agentStateFromItems(items) {
   }
 }
 
+function suggestionStateFromItems(items) {
+  if (!items || !items[SUG_KEY]) return null;
+  try {
+    return JSON.parse(items[SUG_KEY]);
+  } catch {
+    return null;
+  }
+}
+
 function compactPortfolio(p) {
   if (!p || typeof p !== "object") return p;
   const out = { ...p };
@@ -88,7 +97,8 @@ function compactAgentState(st) {
   for (const id of AGENT_IDS) {
     out.agents[id] = compactPortfolio(st.agents && st.agents[id]);
   }
-  out.whales = st.whales || {};
+  delete out.whales;
+  delete out.copycatLeader;
   return out;
 }
 
@@ -99,9 +109,10 @@ function compactSuggestion(s) {
     clob_yes: s.clob_yes, clob_no: s.clob_no, yes_price: s.yes_price, no_price: s.no_price,
     fair_value: s.fair_value, edge: s.edge, side: s.side, entry_price: s.entry_price,
     net_edge: s.net_edge, friction: s.friction, chase_penalty: s.chase_penalty,
-    evidence_score: s.evidence_score, quality: s.quality,
+    evidence_score: s.evidence_score, evidence_source_count: s.evidence_source_count, quality: s.quality,
     conviction: s.conviction, volume: s.volume, volume_24hr: s.volume_24hr, liquidity: s.liquidity,
-    trade_ready: s.trade_ready, watch_only: s.watch_only,
+    spread: s.spread, price_change_1h: s.price_change_1h, price_change_1d: s.price_change_1d, price_change_1w: s.price_change_1w,
+    momentum_strength: s.momentum_strength, trade_ready: s.trade_ready, watch_only: s.watch_only, jump_risk: s.jump_risk,
     days_to_resolution: s.days_to_resolution, drivers: s.drivers, rationale: s.rationale,
   };
 }
@@ -162,16 +173,25 @@ export default async function handler(req, res) {
         return res.status(400).json({ ok: false, error: "Invalid state payload" });
       }
       const current = await readJsonBlob();
+      const incomingItems = { ...body.items };
       const currentAgents = agentStateFromItems(current && current.items);
-      const incomingAgents = agentStateFromItems(body.items);
+      let incomingAgents = agentStateFromItems(incomingItems);
+      const staleAgentWrite = shouldRejectStaleAgentWrite(currentAgents, incomingAgents);
+      if (body.force && staleAgentWrite && current?.items?.[AGENTS_KEY]) {
+        incomingItems[AGENTS_KEY] = current.items[AGENTS_KEY];
+        incomingAgents = currentAgents;
+      }
+      const currentSuggestions = suggestionStateFromItems(current && current.items);
+      const incomingSuggestions = suggestionStateFromItems(incomingItems);
+      if (currentSuggestions && incomingSuggestions
+        && Number(incomingSuggestions.engine_version || 0) < Number(currentSuggestions.engine_version || 0)) {
+        incomingItems[SUG_KEY] = current.items[SUG_KEY];
+      }
       if (!body.force && currentAgents) {
         const currentCycle = currentAgents.last_cycle_hour || "";
         const incomingCycle = incomingAgents && incomingAgents.last_cycle_hour ? incomingAgents.last_cycle_hour : "";
         if (currentCycle && (!incomingAgents || !incomingCycle)) {
           return conflictResponse(res, "Cloud already has a cycle result; refusing unscheduled local state", current);
-        }
-        if (currentCycle && incomingCycle && incomingCycle < currentCycle) {
-          return conflictResponse(res, "Incoming state is older than the shared cloud result", current);
         }
         const sameCycle = currentCycle && currentCycle === incomingCycle;
         const differentRun = currentAgents.last_run && incomingAgents.last_run && currentAgents.last_run !== incomingAgents.last_run;
@@ -179,10 +199,10 @@ export default async function handler(req, res) {
           return conflictResponse(res, "This cycle already has a cloud result", current);
         }
       }
-      if (!body.force && shouldRejectStaleAgentWrite(currentAgents, incomingAgents)) {
+      if (!body.force && staleAgentWrite) {
         return conflictResponse(res, "Incoming state would replace newer active positions with stale cash-only data", current);
       }
-      const state = { version: 1, updated_at: new Date().toISOString(), items: compactItems(body.items) };
+      const state = { version: 1, updated_at: new Date().toISOString(), items: compactItems(incomingItems) };
       const versionedPath = `${STATE_VERSION_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2)}.json`;
       await put(versionedPath, JSON.stringify(state), {
         access: "private",
