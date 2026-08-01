@@ -340,7 +340,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">5 core agents · evidence-led strategies</div><div class="build-badge">Quality-first engine · v27</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">5 core agents · evidence-led strategies</div><div class="build-badge">Quality-first engine · v28</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -362,7 +362,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build v27 active:</b> agents now require measurable post-cost edge, use strategy-specific entry rules, avoid jump-to-settlement events, and wait 72 hours before reconsidering a stopped market. No return is guaranteed.</div>
+  <div class="live-build-banner"><b>Build v28 active:</b> agents require measurable post-cost edge, use strategy-specific entry rules, avoid jump-to-settlement events, and record structured exit reasons for continuous review. No return is guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -743,7 +743,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build quality-first-v27 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build quality-first-v28 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -770,7 +770,7 @@ const EXIT_STALE_DAYS = 10;
 const EXIT_RESOLUTION_DAYS = 2;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const SUGGESTION_ENGINE_VERSION = 27;
+const SUGGESTION_ENGINE_VERSION = 28;
 const FOCUS_KEY = "pma_focus_v1";
 const VIEW_KEY = "pma_view_v1";
 const PF_SORT_KEY = "pma_portfolio_sort_v1";
@@ -1578,7 +1578,7 @@ function stopLossLabel(pos){
 function stopOutPosition(p,pos){
   const proceeds=+(pos.shares*pos.current_price).toFixed(2);
   p.cash=+(p.cash+proceeds).toFixed(2);
-  pos.exit_price=pos.current_price;pos.closed_at=cycleIso();
+  pos.exit_price=pos.current_price;pos.closed_at=cycleIso();pos.close_reason="Stop loss -18%";pos.close_action="STOP";
   pos.realized_pnl=+(proceeds-pos.cost).toFixed(2);
   p.closed.push(pos);rememberStop(p,pos);
   p.history.push({date:logDay(),action:"STOP",question:pos.question,side:pos.side,
@@ -1612,7 +1612,7 @@ function scaleStopLossPosition(p,pos,tier){
 function closePosition(p,pos,reason,action="CLOSE"){
   const proceeds=+(pos.shares*pos.current_price).toFixed(2);
   p.cash=+(p.cash+proceeds).toFixed(2);
-  pos.exit_price=pos.current_price;pos.closed_at=cycleIso();
+  pos.exit_price=pos.current_price;pos.closed_at=cycleIso();pos.close_reason=reason;pos.close_action=action;
   pos.realized_pnl=+(proceeds-pos.cost).toFixed(2);
   p.closed.push(pos);
   p.history.push({date:logDay(),action,question:pos.question,side:pos.side,
@@ -1653,7 +1653,7 @@ function exitReason(pos,fresh,analysis,cfg){
   if(pos.quality==="explore")return "Quality audit retired zero-edge exploration exposure";
   if(pos.quality==="trend"&&entryEdge<MIN_TREND_EDGE)return "Quality audit retired a trend trade without enough post-cost edge";
   if(pos.quality==="liquidity"&&entryEdge<MIN_LIQUIDITY_EDGE)return "Quality audit retired a liquidity trade without enough post-cost edge";
-  if(cfg&&daysHeld(pos)>=0.25&&!agentAcceptsSuggestion(cfg,pos))return `Quality audit removed a trade that no longer fits ${cfg.name}`;
+  if(cfg&&!agentAcceptsSuggestion(cfg,pos))return `Quality audit removed a trade that no longer fits ${cfg.name}`;
   if(!analysis)return null;
   const net=Math.abs(analysis.net_edge!=null?analysis.net_edge:analysis.edge||0);
   if(analysis.side&&analysis.side!==pos.side&&net>=MIN_ENTRY_EDGE)return `Model flipped to ${analysis.side}`;
@@ -1808,6 +1808,7 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
       entry_price:+entry.toFixed(4),current_price:+entry.toFixed(4),cost,value:cost,
       original_shares:shares,original_cost:cost,unrealized_pnl:0,conviction:s.peer_conviction,category:s.category,opened_at:cycleIso(),url:s.url||"",
       peer_note:s.peer_note||"",entry_reason:s.rationale||"",net_edge:s.net_edge,evidence_score:s.evidence_score,friction:s.friction,chase_penalty:s.chase_penalty,quality:s.quality,
+      strategy_version:SUGGESTION_ENGINE_VERSION,
       momentum_strength:s.momentum_strength,price_change_1d:s.price_change_1d,price_change_1w:s.price_change_1w,
       gain_stops:{},stop_losses:{}});
     p.history.push({date:logDay(),action:"OPEN",question:s.question,side:s.side,
