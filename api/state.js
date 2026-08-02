@@ -9,6 +9,11 @@ const LIVE_KEY = "pma_live_readiness_v1";
 const AGENT_IDS = ["value", "momentum", "favorite", "longshot", "diversifier", "catalyst", "reversal", "breakout", "tailalpha", "conviction"];
 const LIMITS = { closed: 80, history: 160, snapshots: 240, suggestions: 900, paperHistory: 120, paperSnapshots: 120, audit: 120 };
 
+function withBlobAuth(options = {}) {
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  return token ? { ...options, token } : options;
+}
+
 async function readJsonBlob() {
   let primaryError = null;
   try {
@@ -30,10 +35,10 @@ async function readJsonBlob() {
 }
 
 async function readBlobJson(pathname) {
-  const blob = await get(pathname, {
+  const blob = await get(pathname, withBlobAuth({
     access: "private",
     headers: { "cache-control": "no-cache" },
-  });
+  }));
   if (!blob || blob.statusCode !== 200 || !blob.stream) return null;
   const text = await new Response(blob.stream).text();
   return text ? JSON.parse(text) : null;
@@ -43,7 +48,7 @@ async function latestVersionedStateBlob() {
   let cursor;
   let newest = null;
   do {
-    const page = await list({ prefix: STATE_VERSION_PREFIX, limit: 1000, cursor });
+    const page = await list(withBlobAuth({ prefix: STATE_VERSION_PREFIX, limit: 1000, cursor }));
     for (const blob of page.blobs || []) {
       if (!newest || new Date(blob.uploadedAt).getTime() > new Date(newest.uploadedAt).getTime()) newest = blob;
     }
@@ -218,21 +223,21 @@ export default async function handler(req, res) {
         return conflictResponse(res, "Incoming state would replace newer active positions with stale cash-only data", current);
       }
       const state = { version: 1, updated_at: new Date().toISOString(), items: compactItems(incomingItems) };
-      await put(STATE_PATH, JSON.stringify(state), {
+      await put(STATE_PATH, JSON.stringify(state), withBlobAuth({
         access: "private",
         allowOverwrite: true,
         contentType: "application/json",
         cacheControlMaxAge: 0,
-      });
+      }));
       if (process.env.PMA_ENABLE_STATE_HISTORY === "true") {
         const versionedPath = `${STATE_VERSION_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2)}.json`;
         try {
-          await put(versionedPath, JSON.stringify(state), {
+          await put(versionedPath, JSON.stringify(state), withBlobAuth({
             access: "private",
             allowOverwrite: false,
             contentType: "application/json",
             cacheControlMaxAge: 0,
-          });
+          }));
         } catch {
           // The shared state is authoritative; backup retention must not block a cycle.
         }
