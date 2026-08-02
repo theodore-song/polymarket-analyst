@@ -10,9 +10,30 @@ const AGENT_IDS = ["value", "momentum", "favorite", "longshot", "diversifier", "
 const LIMITS = { closed: 80, history: 160, snapshots: 240, suggestions: 900, paperHistory: 120, paperSnapshots: 120, audit: 120 };
 
 async function readJsonBlob() {
-  const latest = await latestVersionedStateBlob();
-  if (latest) return latest;
-  const blob = await get(STATE_PATH, { access: "private" });
+  let primaryError = null;
+  try {
+    const primary = await readBlobJson(STATE_PATH);
+    if (primary) return primary;
+  } catch (err) {
+    primaryError = err;
+  }
+
+  try {
+    const latest = await latestVersionedStateBlob();
+    if (latest) return latest;
+  } catch (err) {
+    if (!primaryError) primaryError = err;
+  }
+
+  if (primaryError) throw primaryError;
+  return null;
+}
+
+async function readBlobJson(pathname) {
+  const blob = await get(pathname, {
+    access: "private",
+    headers: { "cache-control": "no-cache" },
+  });
   if (!blob || blob.statusCode !== 200 || !blob.stream) return null;
   const text = await new Response(blob.stream).text();
   return text ? JSON.parse(text) : null;
@@ -29,13 +50,7 @@ async function latestVersionedStateBlob() {
     cursor = page.cursor;
   } while (cursor);
   if (!newest) return null;
-  const blob = await get(newest.url, {
-    access: "private",
-    headers: { "cache-control": "no-cache" },
-  });
-  if (!blob || blob.statusCode !== 200 || !blob.stream) return null;
-  const text = await new Response(blob.stream).text();
-  return text ? JSON.parse(text) : null;
+  return readBlobJson(newest.pathname);
 }
 
 function cycleVersion(cycle = "") {
@@ -203,19 +218,25 @@ export default async function handler(req, res) {
         return conflictResponse(res, "Incoming state would replace newer active positions with stale cash-only data", current);
       }
       const state = { version: 1, updated_at: new Date().toISOString(), items: compactItems(incomingItems) };
-      const versionedPath = `${STATE_VERSION_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2)}.json`;
-      await put(versionedPath, JSON.stringify(state), {
-        access: "private",
-        allowOverwrite: false,
-        contentType: "application/json",
-        cacheControlMaxAge: 0,
-      });
       await put(STATE_PATH, JSON.stringify(state), {
         access: "private",
         allowOverwrite: true,
         contentType: "application/json",
         cacheControlMaxAge: 0,
       });
+      if (process.env.PMA_ENABLE_STATE_HISTORY === "true") {
+        const versionedPath = `${STATE_VERSION_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2)}.json`;
+        try {
+          await put(versionedPath, JSON.stringify(state), {
+            access: "private",
+            allowOverwrite: false,
+            contentType: "application/json",
+            cacheControlMaxAge: 0,
+          });
+        } catch {
+          // The shared state is authoritative; backup retention must not block a cycle.
+        }
+      }
       return res.status(200).json({ ok: true, state });
     }
 
