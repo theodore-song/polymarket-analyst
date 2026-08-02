@@ -2,6 +2,7 @@ import { neon } from "@neondatabase/serverless";
 
 let sqlClient;
 let schemaReady;
+let sharedStateSchemaReady;
 
 export function databaseUrl() {
   return process.env.DATABASE_URL || process.env.NEON_DATABASE_URL || "";
@@ -18,6 +19,45 @@ export function sql() {
     sqlClient = neon(url);
   }
   return sqlClient;
+}
+
+async function ensureSharedStateSchema() {
+  if (sharedStateSchemaReady) return;
+  const db = sql();
+  await db`
+    create table if not exists shared_app_state (
+      state_key text primary key,
+      payload jsonb not null,
+      updated_at timestamptz not null default now()
+    )
+  `;
+  sharedStateSchemaReady = true;
+}
+
+export async function readSharedAppState(stateKey) {
+  await ensureSharedStateSchema();
+  const db = sql();
+  const rows = await db`
+    select payload, updated_at
+    from shared_app_state
+    where state_key = ${stateKey}
+    limit 1
+  `;
+  return rows[0] || null;
+}
+
+export async function writeSharedAppState(stateKey, payload) {
+  await ensureSharedStateSchema();
+  const db = sql();
+  const rows = await db`
+    insert into shared_app_state (state_key, payload, updated_at)
+    values (${stateKey}, ${JSON.stringify(payload)}::jsonb, now())
+    on conflict (state_key) do update set
+      payload = excluded.payload,
+      updated_at = now()
+    returning updated_at
+  `;
+  return rows[0] || null;
 }
 
 export async function ensureSchema() {

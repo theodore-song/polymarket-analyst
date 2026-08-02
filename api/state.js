@@ -1,7 +1,9 @@
 import { get, list, put } from "@vercel/blob";
+import { hasDatabase, readSharedAppState, writeSharedAppState } from "./_db.js";
 
 const STATE_PATH = process.env.PMA_STATE_PATH || "shared/state.json";
 const STATE_VERSION_PREFIX = process.env.PMA_STATE_VERSION_PREFIX || "shared/state-versions/";
+const DATABASE_STATE_KEY = process.env.PMA_DATABASE_STATE_KEY || "polymarket-arena";
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
 const PAPER_KEY = "pma_paper_accounts_v1";
@@ -15,6 +17,17 @@ function withBlobAuth(options = {}) {
 }
 
 async function readJsonBlob() {
+  let databaseAvailable = false;
+  if (hasDatabase()) {
+    try {
+      const row = await readSharedAppState(DATABASE_STATE_KEY);
+      databaseAvailable = true;
+      if (row && row.payload) return row.payload;
+    } catch {
+      databaseAvailable = false;
+    }
+  }
+
   let primaryError = null;
   try {
     const primary = await readBlobJson(STATE_PATH);
@@ -30,8 +43,38 @@ async function readJsonBlob() {
     if (!primaryError) primaryError = err;
   }
 
-  if (primaryError) throw primaryError;
+  if (primaryError && !databaseAvailable) throw primaryError;
   return null;
+}
+
+async function persistState(state) {
+  let databaseSaved = false;
+  let databaseError = null;
+  if (hasDatabase()) {
+    try {
+      await writeSharedAppState(DATABASE_STATE_KEY, state);
+      databaseSaved = true;
+    } catch (err) {
+      databaseError = err;
+    }
+  }
+
+  let blobSaved = false;
+  let blobError = null;
+  try {
+    await put(STATE_PATH, JSON.stringify(state), withBlobAuth({
+      access: "private",
+      allowOverwrite: true,
+      contentType: "application/json",
+      cacheControlMaxAge: 0,
+    }));
+    blobSaved = true;
+  } catch (err) {
+    blobError = err;
+  }
+
+  if (!databaseSaved && !blobSaved) throw databaseError || blobError || new Error("No state provider is available");
+  return { databaseSaved, blobSaved };
 }
 
 async function readBlobJson(pathname) {
@@ -177,7 +220,7 @@ function conflictResponse(res, error, current) {
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   try {
-    if (!process.env.BLOB_READ_WRITE_TOKEN && !process.env.VERCEL_OIDC_TOKEN) {
+    if (!hasDatabase() && !process.env.BLOB_READ_WRITE_TOKEN && !process.env.VERCEL_OIDC_TOKEN) {
       return res.status(503).json({ ok: false, error: "Cloud state is not configured" });
     }
 
@@ -223,13 +266,8 @@ export default async function handler(req, res) {
         return conflictResponse(res, "Incoming state would replace newer active positions with stale cash-only data", current);
       }
       const state = { version: 1, updated_at: new Date().toISOString(), items: compactItems(incomingItems) };
-      await put(STATE_PATH, JSON.stringify(state), withBlobAuth({
-        access: "private",
-        allowOverwrite: true,
-        contentType: "application/json",
-        cacheControlMaxAge: 0,
-      }));
-      if (process.env.PMA_ENABLE_STATE_HISTORY === "true") {
+      const saved = await persistState(state);
+      if (saved.blobSaved && process.env.PMA_ENABLE_STATE_HISTORY === "true") {
         const versionedPath = `${STATE_VERSION_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2)}.json`;
         try {
           await put(versionedPath, JSON.stringify(state), withBlobAuth({
