@@ -2078,27 +2078,38 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
   const targetExposure=clamp(Number(d.targetExposure??cfg.targetExposure??0.62),0,1);
   const minExposure=0,belowFloor=false;
   const tradeReadyCount=rankedSugs.filter(s=>s.trade_ready).length;
-  const strategyCount=rankedSugs.filter(s=>s.trade_ready&&agentAcceptsSuggestion(cfg,s)).length;
+  const strategyMatches=rankedSugs.filter(s=>s.trade_ready&&agentAcceptsSuggestion(cfg,s));
+  const strategyCount=strategyMatches.length;
   if((p.positions||[]).length>=maxPositions||d.maxNew<=0){
     p.lastDecision=Object.assign({},d,{currentExposure:+currentExposure.toFixed(3),targetExposure:+targetExposure.toFixed(3),minExposure:+minExposure.toFixed(3),tradeReadyCount,strategyCandidates:strategyCount,eligibleCandidates:0,opened:0,
-      allocationStatus:d.maxNew<=0?"New entries are paused by the daily drawdown limit.":`The ${maxPositions}-position portfolio limit is full.`});
+      rejectionCounts:{portfolio_limit:strategyCount},allocationStatus:d.maxNew<=0?"New entries are paused by the daily drawdown limit.":`The ${maxPositions}-position portfolio limit is full.`});
     return [];
   }
   const avoid=avoidMarketIds||new Set();
-  const cands=rankedSugs.map(s=>{
+  const rejectionCounts={};
+  const reject=(reason)=>{rejectionCounts[reason]=(rejectionCounts[reason]||0)+1;return false;};
+  const cands=strategyMatches.map(s=>{
     const peerAdjusted=peerAdjustedSuggestion(s,peerStats),learning=learnedOpportunity(cfg,p,peerAdjusted,learningProfile,d.marketLearning);
     return Object.assign({},peerAdjusted,{learning_score:learning.score,learning_confidence:learning.confidence,
       market_learning_score:learning.market_score,market_learning_confidence:learning.market_confidence,
       learning_multiplier:learning.multiplier,learning_exploration:learning.exploration,learning_allowed:learning.allowed});
-  }).filter(s=>s.trade_ready&&agentAcceptsSuggestion(cfg,s)&&s.learning_allowed&&(s.side==="YES"||s.side==="NO")
-    &&(cfg.aggressive?s.conviction>=d.minConv:s.peer_conviction>=d.minConv)
-    &&s.conviction>=58&&s.entry_price>=0.08&&s.entry_price<=0.92
-    &&effectiveEntryEdge(s)>=MIN_AGGRESSIVE_EDGE&&(s.days_to_resolution==null||s.days_to_resolution>=MIN_ENTRY_DAYS)
-    &&s.volume>=MIN_VOLUME&&s.liquidity>=MIN_LIQUIDITY&&(s.volume_24hr>=500||s.conviction>=62)
-    &&(s.evidence_score==null||s.evidence_score>=0.46)
-    &&(!avoid.has(String(s.market_id))||(Number((peerStats&&peerStats[`${s.market_id}:${s.side}`]||{}).same||0)<2
-      &&Number((peerStats&&peerStats[`${s.market_id}:${s.side}`]||{}).opposite||0)===0))
-    &&!hasPosition(p,s.market_id)&&!hasRecentStop(p,s.market_id)&&(focus==="All"||!focus||s.category===focus))
+  }).filter(s=>{
+    if(!s.learning_allowed)return reject("learning");
+    if(s.side!=="YES"&&s.side!=="NO")return reject("direction");
+    if((cfg.aggressive?s.conviction:s.peer_conviction)<d.minConv||s.conviction<58)return reject("confidence");
+    if(s.entry_price<0.08||s.entry_price>0.92)return reject("price");
+    if(effectiveEntryEdge(s)<MIN_AGGRESSIVE_EDGE)return reject("edge");
+    if(s.days_to_resolution!=null&&s.days_to_resolution<MIN_ENTRY_DAYS)return reject("timing");
+    if(s.volume<MIN_VOLUME||s.liquidity<MIN_LIQUIDITY)return reject("liquidity");
+    if(s.volume_24hr<500&&s.conviction<62)return reject("activity");
+    if(s.evidence_score!=null&&s.evidence_score<0.46)return reject("evidence");
+    const peer=(peerStats&&peerStats[`${s.market_id}:${s.side}`])||{};
+    if(avoid.has(String(s.market_id))&&!(Number(peer.same||0)<2&&Number(peer.opposite||0)===0))return reject("overlap");
+    if(hasPosition(p,s.market_id))return reject("already_held");
+    if(hasRecentStop(p,s.market_id))return reject("cooldown");
+    if(focus!=="All"&&focus&&s.category!==focus)return reject("focus");
+    return true;
+  })
     .sort((a,b)=>((b.peer_conviction*b.learning_multiplier)-(a.peer_conviction*a.learning_multiplier))||((b.peer_boost||0)-(a.peer_boost||0)));
   let opened=0,openedIds=[];
   let cycleBudgetRemaining=eqBefore*(cfg.aggressive?0.14:0.10);
@@ -2154,7 +2165,7 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
   else if(!cands.length)allocationStatus=`${strategyCount} strategy matches were blocked by confidence, overlap, cooldown, or focus rules.`;
   else allocationStatus="Confirmed candidates existed, but position, overlap, category, reserve, or minimum-size limits blocked an entry.";
   p.lastDecision=Object.assign({},d,{currentExposure:+exposureAfter.toFixed(3),exposureBefore:+currentExposure.toFixed(3),targetExposure:+targetExposure.toFixed(3),minExposure:0,belowFloor:false,capacityAvailable:exposureAfter+0.001<targetExposure,
-    tradeReadyCount,strategyCandidates:strategyCount,eligibleCandidates:cands.length,opened,allocationStatus});
+    tradeReadyCount,strategyCandidates:strategyCount,eligibleCandidates:cands.length,opened,rejectionCounts,allocationStatus});
   return openedIds;
 }
 function recordSnapshot(p){
@@ -2496,9 +2507,12 @@ function decisionSummary(p){
   const exposure=d.currentExposure!=null&&d.targetExposure!=null?` Exposure ${Math.round(d.currentExposure*100)}%; ceiling ${Math.round(d.targetExposure*100)}%.`:"";
   const allocation=d.allocationStatus?` ${d.allocationStatus}`:"";
   const candidates=d.tradeReadyCount!=null?` Candidate audit: ${d.tradeReadyCount} trade-ready, ${d.strategyCandidates||0} strategy matches, ${d.eligibleCandidates||0} fully eligible, ${d.opened||0} opened.`:"";
+  const blockerLabels={learning:"learned losing regime",confidence:"confidence",overlap:"material overlap",already_held:"already held",cooldown:"stop cooldown",focus:"category focus",price:"entry price",edge:"edge",timing:"timing",liquidity:"liquidity",activity:"activity",evidence:"evidence",direction:"direction",portfolio_limit:"portfolio limit"};
+  const blockerRows=Object.entries(d.rejectionCounts||{}).filter(([,count])=>count>0).sort((a,b)=>b[1]-a[1]);
+  const blockers=blockerRows.length?` Blocks: ${blockerRows.slice(0,4).map(([key,count])=>`${blockerLabels[key]||key} ${count}`).join(", ")}.`:"";
   const learning=d.learning?` Learning: ${d.learning.samples} completed trades retained with older engines down-weighted, ${(d.learning.global_score*100).toFixed(2)}% shrunk expectancy; ${d.learning.current_samples||0} completed under v${SUGGESTION_ENGINE_VERSION}${d.learning.best?`; strongest ${d.learning.best.feature.replace(":"," ")}`:""}${d.learning.worst?`; weakest ${d.learning.worst.feature.replace(":"," ")}`:""}.`:"";
   const calibration=d.marketLearning?` Walk-forward calibration: ${d.marketLearning.samples||0} graded signals, ${d.marketLearning.pending||0} awaiting a future price.`:"";
-  return `${d.mode} mode: ${d.reason}${emotion} Limits now: ${d.maxNew} new trade${d.maxNew===1?"":"s"}, max ${(d.maxFrac*100).toFixed(1)}% per position${d.minConv?`, conviction ${d.minConv}+`:""}.${learning}${calibration}${exposure}${allocation}${candidates}`;
+  return `${d.mode} mode: ${d.reason}${emotion} Limits now: ${d.maxNew} new trade${d.maxNew===1?"":"s"}, max ${(d.maxFrac*100).toFixed(1)}% per position${d.minConv?`, conviction ${d.minConv}+`:""}.${learning}${calibration}${exposure}${allocation}${candidates}${blockers}`;
 }
 function renderAgentBrief(cfg,p,st){
   const root=$("agentBrief"); if(!root)return;
@@ -4126,6 +4140,10 @@ function runEngineSelfTest(){
   const overlapRemaining=AGENTS.reduce((sum,a)=>sum+mock.agents[a.id].positions.filter(p=>p.market_id==="overlap-test").length,0);
   mock.agents.tailalpha.positions.push({market_id:"runner-test",question:"Runner test",side:"YES",shares:100,current_price:0.5,entry_price:0.5,cost:50,value:50,unrealized_pnl:0,conviction:70,opened_at:hoursAgo(24)});
   const immaterialRunnerDoesNotBlock=!occupiedStrategyMarkets(mock).has("runner-test");
+  const rejectBook=defaultPortfolio();rejectBook.cash=9900;
+  rejectBook.positions.push({market_id:trend.market_id,question:trend.question,side:trend.side,shares:100/Number(trend.entry_price),current_price:trend.entry_price,entry_price:trend.entry_price,cost:100,value:100,unrealized_pnl:0,opened_at:hoursAgo(24)});
+  openPositions(rejectBook,AGENTS[0],[trend],"All",{minConv:0,maxNew:1,maxFrac:0.04,reserve:0.1,targetExposure:0.6,learning:buildAdaptiveProfile(rejectBook),marketLearning:{samples:0,pending:0,buckets:{}}},new Set(),{});
+  const rejectionAccounting=Number(rejectBook.lastDecision&&rejectBook.lastDecision.rejectionCounts&&rejectBook.lastDecision.rejectionCounts.already_held||0)===1;
   return {version:SUGGESTION_ENGINE_VERSION,
     trend:{ready:trend.trade_ready,quality:trend.quality,side:trend.side,margin:trend.net_edge},
     noSignal:{ready:noSignal.trade_ready,quality:noSignal.quality,signal:noSignal.signal_type,margin:noSignal.net_edge},
@@ -4140,7 +4158,7 @@ function runEngineSelfTest(){
       legacyNormalizedValue:riskPos.value,equityPreserved:+equity(riskBook).toFixed(2),capsBinaryGap:aggressiveGapBudget===0.03&&riskPos.value<=300.01},
     offline:{fresh:offlineCachePolicy(30*60000),staleEntry:offlineCachePolicy(3*3600000),expired:offlineCachePolicy(25*3600000)},
     exits:{youngConflict:exitReason(young,fresh,conflict,AGENTS[0]),matureConflict:exitReason(mature,fresh,conflict,AGENTS[0]),trailing:trailingProfitReason(trailing)},
-    overlapRemaining,immaterialRunnerDoesNotBlock,rules:window.PMA_ENGINE_DIAGNOSTICS.rules};
+    overlapRemaining,immaterialRunnerDoesNotBlock,rejectionAccounting,rules:window.PMA_ENGINE_DIAGNOSTICS.rules};
 }
 if(new URLSearchParams(location.search).get("engine_test")==="1"){
   const output=document.createElement("output");output.id="engineSelfTest";output.hidden=true;output.textContent=JSON.stringify(runEngineSelfTest());document.body.appendChild(output);
