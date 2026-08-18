@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive offline engine · v40</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive offline engine · v41</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build v40 active:</b> adaptive sizing now requires repeatable net-positive evidence with uncertainty bounds. Repeatable net-negative cohorts are blocked, mixed cohorts stay near neutral while learning, and older engines remain down-weighted. This remains paper trading; profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build v41 active:</b> adaptive sizing requires repeatable evidence, and offline execution now has a hard freshness boundary. Snapshots under 90 minutes may trade; older snapshots are mark-only and cannot open, stop, scale out, rebalance, settle, or close positions. This remains paper trading; profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -425,7 +425,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
       <div class="card-h"><h3>Returns — all agents</h3><div><span class="small muted">$10,000 start each</span><div class="rangebar" data-chart-ranges></div></div></div>
       <div class="chart-wrap"><svg id="chart2" viewBox="0 0 960 320" preserveAspectRatio="xMidYMid meet"></svg></div>
       <div class="legend" id="comboLegend2"></div>
-      <div class="small muted" style="margin-top:10px">The initial week is an approximate historical replay using prices available on each day and current liquidity as a proxy. The v40 return starts from live cycles only.</div>
+      <div class="small muted" style="margin-top:10px">The initial week is an approximate historical replay using prices available on each day and current liquidity as a proxy. The v41 return starts from live cycles only.</div>
     </div>
   </section>
 
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build adaptive-offline-v40 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build adaptive-offline-v41 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const SUGGESTION_ENGINE_VERSION = 40;
+const SUGGESTION_ENGINE_VERSION = 41;
 const FOCUS_KEY = "pma_focus_v1";
 const VIEW_KEY = "pma_view_v1";
 const PF_SORT_KEY = "pma_portfolio_sort_v1";
@@ -912,6 +912,8 @@ const todayStr = () => {const p=partsInLocalTime();return `${p.year}-${p.month}-
 const RUN_INTERVAL_MS = 60000;
 const OFFLINE_ENTRY_MAX_AGE_MS = 90*60*1000;
 const OFFLINE_CACHE_MAX_AGE_MS = 24*60*60*1000;
+const NETWORK_REQUEST_TIMEOUT_MS = 8000;
+const PRICE_REQUEST_TIMEOUT_MS = 4000;
 const SIGNAL_EVAL_HOURS = 12;
 const SIGNAL_LEDGER_PENDING_LIMIT = 300;
 const SIGNAL_LEDGER_OUTCOME_LIMIT = 500;
@@ -934,6 +936,22 @@ function toast(msg){
   clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove("show"),3600);
 }
 function setStatus(text,live){$("statusText").textContent=text;$("statusDot").classList.toggle("live",!!live);}
+
+async function fetchWithTimeout(url,options={},timeoutMs=NETWORK_REQUEST_TIMEOUT_MS){
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);
+  try{return await fetch(url,Object.assign({},options,{signal:controller.signal}));}
+  finally{clearTimeout(timer);}
+}
+async function mapWithConcurrency(items,limit,mapper){
+  const input=[...(items||[])],results=new Array(input.length),workers=[];
+  let cursor=0;
+  const work=async()=>{
+    while(cursor<input.length){const index=cursor++;results[index]=await mapper(input[index],index);}
+  };
+  for(let i=0;i<Math.min(Math.max(1,limit),input.length);i++)workers.push(work());
+  await Promise.all(workers);
+  return results;
+}
 
 /* ---------- Polymarket client ---------- */
 function parseJsonField(v){if(v==null)return [];if(Array.isArray(v))return v;try{return JSON.parse(v);}catch(e){return [];}}
@@ -987,7 +1005,7 @@ async function fetchMarkets(pages=Infinity,perPage=100,onProgress=null){
     }else{
       params.set("offset",String(i*perPage));
     }
-    const r=await fetch(`${GAMMA}/markets${useKeyset?"/keyset":""}?${params}`);
+    const r=await fetchWithTimeout(`${GAMMA}/markets${useKeyset?"/keyset":""}?${params}`);
     if(!r.ok){if(i===0)throw new Error("Polymarket API "+r.status);break;}
     const page=await r.json();
     const raw=useKeyset?(page.markets||[]):page;
@@ -1006,7 +1024,7 @@ async function fetchMarkets(pages=Infinity,perPage=100,onProgress=null){
   return all.map(normalizeMarket).filter(m=>m&&m.question);
 }
 async function fetchMarketPrice(id){
-  try{const r=await fetch(`${GAMMA}/markets/${id}`);if(!r.ok)return null;return normalizeMarket(await r.json(),{allowClosed:true});}
+  try{const r=await fetchWithTimeout(`${GAMMA}/markets/${id}`,{},PRICE_REQUEST_TIMEOUT_MS);if(!r.ok)return null;return normalizeMarket(await r.json(),{allowClosed:true});}
   catch(e){return null;}
 }
 
@@ -1089,10 +1107,10 @@ function textEvidenceSignal(m,external={}){
 async function fetchRealWorldSignals(markets){
   const selected=[...markets].sort((a,b)=>(b.volume_24hr-a.volume_24hr)||(b.volume-a.volume)).slice(0,REAL_WORLD_SIGNAL_LIMIT);
   try{
-    const r=await fetch("/api/live",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+    const r=await fetchWithTimeout("/api/live",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
       action:"market_context",
       markets:selected.map(m=>({id:m.id,question:m.question,category:m.category,tags:m.tags})),
-    })});
+    })},NETWORK_REQUEST_TIMEOUT_MS);
     const d=await r.json().catch(()=>({}));
     if(!r.ok||!d.ok)return {};
     return d.signals||{};
@@ -1398,8 +1416,10 @@ function loadMarketCache(){
 }
 function offlineCachePolicy(ageMs){
   const age=Number(ageMs);
-  return {usable:Number.isFinite(age)&&age>=0&&age<=OFFLINE_CACHE_MAX_AGE_MS,
-    entriesAllowed:Number.isFinite(age)&&age>=0&&age<=OFFLINE_ENTRY_MAX_AGE_MS};
+  const usable=Number.isFinite(age)&&age>=0&&age<=OFFLINE_CACHE_MAX_AGE_MS;
+  const executionAllowed=usable&&age<=OFFLINE_ENTRY_MAX_AGE_MS;
+  return {usable,entriesAllowed:executionAllowed,exitsAllowed:executionAllowed,
+    markOnly:usable&&!executionAllowed};
 }
 function collectSyncItems(){const items={};SYNC_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!=null)items[k]=v;});return compactSyncItems(items);}
 function applySyncItems(items){
@@ -1418,7 +1438,7 @@ function stateFromSyncItems(items){
 }
 async function pushCloudState(force=false){
   try{
-    const r=await fetch("/api/state",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({items:collectSyncItems(),force})});
+    const r=await fetchWithTimeout("/api/state",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({items:collectSyncItems(),force})},NETWORK_REQUEST_TIMEOUT_MS);
     if(r.status===409){
       const d=await r.json().catch(()=>null);
       if(d&&d.state&&d.state.items)applySyncItems(d.state.items);
@@ -1433,7 +1453,7 @@ async function pushCloudState(force=false){
 }
 async function pullCloudState(){
   try{
-    const r=await fetch("/api/state",{cache:"no-store"});
+    const r=await fetchWithTimeout("/api/state",{cache:"no-store"},NETWORK_REQUEST_TIMEOUT_MS);
     if(!r.ok)return {ok:false,state:null};
     const d=await r.json();
     return {ok:true,state:(d&&d.state)||null,degraded:Boolean(d&&d.degraded),error:d&&d.error};
@@ -1990,7 +2010,7 @@ function exitReason(pos,fresh,analysis,cfg){
   }else delete pos.signal_fade_since;
   return null;
 }
-function markToMarket(p,priceMap,cfg=null,{policyExits=false}={}){
+function markToMarket(p,priceMap,cfg=null,{policyExits=false,executeTrades=true}={}){
   const stillOpen=[];
   for(const pos of p.positions){
     const fresh=priceMap[pos.market_id];
@@ -2003,7 +2023,8 @@ function markToMarket(p,priceMap,cfg=null,{policyExits=false}={}){
     pos.current_price=+price.toFixed(4);pos.value=+(pos.shares*price).toFixed(2);
     pos.unrealized_pnl=+(pos.value-pos.cost).toFixed(2);
     pos.peak_price=+Math.max(Number(pos.peak_price||pos.entry_price||price),price).toFixed(4);
-    delete pos.price_status;
+    if(executeTrades)delete pos.price_status;else pos.price_status="cached-mark-only";
+    if(!executeTrades){stillOpen.push(pos);continue;}
     for(const stopTier of triggeredStopLosses(pos))scaleStopLossPosition(p,pos,stopTier);
     if(pos._closedByStop){delete pos._closedByStop;continue;}
     for(const gainTier of triggeredGainStops(pos))takeProfitPosition(p,pos,gainTier);
@@ -2362,7 +2383,8 @@ async function runDailyCycle(){
       cacheAgeMs=cache?cache.age_ms:Infinity;
       if(!sugs.length||!offlineCachePolicy(cacheAgeMs).usable)throw new Error("No usable market snapshot is cached yet. Connect once to seed offline mode.");
       runMode="offline-cache";
-      setStatus(`offline snapshot · ${Math.max(1,Math.round(cacheAgeMs/60000))}m old`,false);
+      const cachePolicy=offlineCachePolicy(cacheAgeMs);
+      setStatus(`${cachePolicy.markOnly?"offline mark-only":"offline snapshot"} · ${Math.max(1,Math.round(cacheAgeMs/60000))}m old`,false);
     }
     st=loadState();
     const emailOffsets=agentHistoryOffsets(st);
@@ -2376,23 +2398,25 @@ async function runDailyCycle(){
     const cachedById={};
     (analysisMarkets||[]).forEach(m=>{cachedById[String(m.id)]=m;});
     Object.entries((cache&&cache.price_map)||{}).forEach(([id,m])=>{cachedById[String(id)]=m;});
-    for(const id of ids){
-      let fresh=null;
-      if(runMode==="live")fresh=await fetchMarketPrice(id);
-      priceMap[id]=fresh||cachedById[String(id)]||null;
-    }
+    const freshPrices=runMode==="live"
+      ?await mapWithConcurrency([...ids],12,async id=>[String(id),await fetchMarketPrice(id)])
+      :[];
+    const freshById=Object.fromEntries(freshPrices);
+    for(const id of ids)priceMap[id]=freshById[String(id)]||cachedById[String(id)]||null;
     if(runMode==="live")saveMarketCache(analysisMarkets,sugs,priceMap);
     if(runMode==="live")updateSignalLedger(st,analysisMarkets,sugs);
     const marketLearning=buildSignalCalibration(st.signal_ledger);
     setStatus("ten strategy agents trading…",true);
     const preBoard=AGENTS.map(a=>({id:a.id,eq:equity(st.agents[a.id])})).sort((x,y)=>y.eq-x.eq);
     const leaderEq=preBoard[0]?preBoard[0].eq:STARTING_BALANCE;
+    const cachePolicy=offlineCachePolicy(cacheAgeMs);
+    const executeTrades=runMode==="live"||cachePolicy.exitsAllowed;
     for(const cfg of AGENTS){
       const p=st.agents[cfg.id];
-      markToMarket(p,priceMap,cfg,{policyExits:true});
+      markToMarket(p,priceMap,cfg,{policyExits:executeTrades,executeTrades});
     }
-    reduceStrategyOverlap(st);
-    const entriesAllowed=runMode==="live"||offlineCachePolicy(cacheAgeMs).entriesAllowed;
+    if(executeTrades)reduceStrategyOverlap(st);
+    const entriesAllowed=runMode==="live"||cachePolicy.entriesAllowed;
     const cycleSuggestions=entriesAllowed?sugs:sugs.map(s=>Object.assign({},s,{trade_ready:false,watch_only:true}));
     const claimedMarkets=new Set();
     for(const cfg of strategyExecutionOrder(st)){
@@ -2406,13 +2430,14 @@ async function runDailyCycle(){
     }
     st.date=todayStr();st.last_run=SNAP_TS;st.last_cycle_hour=hour;st.run_mode=runMode;
     st.offline_cache_age_minutes=runMode==="offline-cache"?Math.round(cacheAgeMs/60000):0;
+    st.offline_execution_mode=runMode==="live"?"live":(executeTrades?"fresh-cache":"mark-only");
     st.pending_sync=!cloud.ok;
     const emailEvents=collectNewAgentEvents(st,emailOffsets);
     saveState(st);
     const pushed=cloud.ok?await pushCloudState():false;
-    if(pushed){st.pending_sync=false;saveState(st);setStatus(runMode==="live"?"up to date":"offline cycle synced",false);await notifyTradeDigest(emailEvents);}
-    else{st.pending_sync=true;saveState(st);setStatus(`${runMode==="live"?"live data":"offline cycle"} · saved locally`,false);}
-    return {suggestions:sugs.length,offline:runMode!=="live",pendingSync:!pushed,entriesAllowed};
+    if(pushed){st.pending_sync=false;saveState(st);setStatus(runMode==="live"?"up to date":(executeTrades?"offline cycle synced":"offline mark-only synced"),false);await notifyTradeDigest(emailEvents);}
+    else{st.pending_sync=true;saveState(st);setStatus(`${runMode==="live"?"live data":(executeTrades?"offline cycle":"offline mark-only")} · saved locally`,false);}
+    return {suggestions:sugs.length,offline:runMode!=="live",pendingSync:!pushed,entriesAllowed,executeTrades};
   }finally{SNAP_TS=null;CYCLE_RUNNING=false;}
 }
 
@@ -4156,7 +4181,8 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
     coreTradeLossPct:MAX_CORE_TRADE_LOSS_PCT*100,aggressiveTradeLossPct:MAX_AGGRESSIVE_TRADE_LOSS_PCT*100,
     coreGapTradeLossPct:MAX_CORE_GAP_TRADE_LOSS_PCT*100,aggressiveGapTradeLossPct:MAX_AGGRESSIVE_GAP_TRADE_LOSS_PCT*100,
     offlineEntryMaxAgeMinutes:OFFLINE_ENTRY_MAX_AGE_MS/60000,offlineCacheMaxAgeHours:OFFLINE_CACHE_MAX_AGE_MS/3600000,explorationPct:15,
-    signalRoundTripCostCents:SIGNAL_ROUND_TRIP_COST*100,independentConfidence:true,uncertaintyGatedCalibration:true,
+    networkTimeoutSeconds:NETWORK_REQUEST_TIMEOUT_MS/1000,priceTimeoutSeconds:PRICE_REQUEST_TIMEOUT_MS/1000,
+    staleCacheIsMarkOnly:true,signalRoundTripCostCents:SIGNAL_ROUND_TRIP_COST*100,independentConfidence:true,uncertaintyGatedCalibration:true,
     historicalPrior:"reversal and sports trends blocked outside exploration; crypto, longshots, and YES sized down"}),
 });
 function runEngineSelfTest(){
@@ -4244,6 +4270,13 @@ function runEngineSelfTest(){
   const historicalFeatures=historicalPriceFeatures(historyFixture,"2026-01-08",0.55);
   const backtestNoLookahead=priceOnDay({"2026-01-09":0.90},"2026-01-08",null)===null
     &&historicalFeatures.price_change_1h===0&&historicalFeatures.price_change_1d===0.05&&historicalFeatures.price_change_1w===0.15;
+  const markOnlyBook=defaultPortfolio();markOnlyBook.cash=9500;
+  markOnlyBook.positions=[{market_id:"offline-mark",question:"Offline mark",side:"YES",shares:1000,entry_price:0.5,current_price:0.5,cost:500,value:500,
+    original_shares:1000,original_cost:500,unrealized_pnl:0,opened_at:hoursAgo(48),strategy_version:SUGGESTION_ENGINE_VERSION,quality:"confirmed",signal_type:"trend",gain_stops:{},stop_losses:{}}];
+  markToMarket(markOnlyBook,{"offline-mark":market({id:"offline-mark",yes_price:0.8,no_price:0.2})},AGENTS[0],{policyExits:false,executeTrades:false});
+  const executableBook=JSON.parse(JSON.stringify(markOnlyBook));
+  delete executableBook.positions[0].price_status;
+  markToMarket(executableBook,{"offline-mark":market({id:"offline-mark",yes_price:0.8,no_price:0.2})},AGENTS[0],{policyExits:true,executeTrades:true});
   return {version:SUGGESTION_ENGINE_VERSION,
     trend:{ready:trend.trade_ready,quality:trend.quality,side:trend.side,margin:trend.net_edge},
     noSignal:{ready:noSignal.trade_ready,quality:noSignal.quality,signal:noSignal.signal_type,margin:noSignal.net_edge},
@@ -4266,7 +4299,10 @@ function runEngineSelfTest(){
       legacyLossDoesNotFreezeCurrentEngine:legacyLossDecision.mode!=="Loss Regime Containment"},
     riskBudget:{core:coreRiskBudget,aggressiveGap:aggressiveGapBudget,boundedStake:boundedStakeForRisk(10000,1000,riskCfg,{entry_price:0.82,days_to_resolution:5,price_change_1d:0.06}),
       legacyNormalizedValue:riskPos.value,equityPreserved:+equity(riskBook).toFixed(2),capsBinaryGap:aggressiveGapBudget===0.03&&riskPos.value<=300.01},
-    offline:{fresh:offlineCachePolicy(30*60000),staleEntry:offlineCachePolicy(3*3600000),expired:offlineCachePolicy(25*3600000)},
+    offline:{fresh:offlineCachePolicy(30*60000),staleEntry:offlineCachePolicy(3*3600000),expired:offlineCachePolicy(25*3600000),
+      staleMarkUpdatesValue:markOnlyBook.positions.length===1&&markOnlyBook.positions[0].value===800,
+      staleMarkPreservesTrades:markOnlyBook.positions.length===1&&markOnlyBook.positions[0].shares===1000&&markOnlyBook.cash===9500&&markOnlyBook.positions[0].price_status==="cached-mark-only",
+      freshSnapshotExecutesRules:executableBook.positions.length===1&&executableBook.positions[0].shares<1000&&executableBook.cash>9500},
     exits:{youngConflict:exitReason(young,fresh,conflict,AGENTS[0]),matureConflict:exitReason(mature,fresh,conflict,AGENTS[0]),
       politicsEarlyConflict:exitReason(politicsEarly,fresh,conflict,AGENTS[0]),politicsMatureConflict:exitReason(politicsMature,fresh,conflict,AGENTS[0]),trailing:trailingProfitReason(trailing)},
     backtest:{noLookahead:backtestNoLookahead,features:historicalFeatures},
@@ -4282,7 +4318,7 @@ initProviderConfig();
 refreshTradeEmailStatus();
 $("runBtn").addEventListener("click",async()=>{
   const btn=$("runBtn");btn.disabled=true;btn.textContent="Running…";
-  try{const r=await runDailyCycle();const b=board();toast(r.busy?`Cycle already running · ${b[0].c.emoji} ${b[0].c.name} leads`:r.skipped?`Already ran this minute · ${b[0].c.emoji} ${b[0].c.name} leads`:`${r.offline?"Offline":"Live"} cycle done${r.pendingSync?" · sync queued":""} · ${r.suggestions} ideas · ${b[0].c.emoji} ${b[0].c.name} leads`);renderAll();}
+  try{const r=await runDailyCycle();const b=board(),mode=r.offline?(r.executeTrades?"Offline":"Mark-only"):"Live";toast(r.busy?`Cycle already running · ${b[0].c.emoji} ${b[0].c.name} leads`:r.skipped?`Already ran this minute · ${b[0].c.emoji} ${b[0].c.name} leads`:`${mode} cycle done${r.pendingSync?" · sync queued":""} · ${r.suggestions} ideas · ${b[0].c.emoji} ${b[0].c.name} leads`);renderAll();}
   catch(e){toast("Run failed: "+e.message);setStatus("error",false);}
   btn.disabled=false;btn.textContent="Run cycle";
 });

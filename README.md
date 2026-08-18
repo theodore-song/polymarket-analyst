@@ -15,7 +15,7 @@ https://polymarket-site-eta.vercel.app/personal.html
 
 The site fetches live Polymarket markets, generates agent suggestions, lets you
 run frequent paper cycles, and syncs the shared arena state through Neon or
-Vercel Blob. Engine v40 also installs an offline app shell and caches timestamped
+Vercel Blob. Engine v41 also installs an offline app shell and caches timestamped
 market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
@@ -26,7 +26,7 @@ small samples toward neutral, caps sizing changes to 0.68x-1.30x, and reserves
 15% of candidates for deterministic exploration so a stale regime cannot become
 permanent.
 
-Engine v40 treats each binary stake as capable of falling to zero even when the
+Engine v41 treats each binary stake as capable of falling to zero even when the
 18% stop cannot fill. New core positions are capped at 2.5%-4% of equity and
 aggressive positions at 3%-5%, with lower limits for near-term, extreme-price,
 reversal, and fast-moving setups. Oversized positions inherited from older
@@ -55,7 +55,7 @@ evidence. Set `EVAL_MARKETS`, `EVAL_CONCURRENCY`, `EVAL_HORIZONS`, or
 `EVAL_COST_CENTS` to change the audit.
 The first 80-market audit found that reversal signals lost 4.34% on average in
 both chronological partitions, while crypto and longshot samples were also
-negative overall. Engine v40 therefore blocks reversal and sports-trend entries outside the fixed
+negative overall. Engine v41 therefore blocks reversal and sports-trend entries outside the fixed
 15% exploration lane and applies modest sizing penalties to crypto and longshots.
 It does not boost any rule from this audit because no positive rule was robust
 across the chronological split.
@@ -66,21 +66,28 @@ segment and averaged -4.13%. Sports trends were negative in train and test and
 averaged -3.53% at 72 hours. Politics trends were the sole cohort with positive
 row-level returns in all three 72-hour segments, but its market-cluster interval
 still crossed zero; that supports a longer hold test, not a larger entry bet.
-Engine v40 gives Politics trend positions that 72-hour observation window before
+Engine v41 gives Politics trend positions that 72-hour observation window before
 ordinary signal exits. Stops, profit locks, settlement handling, and risk-budget
 reductions remain immediate.
 
-Engine v40 also subtracts a half-cent round-trip cost when grading each live
+Engine v41 also subtracts a half-cent round-trip cost when grading each live
 walk-forward signal. Confidence uses the largest independent matching bucket,
 not the sum of five overlapping feature buckets, and evidence from older engine
 versions is down-weighted. This prevents a handful of duplicated observations
 from authorizing larger positions or hiding a modest negative regime.
 
-Engine v40 adds uncertainty-aware promotion and demotion. A matching setup must
+Engine v41 adds uncertainty-aware promotion and demotion. A matching setup must
 accumulate at least eight effective observations and agree across at least two
 feature views before repeatable positive evidence can increase size or repeatable
 negative evidence can block a new entry. Mixed evidence stays close to neutral
 instead of being mistaken for an edge.
+
+Engine v41 enforces the documented offline boundary end to end. Cached snapshots
+under 90 minutes old may continue paper execution. Older snapshots remain usable
+for valuation and chart snapshots for up to 24 hours, but cannot trigger entries,
+stop-losses, gain-stops, risk rebalances, settlements, or policy exits. Network
+requests have bounded timeouts so a weak connection falls back to cache instead
+of leaving a cycle hanging indefinitely.
 
 Run `npm run evaluate:settlements` to evaluate fixed decisions made 1, 3, 7,
 14, 30, and 90 days before known binary settlements. The audit uses one
