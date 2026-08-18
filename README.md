@@ -45,6 +45,12 @@ changes from those historical prices, disables unavailable hourly reversal data,
 and labels the combined number as legacy/replay. Engine-version returns are the
 clean live comparison.
 
+Run `npm run evaluate:signals` to test the price-signal rules against one month
+of hourly Polymarket history. The evaluator forms signals only from prior
+one-hour, one-day, and one-week prices, marks them 12 hours later, applies a
+conservative half-cent cost estimate, and reports a chronological 70/30 split.
+Set `EVAL_MARKETS` or `EVAL_CONCURRENCY` to change the default 80-market run.
+
 Paper accounts created with a password are also saved through the backend, so a
 user can log in from another device and see the same paper portfolio, activity,
 and value history. Passwordless paper accounts remain local-only.

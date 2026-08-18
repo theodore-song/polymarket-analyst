@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "evaluate:signals": "node scripts/evaluate-signals.mjs"
+  },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
     "@vercel/blob": "2.5.0",
