@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 46 · build 49</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 46 · build 50</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 49 active:</b> Crypto and Sports trends are observation-only after a 500-market walk-forward audit found repeatable 24-hour losses. Reversal and short-dated NO signals can return only after their own recent cohorts earn promotion. Exact ranges and path-dependent "reach / hit / dip" barriers are excluded because abrupt resolution can bypass stops. This remains paper trading; profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 50 active:</b> Crypto and Sports trends are observation-only after a 500-market walk-forward audit found repeatable 24-hour losses. Reversal and short-dated NO signals can return only after their own recent cohorts earn promotion. Exact ranges and path-dependent "reach / hit / dip" barriers are excluded because abrupt resolution can bypass stops. This remains paper trading; profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 49 · Adaptive strategy 46 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build 50 · Adaptive strategy 46 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 49;
+const BUILD_VERSION = 50;
 const SUGGESTION_ENGINE_VERSION = 46;
 const PREVIOUS_STRATEGY_VERSION = 45;
 const LEGACY_BUILD_STRATEGY_LINEAGE = Object.freeze({40:40,41:40});
@@ -1242,7 +1242,8 @@ function analyzeMarket(m,realWorldSignals={}){
   const side=signal.side||((Number(m.price_change_1d||0)>=0)?"YES":"NO");
   const entry=side==="YES"?p:m.no_price;
   let rationale;
-  if(signal.type==="reversal"){rationale=`Observation only: the hourly move opposes the one-day direction, but independent audits found this reversal rule lost after costs. The signal will be graded without risking portfolio cash.`;}
+  if(jumpRisk){rationale="Watch only: this market can jump directly to settlement before an hourly stop can protect the position, so agents will not buy it.";}
+  else if(signal.type==="reversal"){rationale=`Observation only: the hourly move opposes the one-day direction, but independent audits found this reversal rule lost after costs. The signal will be graded without risking portfolio cash.`;}
   else if(signal.type==="trend"&&m.category==="Crypto"){rationale="Observation only: the 500-market walk-forward audit found Crypto trends lost after costs at both 24 and 72 hours. This signal keeps training the ledger without risking portfolio cash.";}
   else if(signal.type==="trend"&&m.category==="Sports"){rationale="Observation only: the 500-market walk-forward audit found Sports trends lost after costs at 24 hours across every chronological segment. This signal keeps training the ledger without risking portfolio cash.";}
   else if(strictTradeReady){rationale=`Confirmed setup: ${side} has ${Math.round(signal.strength*100)} signal strength across independent time windows and a ${(absNet*100).toFixed(1)}c signal margin after friction and category uncertainty.`;}
@@ -1250,7 +1251,6 @@ function analyzeMarket(m,realWorldSignals={}){
   else if(reversalTradeReady){rationale=`Confirmed reversal: the one-day move is reversing in the hourly window with adequate liquidity and a ${(absNet*100).toFixed(1)}c post-friction signal margin.`;}
   else if(liquidityTradeReady){rationale=`Liquid trend: ${side} is aligned across one-day and one-week windows in a tight, deep market with a ${(absNet*100).toFixed(1)}c post-friction signal margin.`;}
   else if(trendTradeReady){rationale=`Confirmed trend: ${side} is aligned across one-day and one-week windows, avoids chase conditions, and retains a ${(absNet*100).toFixed(1)}c post-friction signal margin.`;}
-  else if(jumpRisk){rationale="Watch only: this market can jump directly to settlement before an hourly stop can protect the position, so agents will not buy it.";}
   else if(!signal.side){rationale="Watch only: no direction is confirmed across independent time windows. Recent price movement alone is not treated as fair value.";}
   else{rationale=`Watch only: the ${signal.type} setup leaves ${(absNet*100).toFixed(1)}c after friction and uncertainty, but it has not cleared every confirmation, liquidity, evidence, and timing gate.`;}
   const drivers=[policy.label];
@@ -4465,11 +4465,11 @@ function runEngineSelfTest(){
   delete executableBook.positions[0].price_status;
   markToMarket(executableBook,{"offline-mark":market({id:"offline-mark",yes_price:0.8,no_price:0.2})},AGENTS[0],{policyExits:true,executeTrades:true});
   const buildMigrationState=defaultState();
-  buildMigrationState.engine_version=48;buildMigrationState.strategy_version=SUGGESTION_ENGINE_VERSION;
+  buildMigrationState.engine_version=49;buildMigrationState.strategy_version=SUGGESTION_ENGINE_VERSION;
   buildMigrationState.agents.value.engine_baseline={version:SUGGESTION_ENGINE_VERSION,started_at:hoursAgo(2),equity:9876.54};
   reconcileStateVersions(buildMigrationState);
   const strategyMigrationState=defaultState();
-  strategyMigrationState.engine_version=48;strategyMigrationState.strategy_version=PREVIOUS_STRATEGY_VERSION;
+  strategyMigrationState.engine_version=49;strategyMigrationState.strategy_version=PREVIOUS_STRATEGY_VERSION;
   strategyMigrationState.agents.value.cash=9876.54;
   strategyMigrationState.agents.value.engine_baseline={version:PREVIOUS_STRATEGY_VERSION,started_at:hoursAgo(2),equity:10000};
   reconcileStateVersions(strategyMigrationState);
@@ -4516,7 +4516,8 @@ function runEngineSelfTest(){
       blocksConfirmedLosingRegime:!lossOpportunity.allowed,containmentMode:lossDecision.mode,containmentMaxNew:lossDecision.maxNew,
       legacyLossDoesNotFreezeCurrentEngine:legacyLossDecision.mode!=="Loss Regime Containment"},
     riskBudget:{core:coreRiskBudget,aggressiveGap:aggressiveGapBudget,blocksExactRange:intervalContract.jump_risk&&!intervalContract.trade_ready,
-      blocksPathDependentBarrier:pathBarrierContract.jump_risk&&!pathBarrierContract.trade_ready,preservesFixedDateLevel:!fixedDateLevelContract.jump_risk,
+      blocksPathDependentBarrier:pathBarrierContract.jump_risk&&!pathBarrierContract.trade_ready,
+      explainsPathDependentBarrier:pathBarrierContract.rationale.includes("jump directly to settlement"),preservesFixedDateLevel:!fixedDateLevelContract.jump_risk,
       preservesOrdinaryDatedContract:!ordinaryDatedContract.jump_risk,boundedStake:boundedStakeForRisk(10000,1000,riskCfg,{entry_price:0.82,days_to_resolution:5,price_change_1d:0.06}),
       legacyNormalizedValue:riskPos.value,equityPreserved:+equity(riskBook).toFixed(2),capsBinaryGap:aggressiveGapBudget===0.03&&riskPos.value<=300.01},
     offline:{fresh:offlineCachePolicy(30*60000),staleEntry:offlineCachePolicy(3*3600000),expired:offlineCachePolicy(25*3600000),
