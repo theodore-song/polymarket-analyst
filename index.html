@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 46 · build 50</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 47 · build 51</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 50 active:</b> Crypto and Sports trends are observation-only after a 500-market walk-forward audit found repeatable 24-hour losses. Reversal and short-dated NO signals can return only after their own recent cohorts earn promotion. Exact ranges and path-dependent "reach / hit / dip" barriers are excluded because abrupt resolution can bypass stops. This remains paper trading; profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 51 active:</b> adaptive evidence is clustered by market so repeated snapshots cannot promote a strategy. Crypto and Sports trends remain observation-only; reversals and short-dated NO still require recent proof, while exact ranges and path-dependent barriers remain excluded. This remains paper trading; profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 50 · Adaptive strategy 46 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build 51 · Adaptive strategy 47 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,9 +774,9 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 50;
-const SUGGESTION_ENGINE_VERSION = 46;
-const PREVIOUS_STRATEGY_VERSION = 45;
+const BUILD_VERSION = 51;
+const SUGGESTION_ENGINE_VERSION = 47;
+const PREVIOUS_STRATEGY_VERSION = 46;
 const LEGACY_BUILD_STRATEGY_LINEAGE = Object.freeze({40:40,41:40});
 function normalizedStrategyVersion(value){
   const version=Number(value||0);
@@ -1643,7 +1643,7 @@ function summarizeLearningBucket(bucket,shrinkage){
   const pooledVariance=(priorWeight*priorVariance+weight*variance)/(priorWeight+weight||1);
   const stderr=Math.sqrt(pooledVariance/Math.max(1,weight));
   const score=Number(bucket&&bucket.sum||0)/(weight+shrinkage);
-  return {samples:Number(bucket&&bucket.count||0),weight:+weight.toFixed(2),raw:+raw.toFixed(4),
+  return {samples:Number(bucket&&bucket.count||0),observations:Number(bucket&&bucket.observations||bucket&&bucket.count||0),weight:+weight.toFixed(2),raw:+raw.toFixed(4),
     score:+score.toFixed(4),stderr:+stderr.toFixed(4),lower_bound:+(score-1.28*stderr).toFixed(4),
     upper_bound:+(score+1.28*stderr).toFixed(4),win_rate:weight?Number(bucket.wins||0)/weight:0};
 }
@@ -1693,19 +1693,34 @@ function updateSignalLedger(st,markets,suggestions){
   st.signal_ledger=ledger;return ledger;
 }
 function buildSignalCalibration(ledger){
-  const buckets={};
-  for(const outcome of (ledger&&ledger.outcomes)||[]){
+  const clusters={},outcomes=(ledger&&ledger.outcomes)||[];
+  outcomes.forEach((outcome,index)=>{
     const age=Math.max(0,Date.now()-new Date(outcome.evaluated_at||0).getTime()),version=normalizedStrategyVersion(outcome.strategy_version);
     const versionWeight=version===SUGGESTION_ENGINE_VERSION?1:(version===PREVIOUS_STRATEGY_VERSION?0.55:0.25);
     const weight=Math.exp(-age/(30*86400000))*versionWeight;
-    const ret=clamp(Number(outcome.return||0),-1,2);if(!Number.isFinite(ret))continue;
-    learningFeatures(outcome).forEach(key=>{const b=buckets[key]||(buckets[key]={weight:0,sum:0,sumSq:0,wins:0,count:0});
-      b.weight+=weight;b.sum+=ret*weight;b.sumSq+=ret*ret*weight;b.wins+=(ret>0?weight:0);b.count++;});
-  }
+    const ret=clamp(Number(outcome.return||0),-1,2);if(!Number.isFinite(ret)||weight<=0)return;
+    const marketId=String(outcome.market_id||`unidentified-observation-${index}`);
+    learningFeatures(outcome).forEach(key=>{
+      const byMarket=clusters[key]||(clusters[key]={}),cluster=byMarket[marketId]||(byMarket[marketId]={weight:0,sum:0,observations:0});
+      cluster.weight+=weight;cluster.sum+=ret*weight;cluster.observations++;
+    });
+  });
+  const buckets={};
+  Object.entries(clusters).forEach(([key,byMarket])=>{
+    const b=buckets[key]={weight:0,sum:0,sumSq:0,wins:0,count:0,observations:0};
+    Object.values(byMarket).forEach(cluster=>{
+      const clusterWeight=Math.min(1,Number(cluster.weight||0)),ret=Number(cluster.sum||0)/Math.max(0.0001,Number(cluster.weight||0));
+      b.weight+=clusterWeight;b.sum+=ret*clusterWeight;b.sumSq+=ret*ret*clusterWeight;b.wins+=(ret>0?clusterWeight:0);
+      b.count++;b.observations+=Number(cluster.observations||0);
+    });
+  });
   const learned=Object.fromEntries(Object.entries(buckets).map(([key,b])=>[key,summarizeLearningBucket(b,12)]));
   const learnedRows=Object.values(learned);
-  return {version:SUGGESTION_ENGINE_VERSION,samples:((ledger&&ledger.outcomes)||[]).length,
-    current_samples:((ledger&&ledger.outcomes)||[]).filter(x=>normalizedStrategyVersion(x.strategy_version)===SUGGESTION_ENGINE_VERSION).length,buckets:learned,
+  const identifiedMarkets=new Set(outcomes.map((outcome,index)=>String(outcome.market_id||`unidentified-observation-${index}`)));
+  const currentOutcomes=outcomes.filter(x=>normalizedStrategyVersion(x.strategy_version)===SUGGESTION_ENGINE_VERSION);
+  const currentMarkets=new Set(currentOutcomes.map((outcome,index)=>String(outcome.market_id||`unidentified-current-${index}`)));
+  return {version:SUGGESTION_ENGINE_VERSION,samples:outcomes.length,markets:identifiedMarkets.size,
+    current_samples:currentOutcomes.length,current_markets:currentMarkets.size,buckets:learned,
     promoted_buckets:learnedRows.filter(r=>r.weight>=8&&r.lower_bound>0.003).length,
     demoted_buckets:learnedRows.filter(r=>r.weight>=8&&r.upper_bound<-0.003).length,
     expired_ungraded:Number(ledger&&ledger.expired_ungraded||0),
@@ -2728,7 +2743,7 @@ function decisionSummary(p){
   const blockerRows=Object.entries(d.rejectionCounts||{}).filter(([,count])=>count>0).sort((a,b)=>b[1]-a[1]);
   const blockers=blockerRows.length?` Blocks: ${blockerRows.slice(0,4).map(([key,count])=>`${blockerLabels[key]||key} ${count}`).join(", ")}.`:"";
   const learning=d.learning?` Learning: ${d.learning.samples} completed trades retained with older strategies down-weighted, ${(d.learning.global_score*100).toFixed(2)}% shrunk expectancy; ${d.learning.current_samples||0} completed under adaptive strategy ${SUGGESTION_ENGINE_VERSION}${d.learning.best?`; strongest ${d.learning.best.feature.replace(":"," ")}`:""}${d.learning.worst?`; weakest ${d.learning.worst.feature.replace(":"," ")}`:""}.`:"";
-  const calibration=d.marketLearning?` Walk-forward calibration: ${d.marketLearning.samples||0} net-of-cost signals graded after ${SIGNAL_EVAL_HOURS} hours (${d.marketLearning.current_samples||0} under adaptive strategy ${SUGGESTION_ENGINE_VERSION}), ${d.marketLearning.pending||0} awaiting a future price${d.marketLearning.expired_ungraded?`, ${d.marketLearning.expired_ungraded} expired ungraded`:""}; ${d.marketLearning.promoted_buckets||0} feature cohorts promoted and ${d.marketLearning.demoted_buckets||0} demoted. Matured markets are repriced even after leaving the active scan, and confirmed observation-only signals also train the ledger. Confidence counts independent outcomes once and uncertainty gates sizing. Historical prior: Sports and Crypto trends stay observation-only; reversal and short-dated NO require promotion in their own recent cohorts; exact-range contracts are excluded; longshots and YES entries are sized down. Politics trends receive 72 hours before ordinary signal exits.`:"";
+  const calibration=d.marketLearning?` Walk-forward calibration: ${d.marketLearning.samples||0} net-of-cost observations across ${d.marketLearning.markets||0} distinct markets graded after ${SIGNAL_EVAL_HOURS} hours (${d.marketLearning.current_samples||0} observations / ${d.marketLearning.current_markets||0} markets under adaptive strategy ${SUGGESTION_ENGINE_VERSION}), ${d.marketLearning.pending||0} awaiting a future price${d.marketLearning.expired_ungraded?`, ${d.marketLearning.expired_ungraded} expired ungraded`:""}; ${d.marketLearning.promoted_buckets||0} feature cohorts promoted and ${d.marketLearning.demoted_buckets||0} demoted. Repeated snapshots of one market are clustered into one effective outcome, matured markets are repriced after leaving the active scan, and confirmed observation-only signals also train the ledger. Uncertainty gates sizing. Historical prior: Sports and Crypto trends stay observation-only; reversal and short-dated NO require promotion in their own recent cohorts; exact ranges and path-dependent barriers are excluded; longshots and YES entries are sized down. Politics trends receive 72 hours before ordinary signal exits.`:"";
   return `${d.mode} mode: ${d.reason}${emotion} Limits now: ${d.maxNew} new trade${d.maxNew===1?"":"s"}, max ${(d.maxFrac*100).toFixed(1)}% per position${d.minConv?`, conviction ${d.minConv}+`:""}.${learning}${calibration}${exposure}${allocation}${candidates}${blockers}`;
 }
 function renderAgentBrief(cfg,p,st){
@@ -4321,7 +4336,7 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
     networkTimeoutSeconds:NETWORK_REQUEST_TIMEOUT_MS/1000,priceTimeoutSeconds:PRICE_REQUEST_TIMEOUT_MS/1000,
     staleCacheIsMarkOnly:true,strategyEvidenceSurvivesBuilds:true,signalEvaluationHours:SIGNAL_EVAL_HOURS,signalRetryHours:SIGNAL_LEDGER_RETRY_HOURS,
     signalDueFetchLimit:SIGNAL_LEDGER_DUE_FETCH_LIMIT,survivorshipSafeSignalGrading:true,
-    signalRoundTripCostCents:SIGNAL_ROUND_TRIP_COST*100,independentConfidence:true,uncertaintyGatedCalibration:true,
+    signalRoundTripCostCents:SIGNAL_ROUND_TRIP_COST*100,independentConfidence:true,marketClusteredCalibration:true,uncertaintyGatedCalibration:true,
     historicalPrior:"Sports and Crypto trends observation-only; reversal and short-dated NO require recent cohort promotion; exact ranges and path-dependent barriers excluded; longshots and YES sized down"}),
 });
 function runEngineSelfTest(){
@@ -4357,8 +4372,8 @@ function runEngineSelfTest(){
     realized_pnl:-20,opened_at:hoursAgo(72+i),closed_at:closedAt});
   const learningProfile=buildAdaptiveProfile(learner);
   const calibrationLedger=defaultSignalLedger();
-  for(let i=0;i<16;i++)calibrationLedger.outcomes.push({signal_type:"trend",quality:"confirmed",category:"Politics",side:"YES",entry_price:0.42,return:0.12,evaluated_at:closedAt});
-  for(let i=0;i<16;i++)calibrationLedger.outcomes.push({signal_type:"reversal",quality:"reversal",category:"Sports",side:"NO",entry_price:0.42,return:-0.12,evaluated_at:closedAt});
+  for(let i=0;i<16;i++)calibrationLedger.outcomes.push({market_id:`trend-market-${i}`,signal_type:"trend",quality:"confirmed",category:"Politics",side:"YES",entry_price:0.42,return:0.12,evaluated_at:closedAt});
+  for(let i=0;i<16;i++)calibrationLedger.outcomes.push({market_id:`reversal-market-${i}`,signal_type:"reversal",quality:"reversal",category:"Sports",side:"NO",entry_price:0.42,return:-0.12,evaluated_at:closedAt});
   const calibrationProfile=buildSignalCalibration(calibrationLedger);
   const learnedTrend=learnedOpportunity(AGENTS[0],learner,{market_id:"learn-trend",signal_type:"trend",quality:"confirmed",category:"Politics",side:"YES",entry_price:0.42},learningProfile,calibrationProfile);
   const learnedReversal=learnedOpportunity(AGENTS[0],learner,{market_id:"learn-reversal",signal_type:"reversal",quality:"reversal",category:"Sports",side:"NO",entry_price:0.42},learningProfile,calibrationProfile);
@@ -4393,8 +4408,11 @@ function runEngineSelfTest(){
   const expiredLedgerState={signal_ledger:{pending:[{key:"expired",market_id:"never-returned",observed_at:hoursAgo(169),side:"YES",entry_price:0.4}],outcomes:[]}};
   updateSignalLedger(expiredLedgerState,[],[]);
   const calibrationCandidate={signal_type:"trend",quality:"confirmed",category:"Politics",side:"YES",entry_price:0.42};
-  const calibrationFromReturns=(returns,candidate=calibrationCandidate)=>buildSignalCalibration({pending:[],outcomes:returns.map(ret=>Object.assign({},candidate,
-    {strategy_version:SUGGESTION_ENGINE_VERSION,return:ret,evaluated_at:closedAt}))});
+  const calibrationFromReturns=(returns,candidate=calibrationCandidate)=>buildSignalCalibration({pending:[],outcomes:returns.map((ret,index)=>Object.assign({},candidate,
+    {market_id:`${candidate.market_id||"calibration"}-${index}`,strategy_version:SUGGESTION_ENGINE_VERSION,return:ret,evaluated_at:closedAt}))});
+  const repeatedMarketCalibration=buildSignalCalibration({pending:[],outcomes:Array.from({length:24},()=>Object.assign({},calibrationCandidate,
+    {market_id:"one-repeated-market",strategy_version:SUGGESTION_ENGINE_VERSION,return:0.12,evaluated_at:closedAt}))});
+  const repeatedMarketState=calibratedOpportunity(calibrationCandidate,repeatedMarketCalibration);
   const singleCalibration=calibratedOpportunity(calibrationCandidate,calibrationFromReturns([0.10]));
   const stablePositiveCalibration=calibratedOpportunity(calibrationCandidate,calibrationFromReturns(Array(24).fill(0.12)));
   const stableNegativeCalibration=calibratedOpportunity(calibrationCandidate,calibrationFromReturns(Array(24).fill(-0.12)));
@@ -4405,6 +4423,10 @@ function runEngineSelfTest(){
   const promotedReversalCalibration=calibrationFromReturns(Array(24).fill(0.12),promotedReversalCandidate);
   const promotedReversal=learnedOpportunity(AGENTS[0],defaultPortfolio(),promotedReversalCandidate,null,promotedReversalCalibration);
   const promotedReversalSuggestion=applyAdaptiveMarketPromotion(Object.assign({},reversal,{entry_candidate:true}),promotedReversalCalibration);
+  const promotedOpenBook=defaultPortfolio(),promotedOpenAgent=AGENTS.find(a=>a.id==="diversifier");
+  openPositions(promotedOpenBook,promotedOpenAgent,[promotedReversalSuggestion],"All",{
+    minConv:0,maxNew:1,maxFrac:0.03,reserve:0.10,targetExposure:0.60,learning:buildAdaptiveProfile(promotedOpenBook),marketLearning:promotedReversalCalibration,
+  },new Set(),{});
   const blockedCryptoPromotion=applyAdaptiveMarketPromotion(Object.assign({},cryptoTrend,{entry_candidate:true}),calibrationFromReturns(Array(24).fill(0.12),{
     market_id:"crypto-positive",signal_type:"trend",quality:"confirmed",category:"Crypto",side:"YES",entry_price:0.42,days_to_resolution:45}));
   const legacyBuildCalibration=buildSignalCalibration({pending:[],outcomes:[Object.assign({},calibrationCandidate,
@@ -4464,12 +4486,16 @@ function runEngineSelfTest(){
   const executableBook=JSON.parse(JSON.stringify(markOnlyBook));
   delete executableBook.positions[0].price_status;
   markToMarket(executableBook,{"offline-mark":market({id:"offline-mark",yes_price:0.8,no_price:0.2})},AGENTS[0],{policyExits:true,executeTrades:true});
+  const staleEntryBook=defaultPortfolio(),staleEntryAgent=AGENTS[0];
+  openPositions(staleEntryBook,staleEntryAgent,[Object.assign({},trend,{trade_ready:false,entry_candidate:false,watch_only:true})],"All",{
+    minConv:0,maxNew:1,maxFrac:0.04,reserve:0.10,targetExposure:0.60,learning:buildAdaptiveProfile(staleEntryBook),marketLearning:{samples:0,pending:0,buckets:{}},
+  },new Set(),{});
   const buildMigrationState=defaultState();
-  buildMigrationState.engine_version=49;buildMigrationState.strategy_version=SUGGESTION_ENGINE_VERSION;
+  buildMigrationState.engine_version=50;buildMigrationState.strategy_version=SUGGESTION_ENGINE_VERSION;
   buildMigrationState.agents.value.engine_baseline={version:SUGGESTION_ENGINE_VERSION,started_at:hoursAgo(2),equity:9876.54};
   reconcileStateVersions(buildMigrationState);
   const strategyMigrationState=defaultState();
-  strategyMigrationState.engine_version=49;strategyMigrationState.strategy_version=PREVIOUS_STRATEGY_VERSION;
+  strategyMigrationState.engine_version=50;strategyMigrationState.strategy_version=PREVIOUS_STRATEGY_VERSION;
   strategyMigrationState.agents.value.cash=9876.54;
   strategyMigrationState.agents.value.engine_baseline={version:PREVIOUS_STRATEGY_VERSION,started_at:hoursAgo(2),equity:10000};
   reconcileStateVersions(strategyMigrationState);
@@ -4486,6 +4512,7 @@ function runEngineSelfTest(){
       historicalPriorBlocksReversal:!priorReversal.allowed&&priorReversal.blocked_by==="historical",
       reversalRemainsBlockedForExplorer:!explorerReversal.allowed&&explorerReversal.blocked_by==="historical",
       recentProofCanUnlockReversal:promotedReversal.allowed&&promotedReversal.market_state==="promoted"&&promotedReversalSuggestion.trade_ready,
+      promotedReversalOpensBoundedPosition:promotedOpenBook.positions.length===1&&promotedOpenBook.positions[0].cost<=300,
       hardBlockedCryptoCannotSelfPromote:!blockedCryptoPromotion.trade_ready,
       enduranceReplacesReversal:agentAcceptsSuggestion(AGENTS.find(a=>a.id==="reversal"),trend)&&!agentAcceptsSuggestion(AGENTS.find(a=>a.id==="reversal"),reversal),
       historicalPriorSizesRisk:!priorCryptoLongshot.blocked&&priorCryptoLongshot.multiplier<1&&priorCryptoLongshot.features.length===2,
@@ -4503,6 +4530,9 @@ function runEngineSelfTest(){
       expiresOnlyAfterRetryWindow:expiredLedgerState.signal_ledger.pending.length===0&&expiredLedgerState.signal_ledger.expired_ungraded===1,
       ledgerIsNetOfCosts:ledgerState.signal_ledger.outcomes[0].gross_return===0.25&&ledgerState.signal_ledger.outcomes[0].estimated_cost_return===0.0125,
       independentCalibrationConfidence:singleCalibration.confidence<0.06,
+      repeatedSnapshotsCountAsOneMarket:repeatedMarketCalibration.markets===1&&repeatedMarketCalibration.buckets["signal:trend"].samples===1
+        &&repeatedMarketCalibration.buckets["signal:trend"].observations===24&&repeatedMarketState.state==="observing",
+      distinctMarketsCanPromote:stablePositiveCalibration.state==="promoted"&&stablePositiveCalibration.supporting_features>=2,
       legacyBuildLineageRemainsHistorical:normalizedStrategyVersion(41)===40,
       previousStrategyIsDownWeighted:legacyBuildCalibration.current_samples===0&&legacyBuildCalibration.buckets["signal:trend"].weight>0.54&&legacyBuildCalibration.buckets["signal:trend"].weight<=0.55,
       currentStrategyKeepsFullWeight:currentStrategyCalibration.current_samples===1&&currentStrategyCalibration.buckets["signal:trend"].weight>0.99,
@@ -4523,6 +4553,7 @@ function runEngineSelfTest(){
     offline:{fresh:offlineCachePolicy(30*60000),staleEntry:offlineCachePolicy(3*3600000),expired:offlineCachePolicy(25*3600000),
       staleMarkUpdatesValue:markOnlyBook.positions.length===1&&markOnlyBook.positions[0].value===800,
       staleMarkPreservesTrades:markOnlyBook.positions.length===1&&markOnlyBook.positions[0].shares===1000&&markOnlyBook.cash===9500&&markOnlyBook.positions[0].price_status==="cached-mark-only",
+      staleCacheBlocksHiddenCandidates:staleEntryBook.positions.length===0&&staleEntryBook.cash===STARTING_BALANCE,
       freshSnapshotExecutesRules:executableBook.positions.length===1&&executableBook.positions[0].shares<1000&&executableBook.cash>9500},
     exits:{youngConflict:exitReason(young,fresh,conflict,AGENTS[0]),matureConflict:exitReason(mature,fresh,conflict,AGENTS[0]),
       politicsEarlyConflict:exitReason(politicsEarly,fresh,conflict,AGENTS[0]),politicsMatureConflict:exitReason(politicsMature,fresh,conflict,AGENTS[0]),trailing:trailingProfitReason(trailing)},
