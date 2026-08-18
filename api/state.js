@@ -10,6 +10,7 @@ const PAPER_KEY = "pma_paper_accounts_v1";
 const LIVE_KEY = "pma_live_readiness_v1";
 const AGENT_IDS = ["value", "momentum", "favorite", "longshot", "diversifier", "catalyst", "reversal", "breakout", "tailalpha", "conviction"];
 const LIMITS = { closed: 80, history: 160, snapshots: 240, suggestions: 900, paperHistory: 120, paperSnapshots: 120, audit: 120 };
+const SIGNAL_LEDGER_LIMITS = { pending: 300, outcomes: 500 };
 
 function withBlobAuth(options = {}) {
   const token = process.env.BLOB_READ_WRITE_TOKEN;
@@ -159,6 +160,12 @@ function compactAgentState(st) {
   const out = { ...st, agents: {} };
   for (const id of AGENT_IDS) {
     out.agents[id] = compactPortfolio(st.agents && st.agents[id]);
+  }
+  if (st.signal_ledger && typeof st.signal_ledger === "object") {
+    out.signal_ledger = {
+      pending: Array.isArray(st.signal_ledger.pending) ? st.signal_ledger.pending.slice(-SIGNAL_LEDGER_LIMITS.pending) : [],
+      outcomes: Array.isArray(st.signal_ledger.outcomes) ? st.signal_ledger.outcomes.slice(-SIGNAL_LEDGER_LIMITS.outcomes) : [],
+    };
   }
   delete out.whales;
   delete out.copycatLeader;

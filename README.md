@@ -26,6 +26,11 @@ small samples toward neutral, caps sizing changes to 0.72x-1.28x, and reserves
 15% of candidates for deterministic exploration so a stale regime cannot become
 permanent.
 
+A separate walk-forward ledger records each trade-ready signal before its future
+price is known, grades it at least 12 hours later, and combines that broad market
+calibration with each agent's personal outcomes. This expands the learning sample
+without backfilling future information into old decisions.
+
 Paper accounts created with a password are also saved through the backend, so a
 user can log in from another device and see the same paper portfolio, activity,
 and value history. Passwordless paper accounts remain local-only.
