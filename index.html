@@ -1967,6 +1967,7 @@ function peerMarketStats(st,selfId){
     const p=st.agents&&st.agents[a.id]; if(!p)return;
     const ret=(equity(p)/Math.max(p.starting_balance||STARTING_BALANCE,1)-1)*100;
     (p.positions||[]).forEach(pos=>{
+      if(!isMaterialPosition(p,pos))return;
       const id=pos.market_id||pos.asset; if(!id)return;
       const key=`${id}:${pos.side}`;
       const opp=`${id}:${pos.side==="YES"?"NO":"YES"}`;
@@ -1991,15 +1992,17 @@ function peerAdjustedSuggestion(s,peer){
   if(m.opposite&&m.oppositePnl>50){boost-=Math.min(12,4+m.opposite*2);peerNote=`peer warning: opposite-side holders are winning`;}
   return Object.assign({},s,{peer_boost:boost,peer_note:peerNote,peer_conviction:+(Number(s.conviction||0)+boost).toFixed(1)});
 }
-function addPortfolioMarketsToSet(set,p){
-  (p&&p.positions||[]).forEach(pos=>{const id=pos.market_id||pos.asset;if(id)set.add(String(id));});
+function materialPositionThreshold(p){return Math.max(50,equity(p)*0.0125);}
+function isMaterialPosition(p,pos){return Number(pos&&((pos.value!=null)?pos.value:Number(pos.shares||0)*Number(pos.current_price||0)))>=materialPositionThreshold(p);}
+function addPortfolioMarketsToSet(set,p,{materialOnly=false}={}){
+  (p&&p.positions||[]).forEach(pos=>{const id=pos.market_id||pos.asset;if(id&&(!materialOnly||isMaterialPosition(p,pos)))set.add(String(id));});
   return set;
 }
 function occupiedStrategyMarkets(st,selfId=null){
   const ids=new Set();
   AGENTS.filter(a=>a.kind==="strategy").forEach(a=>{
     if(a.id===selfId)return;
-    addPortfolioMarketsToSet(ids,st.agents&&st.agents[a.id]);
+    addPortfolioMarketsToSet(ids,st.agents&&st.agents[a.id],{materialOnly:true});
   });
   return ids;
 }
@@ -2024,6 +2027,7 @@ function reduceStrategyOverlap(st){
   AGENTS.filter(a=>a.kind==="strategy").forEach(cfg=>{
     const p=st.agents&&st.agents[cfg.id]; if(!p)return;
     (p.positions||[]).forEach(pos=>{
+      if(!isMaterialPosition(p,pos))return;
       const id=pos.market_id||pos.asset; if(!id)return;
       if(!groups[id])groups[id]=[];
       groups[id].push({cfg,p,pos,score:overlapKeeperScore(pos,cfg)});
@@ -4058,7 +4062,7 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
   boundedStakeForRisk,
   offlineCachePolicy,
   gainStopTargets:(entry)=>GAIN_STOP_TIERS.map(t=>gainStopTarget({entry_price:Number(entry),cost:1,shares:1,gain_stops:{}},t)),
-  rules:Object.freeze({minimumPolicyHoldHours:MIN_POLICY_HOLD_HOURS,exitConfirmationHours:EXIT_CONFIRM_HOURS,maxAgentOverlap:2,stopLossPct:18,
+  rules:Object.freeze({minimumPolicyHoldHours:MIN_POLICY_HOLD_HOURS,exitConfirmationHours:EXIT_CONFIRM_HOURS,maxAgentOverlap:2,materialOverlapPct:1.25,stopLossPct:18,
     coreTradeLossPct:MAX_CORE_TRADE_LOSS_PCT*100,aggressiveTradeLossPct:MAX_AGGRESSIVE_TRADE_LOSS_PCT*100,
     coreGapTradeLossPct:MAX_CORE_GAP_TRADE_LOSS_PCT*100,aggressiveGapTradeLossPct:MAX_AGGRESSIVE_GAP_TRADE_LOSS_PCT*100,
     offlineEntryMaxAgeMinutes:OFFLINE_ENTRY_MAX_AGE_MS/60000,offlineCacheMaxAgeHours:OFFLINE_CACHE_MAX_AGE_MS/3600000,explorationPct:15}),
@@ -4117,9 +4121,11 @@ function runEngineSelfTest(){
   riskBook.positions=[riskPos];
   normalizeLegacyPositionRisk(riskBook,riskPos,riskCfg,market({id:"risk-test",yes_price:0.5,no_price:0.5,days_to_resolution:5,price_change_1d:0.06}));
   const mock={agents:{}};AGENTS.forEach(a=>mock.agents[a.id]=defaultPortfolio());
-  ["value","momentum","favorite"].forEach((id,i)=>mock.agents[id].positions.push({market_id:"overlap-test",question:"Overlap test",side:"YES",shares:100,current_price:0.5,entry_price:0.5,cost:50,value:50,unrealized_pnl:0,conviction:70-i,opened_at:hoursAgo(24)}));
+  ["value","momentum","favorite"].forEach((id,i)=>mock.agents[id].positions.push({market_id:"overlap-test",question:"Overlap test",side:"YES",shares:1000,current_price:0.5,entry_price:0.5,cost:500,value:500,unrealized_pnl:0,conviction:70-i,opened_at:hoursAgo(24)}));
   reduceStrategyOverlap(mock);
   const overlapRemaining=AGENTS.reduce((sum,a)=>sum+mock.agents[a.id].positions.filter(p=>p.market_id==="overlap-test").length,0);
+  mock.agents.tailalpha.positions.push({market_id:"runner-test",question:"Runner test",side:"YES",shares:100,current_price:0.5,entry_price:0.5,cost:50,value:50,unrealized_pnl:0,conviction:70,opened_at:hoursAgo(24)});
+  const immaterialRunnerDoesNotBlock=!occupiedStrategyMarkets(mock).has("runner-test");
   return {version:SUGGESTION_ENGINE_VERSION,
     trend:{ready:trend.trade_ready,quality:trend.quality,side:trend.side,margin:trend.net_edge},
     noSignal:{ready:noSignal.trade_ready,quality:noSignal.quality,signal:noSignal.signal_type,margin:noSignal.net_edge},
@@ -4134,7 +4140,7 @@ function runEngineSelfTest(){
       legacyNormalizedValue:riskPos.value,equityPreserved:+equity(riskBook).toFixed(2),capsBinaryGap:aggressiveGapBudget===0.03&&riskPos.value<=300.01},
     offline:{fresh:offlineCachePolicy(30*60000),staleEntry:offlineCachePolicy(3*3600000),expired:offlineCachePolicy(25*3600000)},
     exits:{youngConflict:exitReason(young,fresh,conflict,AGENTS[0]),matureConflict:exitReason(mature,fresh,conflict,AGENTS[0]),trailing:trailingProfitReason(trailing)},
-    overlapRemaining,rules:window.PMA_ENGINE_DIAGNOSTICS.rules};
+    overlapRemaining,immaterialRunnerDoesNotBlock,rules:window.PMA_ENGINE_DIAGNOSTICS.rules};
 }
 if(new URLSearchParams(location.search).get("engine_test")==="1"){
   const output=document.createElement("output");output.id="engineSelfTest";output.hidden=true;output.textContent=JSON.stringify(runEngineSelfTest());document.body.appendChild(output);

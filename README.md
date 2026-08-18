@@ -31,6 +31,8 @@ Engine v36 treats each binary stake as capable of falling to zero even when the
 aggressive positions at 3%-5%, with lower limits for near-term, extreme-price,
 reversal, and fast-moving setups. Oversized positions inherited from older
 engines are reduced to the same loss budget during live marking.
+The two-agent overlap guard counts only positions worth at least 1.25% of an
+agent's equity, so tiny profit-lock runners do not block a new material trade.
 
 A separate walk-forward ledger records each trade-ready signal before its future
 price is known, grades it at least 12 hours later, and combines that broad market
