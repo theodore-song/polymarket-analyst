@@ -179,7 +179,16 @@ const RULES = [
   { name: "follow_reversal", field: "netReturn", test: (row) => row.type === "reversal" },
   { name: "fade_trend", field: "fadeNetReturn", test: (row) => row.type === "trend" },
   { name: "fade_trend_yes_move", field: "fadeNetReturn", test: (row) => row.type === "trend" && row.side === "YES" },
+  { name: "fade_trend_no_move", field: "fadeNetReturn", test: (row) => row.type === "trend" && row.side === "NO" },
+  { name: "fade_trend_mid", field: "fadeNetReturn", test: (row) => row.type === "trend" && row.band === "mid" },
+  { name: "fade_trend_favorites", field: "fadeNetReturn", test: (row) => row.type === "trend" && ["favorite", "heavy-favorite"].includes(row.band) },
+  { name: "fade_trend_longshots", field: "fadeNetReturn", test: (row) => row.type === "trend" && row.band === "longshot" },
   { name: "fade_strong_trend", field: "fadeNetReturn", test: (row) => row.type === "trend" && Math.abs(row.dayMove) >= 0.015 && Math.abs(row.weekMove) >= 0.03 },
+  { name: "fade_moderate_trend", field: "fadeNetReturn", test: (row) => row.type === "trend" && Math.abs(row.dayMove) <= 0.03 && Math.abs(row.weekMove) <= 0.10 },
+  ...["Politics", "Sports", "Crypto", "Economy", "Pop Culture", "Other"].map((category) => ({
+    name: `fade_trend_${category.toLowerCase().replace(/\s+/g, "_")}`, field: "fadeNetReturn",
+    test: (row) => row.type === "trend" && row.category === category,
+  })),
 ];
 
 function evaluateRules(rows) {
@@ -196,17 +205,25 @@ function chronologicalEvaluation(rows) {
     ordered.filter((row) => row.observedAt >= cut1 && row.observedAt < cut2),
     ordered.filter((row) => row.observedAt >= cut2)];
   const thirdRules = thirds.map(evaluateRules), pooled = evaluateRules(ordered);
+  const trainRules = evaluateRules(train), testRules = evaluateRules(test);
   const robustRules = Object.fromEntries(RULES.map((rule) => {
     const segments = thirdRules.map((result) => result[rule.name]);
+    const trainStats = trainRules[rule.name], testStats = testRules[rule.name], pooledStats = pooled[rule.name];
     const enoughData = segments.every((segment) => segment.count >= 20 && segment.markets >= 5);
-    const allPositive = enoughData && segments.every((segment) => segment.mean > 0 && segment.marketMean > 0);
-    const allNegative = enoughData && segments.every((segment) => segment.mean < 0 && segment.marketMean < 0);
+    const trainTestPositive = trainStats.count >= 40 && testStats.count >= 20
+      && trainStats.mean > 0 && trainStats.marketMean > 0 && testStats.mean > 0 && testStats.marketMean > 0;
+    const trainTestNegative = trainStats.count >= 40 && testStats.count >= 20
+      && trainStats.mean < 0 && trainStats.marketMean < 0 && testStats.mean < 0 && testStats.marketMean < 0;
+    const allPositive = enoughData && trainTestPositive && pooledStats.lower90 > 0
+      && segments.every((segment) => segment.mean > 0 && segment.marketMean > 0);
+    const allNegative = enoughData && trainTestNegative && pooledStats.upper90 < 0
+      && segments.every((segment) => segment.mean < 0 && segment.marketMean < 0);
     return [rule.name, { enoughData, allPositive, allNegative,
       minimumSegmentMean: Math.min(...segments.map((segment) => segment.mean)),
-      maximumSegmentMean: Math.max(...segments.map((segment) => segment.mean)), pooled: pooled[rule.name] }];
+      maximumSegmentMean: Math.max(...segments.map((segment) => segment.mean)), pooled: pooledStats }];
   }));
   return { splitTime: splitTime ? new Date(splitTime * 1000).toISOString() : null,
-    trainCount: train.length, testCount: test.length, train: evaluateRules(train), test: evaluateRules(test),
+    trainCount: train.length, testCount: test.length, train: trainRules, test: testRules,
     thirds: thirdRules, robustRules };
 }
 

@@ -1,5 +1,6 @@
 {
   "scripts": {
+    "evaluate:neg-risk": "node scripts/evaluate-neg-risk.mjs",
     "evaluate:signals": "node scripts/evaluate-signals.mjs",
     "evaluate:settlements": "node scripts/evaluate-settlements.mjs"
   },

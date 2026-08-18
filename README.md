@@ -15,7 +15,7 @@ https://polymarket-site-eta.vercel.app/personal.html
 
 The site fetches live Polymarket markets, generates agent suggestions, lets you
 run frequent paper cycles, and syncs the shared arena state through Neon or
-Vercel Blob. Build 47 also installs an offline app shell and caches timestamped
+Vercel Blob. Build 48 also installs an offline app shell and caches timestamped
 market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
@@ -27,7 +27,7 @@ The learner shrinks small samples toward neutral, caps sizing changes to
 15% of candidates for deterministic exploration so a stale regime cannot become
 permanent.
 
-Strategy 44 treats each binary stake as capable of falling to zero even when the
+Strategy 45 treats each binary stake as capable of falling to zero even when the
 18% stop cannot fill. New core positions are capped at 2.5%-4% of equity and
 aggressive positions at 3%-5%, with lower limits for near-term, extreme-price,
 reversal, and fast-moving setups. Oversized positions inherited from older
@@ -65,9 +65,17 @@ negative in all three chronological segments. Reversals averaged -3.69%, with a
 market-clustered 90% interval entirely below zero. Crypto and Sports were also
 negative but covered only three and five markets. The 24-hour cohort improved to
 -0.82% row mean and +1.31% market mean, with no rule robustly negative across all
-segments. Strategy 44 therefore disables reversal entries, retains their signals
-for paper grading, and evaluates adaptation at 24 hours. It does not promote any
-rule because no positive cohort passed the same robustness checks.
+segments. Strategy 45 therefore keeps reversal entries observation-only until
+their recent signal and quality cohorts independently earn promotion, retains
+their signals for paper grading, and evaluates adaptation at 24 hours.
+
+The expanded active-market audit loaded history for 498 of the top 500 active
+markets with no failures and produced 3,597 net-of-cost 24-hour outcomes across
+142 markets. No tested follow or fade rule was robustly positive. Crypto trends
+averaged -3.83% per observation and -3.99% per market; Sports trends averaged
+-5.44% and -6.61%. Both stayed negative in every chronological segment and their
+market-clustered 90% intervals were entirely below zero. Strategy 45 therefore
+keeps Crypto and Sports trends observation-only while continuing to grade them.
 
 A corrected 200-market audit paged through 197 markets with usable history and
 1,912 twelve-hour outcomes. Reversals remained negative in every chronological
@@ -75,23 +83,23 @@ segment and averaged -4.13%. Sports trends were negative in train and test and
 averaged -3.53% at 72 hours. Politics trends were the sole cohort with positive
 row-level returns in all three 72-hour segments, but its market-cluster interval
 still crossed zero; that supports a longer hold test, not a larger entry bet.
-Strategy 44 gives Politics trend positions that 72-hour observation window before
+Strategy 45 gives Politics trend positions that 72-hour observation window before
 ordinary signal exits. Stops, profit locks, settlement handling, and risk-budget
 reductions remain immediate.
 
-Strategy 44 also subtracts a half-cent round-trip cost when grading each live
+Strategy 45 also subtracts a half-cent round-trip cost when grading each live
 walk-forward signal. Confidence uses the largest independent matching bucket,
 not the sum of five overlapping feature buckets, and evidence from older engine
 versions is down-weighted. This prevents a handful of duplicated observations
 from authorizing larger positions or hiding a modest negative regime.
 
-Strategy 44 adds uncertainty-aware promotion and demotion. A matching setup must
+Strategy 45 adds uncertainty-aware promotion and demotion. A matching setup must
 accumulate at least eight effective observations and agree across at least two
 feature views before repeatable positive evidence can increase size or repeatable
 negative evidence can block a new entry. Mixed evidence stays close to neutral
 instead of being mistaken for an edge.
 
-Build 47 enforces the documented offline boundary end to end. Cached snapshots
+Build 48 enforces the documented offline boundary end to end. Cached snapshots
 under 90 minutes old may continue paper execution. Older snapshots remain usable
 for valuation and chart snapshots for up to 24 hours, but cannot trigger entries,
 stop-losses, gain-stops, risk rebalances, settlements, or policy exits. Network
@@ -104,17 +112,17 @@ adaptive baselines, pending signal grades, and trade evidence remain in one stra
 lineage until the actual entry, sizing, or exit logic changes. Legacy build 40 and 41
 records are migrated into the same strategy lineage without losing evidence.
 
-Build 47 independently refreshes markets for matured pending signals that have
+Build 48 independently refreshes markets for matured pending signals that have
 left the current top-500 activity scan. Unavailable markets remain queued for a
 bounded retry window. This prevents activity-rank survivorship from deciding
 which wins and losses reach the adaptive calibration ledger.
 
-Strategy 44 coordinates high-risk exploration globally. Crypto, near-term,
-extreme-price, legacy reversal, and other gap-prone positions may be held materially by
-only one agent, while ordinary independently confirmed markets retain the
-two-agent cap. A historically blocked Sports trend can enter the exploration lane
-for only one designated agent, preventing duplicated speculative losses. Reversal
-signals cannot enter that lane and remain observation-only.
+Strategy 45 coordinates high-risk exploration globally. Near-term, extreme-price,
+and other gap-prone positions may be held materially by only one agent, while
+ordinary independently confirmed markets retain the two-agent cap. The robustly
+negative Sports- and Crypto-trend cohorts cannot enter through exploration.
+Reversal and short-dated NO signals remain observation-only until their own recent
+feature cohorts pass the promotion gate.
 
 Run `npm run evaluate:settlements` to evaluate fixed decisions made 1, 3, 7,
 14, 30, and 90 days before known binary settlements. The audit uses one
@@ -126,6 +134,13 @@ cohort robust. Environment variables beginning with
 `SETTLEMENT_` control its market count, concurrency, horizons, and cost. Set
 `SETTLEMENT_SUMMARY=1` for the compact report.
 
+Run `npm run evaluate:neg-risk` to scan complete active negative-risk events for
+whole-event YES or NO bundles using executable best asks/bids, per-leg costs, and
+a minimum-liquidity requirement. The 500-event audit found 33 complete liquid
+negative-risk events and zero positive worst-case bundle returns after costs.
+Midpoint price sums sometimes looked attractive, but executable spreads removed
+the apparent edge, so Strategy 45 does not pretend those snapshots are arbitrage.
+
 The expanded event-clustered run loaded history for 498 of the 500 highest-volume
 resolved markets with no fetch failures. No side, price band, category, trend,
 or 1-90 day holding rule passed the required train/test confidence checks. In
@@ -135,7 +150,7 @@ static settlement-direction boost from this audit.
 
 The earlier 200-resolved-market audit found short-dated NO entries strongly
 negative, but the 500-market rerun did not reproduce that loss in its newer test
-segment. Strategy 44 therefore treats the result as a provisional prior instead
+segment. Strategy 45 therefore treats the result as a provisional prior instead
 of a permanent ban: NO entries with 21 days or less remain observation-only until
 the recent walk-forward calibration promotes their matching side and duration
 cohorts. Exact numeric-range contracts are excluded from new entries because a
