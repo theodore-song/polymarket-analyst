@@ -15,7 +15,7 @@ https://polymarket-site-eta.vercel.app/personal.html
 
 The site fetches live Polymarket markets, generates agent suggestions, lets you
 run frequent paper cycles, and syncs the shared arena state through Neon or
-Vercel Blob. Engine v41 also installs an offline app shell and caches timestamped
+Vercel Blob. Build 42 also installs an offline app shell and caches timestamped
 market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
@@ -26,7 +26,7 @@ small samples toward neutral, caps sizing changes to 0.68x-1.30x, and reserves
 15% of candidates for deterministic exploration so a stale regime cannot become
 permanent.
 
-Engine v41 treats each binary stake as capable of falling to zero even when the
+Strategy 40 treats each binary stake as capable of falling to zero even when the
 18% stop cannot fill. New core positions are capped at 2.5%-4% of equity and
 aggressive positions at 3%-5%, with lower limits for near-term, extreme-price,
 reversal, and fast-moving setups. Oversized positions inherited from older
@@ -42,7 +42,7 @@ without backfilling future information into old decisions.
 The initial seven-day chart seed is an approximate replay, not a live return.
 It uses only prices available on each simulated date, computes daily and weekly
 changes from those historical prices, disables unavailable hourly reversal data,
-and labels the combined number as legacy/replay. Engine-version returns are the
+and labels the combined number as legacy/replay. Adaptive-strategy returns are the
 clean live comparison.
 
 Run `npm run evaluate:signals` to test the price-signal rules against one month
@@ -55,7 +55,7 @@ evidence. Set `EVAL_MARKETS`, `EVAL_CONCURRENCY`, `EVAL_HORIZONS`, or
 `EVAL_COST_CENTS` to change the audit.
 The first 80-market audit found that reversal signals lost 4.34% on average in
 both chronological partitions, while crypto and longshot samples were also
-negative overall. Engine v41 therefore blocks reversal and sports-trend entries outside the fixed
+negative overall. Strategy 40 therefore blocks reversal and sports-trend entries outside the fixed
 15% exploration lane and applies modest sizing penalties to crypto and longshots.
 It does not boost any rule from this audit because no positive rule was robust
 across the chronological split.
@@ -66,28 +66,34 @@ segment and averaged -4.13%. Sports trends were negative in train and test and
 averaged -3.53% at 72 hours. Politics trends were the sole cohort with positive
 row-level returns in all three 72-hour segments, but its market-cluster interval
 still crossed zero; that supports a longer hold test, not a larger entry bet.
-Engine v41 gives Politics trend positions that 72-hour observation window before
+Strategy 40 gives Politics trend positions that 72-hour observation window before
 ordinary signal exits. Stops, profit locks, settlement handling, and risk-budget
 reductions remain immediate.
 
-Engine v41 also subtracts a half-cent round-trip cost when grading each live
+Strategy 40 also subtracts a half-cent round-trip cost when grading each live
 walk-forward signal. Confidence uses the largest independent matching bucket,
 not the sum of five overlapping feature buckets, and evidence from older engine
 versions is down-weighted. This prevents a handful of duplicated observations
 from authorizing larger positions or hiding a modest negative regime.
 
-Engine v41 adds uncertainty-aware promotion and demotion. A matching setup must
+Strategy 40 adds uncertainty-aware promotion and demotion. A matching setup must
 accumulate at least eight effective observations and agree across at least two
 feature views before repeatable positive evidence can increase size or repeatable
 negative evidence can block a new entry. Mixed evidence stays close to neutral
 instead of being mistaken for an edge.
 
-Engine v41 enforces the documented offline boundary end to end. Cached snapshots
+Build 42 enforces the documented offline boundary end to end. Cached snapshots
 under 90 minutes old may continue paper execution. Older snapshots remain usable
 for valuation and chart snapshots for up to 24 hours, but cannot trigger entries,
 stop-losses, gain-stops, risk rebalances, settlements, or policy exits. Network
 requests have bounded timeouts so a weak connection falls back to cache instead
 of leaving a cycle hanging indefinitely.
+
+Build identity is separate from strategy lineage starting with build 42. The
+service worker and deployment metadata advance with each code release, but
+adaptive baselines, pending signal grades, and trade evidence remain in strategy
+40 until the actual entry, sizing, or exit logic changes. Legacy build 40 and 41
+records are migrated into the same strategy lineage without losing evidence.
 
 Run `npm run evaluate:settlements` to evaluate fixed decisions made 1, 3, 7,
 14, 30, and 90 days before known binary settlements. The audit uses one
