@@ -254,4 +254,28 @@ const report = {
   })),
   failures: histories.filter((result) => result?.error).length,
 };
-console.log(JSON.stringify(report, null, 2));
+const compact = process.env.EVAL_SUMMARY === "1";
+const compactStats = (stats = {}) => ({ count: stats.count || 0, markets: stats.markets || 0,
+  mean: stats.mean || 0, marketMean: stats.marketMean || 0, lower90: stats.lower90 || 0, upper90: stats.upper90 || 0,
+  winRate: stats.winRate || 0 });
+const compactRules = (rules = {}) => Object.fromEntries(Object.entries(rules)
+  .filter(([, result]) => result.enoughData && (result.allPositive || result.allNegative))
+  .map(([name, result]) => [name, { direction: result.allPositive ? "positive" : "negative",
+    minimumSegmentMean: result.minimumSegmentMean, maximumSegmentMean: result.maximumSegmentMean,
+    pooled: compactStats(result.pooled) }]));
+const summary = {
+  generatedAt: report.generatedAt, marketLimit: report.marketLimit, marketsWithHistory: report.marketsWithHistory,
+  primaryHorizon: report.methodology.primaryHorizon, failures: report.failures,
+  overall: compactStats(report.overall),
+  byType: Object.fromEntries(Object.entries(report.byType).map(([key, value]) => [key, compactStats(value)])),
+  byCategory: Object.fromEntries(Object.entries(report.byCategory).map(([key, value]) => [key, compactStats(value)])),
+  byBand: Object.fromEntries(Object.entries(report.byBand).map(([key, value]) => [key, compactStats(value)])),
+  bySide: Object.fromEntries(Object.entries(report.bySide).map(([key, value]) => [key, compactStats(value)])),
+  train: compactStats(report.chronologicalSplit.train.follow_all),
+  test: compactStats(report.chronologicalSplit.test.follow_all),
+  robustRules: compactRules(report.chronologicalSplit.robustRules),
+  horizons: Object.fromEntries(Object.entries(report.horizons).map(([hours, value]) => [hours, {
+    overall: compactStats(value.overall), robustRules: compactRules(value.chronological.robustRules),
+  }])),
+};
+console.log(JSON.stringify(compact ? summary : report, null, 2));

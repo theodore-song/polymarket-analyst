@@ -208,4 +208,24 @@ const report = {
     return [horizon, { observations: horizonRows.length / 2, chronological: chronologicalEvaluation(horizonRows) }];
   })),
 };
-console.log(JSON.stringify(report, null, 2));
+const compact = process.env.SETTLEMENT_SUMMARY === "1";
+const compactStats = (stats = {}) => ({ count: stats.count || 0, events: stats.events || 0,
+  mean: stats.mean || 0, eventMean: stats.eventMean || 0, eventLower90: stats.eventLower90 || 0,
+  eventUpper90: stats.eventUpper90 || 0, winRate: stats.winRate || 0 });
+const compactRules = (rules = {}) => Object.fromEntries(Object.entries(rules)
+  .filter(([, result]) => result.enoughData && (result.allPositive || result.allNegative))
+  .map(([name, result]) => [name, { direction: result.allPositive ? "positive" : "negative",
+    pooled: compactStats(result.pooled), train: compactStats(result.train), test: compactStats(result.test) }]));
+const summary = {
+  generatedAt: report.generatedAt, requestedMarkets: report.requestedMarkets, resolvedMarkets: report.resolvedMarkets,
+  marketsWithHistory: report.marketsWithHistory, failures: report.failures,
+  horizons: Object.fromEntries(Object.entries(report.horizons).map(([days, value]) => [days, {
+    observations: value.observations,
+    favorite: compactStats(value.chronological.train.buy_favorite),
+    favoriteTest: compactStats(value.chronological.test.buy_favorite),
+    underdog: compactStats(value.chronological.train.buy_underdog),
+    underdogTest: compactStats(value.chronological.test.buy_underdog),
+    robustRules: compactRules(value.chronological.robustRules),
+  }])),
+};
+console.log(JSON.stringify(compact ? summary : report, null, 2));
