@@ -118,7 +118,7 @@ function evaluateMarket(market, points) {
       const netReturn = grossReturn - (COST_CENTS / 100) / entry;
       const fadeNetReturn = fadeEntry > 0.02 && fadeEntry < 0.98
         ? fadeExit / fadeEntry - 1 - (COST_CENTS / 100) / fadeEntry : null;
-      outcomes.push({ marketId: market.id, question: market.question, category: market.category,
+      outcomes.push({ marketId: market.id, eventKey: market.eventKey, question: market.question, category: market.category,
         type: signal.type, side: signal.side, band: priceBand(entry), entry, exit, horizonHours,
         grossReturn, netReturn, fadeNetReturn, hourMove: signal.hourMove, dayMove: signal.dayMove, weekMove: signal.weekMove,
         observedAt: current.t, evaluatedAt: future.t });
@@ -135,17 +135,18 @@ function median(values) {
 }
 
 function summarize(rows, field = "netReturn") {
-  if (!rows.length) return { count: 0, markets: 0, mean: 0, median: 0, winRate: 0, worst: 0, best: 0, marketMean: 0, lower90: 0, upper90: 0 };
+  if (!rows.length) return { count: 0, markets: 0, events: 0, mean: 0, median: 0, winRate: 0, worst: 0, best: 0, marketMean: 0, lower90: 0, upper90: 0 };
   const returns = rows.map((row) => row[field]).filter(Number.isFinite);
-  if (!returns.length) return { count: 0, markets: 0, mean: 0, median: 0, winRate: 0, worst: 0, best: 0, marketMean: 0, lower90: 0, upper90: 0 };
-  const marketBuckets = new Map();
+  if (!returns.length) return { count: 0, markets: 0, events: 0, mean: 0, median: 0, winRate: 0, worst: 0, best: 0, marketMean: 0, lower90: 0, upper90: 0 };
+  const eventBuckets = new Map();
   rows.forEach((row) => {
     const value = row[field];
     if (!Number.isFinite(value)) return;
-    const bucket = marketBuckets.get(row.marketId) || [];
-    bucket.push(value); marketBuckets.set(row.marketId, bucket);
+    const key = row.eventKey || row.marketId;
+    const bucket = eventBuckets.get(key) || [];
+    bucket.push(value); eventBuckets.set(key, bucket);
   });
-  const marketReturns = [...marketBuckets.values()].map((values) => values.reduce((sum, value) => sum + value, 0) / values.length);
+  const marketReturns = [...eventBuckets.values()].map((values) => values.reduce((sum, value) => sum + value, 0) / values.length);
   const marketMean = marketReturns.reduce((sum, value) => sum + value, 0) / Math.max(1, marketReturns.length);
   const variance = marketReturns.length > 1
     ? marketReturns.reduce((sum, value) => sum + (value - marketMean) ** 2, 0) / (marketReturns.length - 1) : 0;
@@ -153,7 +154,7 @@ function summarize(rows, field = "netReturn") {
   return { count: returns.length,
     mean: returns.reduce((sum, value) => sum + value, 0) / returns.length,
     median: median(returns), winRate: returns.filter((value) => value > 0).length / returns.length,
-    worst: Math.min(...returns), best: Math.max(...returns), markets: marketReturns.length,
+    worst: Math.min(...returns), best: Math.max(...returns), markets: new Set(rows.map((row) => row.marketId)).size, events: marketReturns.length,
     marketMean, lower90: marketMean - margin90, upper90: marketMean + margin90 };
 }
 
@@ -191,6 +192,36 @@ const RULES = [
   })),
 ];
 
+const COMBINATION_CATEGORIES = ["Politics", "Sports", "Crypto", "Economy", "Pop Culture", "Other"];
+const COMBINATION_BANDS = ["longshot", "mid", "favorite", "heavy-favorite"];
+for (const category of COMBINATION_CATEGORIES) {
+  const slug = category.toLowerCase().replace(/\s+/g, "_");
+  for (const side of ["YES", "NO"]) {
+    RULES.push({ name: `follow_trend_${slug}_${side.toLowerCase()}`, field: "netReturn",
+      test: (row) => row.type === "trend" && row.category === category && row.side === side });
+    RULES.push({ name: `follow_reversal_${slug}_${side.toLowerCase()}`, field: "netReturn",
+      test: (row) => row.type === "reversal" && row.category === category && row.side === side });
+    for (const band of COMBINATION_BANDS) {
+      RULES.push({ name: `follow_trend_${slug}_${side.toLowerCase()}_${band.replace("-", "_")}`, field: "netReturn",
+        test: (row) => row.type === "trend" && row.category === category && row.side === side && row.band === band });
+    }
+  }
+}
+for (const side of ["YES", "NO"]) {
+  for (const band of COMBINATION_BANDS) {
+    RULES.push({ name: `follow_trend_${side.toLowerCase()}_${band.replace("-", "_")}`, field: "netReturn",
+      test: (row) => row.type === "trend" && row.side === side && row.band === band });
+    RULES.push({ name: `follow_reversal_${side.toLowerCase()}_${band.replace("-", "_")}`, field: "netReturn",
+      test: (row) => row.type === "reversal" && row.side === side && row.band === band });
+  }
+}
+RULES.push(
+  { name: "follow_strong_trend_yes", field: "netReturn", test: (row) => row.type === "trend" && row.side === "YES" && Math.abs(row.dayMove) >= 0.015 && Math.abs(row.weekMove) >= 0.03 },
+  { name: "follow_strong_trend_no", field: "netReturn", test: (row) => row.type === "trend" && row.side === "NO" && Math.abs(row.dayMove) >= 0.015 && Math.abs(row.weekMove) >= 0.03 },
+  { name: "follow_hour_confirmed_trend_yes", field: "netReturn", test: (row) => row.type === "trend" && row.side === "YES" && Math.sign(row.hourMove) === Math.sign(row.dayMove) },
+  { name: "follow_hour_confirmed_trend_no", field: "netReturn", test: (row) => row.type === "trend" && row.side === "NO" && Math.sign(row.hourMove) === Math.sign(row.dayMove) },
+);
+
 function evaluateRules(rows) {
   return Object.fromEntries(RULES.map((rule) => [rule.name, summarize(rows.filter(rule.test), rule.field)]));
 }
@@ -209,7 +240,7 @@ function chronologicalEvaluation(rows) {
   const robustRules = Object.fromEntries(RULES.map((rule) => {
     const segments = thirdRules.map((result) => result[rule.name]);
     const trainStats = trainRules[rule.name], testStats = testRules[rule.name], pooledStats = pooled[rule.name];
-    const enoughData = segments.every((segment) => segment.count >= 20 && segment.markets >= 5);
+    const enoughData = segments.every((segment) => segment.count >= 20 && segment.events >= 5);
     const trainTestPositive = trainStats.count >= 40 && testStats.count >= 20
       && trainStats.mean > 0 && trainStats.marketMean > 0 && testStats.mean > 0 && testStats.marketMean > 0;
     const trainTestNegative = trainStats.count >= 40 && testStats.count >= 20
@@ -246,6 +277,7 @@ async function fetchActiveMarkets(limit) {
 
 const rawMarkets = await fetchActiveMarkets(MARKET_LIMIT);
 const markets = rawMarkets.map((raw) => ({ id: String(raw.id), question: raw.question || "", category: categoryOf(raw),
+  eventKey: String(raw.events?.[0]?.id || raw.events?.[0]?.slug || raw.eventId || raw.id),
   tokenId: String(parseJson(raw.clobTokenIds)[0] || "") })).filter((market) => market.id && market.tokenId);
 const histories = await mapLimit(markets, CONCURRENCY, async (market) => {
   const data = await fetchJson(`${CLOB}/prices-history?market=${encodeURIComponent(market.tokenId)}&interval=1m&fidelity=60`);
@@ -260,8 +292,8 @@ const primaryOutcomes = outcomes.filter((row) => row.horizonHours === primaryHor
 const report = {
   generatedAt: new Date().toISOString(), marketLimit: MARKET_LIMIT, marketsWithHistory: successful.length,
   methodology: { horizonHours: HORIZONS, primaryHorizon, observationBucketHours: 6, historyInterval: "1m", fidelityMinutes: 60,
-    estimatedRoundTripCostCents: COST_CENTS, clusterUnit: "market",
-    note: "Current active-market selection and current category tags are a survivorship-biased proxy; signal inputs and future marks are time-ordered without lookahead. Confidence intervals use per-market means to reduce repeated-observation distortion." },
+    estimatedRoundTripCostCents: COST_CENTS, clusterUnit: "event",
+    note: "Current active-market selection and current category tags are a survivorship-biased proxy; signal inputs and future marks are time-ordered without lookahead. Confidence intervals cluster correlated markets by Polymarket event." },
   overall: summarize(primaryOutcomes), byType: grouped(primaryOutcomes, "type"), byCategory: grouped(primaryOutcomes, "category"),
   byBand: grouped(primaryOutcomes, "band"), bySide: grouped(primaryOutcomes, "side"),
   chronologicalSplit: chronologicalEvaluation(primaryOutcomes),
@@ -272,7 +304,7 @@ const report = {
   failures: histories.filter((result) => result?.error).length,
 };
 const compact = process.env.EVAL_SUMMARY === "1";
-const compactStats = (stats = {}) => ({ count: stats.count || 0, markets: stats.markets || 0,
+const compactStats = (stats = {}) => ({ count: stats.count || 0, markets: stats.markets || 0, events: stats.events || 0,
   mean: stats.mean || 0, marketMean: stats.marketMean || 0, lower90: stats.lower90 || 0, upper90: stats.upper90 || 0,
   winRate: stats.winRate || 0 });
 const compactRules = (rules = {}) => Object.fromEntries(Object.entries(rules)

@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 49 · build 55</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 50 · build 56</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 55 active:</b> the competition is ranked by current adaptive-strategy return rather than legacy replay equity. Event-clustered evidence, protected signal grading, and transaction conservation tests remain active. This remains paper trading; profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 56 active:</b> unproven directional signals train the event-clustered learner without risking cash. Cohorts can trade only after independent positive promotion. Live-priced complete negative-risk bundles may trade when their worst-case payout remains positive after estimated costs; cached bundle prices never open positions. This remains paper trading; profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 55 · Adaptive strategy 49 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build 56 · Adaptive strategy 50 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,9 +774,9 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 55;
-const SUGGESTION_ENGINE_VERSION = 49;
-const PREVIOUS_STRATEGY_VERSION = 48;
+const BUILD_VERSION = 56;
+const SUGGESTION_ENGINE_VERSION = 50;
+const PREVIOUS_STRATEGY_VERSION = 49;
 const LEGACY_BUILD_STRATEGY_LINEAGE = Object.freeze({40:40,41:40});
 function normalizedStrategyVersion(value){
   const version=Number(value||0);
@@ -861,7 +861,7 @@ async function refreshTradeEmailStatus(){
    Five core and five aggressive strategies share the same live suggestion pool. */
 const AGENTS = [
   {id:"value", name:"Value Hunter", emoji:"🎯", color:"#7c8cff", kind:"strategy",
-   blurb:"Looks for the strongest confirmed movement that remains after liquidity friction, chase penalties, and evidence checks. It requires agreement across independent time windows and sizes positions moderately so one bad read does not dominate the portfolio.",
+   blurb:"Scans complete negative-risk events for executable multi-leg pricing gaps whose worst-case payout remains positive after estimated costs. Directional ideas stay observation-only until their own category, side, and signal cohorts earn adaptive promotion.",
    rank:(s)=>[...s].sort((a,b)=>(Math.abs(b.net_edge||b.edge||0)*120+b.conviction+Number(b.evidence_score||0)*18)-(Math.abs(a.net_edge||a.edge||0)*120+a.conviction+Number(a.evidence_score||0)*18)),
    maxNew:4, maxFrac:0.055, minConv:58, kelly:0.24, targetExposure:0.62, drawdownExposure:0.42},
   {id:"momentum", name:"Momentum Chaser", emoji:"🚀", color:"#34d399", kind:"strategy",
@@ -990,7 +990,7 @@ function normalizeMarket(raw,{allowClosed=false}={}){
   const events=raw.events||[]; const ev=events.length?events[0]:{};
   const tags=Array.isArray(raw.tags)?raw.tags:[];
   return {category:classifyCategory(tags),tags:tags.map(t=>t.label).filter(Boolean).slice(0,4),
-    id:String(raw.id),question:(raw.question||"").trim(),event:(ev.title||"").trim(),
+    id:String(raw.id),question:(raw.question||"").trim(),event:(ev.title||"").trim(),event_id:String(ev.id||raw.eventId||""),
     clob_token_ids:parseJsonField(raw.clobTokenIds).map(String),
     yes_price:+yes.toFixed(4),no_price:+prices[1].toFixed(4),
     volume:toNum(raw.volumeNum||raw.volume),volume_24hr:toNum(raw.volume24hr),volume_1wk:toNum(raw.volume1wk),
@@ -1038,6 +1038,47 @@ async function fetchMarketPrice(id){
   try{const r=await fetchWithTimeout(`${GAMMA}/markets/${id}`,{},PRICE_REQUEST_TIMEOUT_MS);if(!r.ok)return null;return normalizeMarket(await r.json(),{allowClosed:true});}
   catch(e){return null;}
 }
+function negativeRiskBundleSuggestion(event){
+  if(!event||!event.negRisk||event.enableNegRisk===false)return null;
+  const rawLegs=Array.isArray(event.markets)?event.markets:[];
+  if(rawLegs.length<2||rawLegs.some(m=>m.closed||m.active===false||m.acceptingOrders===false))return null;
+  const eventTags=Array.isArray(event.tags)?event.tags:[],category=classifyCategory(eventTags);
+  const legs=rawLegs.map(raw=>{
+    const prices=parseJsonField(raw.outcomePrices).map(toNum),tokens=parseJsonField(raw.clobTokenIds).map(String);
+    const yesBid=toNum(raw.bestBid,NaN),noMid=prices[1],liquidity=toNum(raw.liquidityNum||raw.liquidity);
+    const entry=Number.isFinite(yesBid)?1-yesBid+SIGNAL_ROUND_TRIP_COST:NaN;
+    return {market_id:String(raw.id||""),question:(raw.question||"").trim(),token_id:tokens[1]||null,
+      entry_price:+entry.toFixed(4),current_price:+Number(noMid).toFixed(4),liquidity,url:event.slug?`https://polymarket.com/event/${event.slug}`:""};
+  });
+  if(legs.some(leg=>!leg.market_id||!Number.isFinite(leg.entry_price)||!Number.isFinite(leg.current_price)
+    ||leg.entry_price<=0||leg.entry_price>=1||leg.liquidity<NEG_RISK_MIN_LIQUIDITY))return null;
+  const cost=legs.reduce((sum,leg)=>sum+leg.entry_price,0),payout=legs.length-1,profit=payout-cost,netReturn=cost>0?profit/cost:0;
+  if(!(profit>=NEG_RISK_MIN_NET_PROFIT)||!(netReturn>=NEG_RISK_MIN_NET_RETURN))return null;
+  const minLiquidity=Math.min(...legs.map(leg=>leg.liquidity));
+  return {market_id:`bundle:${event.id}`,bundle_id:`bundle:${event.id}`,question:`Complete NO bundle: ${event.title||"multi-outcome event"}`,
+    event:event.title||"",url:event.slug?`https://polymarket.com/event/${event.slug}`:"",category,tags:eventTags.map(t=>t.label).filter(Boolean).slice(0,4),
+    side:"NO",entry_price:+(cost/legs.length).toFixed(4),yes_price:+(1-cost/legs.length).toFixed(4),no_price:+(cost/legs.length).toFixed(4),
+    fair_value:+(payout/legs.length).toFixed(4),edge:+netReturn.toFixed(4),net_edge:+netReturn.toFixed(4),friction:+(SIGNAL_ROUND_TRIP_COST*legs.length).toFixed(4),chase_penalty:0,
+    evidence_score:1,evidence_source_count:0,quality:"bundle-arb",conviction:+clamp(78+netReturn*1200,78,96).toFixed(1),
+    volume:rawLegs.reduce((sum,m)=>sum+toNum(m.volumeNum||m.volume),0),volume_24hr:rawLegs.reduce((sum,m)=>sum+toNum(m.volume24hr),0),liquidity:minLiquidity,
+    spread:Math.max(...rawLegs.map(m=>toNum(m.spread))),price_change_1h:0,price_change_1d:0,price_change_1w:0,momentum_strength:0,
+    signal_strength:1,signal_confidence:1,signal_type:"bundle-arb",trade_ready:true,entry_candidate:true,audited_observation_only:false,
+    adaptive_promotion:false,watch_only:false,jump_risk:false,requires_live:true,days_to_resolution:daysUntil(event.endDate),
+    bundle_cost_per_unit:+cost.toFixed(4),bundle_payout_per_unit:payout,bundle_net_profit_per_unit:+profit.toFixed(4),bundle_legs:legs,
+    drivers:["complete negative-risk event","executable bid/ask gap","positive margin after estimated costs"],
+    rationale:`Complete bundle: buy every NO leg together for ${cost.toFixed(3)} per bundle unit against a ${payout.toFixed(2)} worst-case payout. The modeled margin is ${profit.toFixed(3)} (${(netReturn*100).toFixed(2)}%) after ${(SIGNAL_ROUND_TRIP_COST*100).toFixed(1)}c estimated cost per leg. This requires live prices and must stay intact until settlement.`};
+}
+async function fetchNegativeRiskBundles(limit=NEG_RISK_EVENT_SCAN_LIMIT){
+  const events=[],pageSize=100;
+  for(let offset=0;offset<limit;offset+=pageSize){
+    const size=Math.min(pageSize,limit-offset),params=new URLSearchParams({active:"true",closed:"false",archived:"false",limit:String(size),offset:String(offset),order:"volume24hr",ascending:"false"});
+    const response=await fetchWithTimeout(`${GAMMA}/events?${params}`);
+    if(!response.ok)throw new Error(`Polymarket event API ${response.status}`);
+    const page=await response.json();if(!Array.isArray(page)||!page.length)break;
+    events.push(...page);if(page.length<size)break;
+  }
+  return events.map(negativeRiskBundleSuggestion).filter(Boolean).sort((a,b)=>b.net_edge-a.net_edge).slice(0,20);
+}
 
 /* ---------- Analysis engine ---------- */
 const W={LIQ:0.24,MOM:0.18,SIGNAL:0.38,TIME:0.20};
@@ -1075,6 +1116,10 @@ const SUGGESTION_PER_CATEGORY=180;
 const VISIBLE_SUGGESTIONS=900;
 const REAL_WORLD_SIGNAL_LIMIT=120;
 const SIGNAL_ROUND_TRIP_COST=0.005;
+const NEG_RISK_EVENT_SCAN_LIMIT=500;
+const NEG_RISK_MIN_LIQUIDITY=1000;
+const NEG_RISK_MIN_NET_PROFIT=0.003;
+const NEG_RISK_MIN_NET_RETURN=0.0015;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function liquiditySignal(m){const vol=Math.min(1,Math.log10(m.volume+1)/6.0);const liq=Math.min(1,Math.log10(m.liquidity+1)/5.3);return 0.6*vol+0.4*liq;}
 function momentumSignal(m){const da=m.volume_1wk?m.volume_1wk/7:0;if(da<=0)return m.volume_24hr>0?0.3:0;return clamp((m.volume_24hr/da-0.5)/2.0,0,1);}
@@ -1197,7 +1242,8 @@ function effectiveEntryEdge(s){
 }
 function isGapProneTrade(s={}){
   const days=Number(s.days_to_resolution),entry=Number(s.entry_price),dayMove=Math.abs(Number(s.price_change_1d||0));
-  return (Number.isFinite(days)&&days<=14)||(Number.isFinite(entry)&&(entry<=0.22||entry>=0.80))
+  const hasDays=s.days_to_resolution!=null&&s.days_to_resolution!==""&&Number.isFinite(days);
+  return (hasDays&&days<=14)||(Number.isFinite(entry)&&(entry<=0.22||entry>=0.80))
     ||dayMove>=0.045||s.signal_type==="reversal"||Boolean(s.jump_risk);
 }
 function maxAgentOverlapForTrade(s={}){return (isGapProneTrade(s)||(s.category||"Other")==="Crypto")?1:2;}
@@ -1236,7 +1282,7 @@ function analyzeMarket(m,realWorldSignals={}){
   const trendTradeReady=!strictTradeReady&&!catalystTradeReady&&!reversalTradeReady&&!liquidityTradeReady&&commonReady&&signal.type==="trend"
     &&absNet>=Math.max(MIN_TREND_EDGE,policy.minEdge)&&signal.confidence>=0.60&&evidence.score>=policy.minEvidence;
   const entryCandidate=strictTradeReady||catalystTradeReady||reversalTradeReady||liquidityTradeReady||trendTradeReady;
-  const auditedObservationOnly=signal.type==="reversal"||(signal.type==="trend"&&["Sports","Crypto"].includes(m.category));
+  const auditedObservationOnly=["trend","reversal"].includes(signal.type);
   const tradeReady=!auditedObservationOnly&&entryCandidate;
   const quality=signal.type==="reversal"?"reversal":(strictTradeReady?"confirmed":(catalystTradeReady?"catalyst":(liquidityTradeReady?"liquid-trend":(trendTradeReady?"trend":"watch"))));
   const side=signal.side||((Number(m.price_change_1d||0)>=0)?"YES":"NO");
@@ -1244,8 +1290,9 @@ function analyzeMarket(m,realWorldSignals={}){
   let rationale;
   if(jumpRisk){rationale="Watch only: this market can jump directly to settlement before an hourly stop can protect the position, so agents will not buy it.";}
   else if(signal.type==="reversal"){rationale=`Observation only: the hourly move opposes the one-day direction, but independent audits found this reversal rule lost after costs. The signal will be graded without risking portfolio cash.`;}
-  else if(signal.type==="trend"&&m.category==="Crypto"){rationale="Observation only: the 500-market walk-forward audit found Crypto trends lost after costs at both 24 and 72 hours. This signal keeps training the ledger without risking portfolio cash.";}
-  else if(signal.type==="trend"&&m.category==="Sports"){rationale="Observation only: the 500-market walk-forward audit found Sports trends lost after costs at 24 hours across every chronological segment. This signal keeps training the ledger without risking portfolio cash.";}
+  else if(signal.type==="trend"&&m.category==="Crypto"){rationale="Observation only: the event-clustered 500-market walk-forward audit found Crypto trends unreliable after costs. This signal keeps training the ledger without risking portfolio cash.";}
+  else if(signal.type==="trend"&&m.category==="Sports"){rationale="Observation only: the event-clustered 500-market walk-forward audit found Sports trends lost after costs across every chronological segment. This signal keeps training the ledger without risking portfolio cash.";}
+  else if(signal.type==="trend"){rationale=`Observation only: the event-clustered 500-market audit found the broad trend family lost after costs. This ${side} ${m.category} cohort must independently promote before agents can risk cash.`;}
   else if(strictTradeReady){rationale=`Confirmed setup: ${side} has ${Math.round(signal.strength*100)} signal strength across independent time windows and a ${(absNet*100).toFixed(1)}c signal margin after friction and category uncertainty.`;}
   else if(catalystTradeReady){rationale=`Catalyst-confirmed setup: ${side} price action agrees across the required windows, recent outside coverage exists, and ${(absNet*100).toFixed(1)}c of estimated movement remains after friction. News coverage confirms activity, not direction.`;}
   else if(reversalTradeReady){rationale=`Confirmed reversal: the one-day move is reversing in the hourly window with adequate liquidity and a ${(absNet*100).toFixed(1)}c post-friction signal margin.`;}
@@ -1404,6 +1451,8 @@ function compactSuggestionForSync(s){
     signal_strength:s.signal_strength,signal_confidence:s.signal_confidence,signal_type:s.signal_type,
     trade_ready:s.trade_ready,entry_candidate:s.entry_candidate,audited_observation_only:s.audited_observation_only,
     adaptive_promotion:s.adaptive_promotion,watch_only:s.watch_only,jump_risk:s.jump_risk,
+    requires_live:s.requires_live,bundle_id:s.bundle_id,bundle_cost_per_unit:s.bundle_cost_per_unit,
+    bundle_payout_per_unit:s.bundle_payout_per_unit,bundle_net_profit_per_unit:s.bundle_net_profit_per_unit,bundle_legs:s.bundle_legs,
     days_to_resolution:s.days_to_resolution,drivers:s.drivers,rationale:s.rationale,
   };
 }
@@ -1434,7 +1483,7 @@ function saveState(st){localStorage.setItem(AGENTS_KEY,JSON.stringify(compactAge
 function loadSuggestions(){try{const s=localStorage.getItem(SUG_KEY);return s?JSON.parse(s):{date:null,suggestions:[]};}catch(e){return {date:null,suggestions:[]};}}
 function saveSuggestions(sugs,marketCount=0,analyzedCount=null){const p={date:todayStr(),generated_at:nowIso(),engine_version:BUILD_VERSION,strategy_version:SUGGESTION_ENGINE_VERSION,market_count:marketCount,analyzed_count:analyzedCount==null?marketCount:analyzedCount,analysis_limit:MARKET_ANALYSIS_LIMIT,suggestion_cap:SUGGESTION_TOTAL,suggestions:sugs};const compact=compactSuggestionsForSync(p);localStorage.setItem(SUG_KEY,JSON.stringify(compact));return compact;}
 function compactCachedMarket(m){
-  return {id:m.id,question:m.question,event:m.event,url:m.url,category:m.category,tags:m.tags,
+  return {id:m.id,question:m.question,event:m.event,event_id:m.event_id,url:m.url,category:m.category,tags:m.tags,
     clob_token_ids:m.clob_token_ids,yes_price:m.yes_price,no_price:m.no_price,volume:m.volume,
     volume_24hr:m.volume_24hr,volume_1wk:m.volume_1wk,liquidity:m.liquidity,spread:m.spread,
     best_bid:m.best_bid,best_ask:m.best_ask,price_change_1h:m.price_change_1h,
@@ -1461,6 +1510,10 @@ function offlineCachePolicy(ageMs){
   const executionAllowed=usable&&age<=OFFLINE_ENTRY_MAX_AGE_MS;
   return {usable,entriesAllowed:executionAllowed,exitsAllowed:executionAllowed,
     markOnly:usable&&!executionAllowed};
+}
+function prepareCycleSuggestions(suggestions,runMode,entriesAllowed){
+  return (suggestions||[]).map(s=>(entriesAllowed&&(runMode==="live"||!s.requires_live))
+    ?s:Object.assign({},s,{trade_ready:false,entry_candidate:false,watch_only:true}));
 }
 function collectSyncItems(){const items={};SYNC_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!=null)items[k]=v;});return compactSyncItems(items);}
 function applySyncItems(items){
@@ -1799,10 +1852,12 @@ function stableExploration(agentId,marketId){
   return Boolean(owner&&owner.id===agentId);
 }
 function historicalOpportunityPrior(s){
-  const rows=[];
+  const rows=[],resolutionDays=Number(s.days_to_resolution),hasResolution=s.days_to_resolution!=null&&s.days_to_resolution!==""&&Number.isFinite(resolutionDays);
+  if((s.signal_type||"")==="trend")rows.push({feature:"broad-trend",score:-0.0123,samples:3239,blocked:true,requiresPromotion:true,
+    requiredPromotionFeatures:["signal:trend",`side:${s.side||"unknown"}`,`category:${s.category||"Other"}`]});
   if((s.signal_type||"")==="reversal")rows.push({feature:"reversal",score:-0.0369,samples:207,blocked:true,requiresPromotion:true,
     requiredPromotionFeatures:["signal:reversal","quality:reversal"]});
-  if((s.side||"")==="NO"&&Number(s.days_to_resolution)<=21)rows.push({feature:"short-no",score:-0.3733,samples:64,blocked:true,requiresPromotion:true,
+  if((s.side||"")==="NO"&&hasResolution&&resolutionDays<=21)rows.push({feature:"short-no",score:-0.3733,samples:64,blocked:true,requiresPromotion:true,
     requiredPromotionFeatures:["side:NO","duration:short"]});
   if((s.signal_type||"")==="trend"&&(s.category||"Other")==="Sports")rows.push({feature:"sports-trend",score:-0.0544,samples:307,blocked:true,hardBlocked:true});
   if((s.signal_type||"")==="trend"&&(s.category||"Other")==="Crypto")rows.push({feature:"crypto-trend",score:-0.0383,samples:341,blocked:true,hardBlocked:true});
@@ -2142,6 +2197,13 @@ function markToMarket(p,priceMap,cfg=null,{policyExits=false,executeTrades=true}
     pos.peak_price=+Math.max(Number(pos.peak_price||pos.entry_price||price),price).toFixed(4);
     if(executeTrades)delete pos.price_status;else pos.price_status="cached-mark-only";
     if(!executeTrades){stillOpen.push(pos);continue;}
+    if(pos.requires_complete_bundle){
+      if(fresh.closed||fresh.accepting_orders===false){closePosition(p,pos,"Complete bundle leg settled","CLOSE");continue;}
+      stillOpen.push(pos);continue;
+    }
+    if(policyExits&&normalizedStrategyVersion(pos.strategy_version)<SUGGESTION_ENGINE_VERSION&&["trend","reversal"].includes(pos.signal_type||"")){
+      closePosition(p,pos,`Strategy ${SUGGESTION_ENGINE_VERSION} retired this unproven directional setup`,"EXIT");continue;
+    }
     for(const stopTier of triggeredStopLosses(pos))scaleStopLossPosition(p,pos,stopTier);
     if(pos._closedByStop){delete pos._closedByStop;continue;}
     for(const gainTier of triggeredGainStops(pos))takeProfitPosition(p,pos,gainTier);
@@ -2243,6 +2305,7 @@ function reduceStrategyOverlap(st){
 function agentAcceptsSuggestion(cfg,s){
   const quality=s.quality||"watch",edge=effectiveEntryEdge(s),evidence=Number(s.evidence_score||0);
   if(quality==="watch")return false;
+  if(quality==="bundle-arb")return cfg.id==="value";
   if(cfg.id==="value")return ["confirmed","liquid-trend"].includes(quality)&&edge>=MIN_SELECTIVE_ENTRY_EDGE
     &&Number(s.entry_price||0)>=0.20&&Number(s.entry_price||0)<=0.80;
   if(cfg.id==="momentum")return ["confirmed","trend","liquid-trend","catalyst"].includes(quality)
@@ -2266,6 +2329,32 @@ function agentAcceptsSuggestion(cfg,s){
     &&edge>=MIN_ENTRY_EDGE&&Number(s.conviction||0)>=72&&Number(s.signal_confidence||0)>=0.66&&evidence>=0.52;
   return quality==="confirmed"&&edge>=MIN_ENTRY_EDGE;
 }
+function openNegativeRiskBundle(p,cfg,s,stake,decision){
+  const legs=Array.isArray(s.bundle_legs)?s.bundle_legs:[],unitCost=Number(s.bundle_cost_per_unit);
+  if(legs.length<2||!(unitCost>0)||!(Number(s.bundle_net_profit_per_unit)>0))return null;
+  const units=+(Math.max(0,stake)/unitCost).toFixed(2);if(units<=0)return null;
+  const openedAt=cycleIso(),positions=legs.map(leg=>{
+    const entry=Number(leg.entry_price),current=Number(leg.current_price),cost=+(units*entry).toFixed(2);
+    return {market_id:String(leg.market_id),question:leg.question,side:"NO",shares:units,token_id:leg.token_id||null,
+      entry_price:+entry.toFixed(4),current_price:+current.toFixed(4),cost,value:+(units*current).toFixed(2),
+      original_shares:units,original_cost:cost,unrealized_pnl:+(units*current-cost).toFixed(2),conviction:s.conviction,peer_conviction:s.conviction,
+      category:s.category,opened_at:openedAt,url:leg.url||s.url||"",peer_note:"",entry_reason:s.rationale||"",net_edge:s.net_edge,evidence_score:1,evidence_source_count:0,
+      friction:s.friction,chase_penalty:0,quality:"bundle-arb",strategy_version:SUGGESTION_ENGINE_VERSION,build_version:BUILD_VERSION,
+      momentum_strength:0,signal_strength:1,signal_confidence:1,signal_type:"bundle-arb",price_change_1d:0,price_change_1w:0,
+      days_to_resolution:s.days_to_resolution,jump_risk:false,bundle_id:s.bundle_id,bundle_name:s.event||s.question,bundle_leg_count:legs.length,
+      bundle_payout_per_unit:s.bundle_payout_per_unit,bundle_net_profit_per_unit:s.bundle_net_profit_per_unit,requires_complete_bundle:true,
+      learning_score:0,learning_confidence:0,market_learning_score:0,market_learning_confidence:0,learning_state:"priced-bundle",market_learning_state:"priced-bundle",
+      historical_prior_score:0,historical_prior_confidence:0,historical_prior_features:[],historical_requires_promotion:false,
+      learning_multiplier:1,learning_exploration:false,risk_budget_pct:+(tradeLossBudgetPct(cfg,s)*100).toFixed(2),
+      peak_price:+current.toFixed(4),gain_stops:{},stop_losses:{}};
+  });
+  const totalCost=+positions.reduce((sum,pos)=>sum+pos.cost,0).toFixed(2);
+  if(totalCost>p.cash||totalCost<50)return null;
+  p.cash=+(p.cash-totalCost).toFixed(2);p.positions.push(...positions);
+  p.history.push({date:logDay(),action:"OPEN",question:s.question,side:"NO",
+    detail:`${decision?decision.mode+" mode — ":""}Opened complete ${legs.length}-leg NO bundle for ${fmtUSD(totalCost)} · ${units} bundle units · modeled settlement profit ${fmtUSD(units*Number(s.bundle_net_profit_per_unit))} after estimated costs · live prices required`});
+  return {cost:totalCost,marketIds:positions.map(pos=>pos.market_id)};
+}
 function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=null){
   const d=decision||{minConv:Math.max(cfg.minConv||0,cfg.aggressive?60:64),maxNew:Math.min(cfg.maxNew||4,cfg.aggressive?4:3),maxFrac:Math.min(cfg.maxFrac||0.05,cfg.aggressive?0.07:0.045),reserve:cfg.aggressive?0.10:0.18,targetExposure:cfg.targetExposure??(cfg.aggressive?0.75:0.62),minExposure:0};
   const learningProfile=d.learning||buildAdaptiveProfile(p);
@@ -2279,7 +2368,7 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
   const minExposure=0,belowFloor=false;
   const tradeReadyCount=rankedSugs.filter(s=>s.trade_ready).length;
   const entryCandidateCount=rankedSugs.filter(s=>s.trade_ready||s.entry_candidate).length;
-  const strategyMatches=rankedSugs.filter(s=>(s.trade_ready||s.entry_candidate)&&agentAcceptsSuggestion(cfg,s));
+  const strategyMatches=rankedSugs.filter(s=>s.trade_ready&&agentAcceptsSuggestion(cfg,s));
   const strategyCount=strategyMatches.length;
   if((p.positions||[]).length>=maxPositions||d.maxNew<=0){
     p.lastDecision=Object.assign({},d,{currentExposure:+currentExposure.toFixed(3),targetExposure:+targetExposure.toFixed(3),minExposure:+minExposure.toFixed(3),tradeReadyCount,entryCandidateCount,strategyCandidates:strategyCount,eligibleCandidates:0,opened:0,
@@ -2300,6 +2389,12 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
       learning_multiplier:learning.multiplier,learning_exploration:learning.exploration,learning_allowed:learning.allowed});
   }).filter(s=>{
     if(!s.learning_allowed)return reject(s.learning_block_reason==="historical"?"historical_prior":"learning");
+    if(s.quality==="bundle-arb"){
+      if(!Array.isArray(s.bundle_legs)||s.bundle_legs.length<2||!(Number(s.bundle_net_profit_per_unit)>0))return reject("bundle_integrity");
+      if((p.positions||[]).length+s.bundle_legs.length>maxPositions)return reject("portfolio_limit");
+      if((p.positions||[]).some(pos=>pos.bundle_id===s.bundle_id))return reject("already_held");
+      return true;
+    }
     if(s.side!=="YES"&&s.side!=="NO")return reject("direction");
     if((cfg.aggressive?s.conviction:s.peer_conviction)<d.minConv||s.conviction<58)return reject("confidence");
     if(s.entry_price<0.08||s.entry_price>0.92)return reject("price");
@@ -2327,6 +2422,14 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
     const exposureGap=Math.max(0,eq*targetExposure-positionValue);
     const investable=Math.min(p.cash-eq*d.reserve,exposureGap,cycleBudgetRemaining);
     if(investable<=50)break;
+    if(s.quality==="bundle-arb"){
+      const bundleStake=boundedStakeForRisk(eq,Math.min(eq*Math.min(d.maxFrac,0.04),investable),cfg,s);
+      const bundle=openNegativeRiskBundle(p,cfg,s,bundleStake,decision);
+      if(!bundle)continue;
+      cycleBudgetRemaining=Math.max(0,cycleBudgetRemaining-bundle.cost);
+      opened++;openedIds.push(String(s.bundle_id||s.market_id));
+      continue;
+    }
     let frac;
     if(probeQualities.includes(s.quality)){frac=Math.min(d.maxFrac,cfg.aggressive?0.05:0.025);}
     else if(cfg.flat){frac=d.maxFrac;}
@@ -2488,17 +2591,20 @@ async function runDailyCycle(){
       return {suggestions:(loadSuggestions().suggestions||[]).length,skipped:true,hour};
     }
     SNAP_TS=nowIso();
-    let markets=[],analysisMarkets=[],sugs=[],cache=loadMarketCache(),runMode="live",cacheAgeMs=0;
+    let markets=[],analysisMarkets=[],sugs=[],bundleSugs=[],cache=loadMarketCache(),runMode="live",cacheAgeMs=0;
     try{
       setStatus("loading the 500 most active markets…",true);
       markets=await fetchMarkets(Math.ceil(ACTIVE_MARKET_FETCH_LIMIT/100),100,count=>setStatus(`loaded ${Math.min(count,ACTIVE_MARKET_FETCH_LIMIT).toLocaleString()} of 500 active markets…`,true));
       analysisMarkets=selectMarketsForAnalysis(markets);
       if(!analysisMarkets.length)throw new Error("No active markets returned");
       setStatus(`analyzing ${analysisMarkets.length.toLocaleString()} most-active markets…`,true);
+      setStatus("checking complete live-priced event bundles…",true);
+      try{bundleSugs=await fetchNegativeRiskBundles();}catch(e){bundleSugs=[];}
       setStatus("checking real-world context…",true);
       const realWorldSignals=await fetchRealWorldSignals(analysisMarkets);
       setStatus("analyzing expected value…",true);
-      sugs=generateSuggestions(analysisMarkets,SUGGESTION_TOTAL,SUGGESTION_PER_CATEGORY,realWorldSignals);
+      sugs=[...bundleSugs,...generateSuggestions(analysisMarkets,SUGGESTION_TOTAL,SUGGESTION_PER_CATEGORY,realWorldSignals)]
+        .sort((a,b)=>(Number(b.quality==="bundle-arb")-Number(a.quality==="bundle-arb"))||(b.conviction-a.conviction)).slice(0,SUGGESTION_TOTAL);
       saveSuggestions(sugs,markets.length,analysisMarkets.length);
     }catch(networkError){
       cache=cache||loadMarketCache();
@@ -2556,7 +2662,7 @@ async function runDailyCycle(){
     }
     if(executeTrades)reduceStrategyOverlap(st);
     const entriesAllowed=runMode==="live"||cachePolicy.entriesAllowed;
-    const cycleSuggestions=entriesAllowed?sugs:sugs.map(s=>Object.assign({},s,{trade_ready:false,entry_candidate:false,watch_only:true}));
+    const cycleSuggestions=prepareCycleSuggestions(sugs,runMode,entriesAllowed);
     const claimedMarkets=new Set();
     for(const cfg of strategyExecutionOrder(st)){
       const p=st.agents[cfg.id];
@@ -2650,7 +2756,7 @@ function renderTopPicks(){
   if(!top.length){root.innerHTML=`<div class="empty">Run a cycle to see top picks.</div>`;return;}
   root.innerHTML=top.map(s=>`<div class="pos"><div>
     <div class="pq">${s.url?`<a class="market-title" href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.question.slice(0,58))}${s.question.length>58?"…":""}</a>`:`${esc(s.question.slice(0,58))}${s.question.length>58?"…":""}`}</div>
-    <div class="sub"><span class="cat-badge" style="background:${catColor(s.category)}22;color:${catColor(s.category)}">${esc(s.category)}</span> BUY ${s.side} @ ${Math.round(s.entry_price*100)}¢</div>
+    <div class="sub"><span class="cat-badge" style="background:${catColor(s.category)}22;color:${catColor(s.category)}">${esc(s.category)}</span> ${s.quality==="bundle-arb"?`COMPLETE ${s.bundle_legs.length}-LEG NO BUNDLE · ${(s.bundle_net_profit_per_unit*100).toFixed(1)}c modeled profit/unit`:`BUY ${s.side} @ ${Math.round(s.entry_price*100)}¢`}</div>
   </div><div class="right"><div style="font-family:'Space Grotesk';font-weight:700">${Math.round(s.conviction)}</div><div class="sub">conviction</div></div></div>`).join("");
 }
 function renderEmailAlerts(){
@@ -2956,8 +3062,8 @@ function renderSuggestions(){
   const scanned=Number(data.market_count||0).toLocaleString();
   const analyzed=Number(data.analyzed_count||data.market_count||0).toLocaleString();
   $("focusNote").textContent=focus==="All"
-    ? `Loaded the ${scanned} most active markets, analyzed ${analyzed} by activity, liquidity, spread, and independent time-window confirmation, and kept ${all.length} ideas (${buyCount} BUY, ${watchCount} WATCH). Showing ${filtered.length}; BUY requires a confirmed non-Crypto, non-Sports trend or catalyst with positive margin after modeled friction. Reversals and audited losing cohorts remain WATCH while they train. Cash is retained when no setup qualifies. Avg evidence ${evAvg}.`
-    : `Loaded the ${scanned} most active markets and analyzed ${analyzed}. Showing ${filtered.length} of ${pool.length} ${focus} ideas; agents can buy only independently confirmed setups that also fit their strategy and risk limits.`;
+    ? `Loaded the ${scanned} most active markets, analyzed ${analyzed}, and kept ${all.length} ideas (${buyCount} TRADE READY, ${watchCount} WATCH). Showing ${filtered.length}; directional signals remain WATCH until their own event-clustered cohorts earn positive promotion. Complete negative-risk bundles are trade ready only when live executable prices leave a positive worst-case margin after estimated costs. Cash is retained when neither condition is met. Avg evidence ${evAvg}.`
+    : `Loaded the ${scanned} most active markets and analyzed ${analyzed}. Showing ${filtered.length} of ${pool.length} ${focus} ideas; directional entries require adaptive promotion and complete bundles require live positive executable margin.`;
   if(!filtered.length){root.innerHTML=`<div class="empty" style="grid-column:1/-1">No ${esc(focus)} suggestions in this live batch.</div>`;return;}
   root.innerHTML=filtered.map(s=>{
     const col=catColor(s.category);
@@ -2968,7 +3074,7 @@ function renderSuggestions(){
       <div class="q">${s.url?`<a class="market-title" href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.question)}</a>`:esc(s.question)}</div>
       <div class="event">${esc(s.event||"")}</div>
       <div class="sug-row">
-        <span class="pill ${s.side}">${s.trade_ready?"BUY":"WATCH"} ${s.side}</span>
+        <span class="pill ${s.side}">${s.quality==="bundle-arb"?`COMPLETE ${s.bundle_legs.length}-LEG NO BUNDLE`:`${s.trade_ready?"BUY":"WATCH"} ${s.side}`}</span>
         <span class="muted small">${esc(String(s.quality||"watch").toUpperCase())}</span>
         <span class="muted small">@ ${Math.round(s.entry_price*100)}¢</span>
         <div class="conv-bar"><span style="width:${s.conviction}%"></span></div>
@@ -2977,10 +3083,10 @@ function renderSuggestions(){
       <div class="rationale">${esc(s.rationale)}</div>
       <div class="drivers">${drivers}</div>
       <div class="metrics">
-        <span>Signal margin <b>${((Math.abs(s.net_edge!=null?s.net_edge:s.edge))*100).toFixed(1)}c</b></span><span>Evidence <b>${Math.round((s.evidence_score||0)*100)}</b></span>
+        <span>${s.quality==="bundle-arb"?`Modeled return <b>${(s.net_edge*100).toFixed(2)}%</b>`:`Signal margin <b>${((Math.abs(s.net_edge!=null?s.net_edge:s.edge))*100).toFixed(1)}c</b>`}</span><span>Evidence <b>${Math.round((s.evidence_score||0)*100)}</b></span>
         <span>Vol <b>${fmtUSD(s.volume)}</b></span><span>24h <b>${fmtUSD(s.volume_24hr)}</b></span><span>Resolves <b>${days}</b></span>
         ${s.url?`<a class="market-link" href="${esc(s.url)}" target="_blank" rel="noopener">Open on Polymarket ↗</a>`:""}
-        ${PERSONAL_MODE?`<button class="btn ghost" data-stage-suggestion="${esc(s.market_id)}">Stage ticket</button>`:""}
+        ${PERSONAL_MODE&&s.quality!=="bundle-arb"?`<button class="btn ghost" data-stage-suggestion="${esc(s.market_id)}">Stage ticket</button>`:""}
       </div></div>`;
   }).join("");
   document.querySelectorAll("[data-stage-suggestion]").forEach(btn=>btn.onclick=()=>stageSuggestionTicket(btn.dataset.stageSuggestion));
@@ -4330,6 +4436,7 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
   build_version:BUILD_VERSION,
   version:SUGGESTION_ENGINE_VERSION,
   analyzeMarket,
+  negativeRiskBundleSuggestion,
   buildAdaptiveProfile,
   historicalOpportunityPrior,
   learnedOpportunity,
@@ -4337,6 +4444,7 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
   boundedStakeForRisk,
   historicalPriceFeatures,
   offlineCachePolicy,
+  prepareCycleSuggestions,
   gainStopTargets:(entry)=>GAIN_STOP_TIERS.map(t=>gainStopTarget({entry_price:Number(entry),cost:1,shares:1,gain_stops:{}},t)),
   rules:Object.freeze({minimumPolicyHoldHours:MIN_POLICY_HOLD_HOURS,politicsTrendHoldHours:POLITICS_TREND_MIN_HOLD_HOURS,exitConfirmationHours:EXIT_CONFIRM_HOURS,maxAgentOverlap:2,gapProneMaxAgentOverlap:1,globalExplorationOwner:true,materialOverlapPct:1.25,stopLossPct:18,
     coreTradeLossPct:MAX_CORE_TRADE_LOSS_PCT*100,aggressiveTradeLossPct:MAX_AGGRESSIVE_TRADE_LOSS_PCT*100,
@@ -4347,7 +4455,9 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
     signalDueFetchLimit:SIGNAL_LEDGER_DUE_FETCH_LIMIT,survivorshipSafeSignalGrading:true,
     signalRoundTripCostCents:SIGNAL_ROUND_TRIP_COST*100,independentConfidence:true,eventClusteredCalibration:true,
     onePendingObservationPerMarketSide:true,oldestPendingEvidenceFirst:true,uncertaintyGatedCalibration:true,
-    historicalPrior:"Sports and Crypto trends observation-only; reversal and short-dated NO require recent cohort promotion; exact ranges and path-dependent barriers excluded; longshots and YES sized down"}),
+    directionalSignalsRequirePromotion:true,liveOnlyCompleteBundles:true,negativeRiskEventScanLimit:NEG_RISK_EVENT_SCAN_LIMIT,
+    negativeRiskMinimumNetReturnPct:NEG_RISK_MIN_NET_RETURN*100,
+    historicalPrior:"All directional trends and reversals require positive independent cohort promotion; Sports and Crypto trends remain excluded; exact ranges and path-dependent barriers are excluded; live-priced complete negative-risk bundles may trade when positive after estimated costs"}),
 });
 function runEngineSelfTest(){
   const market=(overrides={})=>Object.assign({
@@ -4437,6 +4547,7 @@ function runEngineSelfTest(){
   const singleCalibration=calibratedOpportunity(calibrationCandidate,calibrationFromReturns([0.10]));
   const stablePositiveProfile=calibrationFromReturns(Array(24).fill(0.12));
   const stablePositiveCalibration=calibratedOpportunity(calibrationCandidate,stablePositiveProfile);
+  const promotedTrendSuggestion=applyAdaptiveMarketPromotion(Object.assign({},trend,{entry_candidate:true}),stablePositiveProfile);
   const stableNegativeCalibration=calibratedOpportunity(calibrationCandidate,calibrationFromReturns(Array(24).fill(-0.12)));
   const noisyCalibration=calibratedOpportunity(calibrationCandidate,calibrationFromReturns(Array.from({length:24},(_,i)=>i%2?0.12:-0.12)));
   const promotedShortNoCandidate={market_id:"short-no-promoted",signal_type:"trend",quality:"confirmed",category:"Politics",side:"NO",entry_price:0.58,days_to_resolution:14};
@@ -4492,6 +4603,36 @@ function runEngineSelfTest(){
   markToMarket(stopFixture.book,{[stopFixture.pos.market_id]:market({id:stopFixture.pos.market_id,yes_price:0.4,no_price:0.6})},AGENTS[0],{policyExits:true,executeTrades:true});
   const settlementFixture=accountingBook(1);
   markToMarket(settlementFixture.book,{[settlementFixture.pos.market_id]:market({id:settlementFixture.pos.market_id,yes_price:1,no_price:0,closed:true,accepting_orders:false})},AGENTS[0],{policyExits:true,executeTrades:true});
+  const retiredFixture=accountingBook(0.45),retiredEquityBefore=equity(retiredFixture.book);
+  retiredFixture.pos.strategy_version=PREVIOUS_STRATEGY_VERSION;
+  markToMarket(retiredFixture.book,{[retiredFixture.pos.market_id]:market({id:retiredFixture.pos.market_id,yes_price:0.45,no_price:0.55})},AGENTS[0],{policyExits:true,executeTrades:true});
+  const bundleSuggestion=negativeRiskBundleSuggestion({id:"bundle-test",title:"Three-way result",slug:"bundle-test",negRisk:true,enableNegRisk:true,tags:[{slug:"sports",label:"Sports"}],markets:[
+    {id:"bundle-a",question:"A wins",outcomePrices:'["0.415","0.585"]',clobTokenIds:'["a-yes","a-no"]',bestBid:0.41,bestAsk:0.42,liquidityNum:30000,volumeNum:100000,volume24hr:10000,acceptingOrders:true},
+    {id:"bundle-b",question:"B wins",outcomePrices:'["0.315","0.685"]',clobTokenIds:'["b-yes","b-no"]',bestBid:0.31,bestAsk:0.32,liquidityNum:28000,volumeNum:100000,volume24hr:10000,acceptingOrders:true},
+    {id:"bundle-draw",question:"Draw",outcomePrices:'["0.305","0.695"]',clobTokenIds:'["d-yes","d-no"]',bestBid:0.30,bestAsk:0.31,liquidityNum:20000,volumeNum:100000,volume24hr:10000,acceptingOrders:true},
+  ]});
+  const tinyReturnBundle=negativeRiskBundleSuggestion({id:"bundle-tiny",title:"Ten-way result",slug:"bundle-tiny",negRisk:true,enableNegRisk:true,markets:Array.from({length:10},(_,i)=>({
+    id:`bundle-tiny-${i}`,question:`Outcome ${i+1}`,outcomePrices:'["0.1055","0.8945"]',clobTokenIds:`["tiny-${i}-yes","tiny-${i}-no"]`,
+    bestBid:0.1055,bestAsk:0.1065,liquidityNum:30000,volumeNum:100000,volume24hr:10000,acceptingOrders:true,
+  }))});
+  const bundleBook=defaultPortfolio();
+  const offlineBundleSuggestion=prepareCycleSuggestions([bundleSuggestion],"offline-cache",true)[0];
+  openPositions(bundleBook,AGENTS.find(a=>a.id==="value"),[bundleSuggestion],"All",{
+    minConv:0,maxNew:1,maxFrac:0.04,reserve:0.10,targetExposure:0.60,learning:buildAdaptiveProfile(bundleBook),marketLearning:{samples:0,pending:0,buckets:{}},
+  },new Set(),{});
+  const bundleOpenedPositions=bundleBook.positions.length,bundleOpenDecision=JSON.parse(JSON.stringify(bundleBook.lastDecision||{}));
+  const bundleUnits=bundleBook.positions[0]&&bundleBook.positions[0].shares;
+  markToMarket(bundleBook,{
+    "bundle-a":market({id:"bundle-a",yes_price:0.8,no_price:0.2}),
+    "bundle-b":market({id:"bundle-b",yes_price:0.1,no_price:0.9}),
+    "bundle-draw":market({id:"bundle-draw",yes_price:0.1,no_price:0.9}),
+  },AGENTS.find(a=>a.id==="value"),{policyExits:true,executeTrades:true});
+  const bundleSurvivedIntermediateMove=bundleBook.positions.length===3&&bundleBook.positions.every(pos=>pos.shares===bundleUnits);
+  markToMarket(bundleBook,{
+    "bundle-a":market({id:"bundle-a",yes_price:1,no_price:0,closed:true,accepting_orders:false}),
+    "bundle-b":market({id:"bundle-b",yes_price:0,no_price:1,closed:true,accepting_orders:false}),
+    "bundle-draw":market({id:"bundle-draw",yes_price:0,no_price:1,closed:true,accepting_orders:false}),
+  },AGENTS.find(a=>a.id==="value"),{policyExits:true,executeTrades:true});
   const adaptiveRankFixture=rankBoardRows([
     {c:{id:"legacy-leader"},eq:20000,enginePnl:-200,engineRet:-1},
     {c:{id:"adaptive-leader"},eq:9000,enginePnl:200,engineRet:2},
@@ -4515,7 +4656,7 @@ function runEngineSelfTest(){
   const immaterialRunnerDoesNotBlock=!occupiedStrategyMarkets(mock).has("runner-test");
   const rejectBook=defaultPortfolio();rejectBook.cash=9900;
   rejectBook.positions.push({market_id:trend.market_id,question:trend.question,side:trend.side,shares:100/Number(trend.entry_price),current_price:trend.entry_price,entry_price:trend.entry_price,cost:100,value:100,unrealized_pnl:0,opened_at:hoursAgo(24)});
-  openPositions(rejectBook,AGENTS[0],[trend],"All",{minConv:0,maxNew:1,maxFrac:0.04,reserve:0.1,targetExposure:0.6,learning:buildAdaptiveProfile(rejectBook),marketLearning:{samples:0,pending:0,buckets:{}}},new Set(),{});
+  openPositions(rejectBook,AGENTS[0],[promotedTrendSuggestion],"All",{minConv:0,maxNew:1,maxFrac:0.04,reserve:0.1,targetExposure:0.6,learning:buildAdaptiveProfile(rejectBook),marketLearning:stablePositiveProfile},new Set(),{});
   const rejectionAccounting=Number(rejectBook.lastDecision&&rejectBook.lastDecision.rejectionCounts&&rejectBook.lastDecision.rejectionCounts.already_held||0)===1;
   const convictionCfg=AGENTS.find(a=>a.id==="conviction"),convictionCapacityCoversTarget=convictionCfg.maxPositions*MAX_AGGRESSIVE_TRADE_LOSS_PCT>=convictionCfg.targetExposure;
   const historyFixture={"2026-01-01":0.40,"2026-01-07":0.50,"2026-01-08":0.55,"2026-01-09":0.90};
@@ -4534,11 +4675,11 @@ function runEngineSelfTest(){
     minConv:0,maxNew:1,maxFrac:0.04,reserve:0.10,targetExposure:0.60,learning:buildAdaptiveProfile(staleEntryBook),marketLearning:{samples:0,pending:0,buckets:{}},
   },new Set(),{});
   const buildMigrationState=defaultState();
-  buildMigrationState.engine_version=54;buildMigrationState.strategy_version=SUGGESTION_ENGINE_VERSION;
+  buildMigrationState.engine_version=55;buildMigrationState.strategy_version=SUGGESTION_ENGINE_VERSION;
   buildMigrationState.agents.value.engine_baseline={version:SUGGESTION_ENGINE_VERSION,started_at:hoursAgo(2),equity:9876.54};
   reconcileStateVersions(buildMigrationState);
   const strategyMigrationState=defaultState();
-  strategyMigrationState.engine_version=54;strategyMigrationState.strategy_version=PREVIOUS_STRATEGY_VERSION;
+  strategyMigrationState.engine_version=55;strategyMigrationState.strategy_version=PREVIOUS_STRATEGY_VERSION;
   strategyMigrationState.agents.value.cash=9876.54;
   strategyMigrationState.agents.value.engine_baseline={version:PREVIOUS_STRATEGY_VERSION,started_at:hoursAgo(2),equity:10000};
   reconcileStateVersions(strategyMigrationState);
@@ -4552,6 +4693,8 @@ function runEngineSelfTest(){
     highEntryTargets:targets,targetsReachable:targets.every(x=>x>0.82&&x<1),
     adaptation:{samples:learningProfile.samples,trendMultiplier:learnedTrend.multiplier,reversalMultiplier:learnedReversal.multiplier,learnsDirection:learnedTrend.multiplier>learnedReversal.multiplier,
       calibrationSamples:calibrationProfile.samples,trendMarketScore:learnedTrend.market_score,reversalMarketScore:learnedReversal.market_score,
+      broadTrendStartsObservationOnly:!trend.trade_ready&&trend.entry_candidate&&trend.audited_observation_only,
+      recentProofCanUnlockTrend:promotedTrendSuggestion.trade_ready&&promotedTrendSuggestion.adaptive_promotion,
       historicalPriorBlocksReversal:!priorReversal.allowed&&priorReversal.blocked_by==="historical",
       reversalRemainsBlockedForExplorer:!explorerReversal.allowed&&explorerReversal.blocked_by==="historical",
       recentProofCanUnlockReversal:promotedReversal.allowed&&promotedReversal.market_state==="promoted"&&promotedReversalSuggestion.trade_ready,
@@ -4561,10 +4704,10 @@ function runEngineSelfTest(){
       historicalPriorSizesRisk:!priorCryptoLongshot.blocked&&priorCryptoLongshot.multiplier<1&&priorCryptoLongshot.features.length===2,
       historicalPriorBlocksSportsTrend:!priorSportsTrend.allowed&&priorSportsTrend.blocked_by==="historical",
       historicalPriorBlocksCryptoTrend:!priorCryptoTrend.allowed&&priorCryptoTrend.blocked_by==="historical",
-      historicalPriorAllowsPoliticsTrend:!priorPoliticsTrend.blocked,
+      historicalPriorBlocksUnprovenPoliticsTrend:priorPoliticsTrend.blocked&&priorPoliticsTrend.requiresPromotion,
       blocksShortDatedNo:!shortNoPrior.allowed&&shortNoPrior.blocked_by==="historical",
       recentProofCanUnlockShortDatedNo:promotedShortNo.allowed&&promotedShortNo.market_state==="promoted",
-      allowsLongDatedNo:!longNoPrior.blocked,
+      blocksLongDatedNoWithoutProof:longNoPrior.blocked&&longNoPrior.requiresPromotion,
       observesConfirmedSignalsWithoutTrading:observationLedgerState.signal_ledger.pending.length===1&&observationLedgerState.signal_ledger.pending[0].trade_ready_at_observation===false,
       deduplicatesPendingMarketSide:observationLedgerState.signal_ledger.pending.length===1,
       oldestPendingSignalsSurviveCapacity:queueLedgerState.signal_ledger.pending.length===SIGNAL_LEDGER_PENDING_LIMIT
@@ -4608,8 +4751,19 @@ function runEngineSelfTest(){
       partialThenCloseReconciles:partialFixture.book.cash===10200&&partialFixture.pos.realized_pnl===200,
       stopOutReconciles:stopFixture.book.positions.length===0&&stopFixture.book.cash===9800&&stopFixture.book.closed[0].realized_pnl===-200,
       settlementReconciles:settlementFixture.book.positions.length===0&&settlementFixture.book.cash===11000&&settlementFixture.book.closed[0].realized_pnl===1000,
+      retiredDirectionalPositionExitsAtFreshPrice:retiredFixture.book.positions.length===0&&retiredFixture.book.closed[0].close_reason.includes("retired")&&Math.abs(retiredFixture.book.cash-retiredEquityBefore)<=0.02,
       riskTrimConservesEquity:+equity(riskBook).toFixed(2)===10000,
       adaptiveReturnSetsLeader:adaptiveRankFixture[0].c.id==="adaptive-leader",
+    },
+    bundleArbitrage:{
+      identifiesPositiveCompleteBundle:bundleSuggestion&&bundleSuggestion.trade_ready&&bundleSuggestion.bundle_legs.length===3&&bundleSuggestion.bundle_net_profit_per_unit===0.005,
+      rejectsEconomicallyTinyLargeBundle:tinyReturnBundle===null,
+      opensAllLegsAtomically:bundleOpenedPositions===3&&bundleUnits>0&&bundleBook.closed.length===3,
+      ignoresIndividualLegStops:bundleSurvivedIntermediateMove,
+      settlementProducesModeledProfit:bundleBook.positions.length===0&&bundleBook.cash>STARTING_BALANCE&&Math.abs(bundleBook.cash-(STARTING_BALANCE+bundleUnits*0.005))<=0.03,
+      requiresLivePrices:Boolean(bundleSuggestion&&bundleSuggestion.requires_live),
+      staleOfflineSnapshotCannotOpen:!offlineBundleSuggestion.trade_ready&&!offlineBundleSuggestion.entry_candidate&&offlineBundleSuggestion.watch_only,
+      openedPositions:bundleOpenedPositions,closedPositions:bundleBook.closed.length,cash:bundleBook.cash,units:bundleUnits||0,decision:bundleOpenDecision,
     },
     offline:{fresh:offlineCachePolicy(30*60000),staleEntry:offlineCachePolicy(3*3600000),expired:offlineCachePolicy(25*3600000),
       staleMarkUpdatesValue:markOnlyBook.positions.length===1&&markOnlyBook.positions[0].value===800,

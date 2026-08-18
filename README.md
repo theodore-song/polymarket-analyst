@@ -15,12 +15,12 @@ https://polymarket-site-eta.vercel.app/personal.html
 
 The site fetches live Polymarket markets, generates agent suggestions, lets you
 run frequent paper cycles, and syncs the shared arena state through Neon or
-Vercel Blob. Build 55 also installs an offline app shell and caches timestamped
+Vercel Blob. Build 56 also installs an offline app shell and caches timestamped
 market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
 
-Build 55 ranks the competition by each agent's return since Strategy 49 began.
+Build 56 ranks the competition by each agent's return since Strategy 50 began.
 Historical replay equity remains visible for context, but it no longer makes an
 agent look like the current leader when the live adaptive strategy is losing.
 
@@ -31,7 +31,7 @@ The learner shrinks small samples toward neutral, caps sizing changes to
 15% of candidates for deterministic exploration so a stale regime cannot become
 permanent.
 
-Strategy 49 treats each binary stake as capable of falling to zero even when the
+Strategy 50 treats each binary stake as capable of falling to zero even when the
 18% stop cannot fill. New core positions are capped at 2.5%-4% of equity and
 aggressive positions at 3%-5%, with lower limits for near-term, extreme-price,
 reversal, and fast-moving setups. Oversized positions inherited from older
@@ -57,9 +57,9 @@ Run `npm run evaluate:signals` to test the price-signal rules against one month
 of hourly Polymarket history. The evaluator forms signals only from prior
 one-hour, one-day, and one-week prices, marks them 6, 12, 24, and 72 hours later,
 applies a conservative half-cent cost estimate, and reports a chronological
-70/30 split plus three consecutive time segments. Results are also clustered by
-market so repeated observations from one contract cannot masquerade as broad
-evidence. Set `EVAL_MARKETS`, `EVAL_CONCURRENCY`, `EVAL_HORIZONS`, or
+70/30 split plus three consecutive time segments. Results are clustered by
+Polymarket event so repeated observations and correlated outcome contracts cannot
+masquerade as broad evidence. Set `EVAL_MARKETS`, `EVAL_CONCURRENCY`, `EVAL_HORIZONS`, or
 `EVAL_COST_CENTS` to change the audit. Set `EVAL_SUMMARY=1` for the compact,
 decision-focused report.
 
@@ -69,7 +69,7 @@ negative in all three chronological segments. Reversals averaged -3.69%, with a
 market-clustered 90% interval entirely below zero. Crypto and Sports were also
 negative but covered only three and five markets. The 24-hour cohort improved to
 -0.82% row mean and +1.31% market mean, with no rule robustly negative across all
-segments. Strategy 49 therefore keeps reversal entries observation-only until
+segments. Strategy 50 therefore keeps reversal entries observation-only until
 their recent signal and quality cohorts independently earn promotion, retains
 their signals for paper grading, and evaluates adaptation at 24 hours.
 
@@ -78,8 +78,19 @@ markets with no failures and produced 3,597 net-of-cost 24-hour outcomes across
 142 markets. No tested follow or fade rule was robustly positive. Crypto trends
 averaged -3.83% per observation and -3.99% per market; Sports trends averaged
 -5.44% and -6.61%. Both stayed negative in every chronological segment and their
-market-clustered 90% intervals were entirely below zero. Strategy 49 therefore
+market-clustered 90% intervals were entirely below zero. Strategy 50 therefore
 keeps Crypto and Sports trends observation-only while continuing to grade them.
+
+The August 18 event-clustered rerun loaded 499 of 500 active markets and produced
+3,894 twelve-hour observations across 156 markets and 102 independent events.
+The broad mean was -1.14%, the event mean was -1.11%, and the event-clustered
+90% interval stayed below zero. No tested category, side, price band, signal
+strength, or combined feature cohort was robustly positive. Broad trends,
+YES trends, favorite trends, strong trends, and hour-confirmed trends were all
+robustly negative. Strategy 50 therefore makes every directional trend or
+reversal observation-only until its own signal, side, and category cohorts each
+earn positive promotion from recent independent events. This is a strategy reset,
+so current adaptive returns begin from the portfolio equity at migration.
 
 A corrected 200-market audit paged through 197 markets with usable history and
 1,912 twelve-hour outcomes. Reversals remained negative in every chronological
@@ -87,23 +98,23 @@ segment and averaged -4.13%. Sports trends were negative in train and test and
 averaged -3.53% at 72 hours. Politics trends were the sole cohort with positive
 row-level returns in all three 72-hour segments, but its market-cluster interval
 still crossed zero; that supports a longer hold test, not a larger entry bet.
-Strategy 49 gives Politics trend positions that 72-hour observation window before
+Strategy 50 gives previously opened Politics trend positions that 72-hour observation window before
 ordinary signal exits. Stops, profit locks, settlement handling, and risk-budget
 reductions remain immediate.
 
-Strategy 49 also subtracts a half-cent round-trip cost when grading each live
+Strategy 50 also subtracts a half-cent round-trip cost when grading each live
 walk-forward signal. Confidence uses the largest independent matching bucket,
 not the sum of five overlapping feature buckets, and evidence from older engine
 versions is down-weighted. This prevents a handful of duplicated observations
 from authorizing larger positions or hiding a modest negative regime.
 
-Strategy 49 adds uncertainty-aware promotion and demotion. A matching setup must
+Strategy 50 adds uncertainty-aware promotion and demotion. A matching setup must
 accumulate at least eight effective observations and agree across at least two
 feature views before repeatable positive evidence can increase size or repeatable
 negative evidence can block a new entry. Mixed evidence stays close to neutral
 instead of being mistaken for an edge.
 
-Build 55 enforces the documented offline boundary end to end. Cached snapshots
+Build 56 enforces the documented offline boundary end to end. Cached snapshots
 under 90 minutes old may continue paper execution. Older snapshots remain usable
 for valuation and chart snapshots for up to 24 hours, but cannot trigger entries,
 stop-losses, gain-stops, risk rebalances, settlements, or policy exits. Network
@@ -116,12 +127,12 @@ adaptive baselines, pending signal grades, and trade evidence remain in one stra
 lineage until the actual entry, sizing, or exit logic changes. Legacy build 40 and 41
 records are migrated into the same strategy lineage without losing evidence.
 
-Build 55 independently refreshes markets for matured pending signals that have
+Build 56 independently refreshes markets for matured pending signals that have
 left the current top-500 activity scan. Unavailable markets remain queued for a
 bounded retry window. This prevents activity-rank survivorship from deciding
 which wins and losses reach the adaptive calibration ledger.
 
-Strategy 49 coordinates high-risk exploration globally. Near-term, extreme-price,
+Strategy 50 coordinates high-risk exploration globally. Near-term, extreme-price,
 and other gap-prone positions may be held materially by only one agent, while
 ordinary independently confirmed markets retain the two-agent cap. The robustly
 negative Sports- and Crypto-trend cohorts cannot enter through exploration.
@@ -140,10 +151,16 @@ cohort robust. Environment variables beginning with
 
 Run `npm run evaluate:neg-risk` to scan complete active negative-risk events for
 whole-event YES or NO bundles using executable best asks/bids, per-leg costs, and
-a minimum-liquidity requirement. The 500-event audit found 33 complete liquid
-negative-risk events and zero positive worst-case bundle returns after costs.
-Midpoint price sums sometimes looked attractive, but executable spreads removed
-the apparent edge, so Strategy 49 does not pretend those snapshots are arbitrage.
+a minimum-liquidity requirement. An earlier 500-event audit found 33 complete
+liquid negative-risk events and zero positive worst-case bundle returns after
+costs. Midpoint price sums sometimes looked attractive, but executable spreads
+removed the apparent edge. The August 18 rerun found 35 eligible events and one
+three-leg NO bundle with a 0.25%
+modeled margin after estimated costs. Strategy 50 can paper-trade such a bundle
+only from live executable prices, opens every leg together, and holds the hedge
+intact until settlement. It also requires at least a 0.15% modeled net return so
+large bundles cannot tie up capital for a negligible absolute edge. Cached bundle
+prices are never allowed to open positions.
 
 The expanded event-clustered run loaded history for 498 of the 500 highest-volume
 resolved markets with no fetch failures. No side, price band, category, trend,
@@ -154,19 +171,19 @@ static settlement-direction boost from this audit.
 
 The earlier 200-resolved-market audit found short-dated NO entries strongly
 negative, but the 500-market rerun did not reproduce that loss in its newer test
-segment. Strategy 49 therefore treats the result as a provisional prior instead
+segment. Strategy 50 therefore treats the result as a provisional prior instead
 of a permanent ban: NO entries with 21 days or less remain observation-only until
 the recent walk-forward calibration promotes their matching side and duration
 cohorts. Exact numeric-range contracts are excluded from new entries because a
 settlement jump can pass directly through an 18% stop; the live audit found that
 this failure mode caused the largest latest-day loss.
 
-Strategy 49 also excludes path-dependent barriers such as "reach $66,000," "hit
+Strategy 50 also excludes path-dependent barriers such as "reach $66,000," "hit
 $90," and "dip to $62,000." These contracts can resolve abruptly as soon as the
 barrier is touched, so a later hourly stop cannot reliably cap the loss. Fixed-date
 level questions such as "above $66,000 on August 23" remain eligible.
 
-Strategy 49 clusters live walk-forward observations by Polymarket event before
+Strategy 50 clusters live walk-forward observations by Polymarket event before
 calculating confidence. Multiple six-hour snapshots and correlated outcome
 markets from the same event are averaged into one effective outcome, so one
 election or tournament cannot promote or demote an entire feature cohort.
