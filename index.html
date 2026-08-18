@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 45 · build 48</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 46 · build 49</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 48 active:</b> Crypto and Sports trends are observation-only after a 500-market walk-forward audit found repeatable 24-hour losses. Reversal and short-dated NO signals can return only after their own recent cohorts earn promotion. Exact-range contracts remain excluded because settlement jumps can bypass stops. This remains paper trading; profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 49 active:</b> Crypto and Sports trends are observation-only after a 500-market walk-forward audit found repeatable 24-hour losses. Reversal and short-dated NO signals can return only after their own recent cohorts earn promotion. Exact ranges and path-dependent "reach / hit / dip" barriers are excluded because abrupt resolution can bypass stops. This remains paper trading; profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 48 · Adaptive strategy 45 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build 49 · Adaptive strategy 46 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,9 +774,9 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 48;
-const SUGGESTION_ENGINE_VERSION = 45;
-const PREVIOUS_STRATEGY_VERSION = 44;
+const BUILD_VERSION = 49;
+const SUGGESTION_ENGINE_VERSION = 46;
+const PREVIOUS_STRATEGY_VERSION = 45;
 const LEGACY_BUILD_STRATEGY_LINEAGE = Object.freeze({40:40,41:40});
 function normalizedStrategyVersion(value){
   const version=Number(value||0);
@@ -1175,7 +1175,8 @@ function fastSettlementRisk(m){
   const numericRange=/\b\d+(?:\.\d+)?\s*(?:%|percent)?\s*(?:-|–|—|to)\s*\d+(?:\.\d+)?\s*(?:%|percent|votes?|points?|seats?|bps|basis points?|tweets?|posts?|goals?)(?![a-z])/;
   const currencyRange=/[$€£]\d+(?:\.\d+)?\s*(?:-|–|—|to)\s*[$€£]?\d+(?:\.\d+)?/;
   const betweenRange=/\bbetween\s+[$€£]?\d+(?:\.\d+)?\s*(?:%|percent)?\s+(?:and|to)\s+[$€£]?\d+(?:\.\d+)?/;
-  if(numericRange.test(text)||currencyRange.test(text)||betweenRange.test(text))return true;
+  const pathDependentBarrier=/\b(?:reach|hit|touch|dip(?:\s+(?:to|below))?|rise\s+(?:to|above)|fall\s+(?:to|below))\b[^?]{0,45}(?:[$€£]\s*)?\d[\d,]*(?:\.\d+)?\s*(?:%|percent|k|m|b|points?|bps|basis points?)?/;
+  if(numericRange.test(text)||currencyRange.test(text)||betweenRange.test(text)||pathDependentBarrier.test(text))return true;
   if(/\bexact score\b|\bscore:\s*\d|\bposts? \d+-\d+|\bnumber of (tweets|posts)\b/.test(text))return true;
   if(/\bvs\.?\b/.test(text))return true;
   if((m&&m.category)==="Sports"){
@@ -4321,7 +4322,7 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
     staleCacheIsMarkOnly:true,strategyEvidenceSurvivesBuilds:true,signalEvaluationHours:SIGNAL_EVAL_HOURS,signalRetryHours:SIGNAL_LEDGER_RETRY_HOURS,
     signalDueFetchLimit:SIGNAL_LEDGER_DUE_FETCH_LIMIT,survivorshipSafeSignalGrading:true,
     signalRoundTripCostCents:SIGNAL_ROUND_TRIP_COST*100,independentConfidence:true,uncertaintyGatedCalibration:true,
-    historicalPrior:"Sports and Crypto trends observation-only; reversal and short-dated NO require recent cohort promotion; exact ranges excluded; longshots and YES sized down"}),
+    historicalPrior:"Sports and Crypto trends observation-only; reversal and short-dated NO require recent cohort promotion; exact ranges and path-dependent barriers excluded; longshots and YES sized down"}),
 });
 function runEngineSelfTest(){
   const market=(overrides={})=>Object.assign({
@@ -4337,6 +4338,8 @@ function runEngineSelfTest(){
   const noSignal=analyzeMarket(market({price_change_1h:0,price_change_1d:0.002,price_change_1w:-0.002}),news);
   const reversal=analyzeMarket(market({price_change_1h:-0.01,price_change_1d:0.07,price_change_1w:0.02}),news);
   const intervalContract=analyzeMarket(market({id:"range-test",question:"Will Count Binface win 20–30% of votes?"}),news);
+  const pathBarrierContract=analyzeMarket(market({id:"barrier-test",question:"Will Bitcoin reach $66,000 August 17-23?",category:"Crypto"}),news);
+  const fixedDateLevelContract=analyzeMarket(market({id:"fixed-level-test",question:"Will Bitcoin be above $66,000 on 2026-08-23?",category:"Crypto"}),news);
   const ordinaryDatedContract=analyzeMarket(market({id:"dated-test",question:"Will the policy pass on 2026-08-22?"}),news);
   const targets=window.PMA_ENGINE_DIAGNOSTICS.gainStopTargets(0.82);
   const hoursAgo=h=>new Date(Date.now()-h*3600000).toISOString();
@@ -4462,11 +4465,11 @@ function runEngineSelfTest(){
   delete executableBook.positions[0].price_status;
   markToMarket(executableBook,{"offline-mark":market({id:"offline-mark",yes_price:0.8,no_price:0.2})},AGENTS[0],{policyExits:true,executeTrades:true});
   const buildMigrationState=defaultState();
-  buildMigrationState.engine_version=47;buildMigrationState.strategy_version=SUGGESTION_ENGINE_VERSION;
+  buildMigrationState.engine_version=48;buildMigrationState.strategy_version=SUGGESTION_ENGINE_VERSION;
   buildMigrationState.agents.value.engine_baseline={version:SUGGESTION_ENGINE_VERSION,started_at:hoursAgo(2),equity:9876.54};
   reconcileStateVersions(buildMigrationState);
   const strategyMigrationState=defaultState();
-  strategyMigrationState.engine_version=47;strategyMigrationState.strategy_version=PREVIOUS_STRATEGY_VERSION;
+  strategyMigrationState.engine_version=48;strategyMigrationState.strategy_version=PREVIOUS_STRATEGY_VERSION;
   strategyMigrationState.agents.value.cash=9876.54;
   strategyMigrationState.agents.value.engine_baseline={version:PREVIOUS_STRATEGY_VERSION,started_at:hoursAgo(2),equity:10000};
   reconcileStateVersions(strategyMigrationState);
@@ -4512,7 +4515,9 @@ function runEngineSelfTest(){
       noisyEvidenceStaysNeutral:noisyCalibration.state==="observing"&&noisyCalibration.multiplier>=0.99&&noisyCalibration.multiplier<=1.01,
       blocksConfirmedLosingRegime:!lossOpportunity.allowed,containmentMode:lossDecision.mode,containmentMaxNew:lossDecision.maxNew,
       legacyLossDoesNotFreezeCurrentEngine:legacyLossDecision.mode!=="Loss Regime Containment"},
-    riskBudget:{core:coreRiskBudget,aggressiveGap:aggressiveGapBudget,blocksExactRange:intervalContract.jump_risk&&!intervalContract.trade_ready,preservesOrdinaryDatedContract:!ordinaryDatedContract.jump_risk,boundedStake:boundedStakeForRisk(10000,1000,riskCfg,{entry_price:0.82,days_to_resolution:5,price_change_1d:0.06}),
+    riskBudget:{core:coreRiskBudget,aggressiveGap:aggressiveGapBudget,blocksExactRange:intervalContract.jump_risk&&!intervalContract.trade_ready,
+      blocksPathDependentBarrier:pathBarrierContract.jump_risk&&!pathBarrierContract.trade_ready,preservesFixedDateLevel:!fixedDateLevelContract.jump_risk,
+      preservesOrdinaryDatedContract:!ordinaryDatedContract.jump_risk,boundedStake:boundedStakeForRisk(10000,1000,riskCfg,{entry_price:0.82,days_to_resolution:5,price_change_1d:0.06}),
       legacyNormalizedValue:riskPos.value,equityPreserved:+equity(riskBook).toFixed(2),capsBinaryGap:aggressiveGapBudget===0.03&&riskPos.value<=300.01},
     offline:{fresh:offlineCachePolicy(30*60000),staleEntry:offlineCachePolicy(3*3600000),expired:offlineCachePolicy(25*3600000),
       staleMarkUpdatesValue:markOnlyBook.positions.length===1&&markOnlyBook.positions[0].value===800,
