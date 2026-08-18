@@ -15,10 +15,14 @@ https://polymarket-site-eta.vercel.app/personal.html
 
 The site fetches live Polymarket markets, generates agent suggestions, lets you
 run frequent paper cycles, and syncs the shared arena state through Neon or
-Vercel Blob. Build 53 also installs an offline app shell and caches timestamped
+Vercel Blob. Build 55 also installs an offline app shell and caches timestamped
 market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
+
+Build 55 ranks the competition by each agent's return since Strategy 49 began.
+Historical replay equity remains visible for context, but it no longer makes an
+agent look like the current leader when the live adaptive strategy is losing.
 
 Each agent learns bounded weights from its own v34+ trade outcomes across signal
 type, setup quality, category, side, entry-price band, and time to resolution.
@@ -99,7 +103,7 @@ feature views before repeatable positive evidence can increase size or repeatabl
 negative evidence can block a new entry. Mixed evidence stays close to neutral
 instead of being mistaken for an edge.
 
-Build 53 enforces the documented offline boundary end to end. Cached snapshots
+Build 55 enforces the documented offline boundary end to end. Cached snapshots
 under 90 minutes old may continue paper execution. Older snapshots remain usable
 for valuation and chart snapshots for up to 24 hours, but cannot trigger entries,
 stop-losses, gain-stops, risk rebalances, settlements, or policy exits. Network
@@ -112,7 +116,7 @@ adaptive baselines, pending signal grades, and trade evidence remain in one stra
 lineage until the actual entry, sizing, or exit logic changes. Legacy build 40 and 41
 records are migrated into the same strategy lineage without losing evidence.
 
-Build 53 independently refreshes markets for matured pending signals that have
+Build 55 independently refreshes markets for matured pending signals that have
 left the current top-500 activity scan. Unavailable markets remain queued for a
 bounded retry window. This prevents activity-rank survivorship from deciding
 which wins and losses reach the adaptive calibration ledger.

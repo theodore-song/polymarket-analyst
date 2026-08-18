@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 49 · build 53</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 49 · build 55</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 53 active:</b> adaptive evidence is clustered by Polymarket event, and the pending ledger preserves the oldest signals until grading. Correlated outcome markets cannot promote a strategy as independent bets. Crypto and Sports trends remain observation-only; settlement-jump barriers remain excluded. This remains paper trading; profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 55 active:</b> the competition is ranked by current adaptive-strategy return rather than legacy replay equity. Event-clustered evidence, protected signal grading, and transaction conservation tests remain active. This remains paper trading; profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -425,7 +425,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
       <div class="card-h"><h3>Returns — all agents</h3><div><span class="small muted">$10,000 start each</span><div class="rangebar" data-chart-ranges></div></div></div>
       <div class="chart-wrap"><svg id="chart2" viewBox="0 0 960 320" preserveAspectRatio="xMidYMid meet"></svg></div>
       <div class="legend" id="comboLegend2"></div>
-      <div class="small muted" style="margin-top:10px">The initial week is an approximate historical replay using prices available on each day and current liquidity as a proxy. Adaptive return continues across builds until the trading strategy itself changes.</div>
+      <div class="small muted" style="margin-top:10px">Leaderboard rank uses current adaptive-strategy return. The chart and legacy/replay figure preserve older history for context; adaptive return continues across builds until the trading strategy itself changes.</div>
     </div>
   </section>
 
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 53 · Adaptive strategy 49 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build 55 · Adaptive strategy 49 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 53;
+const BUILD_VERSION = 55;
 const SUGGESTION_ENGINE_VERSION = 49;
 const PREVIOUS_STRATEGY_VERSION = 48;
 const LEGACY_BUILD_STRATEGY_LINEAGE = Object.freeze({40:40,41:40});
@@ -2606,12 +2606,15 @@ function format24h(change){
   const value=fmtPct(change.pct);
   return change.hours>=20?value:`${value} (${Math.max(1,Math.round(change.hours))}h)`;
 }
+function rankBoardRows(rows){
+  return [...rows].sort((a,b)=>(b.engineRet-a.engineRet)||(b.enginePnl-a.enginePnl)||(b.eq-a.eq));
+}
 function board(){
   const st=loadState();
-  return AGENTS.map(c=>{const p=st.agents[c.id]||defaultPortfolio();const eq=equity(p);
+  return rankBoardRows(AGENTS.map(c=>{const p=st.agents[c.id]||defaultPortfolio();const eq=equity(p);
     const baseline=Number(p.engine_baseline&&normalizedStrategyVersion(p.engine_baseline.version)===SUGGESTION_ENGINE_VERSION?p.engine_baseline.equity:eq);
     return {c,p,eq,pnl:eq-STARTING_BALANCE,ret:(eq/STARTING_BALANCE-1)*100,enginePnl:eq-baseline,engineRet:baseline>0?(eq/baseline-1)*100:0,change24h:portfolioChange24h(p,eq)};})
-    .sort((a,b)=>b.eq-a.eq);
+  );
 }
 const MEDALS=["🥇","🥈","🥉"];
 
@@ -2622,16 +2625,16 @@ function renderOverview(){
   const b=board(); const lead=b[0];
   const avgRet=b.reduce((s,r)=>s+r.ret,0)/b.length;
   const engineAvg=b.reduce((s,r)=>s+r.engineRet,0)/b.length;
-  const core=b.filter(r=>!r.c.aggressive),coreAvg=core.reduce((s,r)=>s+r.ret,0)/Math.max(1,core.length);
-  const aggressive=b.filter(r=>r.c.aggressive),aggressiveAvg=aggressive.reduce((s,r)=>s+r.ret,0)/Math.max(1,aggressive.length);
+  const core=b.filter(r=>!r.c.aggressive),coreAvg=core.reduce((s,r)=>s+r.engineRet,0)/Math.max(1,core.length);
+  const aggressive=b.filter(r=>r.c.aggressive),aggressiveAvg=aggressive.reduce((s,r)=>s+r.engineRet,0)/Math.max(1,aggressive.length);
   const sugCount=(loadSuggestions().suggestions||[]).length;
   const stats=[
     {ic:lead.c.emoji,label:"Leader",value:lead.c.name.split(" ")[0]},
-    {ic:"📈",label:"Leader return",value:fmtPct(lead.ret),cls:signClass(lead.pnl)},
+    {ic:"📈",label:"Leader adaptive",value:fmtPct(lead.engineRet),cls:signClass(lead.enginePnl)},
     {ic:"⚖️",label:"Legacy / replay avg",value:fmtPct(avgRet),cls:signClass(avgRet)},
     {ic:"🧪",label:"Adaptive avg",value:fmtPct(engineAvg),cls:signClass(engineAvg)},
-    {ic:"🧠",label:"Core strategy avg",value:fmtPct(coreAvg),cls:signClass(coreAvg)},
-    {ic:"⚡",label:"Aggressive avg",value:fmtPct(aggressiveAvg),cls:signClass(aggressiveAvg)},
+    {ic:"🧠",label:"Core adaptive avg",value:fmtPct(coreAvg),cls:signClass(coreAvg)},
+    {ic:"⚡",label:"Aggressive adaptive",value:fmtPct(aggressiveAvg),cls:signClass(aggressiveAvg)},
     {ic:"💡",label:"Scored ideas",value:sugCount},
     {ic:"🏆",label:"Agents",value:AGENTS.length},
   ];
@@ -2774,13 +2777,13 @@ function renderAgentBrief(cfg,p,st){
 }
 function renderLeaderboard(){
   const b=board(); const st=loadState();
-  $("lbSub").textContent="· "+b[0].c.name+" leads";
+  $("lbSub").textContent=`· ${b[0].c.name} leads Strategy ${SUGGESTION_ENGINE_VERSION}`;
   $("leaderboard").innerHTML=b.map((r,i)=>`
     <div class="lb-card" data-agent="${r.c.id}" style="border-top:3px solid ${r.c.color}">
       <span class="rankpill">#${i+1}</span>
       <div class="lb-top"><span class="medal">${MEDALS[i]||""}</span><span class="lb-emoji">${r.c.emoji}</span>
         <div><div class="lb-name">${r.c.name}</div><div class="lb-blurb">${agentBlurb(r.c,st)}</div></div></div>
-      <div class="lb-mid"><div class="lb-eq">${fmtUSD(r.eq)}</div><div><div class="lb-ret ${signClass(r.pnl)}">${fmtPct(r.ret)}</div><div class="small ${signClass(r.enginePnl)}">adaptive ${fmtPct(r.engineRet)}</div><div class="small ${signClass(r.change24h.pct)}">24h ${format24h(r.change24h)}</div></div></div>
+      <div class="lb-mid"><div class="lb-eq">${fmtUSD(r.eq)}</div><div><div class="lb-ret ${signClass(r.enginePnl)}">${fmtPct(r.engineRet)}</div><div class="small ${signClass(r.pnl)}">legacy/replay ${fmtPct(r.ret)}</div><div class="small ${signClass(r.change24h.pct)}">24h ${format24h(r.change24h)}</div></div></div>
       <div class="lb-foot"><span class="muted small">${r.p.positions.length} open · ${r.p.closed.length} closed</span>${miniSpark(r.p.snapshots,r.c.color)}</div>
     </div>`).join("");
   document.querySelectorAll("#leaderboard .lb-card").forEach(el=>{
@@ -4472,6 +4475,27 @@ function runEngineSelfTest(){
     original_shares:2000,original_cost:1000,unrealized_pnl:0,opened_at:hoursAgo(48),strategy_version:35,quality:"confirmed",signal_type:"trend",price_change_1d:0.06};
   riskBook.positions=[riskPos];
   normalizeLegacyPositionRisk(riskBook,riskPos,riskCfg,market({id:"risk-test",yes_price:0.5,no_price:0.5,days_to_resolution:5,price_change_1d:0.06}));
+  const accountingBook=(price=0.5)=>{
+    const book=defaultPortfolio();book.cash=9000;
+    const pos={market_id:`accounting-${price}`,question:"Accounting fixture",side:"YES",shares:2000,entry_price:0.5,current_price:price,cost:1000,value:2000*price,
+      original_shares:2000,original_cost:1000,unrealized_pnl:2000*price-1000,opened_at:hoursAgo(48),strategy_version:SUGGESTION_ENGINE_VERSION,
+      quality:"confirmed",signal_type:"trend",gain_stops:{},stop_losses:{}};
+    book.positions=[pos];return {book,pos};
+  };
+  const fullCloseFixture=accountingBook(0.6),fullCloseEquity=equity(fullCloseFixture.book);
+  closePosition(fullCloseFixture.book,fullCloseFixture.pos,"Accounting full close");fullCloseFixture.book.positions=[];
+  const partialFixture=accountingBook(0.6),partialEquityBefore=equity(partialFixture.book);
+  takeProfitPosition(partialFixture.book,partialFixture.pos,GAIN_STOP_TIERS[0]);
+  const partialEquityAfter=equity(partialFixture.book),partialRealizedAfterFirst=partialFixture.pos.partial_realized_pnl;
+  closePosition(partialFixture.book,partialFixture.pos,"Accounting final close");partialFixture.book.positions=[];
+  const stopFixture=accountingBook(0.4);
+  markToMarket(stopFixture.book,{[stopFixture.pos.market_id]:market({id:stopFixture.pos.market_id,yes_price:0.4,no_price:0.6})},AGENTS[0],{policyExits:true,executeTrades:true});
+  const settlementFixture=accountingBook(1);
+  markToMarket(settlementFixture.book,{[settlementFixture.pos.market_id]:market({id:settlementFixture.pos.market_id,yes_price:1,no_price:0,closed:true,accepting_orders:false})},AGENTS[0],{policyExits:true,executeTrades:true});
+  const adaptiveRankFixture=rankBoardRows([
+    {c:{id:"legacy-leader"},eq:20000,enginePnl:-200,engineRet:-1},
+    {c:{id:"adaptive-leader"},eq:9000,enginePnl:200,engineRet:2},
+  ]);
   const mock={agents:{}};AGENTS.forEach(a=>mock.agents[a.id]=defaultPortfolio());
   ["value","momentum","favorite"].forEach((id,i)=>mock.agents[id].positions.push({market_id:"overlap-test",question:"Overlap test",side:"YES",shares:1000,current_price:0.5,entry_price:0.5,cost:500,value:500,unrealized_pnl:0,conviction:70-i,opened_at:hoursAgo(24)}));
   reduceStrategyOverlap(mock);
@@ -4510,11 +4534,11 @@ function runEngineSelfTest(){
     minConv:0,maxNew:1,maxFrac:0.04,reserve:0.10,targetExposure:0.60,learning:buildAdaptiveProfile(staleEntryBook),marketLearning:{samples:0,pending:0,buckets:{}},
   },new Set(),{});
   const buildMigrationState=defaultState();
-  buildMigrationState.engine_version=52;buildMigrationState.strategy_version=SUGGESTION_ENGINE_VERSION;
+  buildMigrationState.engine_version=54;buildMigrationState.strategy_version=SUGGESTION_ENGINE_VERSION;
   buildMigrationState.agents.value.engine_baseline={version:SUGGESTION_ENGINE_VERSION,started_at:hoursAgo(2),equity:9876.54};
   reconcileStateVersions(buildMigrationState);
   const strategyMigrationState=defaultState();
-  strategyMigrationState.engine_version=52;strategyMigrationState.strategy_version=PREVIOUS_STRATEGY_VERSION;
+  strategyMigrationState.engine_version=54;strategyMigrationState.strategy_version=PREVIOUS_STRATEGY_VERSION;
   strategyMigrationState.agents.value.cash=9876.54;
   strategyMigrationState.agents.value.engine_baseline={version:PREVIOUS_STRATEGY_VERSION,started_at:hoursAgo(2),equity:10000};
   reconcileStateVersions(strategyMigrationState);
@@ -4578,6 +4602,15 @@ function runEngineSelfTest(){
       explainsPathDependentBarrier:pathBarrierContract.rationale.includes("jump directly to settlement"),preservesFixedDateLevel:!fixedDateLevelContract.jump_risk,
       preservesOrdinaryDatedContract:!ordinaryDatedContract.jump_risk,boundedStake:boundedStakeForRisk(10000,1000,riskCfg,{entry_price:0.82,days_to_resolution:5,price_change_1d:0.06}),
       legacyNormalizedValue:riskPos.value,equityPreserved:+equity(riskBook).toFixed(2),capsBinaryGap:aggressiveGapBudget===0.03&&riskPos.value<=300.01},
+    accounting:{
+      fullCloseConservesEquity:Math.abs(fullCloseFixture.book.cash-fullCloseEquity)<=0.02&&fullCloseFixture.pos.realized_pnl===200,
+      partialSaleConservesEquity:Math.abs(partialEquityAfter-partialEquityBefore)<=0.02&&partialRealizedAfterFirst===50,
+      partialThenCloseReconciles:partialFixture.book.cash===10200&&partialFixture.pos.realized_pnl===200,
+      stopOutReconciles:stopFixture.book.positions.length===0&&stopFixture.book.cash===9800&&stopFixture.book.closed[0].realized_pnl===-200,
+      settlementReconciles:settlementFixture.book.positions.length===0&&settlementFixture.book.cash===11000&&settlementFixture.book.closed[0].realized_pnl===1000,
+      riskTrimConservesEquity:+equity(riskBook).toFixed(2)===10000,
+      adaptiveReturnSetsLeader:adaptiveRankFixture[0].c.id==="adaptive-leader",
+    },
     offline:{fresh:offlineCachePolicy(30*60000),staleEntry:offlineCachePolicy(3*3600000),expired:offlineCachePolicy(25*3600000),
       staleMarkUpdatesValue:markOnlyBook.positions.length===1&&markOnlyBook.positions[0].value===800,
       staleMarkPreservesTrades:markOnlyBook.positions.length===1&&markOnlyBook.positions[0].shares===1000&&markOnlyBook.cash===9500&&markOnlyBook.positions[0].price_status==="cached-mark-only",
