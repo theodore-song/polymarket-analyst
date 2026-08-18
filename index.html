@@ -425,7 +425,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
       <div class="card-h"><h3>Returns — all agents</h3><div><span class="small muted">$10,000 start each</span><div class="rangebar" data-chart-ranges></div></div></div>
       <div class="chart-wrap"><svg id="chart2" viewBox="0 0 960 320" preserveAspectRatio="xMidYMid meet"></svg></div>
       <div class="legend" id="comboLegend2"></div>
-      <div class="small muted" style="margin-top:10px">Past week is a backtest. After that, each live cycle adds another return snapshot for every agent.</div>
+      <div class="small muted" style="margin-top:10px">The initial week is an approximate historical replay using prices available on each day and current liquidity as a proxy. The v36 return starts from live cycles only.</div>
     </div>
   </section>
 
@@ -2195,7 +2195,7 @@ function agentMomentumStats(p){
    so the equity curves show a plausible past week instead of a flat line. */
 function lastNDates(n){const out=[];const now=new Date();for(let i=n-1;i>=0;i--){const x=new Date(now);x.setUTCDate(now.getUTCDate()-i);out.push(x.toISOString().slice(0,10));}return out;}
 async function fetchPriceHistory(tokenId){
-  try{const r=await fetch(`${CLOB}/prices-history?market=${tokenId}&interval=1w&fidelity=1440`);
+  try{const r=await fetch(`${CLOB}/prices-history?market=${tokenId}&interval=1m&fidelity=1440`);
     if(!r.ok)return null;const d=await r.json();const map={};
     (d.history||[]).forEach(h=>{map[new Date(h.t*1000).toISOString().slice(0,10)]=h.p;});
     return Object.keys(map).length?map:null;}catch(e){return null;}
@@ -2207,14 +2207,23 @@ async function fetchClobTokens(marketId){
 function priceOnDay(map,day,fallback){
   if(!map)return fallback;let best=null,bd=null;
   for(const dt in map){if(dt<=day&&(bd===null||dt>bd)){bd=dt;best=map[dt];}}
-  if(best!=null)return best;
-  const ks=Object.keys(map).sort();return ks.length?map[ks[0]]:fallback;
+  return best!=null?best:fallback;
+}
+function offsetIsoDay(day,delta){
+  const d=new Date(`${day}T00:00:00Z`);d.setUTCDate(d.getUTCDate()+delta);return d.toISOString().slice(0,10);
+}
+function historicalPriceFeatures(map,day,currentPrice){
+  const current=Number(currentPrice),previous=priceOnDay(map,offsetIsoDay(day,-1),null),week=priceOnDay(map,offsetIsoDay(day,-7),null);
+  return {price_change_1h:0,
+    price_change_1d:Number.isFinite(previous)?+(current-previous).toFixed(4):0,
+    price_change_1w:Number.isFinite(week)?+(current-week).toFixed(4):0};
 }
 /* Full day-by-day backtest: for each of the past 7 days, rebuild each sampled market's
    state from that day's real price (+ correct time-to-resolution), re-run the
    scoring engine, and step every strategy agent through a day of trading.
    NOTE: volume/liquidity signals use current values as a proxy — Polymarket
-   does not expose historical volume. Price & timing are truly historical. */
+   does not expose historical volume. Daily and weekly price changes use only
+   prices available by the simulated day; hourly reversal signals stay disabled. */
 async function backtestWeek(st){
   const dates=lastNDates(7), start=dates[0];
   AGENTS.forEach(a=>{st.agents[a.id]=defaultPortfolio();});
@@ -2233,7 +2242,7 @@ async function backtestWeek(st){
       if(yp==null||yp<=0.02||yp>=0.98)continue;
       const dtr=m.end_date?(new Date(m.end_date)-new Date(day+"T12:00:00Z"))/86400000:null;
       if(dtr!=null&&dtr<-0.5)continue;
-      snaps.push(Object.assign({},m,{yes_price:+yp.toFixed(4),no_price:+(1-yp).toFixed(4),days_to_resolution:dtr}));
+      snaps.push(Object.assign({},m,historicalPriceFeatures(hist[m.id],day,yp),{yes_price:+yp.toFixed(4),no_price:+(1-yp).toFixed(4),days_to_resolution:dtr}));
     }
     const sugs=generateSuggestions(snaps);
     const priceMap={}; snaps.forEach(s=>priceMap[s.id]={yes_price:s.yes_price,no_price:s.no_price});
@@ -2390,7 +2399,7 @@ function renderOverview(){
   const stats=[
     {ic:lead.c.emoji,label:"Leader",value:lead.c.name.split(" ")[0]},
     {ic:"📈",label:"Leader return",value:fmtPct(lead.ret),cls:signClass(lead.pnl)},
-    {ic:"⚖️",label:"Legacy avg",value:fmtPct(avgRet),cls:signClass(avgRet)},
+    {ic:"⚖️",label:"Legacy / replay avg",value:fmtPct(avgRet),cls:signClass(avgRet)},
     {ic:"🧪",label:`v${SUGGESTION_ENGINE_VERSION} avg`,value:fmtPct(engineAvg),cls:signClass(engineAvg)},
     {ic:"🧠",label:"Core strategy avg",value:fmtPct(coreAvg),cls:signClass(coreAvg)},
     {ic:"⚡",label:"Aggressive avg",value:fmtPct(aggressiveAvg),cls:signClass(aggressiveAvg)},
@@ -4074,6 +4083,7 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
   learnedOpportunity,
   tradeLossBudgetPct,
   boundedStakeForRisk,
+  historicalPriceFeatures,
   offlineCachePolicy,
   gainStopTargets:(entry)=>GAIN_STOP_TIERS.map(t=>gainStopTarget({entry_price:Number(entry),cost:1,shares:1,gain_stops:{}},t)),
   rules:Object.freeze({minimumPolicyHoldHours:MIN_POLICY_HOLD_HOURS,exitConfirmationHours:EXIT_CONFIRM_HOURS,maxAgentOverlap:2,materialOverlapPct:1.25,stopLossPct:18,
@@ -4145,6 +4155,10 @@ function runEngineSelfTest(){
   openPositions(rejectBook,AGENTS[0],[trend],"All",{minConv:0,maxNew:1,maxFrac:0.04,reserve:0.1,targetExposure:0.6,learning:buildAdaptiveProfile(rejectBook),marketLearning:{samples:0,pending:0,buckets:{}}},new Set(),{});
   const rejectionAccounting=Number(rejectBook.lastDecision&&rejectBook.lastDecision.rejectionCounts&&rejectBook.lastDecision.rejectionCounts.already_held||0)===1;
   const convictionCfg=AGENTS.find(a=>a.id==="conviction"),convictionCapacityCoversTarget=convictionCfg.maxPositions*MAX_AGGRESSIVE_TRADE_LOSS_PCT>=convictionCfg.targetExposure;
+  const historyFixture={"2026-01-01":0.40,"2026-01-07":0.50,"2026-01-08":0.55,"2026-01-09":0.90};
+  const historicalFeatures=historicalPriceFeatures(historyFixture,"2026-01-08",0.55);
+  const backtestNoLookahead=priceOnDay({"2026-01-09":0.90},"2026-01-08",null)===null
+    &&historicalFeatures.price_change_1h===0&&historicalFeatures.price_change_1d===0.05&&historicalFeatures.price_change_1w===0.15;
   return {version:SUGGESTION_ENGINE_VERSION,
     trend:{ready:trend.trade_ready,quality:trend.quality,side:trend.side,margin:trend.net_edge},
     noSignal:{ready:noSignal.trade_ready,quality:noSignal.quality,signal:noSignal.signal_type,margin:noSignal.net_edge},
@@ -4159,6 +4173,7 @@ function runEngineSelfTest(){
       legacyNormalizedValue:riskPos.value,equityPreserved:+equity(riskBook).toFixed(2),capsBinaryGap:aggressiveGapBudget===0.03&&riskPos.value<=300.01},
     offline:{fresh:offlineCachePolicy(30*60000),staleEntry:offlineCachePolicy(3*3600000),expired:offlineCachePolicy(25*3600000)},
     exits:{youngConflict:exitReason(young,fresh,conflict,AGENTS[0]),matureConflict:exitReason(mature,fresh,conflict,AGENTS[0]),trailing:trailingProfitReason(trailing)},
+    backtest:{noLookahead:backtestNoLookahead,features:historicalFeatures},
     overlapRemaining,immaterialRunnerDoesNotBlock,rejectionAccounting,convictionCapacityCoversTarget,rules:window.PMA_ENGINE_DIAGNOSTICS.rules};
 }
 if(new URLSearchParams(location.search).get("engine_test")==="1"){

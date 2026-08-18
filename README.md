@@ -39,6 +39,12 @@ price is known, grades it at least 12 hours later, and combines that broad marke
 calibration with each agent's personal outcomes. This expands the learning sample
 without backfilling future information into old decisions.
 
+The initial seven-day chart seed is an approximate replay, not a live return.
+It uses only prices available on each simulated date, computes daily and weekly
+changes from those historical prices, disables unavailable hourly reversal data,
+and labels the combined number as legacy/replay. Engine-version returns are the
+clean live comparison.
+
 Paper accounts created with a password are also saved through the backend, so a
 user can log in from another device and see the same paper portfolio, activity,
 and value history. Passwordless paper accounts remain local-only.
