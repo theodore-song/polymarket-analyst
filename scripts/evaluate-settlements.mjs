@@ -74,6 +74,19 @@ function priceBand(price) {
   return "heavy-favorite";
 }
 
+function confirmedTrendAt(points, target, current) {
+  const dayPoint = atOrBefore(points, target - DAY), weekPoint = atOrBefore(points, target - 7 * DAY);
+  if (!dayPoint || !weekPoint || target - DAY - dayPoint.t > 36 * 3600 || target - 7 * DAY - weekPoint.t > 36 * 3600) return null;
+  const dayMove = current.p - dayPoint.p, weekMove = current.p - weekPoint.p;
+  const daySign = Math.sign(dayMove), weekSign = Math.sign(weekMove);
+  const confirmed = daySign && daySign === weekSign && Math.abs(dayMove) >= 0.006 && Math.abs(weekMove) >= 0.012
+    && Math.abs(dayMove) <= 0.08 && Math.abs(weekMove) <= 0.18;
+  if (!confirmed) return null;
+  return { side: daySign > 0 ? "YES" : "NO", dayMove, weekMove,
+    strong: Math.abs(dayMove) >= 0.015 && Math.abs(weekMove) >= 0.03,
+    moderate: Math.abs(dayMove) <= 0.03 && Math.abs(weekMove) <= 0.10 };
+}
+
 async function fetchResolvedMarkets(limit) {
   const raw = [], seen = new Set(), pageSize = 100;
   for (let offset = 0; raw.length < limit && offset < limit * 3; offset += pageSize) {
@@ -105,12 +118,15 @@ function evaluateMarket(market, points) {
     const maximumStaleness = Math.max(36 * 3600, horizonDays * DAY * 0.15);
     if (!point || target - point.t > maximumStaleness || point.p <= 0.03 || point.p >= 0.97) continue;
     const yesEntry = point.p, noEntry = 1 - point.p, favoriteSide = yesEntry >= noEntry ? "YES" : "NO";
-    const winningSide = market.finalYes ? "YES" : "NO";
+    const winningSide = market.finalYes ? "YES" : "NO", trend = confirmedTrendAt(points, target, point);
     for (const side of ["YES", "NO"]) {
       const entry = side === "YES" ? yesEntry : noEntry, final = side === winningSide ? 1 : 0;
       const netReturn = final / entry - 1 - (COST_CENTS / 100) / entry;
       rows.push({ marketId: market.id, eventId: market.eventId, question: market.question, category: market.category, closedAt: market.closedAt,
         horizonDays, side, favorite: side === favoriteSide, winner: side === winningSide,
+        trend: Boolean(trend && trend.side === side), trendSide: trend?.side || null,
+        dayMove: trend?.dayMove || 0, weekMove: trend?.weekMove || 0,
+        strongTrend: Boolean(trend?.strong), moderateTrend: Boolean(trend?.moderate),
         entry, band: priceBand(entry), netReturn });
     }
   }
@@ -152,9 +168,17 @@ const RULES = [
   { name: "buy_underdog", test: (row) => !row.favorite },
   { name: "buy_yes", test: (row) => row.side === "YES" },
   { name: "buy_no", test: (row) => row.side === "NO" },
+  { name: "follow_trend", test: (row) => row.trend },
+  { name: "follow_trend_yes", test: (row) => row.trend && row.side === "YES" },
+  { name: "follow_trend_no", test: (row) => row.trend && row.side === "NO" },
+  { name: "follow_trend_favorite", test: (row) => row.trend && row.favorite },
+  { name: "follow_trend_underdog", test: (row) => row.trend && !row.favorite },
+  { name: "follow_strong_trend", test: (row) => row.trend && row.strongTrend },
+  { name: "follow_moderate_trend", test: (row) => row.trend && row.moderateTrend },
   ...["Politics", "Sports", "Crypto", "Economy", "Pop Culture", "Other"].flatMap((category) => [
     { name: `buy_favorite_${category.toLowerCase().replace(/\s+/g, "_")}`, test: (row) => row.favorite && row.category === category },
     { name: `buy_underdog_${category.toLowerCase().replace(/\s+/g, "_")}`, test: (row) => !row.favorite && row.category === category },
+    { name: `follow_trend_${category.toLowerCase().replace(/\s+/g, "_")}`, test: (row) => row.trend && row.category === category },
   ]),
 ];
 
@@ -202,7 +226,7 @@ const report = {
   methodology: { horizonDays: HORIZON_DAYS, estimatedRoundTripCostCents: COST_CENTS,
     historyFidelityMinutes: 1440,
     clusterUnit: "event",
-    note: "Each rule uses a daily price timestamp at or before the decision horizon and a subsequently published binary settlement. Confidence bounds cluster related markets by event. Markets are selected by resolved volume, so results still carry historical-selection and execution-model limitations." },
+    note: "Each rule uses only daily prices available at or before the decision horizon and a subsequently published binary settlement. Trend replays require aligned one-day and one-week direction under the production move bounds. Confidence bounds cluster related markets by event. Markets are selected by resolved volume, so results still carry historical-selection and execution-model limitations." },
   horizons: Object.fromEntries(HORIZON_DAYS.map((horizon) => {
     const horizonRows = rows.filter((row) => row.horizonDays === horizon);
     return [horizon, { observations: horizonRows.length / 2, chronological: chronologicalEvaluation(horizonRows) }];
@@ -225,6 +249,12 @@ const summary = {
     favoriteTest: compactStats(value.chronological.test.buy_favorite),
     underdog: compactStats(value.chronological.train.buy_underdog),
     underdogTest: compactStats(value.chronological.test.buy_underdog),
+    yes: compactStats(value.chronological.train.buy_yes),
+    yesTest: compactStats(value.chronological.test.buy_yes),
+    no: compactStats(value.chronological.train.buy_no),
+    noTest: compactStats(value.chronological.test.buy_no),
+    trend: compactStats(value.chronological.train.follow_trend),
+    trendTest: compactStats(value.chronological.test.follow_trend),
     robustRules: compactRules(value.chronological.robustRules),
   }])),
 };

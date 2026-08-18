@@ -15,18 +15,19 @@ https://polymarket-site-eta.vercel.app/personal.html
 
 The site fetches live Polymarket markets, generates agent suggestions, lets you
 run frequent paper cycles, and syncs the shared arena state through Neon or
-Vercel Blob. Build 46 also installs an offline app shell and caches timestamped
+Vercel Blob. Build 47 also installs an offline app shell and caches timestamped
 market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
 
 Each agent learns bounded weights from its own v34+ trade outcomes across signal
-type, setup quality, category, side, and entry-price band. The learner shrinks
-small samples toward neutral, caps sizing changes to 0.68x-1.30x, and reserves
+type, setup quality, category, side, entry-price band, and time to resolution.
+The learner shrinks small samples toward neutral, caps sizing changes to
+0.68x-1.30x, and reserves
 15% of candidates for deterministic exploration so a stale regime cannot become
 permanent.
 
-Strategy 43 treats each binary stake as capable of falling to zero even when the
+Strategy 44 treats each binary stake as capable of falling to zero even when the
 18% stop cannot fill. New core positions are capped at 2.5%-4% of equity and
 aggressive positions at 3%-5%, with lower limits for near-term, extreme-price,
 reversal, and fast-moving setups. Oversized positions inherited from older
@@ -34,10 +35,11 @@ engines are reduced to the same loss budget during live marking.
 The two-agent overlap guard counts only positions worth at least 1.25% of an
 agent's equity, so tiny profit-lock runners do not block a new material trade.
 
-A separate walk-forward ledger records each trade-ready signal before its future
+A separate walk-forward ledger records every confirmed signal before its future
 price is known, grades it at least 24 hours later, and combines that broad market
 calibration with each agent's personal outcomes. This expands the learning sample
-without backfilling future information into old decisions. The 24-hour horizon
+without forcing observation-only signals into portfolios or backfilling future
+information into old decisions. The 24-hour horizon
 matches the engine's minimum ordinary holding policy; stops and profit locks still
 act immediately from fresh prices.
 
@@ -63,7 +65,7 @@ negative in all three chronological segments. Reversals averaged -3.69%, with a
 market-clustered 90% interval entirely below zero. Crypto and Sports were also
 negative but covered only three and five markets. The 24-hour cohort improved to
 -0.82% row mean and +1.31% market mean, with no rule robustly negative across all
-segments. Strategy 43 therefore disables reversal entries, retains their signals
+segments. Strategy 44 therefore disables reversal entries, retains their signals
 for paper grading, and evaluates adaptation at 24 hours. It does not promote any
 rule because no positive cohort passed the same robustness checks.
 
@@ -73,23 +75,23 @@ segment and averaged -4.13%. Sports trends were negative in train and test and
 averaged -3.53% at 72 hours. Politics trends were the sole cohort with positive
 row-level returns in all three 72-hour segments, but its market-cluster interval
 still crossed zero; that supports a longer hold test, not a larger entry bet.
-Strategy 43 gives Politics trend positions that 72-hour observation window before
+Strategy 44 gives Politics trend positions that 72-hour observation window before
 ordinary signal exits. Stops, profit locks, settlement handling, and risk-budget
 reductions remain immediate.
 
-Strategy 43 also subtracts a half-cent round-trip cost when grading each live
+Strategy 44 also subtracts a half-cent round-trip cost when grading each live
 walk-forward signal. Confidence uses the largest independent matching bucket,
 not the sum of five overlapping feature buckets, and evidence from older engine
 versions is down-weighted. This prevents a handful of duplicated observations
 from authorizing larger positions or hiding a modest negative regime.
 
-Strategy 43 adds uncertainty-aware promotion and demotion. A matching setup must
+Strategy 44 adds uncertainty-aware promotion and demotion. A matching setup must
 accumulate at least eight effective observations and agree across at least two
 feature views before repeatable positive evidence can increase size or repeatable
 negative evidence can block a new entry. Mixed evidence stays close to neutral
 instead of being mistaken for an edge.
 
-Build 46 enforces the documented offline boundary end to end. Cached snapshots
+Build 47 enforces the documented offline boundary end to end. Cached snapshots
 under 90 minutes old may continue paper execution. Older snapshots remain usable
 for valuation and chart snapshots for up to 24 hours, but cannot trigger entries,
 stop-losses, gain-stops, risk rebalances, settlements, or policy exits. Network
@@ -102,12 +104,12 @@ adaptive baselines, pending signal grades, and trade evidence remain in one stra
 lineage until the actual entry, sizing, or exit logic changes. Legacy build 40 and 41
 records are migrated into the same strategy lineage without losing evidence.
 
-Build 46 independently refreshes markets for matured pending signals that have
+Build 47 independently refreshes markets for matured pending signals that have
 left the current top-500 activity scan. Unavailable markets remain queued for a
 bounded retry window. This prevents activity-rank survivorship from deciding
 which wins and losses reach the adaptive calibration ledger.
 
-Strategy 43 coordinates high-risk exploration globally. Crypto, near-term,
+Strategy 44 coordinates high-risk exploration globally. Crypto, near-term,
 extreme-price, legacy reversal, and other gap-prone positions may be held materially by
 only one agent, while ordinary independently confirmed markets retain the
 two-agent cap. A historically blocked Sports trend can enter the exploration lane
@@ -124,18 +126,21 @@ cohort robust. Environment variables beginning with
 `SETTLEMENT_` control its market count, concurrency, horizons, and cost. Set
 `SETTLEMENT_SUMMARY=1` for the compact report.
 
-The first event-clustered run loaded 498 of the 500 highest-volume resolved
-markets. No side, price band, category, or 1-90 day holding rule passed the
-required train/test confidence checks. In particular, older YES/underdog gains
+The expanded event-clustered run loaded history for 498 of the 500 highest-volume
+resolved markets with no fetch failures. No side, price band, category, trend,
+or 1-90 day holding rule passed the required train/test confidence checks. In
+particular, older YES/underdog gains
 reversed in the recent test segment. The engine therefore does not install a
 static settlement-direction boost from this audit.
 
-The latest 200-resolved-market audit loaded history for 199 markets with no
-fetch failures. No positive rule passed the robustness gate. Buying NO with
-7-14 days remaining was robustly negative in pooled, train, test, and
-event-clustered results: the 14-day cohort averaged -37.33% by observation and
--46.84% by event. Strategy 43 therefore blocks new NO entries with 21 days or
-less to resolution while continuing to record their signals for future evidence.
+The earlier 200-resolved-market audit found short-dated NO entries strongly
+negative, but the 500-market rerun did not reproduce that loss in its newer test
+segment. Strategy 44 therefore treats the result as a provisional prior instead
+of a permanent ban: NO entries with 21 days or less remain observation-only until
+the recent walk-forward calibration promotes their matching side and duration
+cohorts. Exact numeric-range contracts are excluded from new entries because a
+settlement jump can pass directly through an 18% stop; the live audit found that
+this failure mode caused the largest latest-day loss.
 
 Paper accounts created with a password are also saved through the backend, so a
 user can log in from another device and see the same paper portfolio, activity,
