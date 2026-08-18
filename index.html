@@ -362,7 +362,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build v35 active:</b> every agent learns bounded weights from its own trade outcomes, favors signal regimes that have worked, and keeps an exploration allowance so it can adapt when conditions change. Timestamped market snapshots allow local paper cycles during outages and automatically retry cloud sync after reconnecting. This remains paper trading; profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build v35 active:</b> every agent learns from personal outcomes plus walk-forward signal calibration, with bounded weights and controlled exploration. Timestamped market snapshots allow local paper cycles during outages, a background worker keeps minute checks running while this page remains open, and reconnecting retries cloud sync. This remains paper trading; profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -4191,12 +4191,22 @@ document.addEventListener("visibilitychange",()=>{
   if(!document.hidden)refreshFromCloudAndRender(true);
 });
 async function autoRunDueCycle(){
-  if(document.hidden||CYCLE_RUNNING)return;
+  if(CYCLE_RUNNING)return;
   const st=loadState();
   if(!st.seeded||st.last_cycle_hour===currentCycleHour())return;
   try{await runDailyCycle();renderAll();toast("Live update ready.");}
   catch(e){setStatus("error — click Run to retry",false);}
 }
+let CYCLE_WORKER=null;
+try{
+  if("Worker" in window){CYCLE_WORKER=new Worker("/cycle-worker.js");CYCLE_WORKER.onmessage=e=>{
+    if(e.data&&e.data.type==="ready")window.PMA_BACKGROUND_WORKER_READY=true;
+    if(e.data&&e.data.type==="cycle"){
+      window.PMA_BACKGROUND_LAST_TICK=e.data.at;
+      autoRunDueCycle();
+    }
+  };}
+}catch(e){CYCLE_WORKER=null;}
 setInterval(()=>autoRunDueCycle(),RUN_INTERVAL_MS);
 window.addEventListener("online",async()=>{
   const st=loadState();
