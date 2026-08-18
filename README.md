@@ -15,7 +15,7 @@ https://polymarket-site-eta.vercel.app/personal.html
 
 The site fetches live Polymarket markets, generates agent suggestions, lets you
 run frequent paper cycles, and syncs the shared arena state through Neon or
-Vercel Blob. Engine v36 also installs an offline app shell and caches timestamped
+Vercel Blob. Engine v37 also installs an offline app shell and caches timestamped
 market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
@@ -26,7 +26,7 @@ small samples toward neutral, caps sizing changes to 0.68x-1.30x, and reserves
 15% of candidates for deterministic exploration so a stale regime cannot become
 permanent.
 
-Engine v36 treats each binary stake as capable of falling to zero even when the
+Engine v37 treats each binary stake as capable of falling to zero even when the
 18% stop cannot fill. New core positions are capped at 2.5%-4% of equity and
 aggressive positions at 3%-5%, with lower limits for near-term, extreme-price,
 reversal, and fast-moving setups. Oversized positions inherited from older
@@ -50,6 +50,12 @@ of hourly Polymarket history. The evaluator forms signals only from prior
 one-hour, one-day, and one-week prices, marks them 12 hours later, applies a
 conservative half-cent cost estimate, and reports a chronological 70/30 split.
 Set `EVAL_MARKETS` or `EVAL_CONCURRENCY` to change the default 80-market run.
+The first 80-market audit found that reversal signals lost 4.34% on average in
+both chronological partitions, while crypto and longshot samples were also
+negative overall. Engine v37 therefore blocks reversal entries outside the fixed
+15% exploration lane and applies modest sizing penalties to crypto and longshots.
+It does not boost any rule from this audit because no positive rule was robust
+across the chronological split.
 
 Paper accounts created with a password are also saved through the backend, so a
 user can log in from another device and see the same paper portfolio, activity,
