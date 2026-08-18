@@ -340,7 +340,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Confirmation engine · v34</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive offline engine · v35</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -362,7 +362,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build v34 active:</b> exposure targets are ceilings, not quotas. New trades need a confirmed multi-window signal, liquidity, evidence, and a positive post-friction signal margin. Exits use holding hysteresis, reachable profit locks, and strict two-agent overlap. This remains paper trading; profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build v35 active:</b> every agent learns bounded weights from its own trade outcomes, favors signal regimes that have worked, and keeps an exploration allowance so it can adapt when conditions change. Timestamped market snapshots allow local paper cycles during outages and automatically retry cloud sync after reconnecting. This remains paper trading; profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -744,7 +744,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build confirmation-v34 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build adaptive-offline-v35 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -772,7 +772,7 @@ const MIN_POLICY_HOLD_HOURS = 24;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const SUGGESTION_ENGINE_VERSION = 34;
+const SUGGESTION_ENGINE_VERSION = 35;
 const FOCUS_KEY = "pma_focus_v1";
 const VIEW_KEY = "pma_view_v1";
 const PF_SORT_KEY = "pma_portfolio_sort_v1";
@@ -783,6 +783,7 @@ const LIVE_KEY = "pma_live_readiness_v1";
 const CHAT_KEY = "pma_agent_chat_v1";
 const PAID_AGENT_CHAT_KEY = "pma_paid_agent_chat_v1";
 const EMAIL_ALERT_KEY = "pma_trade_email_alerts_v1";
+const MARKET_CACHE_KEY = "pma_market_cache_v1";
 const PAPER_SESSION_PREFIX = "pma_cloud_session_";
 const PERSONAL_MODE = new URLSearchParams(location.search).get("personal") === "1";
 const PERSONAL_USER_ID = "local-readiness-user";
@@ -907,6 +908,8 @@ function partsInLocalTime(d=new Date()){
 }
 const todayStr = () => {const p=partsInLocalTime();return `${p.year}-${p.month}-${p.day}`;};
 const RUN_INTERVAL_MS = 60000;
+const OFFLINE_ENTRY_MAX_AGE_MS = 90*60*1000;
+const OFFLINE_CACHE_MAX_AGE_MS = 24*60*60*1000;
 const currentCycleHour = () => {const p=partsInLocalTime();return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}|v${SUGGESTION_ENGINE_VERSION}`;};
 function cycleHourFromIso(iso){
   const d=new Date(iso);
@@ -1344,6 +1347,33 @@ function compactSyncItems(items,limits=SYNC_LIMITS){
 function saveState(st){localStorage.setItem(AGENTS_KEY,JSON.stringify(compactAgentStateForSync(st)));}
 function loadSuggestions(){try{const s=localStorage.getItem(SUG_KEY);return s?JSON.parse(s):{date:null,suggestions:[]};}catch(e){return {date:null,suggestions:[]};}}
 function saveSuggestions(sugs,marketCount=0,analyzedCount=null){const p={date:todayStr(),generated_at:nowIso(),engine_version:SUGGESTION_ENGINE_VERSION,market_count:marketCount,analyzed_count:analyzedCount==null?marketCount:analyzedCount,analysis_limit:MARKET_ANALYSIS_LIMIT,suggestion_cap:SUGGESTION_TOTAL,suggestions:sugs};const compact=compactSuggestionsForSync(p);localStorage.setItem(SUG_KEY,JSON.stringify(compact));return compact;}
+function compactCachedMarket(m){
+  return {id:m.id,question:m.question,event:m.event,url:m.url,category:m.category,tags:m.tags,
+    clob_token_ids:m.clob_token_ids,yes_price:m.yes_price,no_price:m.no_price,volume:m.volume,
+    volume_24hr:m.volume_24hr,volume_1wk:m.volume_1wk,liquidity:m.liquidity,spread:m.spread,
+    best_bid:m.best_bid,best_ask:m.best_ask,price_change_1h:m.price_change_1h,
+    price_change_1d:m.price_change_1d,price_change_1w:m.price_change_1w,price_change_1m:m.price_change_1m,
+    days_to_resolution:m.days_to_resolution,end_date:m.end_date,closed:m.closed,accepting_orders:m.accepting_orders};
+}
+function saveMarketCache(markets,suggestions,priceMap={}){
+  const payload={version:SUGGESTION_ENGINE_VERSION,captured_at:nowIso(),markets:(markets||[]).slice(0,MARKET_ANALYSIS_LIMIT).map(compactCachedMarket),
+    suggestions:compactSuggestionsForSync({suggestions:suggestions||[]}).suggestions,price_map:{}};
+  Object.entries(priceMap||{}).forEach(([id,m])=>{if(m)payload.price_map[id]=compactCachedMarket(m);});
+  try{localStorage.setItem(MARKET_CACHE_KEY,JSON.stringify(payload));return payload;}catch(e){return null;}
+}
+function loadMarketCache(){
+  try{
+    const payload=JSON.parse(localStorage.getItem(MARKET_CACHE_KEY)||"null");
+    if(!payload||!payload.captured_at)return null;
+    payload.age_ms=Math.max(0,Date.now()-new Date(payload.captured_at).getTime());
+    return Number.isFinite(payload.age_ms)?payload:null;
+  }catch(e){return null;}
+}
+function offlineCachePolicy(ageMs){
+  const age=Number(ageMs);
+  return {usable:Number.isFinite(age)&&age>=0&&age<=OFFLINE_CACHE_MAX_AGE_MS,
+    entriesAllowed:Number.isFinite(age)&&age>=0&&age<=OFFLINE_ENTRY_MAX_AGE_MS};
+}
 function collectSyncItems(){const items={};SYNC_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!=null)items[k]=v;});return compactSyncItems(items);}
 function applySyncItems(items){
   if(!items||typeof items!=="object")return false;
@@ -1379,19 +1409,19 @@ async function pullCloudState(){
     const r=await fetch("/api/state",{cache:"no-store"});
     if(!r.ok)return {ok:false,state:null};
     const d=await r.json();
-    return {ok:true,state:(d&&d.state)||null};
+    return {ok:true,state:(d&&d.state)||null,degraded:Boolean(d&&d.degraded),error:d&&d.error};
   }catch(e){}
   return {ok:false,state:null};
 }
 async function loadAuthoritativeCloudState(){
   const cloud=await pullCloudState();
-  if(!cloud.ok)return {ok:false,loaded:false};
+  if(!cloud.ok)return {ok:false,loaded:false,degraded:true};
   const cloudState=cloud.state;
   if(cloudState&&cloudState.items&&stateFromSyncItems(cloudState.items)){
     applySyncItems(cloudState.items);
-    return {ok:true,loaded:true};
+    return {ok:true,loaded:true,degraded:Boolean(cloud.degraded)};
   }
-  return {ok:true,loaded:false};
+  return {ok:true,loaded:false,degraded:Boolean(cloud.degraded)};
 }
 async function refreshFromCloudAndRender(silent=true){
   const cloud=await loadAuthoritativeCloudState();
@@ -1505,6 +1535,58 @@ function recentReturnDelta(p){
   if(snaps.length<2)return 0;
   return (snaps[snaps.length-1].return_pct||0)-(snaps[0].return_pct||0);
 }
+function entryBand(price){const p=Number(price||0);return p<0.25?"longshot":p<0.55?"mid":p<0.78?"favorite":"heavy-favorite";}
+function learningFeatures(trade){
+  return [`signal:${trade.signal_type||"unknown"}`,`quality:${trade.quality||"unknown"}`,
+    `category:${trade.category||"Other"}`,`side:${trade.side||"unknown"}`,`price:${entryBand(trade.entry_price)}`];
+}
+function tradeReturnForLearning(trade,closed){
+  const basis=Math.max(1,Number(trade.original_cost||trade.cost||0));
+  const pnl=closed?Number(trade.realized_pnl||0):Number(trade.unrealized_pnl||0)+Number(trade.partial_realized_pnl||0);
+  return clamp(pnl/basis,-1,2);
+}
+function buildAdaptiveProfile(p){
+  const buckets={},observations=[];
+  const add=(trade,closed)=>{
+    if(Number(trade.strategy_version||0)<34)return;
+    const age=Math.max(0,Date.now()-new Date(trade.closed_at||trade.opened_at||0).getTime());
+    const recency=Number.isFinite(age)?Math.exp(-age/(45*86400000)):0.4;
+    const weight=recency*(closed?1:Math.min(0.30,Math.max(0.08,daysHeld(trade)/20)));
+    const ret=tradeReturnForLearning(trade,closed);
+    if(!Number.isFinite(ret)||weight<=0)return;
+    observations.push({ret,weight,closed});
+    learningFeatures(trade).forEach(key=>{
+      const b=buckets[key]||(buckets[key]={weight:0,sum:0,wins:0,count:0});
+      b.weight+=weight;b.sum+=ret*weight;b.wins+=(ret>0?weight:0);b.count++;
+    });
+  };
+  (p.closed||[]).forEach(t=>add(t,true));
+  (p.positions||[]).filter(t=>daysHeld(t)>=1).forEach(t=>add(t,false));
+  const summarize=b=>({samples:b.count,weight:+b.weight.toFixed(2),raw:b.weight?b.sum/b.weight:0,
+    score:+(b.sum/(b.weight+6)).toFixed(4),win_rate:b.weight?b.wins/b.weight:0});
+  const learned=Object.fromEntries(Object.entries(buckets).map(([k,b])=>[k,summarize(b)]));
+  const totalWeight=observations.reduce((s,x)=>s+x.weight,0),totalSum=observations.reduce((s,x)=>s+x.ret*x.weight,0);
+  const globalScore=totalSum/(totalWeight+10);
+  const ranked=Object.entries(learned).filter(([k,v])=>!k.startsWith("side:")&&v.weight>=1)
+    .sort((a,b)=>b[1].score-a[1].score);
+  return {version:SUGGESTION_ENGINE_VERSION,samples:(p.closed||[]).filter(t=>Number(t.strategy_version||0)>=34).length,
+    effective_samples:+totalWeight.toFixed(2),global_score:+globalScore.toFixed(4),buckets:learned,
+    best:ranked[0]?{feature:ranked[0][0],score:ranked[0][1].score}:null,
+    worst:ranked.length?{feature:ranked[ranked.length-1][0],score:ranked[ranked.length-1][1].score}:null};
+}
+function stableExploration(agentId,marketId){
+  const text=`${agentId}:${marketId}`;let h=2166136261;
+  for(let i=0;i<text.length;i++){h^=text.charCodeAt(i);h=Math.imul(h,16777619);}
+  return (h>>>0)%100<15;
+}
+function learnedOpportunity(cfg,p,s,profile=null){
+  const model=profile||buildAdaptiveProfile(p),features=learningFeatures(s),rows=features.map(k=>model.buckets[k]).filter(Boolean);
+  const weight=rows.reduce((sum,r)=>sum+r.weight,0),score=rows.length?rows.reduce((sum,r)=>sum+r.score,0)/rows.length:0;
+  const confidence=weight/(weight+12),exploration=stableExploration(cfg.id,s.market_id);
+  const blocked=model.samples>=8&&confidence>=0.45&&score<-0.055&&!exploration;
+  return {score:+score.toFixed(4),confidence:+confidence.toFixed(3),multiplier:+clamp(1+score*2.4,0.72,1.28).toFixed(3),
+    exploration,allowed:!blocked,features};
+}
 function emotionalState(ret,trail,trend,rank){
   if(ret<-18)return {mood:"alarmed",urgency:0.95,label:"Crisis pressure"};
   if(ret<-8&&trail>10)return {mood:"frustrated",urgency:0.82,label:"Comeback urgency"};
@@ -1520,7 +1602,7 @@ function adaptiveDecision(cfg,p,rank,total,leaderEq){
   const currentExposure=eq>0?positionValue/eq:0;
   const trend=recentReturnDelta(p);
   const emo=emotionalState(ret,trail,trend,rank);
-  const aggressive=!!cfg.aggressive;
+  const aggressive=!!cfg.aggressive,profile=buildAdaptiveProfile(p);
   let minConv=Math.max(cfg.minConv??0,aggressive?60:64),maxNew=Math.min(cfg.maxNew??4,aggressive?4:3),maxFrac=Math.min(cfg.maxFrac??0.05,aggressive?0.07:0.045),reserve=aggressive?0.10:0.18;
   let targetExposure=cfg.targetExposure??(aggressive?0.80:0.62);
   let mode=aggressive?"Confirmed Opportunity":"Quality First";
@@ -1535,6 +1617,10 @@ function adaptiveDecision(cfg,p,rank,total,leaderEq){
     targetExposure=Math.min(targetExposure,cfg.drawdownExposure??(aggressive?0.55:0.40));
     reason="down more than 18%, so it can add only one small, strongly confirmed position. It will not revenge trade.";
   }
+  if(profile.effective_samples>=4){
+    if(profile.global_score>0.015){maxFrac*=1.08;reason+=" Its own recent trade evidence is positive, so proven setups receive a small bounded size increase.";}
+    else if(profile.global_score<-0.015){maxFrac*=0.88;reason+=" Its own recent trade evidence is negative, so weak regimes are down-weighted while a 15% exploration allowance remains.";}
+  }
   reason+=` Emotion is reported as ${emo.label.toLowerCase()} but cannot increase size, reduce confirmation, or add attack slots.`;
   const todaySnaps=(p.snapshots||[]).filter(s=>s.date===todayStr());
   const cycleStart=todaySnaps.length?Number(todaySnaps[0].equity||eq):eq;
@@ -1547,7 +1633,7 @@ function adaptiveDecision(cfg,p,rank,total,leaderEq){
   const maxPositionPct=aggressive?0.10:MAX_NEW_POSITION_PCT;
   targetExposure=clamp(targetExposure,0,1-reserve);
   const minExposure=0,belowFloor=false;
-  return {mode,reason,emotion:emo.mood,urgency:+emo.urgency.toFixed(2),minConv:Math.max(0,Math.round(minConv)),maxNew:Math.max(0,Math.round(maxNew)),maxFrac:+Math.min(maxPositionPct,Math.max(0.01,maxFrac)).toFixed(3),reserve,
+  return {mode,reason,emotion:emo.mood,urgency:+emo.urgency.toFixed(2),minConv:Math.max(0,Math.round(minConv)),maxNew:Math.max(0,Math.round(maxNew)),maxFrac:+Math.min(maxPositionPct,Math.max(0.01,maxFrac)).toFixed(3),reserve,learning:profile,
     currentExposure:+currentExposure.toFixed(3),targetExposure:+targetExposure.toFixed(3),minExposure:+minExposure.toFixed(3),belowFloor};
 }
 const stopKey=(posOrId)=>typeof posOrId==="string"?posOrId:String(posOrId.asset||posOrId.market_id||"");
@@ -1874,6 +1960,7 @@ function agentAcceptsSuggestion(cfg,s){
 }
 function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=null){
   const d=decision||{minConv:Math.max(cfg.minConv||0,cfg.aggressive?60:64),maxNew:Math.min(cfg.maxNew||4,cfg.aggressive?4:3),maxFrac:Math.min(cfg.maxFrac||0.05,cfg.aggressive?0.07:0.045),reserve:cfg.aggressive?0.10:0.18,targetExposure:cfg.targetExposure??(cfg.aggressive?0.75:0.62),minExposure:0};
+  const learningProfile=d.learning||buildAdaptiveProfile(p);
   const maxPositions=cfg.maxPositions||MAX_STRATEGY_POSITIONS;
   const categoryCap=cfg.maxCategoryPct||MAX_CATEGORY_EXPOSURE_PCT;
   const probeQualities=["trend","liquid-trend","reversal","catalyst"];
@@ -1890,7 +1977,11 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
     return [];
   }
   const avoid=avoidMarketIds||new Set();
-  const cands=rankedSugs.map(s=>peerAdjustedSuggestion(s,peerStats)).filter(s=>s.trade_ready&&agentAcceptsSuggestion(cfg,s)&&(s.side==="YES"||s.side==="NO")
+  const cands=rankedSugs.map(s=>{
+    const peerAdjusted=peerAdjustedSuggestion(s,peerStats),learning=learnedOpportunity(cfg,p,peerAdjusted,learningProfile);
+    return Object.assign({},peerAdjusted,{learning_score:learning.score,learning_confidence:learning.confidence,
+      learning_multiplier:learning.multiplier,learning_exploration:learning.exploration,learning_allowed:learning.allowed});
+  }).filter(s=>s.trade_ready&&agentAcceptsSuggestion(cfg,s)&&s.learning_allowed&&(s.side==="YES"||s.side==="NO")
     &&(cfg.aggressive?s.conviction>=d.minConv:s.peer_conviction>=d.minConv)
     &&s.conviction>=58&&s.entry_price>=0.08&&s.entry_price<=0.92
     &&effectiveEntryEdge(s)>=MIN_AGGRESSIVE_EDGE&&(s.days_to_resolution==null||s.days_to_resolution>=MIN_ENTRY_DAYS)
@@ -1899,7 +1990,7 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
     &&(!avoid.has(String(s.market_id))||(Number((peerStats&&peerStats[`${s.market_id}:${s.side}`]||{}).same||0)<2
       &&Number((peerStats&&peerStats[`${s.market_id}:${s.side}`]||{}).opposite||0)===0))
     &&!hasPosition(p,s.market_id)&&!hasRecentStop(p,s.market_id)&&(focus==="All"||!focus||s.category===focus))
-    .sort((a,b)=>(b.peer_conviction-a.peer_conviction)||((b.peer_boost||0)-(a.peer_boost||0)));
+    .sort((a,b)=>((b.peer_conviction*b.learning_multiplier)-(a.peer_conviction*a.learning_multiplier))||((b.peer_boost||0)-(a.peer_boost||0)));
   let opened=0,openedIds=[];
   let cycleBudgetRemaining=eqBefore*(cfg.aggressive?0.14:0.10);
   for(const s of cands){
@@ -1916,6 +2007,7 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
     else{const base=(s.peer_conviction/100)*Math.min(1,effectiveEntryEdge(s)/EDGE_SCALE);frac=Math.min(d.maxFrac,cfg.kelly*base);}
     if(s.peer_boost<0)frac*=0.82;
     if(s.peer_boost>0&&decision&&decision.urgency>0.65)frac*=1.08;
+    frac*=Number(s.learning_multiplier||1);
     let stake=Math.min(eq*frac,investable);
     const categoryValue=(p.positions||[]).filter(pos=>(pos.category||"Other")===(s.category||"Other")).reduce((sum,pos)=>sum+Number(pos.value||0),0);
     stake=Math.min(stake,Math.max(0,eq*categoryCap-categoryValue));
@@ -1932,9 +2024,10 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
       peer_note:s.peer_note||"",entry_reason:s.rationale||"",net_edge:s.net_edge,evidence_score:s.evidence_score,evidence_source_count:s.evidence_source_count||0,friction:s.friction,chase_penalty:s.chase_penalty,quality:s.quality,
       strategy_version:SUGGESTION_ENGINE_VERSION,
       momentum_strength:s.momentum_strength,signal_strength:s.signal_strength,signal_confidence:s.signal_confidence,signal_type:s.signal_type,price_change_1d:s.price_change_1d,price_change_1w:s.price_change_1w,
+      learning_score:s.learning_score,learning_confidence:s.learning_confidence,learning_multiplier:s.learning_multiplier,learning_exploration:s.learning_exploration,
       peak_price:+entry.toFixed(4),gain_stops:{},stop_losses:{}});
     p.history.push({date:logDay(),action:"OPEN",question:s.question,side:s.side,
-      detail:`${decision?decision.mode+" mode — ":""}Bought ${shares} ${s.side} '${s.question.slice(0,40)}' @ ${pct(entry)} for ${fmtUSD(cost)} · net edge ${((Math.abs(s.net_edge!=null?s.net_edge:s.edge))*100).toFixed(1)}c · evidence ${Math.round((s.evidence_score||0)*100)}${s.peer_note?` (${s.peer_note})`:""}`});
+      detail:`${decision?decision.mode+" mode — ":""}Bought ${shares} ${s.side} '${s.question.slice(0,40)}' @ ${pct(entry)} for ${fmtUSD(cost)} · signal margin ${((Math.abs(s.net_edge!=null?s.net_edge:s.edge))*100).toFixed(1)}c · learned weight ${Number(s.learning_multiplier||1).toFixed(2)}x · evidence ${Math.round((s.evidence_score||0)*100)}${s.peer_note?` (${s.peer_note})`:""}`});
     opened++;openedIds.push(String(s.market_id));
   }
   const eqAfter=equity(p);
@@ -2044,7 +2137,6 @@ async function runDailyCycle(){
   CYCLE_RUNNING=true;
   try{
     const cloud=await loadAuthoritativeCloudState();
-    if(!cloud.ok)throw new Error("Cloud sync unavailable. Refusing to run a local-only cycle.");
     let st=loadState();
     const hour=currentCycleHour();
     if(st.seeded&&st.last_cycle_hour===hour){
@@ -2052,15 +2144,28 @@ async function runDailyCycle(){
       return {suggestions:(loadSuggestions().suggestions||[]).length,skipped:true,hour};
     }
     SNAP_TS=nowIso();
-    setStatus("loading the 500 most active markets…",true);
-    const markets=await fetchMarkets(Math.ceil(ACTIVE_MARKET_FETCH_LIMIT/100),100,count=>setStatus(`loaded ${Math.min(count,ACTIVE_MARKET_FETCH_LIMIT).toLocaleString()} of 500 active markets…`,true));
-    const analysisMarkets=selectMarketsForAnalysis(markets);
-    setStatus(`analyzing ${analysisMarkets.length.toLocaleString()} most-active markets…`,true);
-    setStatus("checking real-world context…",true);
-    const realWorldSignals=await fetchRealWorldSignals(analysisMarkets);
-    setStatus("analyzing expected value…",true);
-    const sugs=generateSuggestions(analysisMarkets,SUGGESTION_TOTAL,SUGGESTION_PER_CATEGORY,realWorldSignals);
-    saveSuggestions(sugs,markets.length,analysisMarkets.length);
+    let markets=[],analysisMarkets=[],sugs=[],cache=loadMarketCache(),runMode="live",cacheAgeMs=0;
+    try{
+      setStatus("loading the 500 most active markets…",true);
+      markets=await fetchMarkets(Math.ceil(ACTIVE_MARKET_FETCH_LIMIT/100),100,count=>setStatus(`loaded ${Math.min(count,ACTIVE_MARKET_FETCH_LIMIT).toLocaleString()} of 500 active markets…`,true));
+      analysisMarkets=selectMarketsForAnalysis(markets);
+      if(!analysisMarkets.length)throw new Error("No active markets returned");
+      setStatus(`analyzing ${analysisMarkets.length.toLocaleString()} most-active markets…`,true);
+      setStatus("checking real-world context…",true);
+      const realWorldSignals=await fetchRealWorldSignals(analysisMarkets);
+      setStatus("analyzing expected value…",true);
+      sugs=generateSuggestions(analysisMarkets,SUGGESTION_TOTAL,SUGGESTION_PER_CATEGORY,realWorldSignals);
+      saveSuggestions(sugs,markets.length,analysisMarkets.length);
+    }catch(networkError){
+      cache=cache||loadMarketCache();
+      const stored=loadSuggestions();
+      sugs=(cache&&cache.suggestions&&cache.suggestions.length?cache.suggestions:stored.suggestions)||[];
+      analysisMarkets=(cache&&cache.markets)||[];
+      cacheAgeMs=cache?cache.age_ms:Infinity;
+      if(!sugs.length||!offlineCachePolicy(cacheAgeMs).usable)throw new Error("No usable market snapshot is cached yet. Connect once to seed offline mode.");
+      runMode="offline-cache";
+      setStatus(`offline snapshot · ${Math.max(1,Math.round(cacheAgeMs/60000))}m old`,false);
+    }
     st=loadState();
     const emailOffsets=agentHistoryOffsets(st);
     const focus=getFocus();
@@ -2070,7 +2175,15 @@ async function runDailyCycle(){
       (st.agents[a.id].positions||[]).forEach(pos=>{if(pos.market_id)ids.add(pos.market_id);}));
     setStatus("marking positions…",true);
     const priceMap={};
-    for(const id of ids){priceMap[id]=await fetchMarketPrice(id);}
+    const cachedById={};
+    (analysisMarkets||[]).forEach(m=>{cachedById[String(m.id)]=m;});
+    Object.entries((cache&&cache.price_map)||{}).forEach(([id,m])=>{cachedById[String(id)]=m;});
+    for(const id of ids){
+      let fresh=null;
+      if(runMode==="live")fresh=await fetchMarketPrice(id);
+      priceMap[id]=fresh||cachedById[String(id)]||null;
+    }
+    if(runMode==="live")saveMarketCache(analysisMarkets,sugs,priceMap);
     setStatus("ten strategy agents trading…",true);
     const preBoard=AGENTS.map(a=>({id:a.id,eq:equity(st.agents[a.id])})).sort((x,y)=>y.eq-x.eq);
     const leaderEq=preBoard[0]?preBoard[0].eq:STARTING_BALANCE;
@@ -2079,6 +2192,8 @@ async function runDailyCycle(){
       markToMarket(p,priceMap,cfg,{policyExits:true});
     }
     reduceStrategyOverlap(st);
+    const entriesAllowed=runMode==="live"||offlineCachePolicy(cacheAgeMs).entriesAllowed;
+    const cycleSuggestions=entriesAllowed?sugs:sugs.map(s=>Object.assign({},s,{trade_ready:false,watch_only:true}));
     const claimedMarkets=new Set();
     for(const cfg of strategyExecutionOrder(st)){
       const p=st.agents[cfg.id];
@@ -2086,17 +2201,18 @@ async function runDailyCycle(){
       const decision=adaptiveDecision(cfg,p,rank,preBoard.length,leaderEq);
       const occupied=occupiedStrategyMarkets(st,cfg.id);
       claimedMarkets.forEach(id=>occupied.add(id));
-      openPositions(p,cfg,cfg.rank(sugs),focus,decision,occupied,peerMarketStats(st,cfg.id)).forEach(id=>claimedMarkets.add(id));
+      openPositions(p,cfg,cfg.rank(cycleSuggestions),focus,decision,occupied,peerMarketStats(st,cfg.id)).forEach(id=>claimedMarkets.add(id));
       recordSnapshot(p);
     }
-    st.date=todayStr();st.last_run=SNAP_TS;st.last_cycle_hour=hour;
+    st.date=todayStr();st.last_run=SNAP_TS;st.last_cycle_hour=hour;st.run_mode=runMode;
+    st.offline_cache_age_minutes=runMode==="offline-cache"?Math.round(cacheAgeMs/60000):0;
+    st.pending_sync=!cloud.ok;
     const emailEvents=collectNewAgentEvents(st,emailOffsets);
     saveState(st);
-    const pushed=await pushCloudState();
-    setStatus("up to date",false);
-    if(!pushed)return {suggestions:(loadSuggestions().suggestions||[]).length,skipped:true,hour};
-    await notifyTradeDigest(emailEvents);
-    return {suggestions:sugs.length};
+    const pushed=cloud.ok?await pushCloudState():false;
+    if(pushed){st.pending_sync=false;saveState(st);setStatus(runMode==="live"?"up to date":"offline cycle synced",false);await notifyTradeDigest(emailEvents);}
+    else{st.pending_sync=true;saveState(st);setStatus(`${runMode==="live"?"live data":"offline cycle"} · saved locally`,false);}
+    return {suggestions:sugs.length,offline:runMode!=="live",pendingSync:!pushed,entriesAllowed};
   }finally{SNAP_TS=null;CYCLE_RUNNING=false;}
 }
 
@@ -2265,7 +2381,8 @@ function decisionSummary(p){
   const exposure=d.currentExposure!=null&&d.targetExposure!=null?` Exposure ${Math.round(d.currentExposure*100)}%; ceiling ${Math.round(d.targetExposure*100)}%.`:"";
   const allocation=d.allocationStatus?` ${d.allocationStatus}`:"";
   const candidates=d.tradeReadyCount!=null?` Candidate audit: ${d.tradeReadyCount} trade-ready, ${d.strategyCandidates||0} strategy matches, ${d.eligibleCandidates||0} fully eligible, ${d.opened||0} opened.`:"";
-  return `${d.mode} mode: ${d.reason}${emotion} Limits now: ${d.maxNew} new trade${d.maxNew===1?"":"s"}, max ${(d.maxFrac*100).toFixed(1)}% per position${d.minConv?`, conviction ${d.minConv}+`:""}.${exposure}${allocation}${candidates}`;
+  const learning=d.learning?` Learning: ${d.learning.samples} completed v34+ trades, ${(d.learning.global_score*100).toFixed(2)}% shrunk expectancy${d.learning.best?`; strongest ${d.learning.best.feature.replace(":"," ")}`:""}${d.learning.worst?`; weakest ${d.learning.worst.feature.replace(":"," ")}`:""}.`:"";
+  return `${d.mode} mode: ${d.reason}${emotion} Limits now: ${d.maxNew} new trade${d.maxNew===1?"":"s"}, max ${(d.maxFrac*100).toFixed(1)}% per position${d.minConv?`, conviction ${d.minConv}+`:""}.${learning}${exposure}${allocation}${candidates}`;
 }
 function renderAgentBrief(cfg,p,st){
   const root=$("agentBrief"); if(!root)return;
@@ -3820,8 +3937,12 @@ window.addEventListener("hashchange",()=>showTab(location.hash.slice(1)));
 window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
   version:SUGGESTION_ENGINE_VERSION,
   analyzeMarket,
+  buildAdaptiveProfile,
+  learnedOpportunity,
+  offlineCachePolicy,
   gainStopTargets:(entry)=>GAIN_STOP_TIERS.map(t=>gainStopTarget({entry_price:Number(entry),cost:1,shares:1,gain_stops:{}},t)),
-  rules:Object.freeze({minimumPolicyHoldHours:MIN_POLICY_HOLD_HOURS,exitConfirmationHours:EXIT_CONFIRM_HOURS,maxAgentOverlap:2,stopLossPct:18}),
+  rules:Object.freeze({minimumPolicyHoldHours:MIN_POLICY_HOLD_HOURS,exitConfirmationHours:EXIT_CONFIRM_HOURS,maxAgentOverlap:2,stopLossPct:18,
+    offlineEntryMaxAgeMinutes:OFFLINE_ENTRY_MAX_AGE_MS/60000,offlineCacheMaxAgeHours:OFFLINE_CACHE_MAX_AGE_MS/3600000,explorationPct:15}),
 });
 function runEngineSelfTest(){
   const market=(overrides={})=>Object.assign({
@@ -3841,6 +3962,14 @@ function runEngineSelfTest(){
   const young={entry_price:0.42,current_price:0.39,opened_at:hoursAgo(2),signal_conflict_since:hoursAgo(1),unrealized_pnl:-10,quality:"confirmed"};
   const trailing={entry_price:0.40,current_price:0.45,peak_price:0.55,opened_at:hoursAgo(48),unrealized_pnl:10,quality:"confirmed"};
   const fresh=market();
+  const learner=defaultPortfolio(),closedAt=nowIso();
+  for(let i=0;i<8;i++)learner.closed.push({strategy_version:34,signal_type:"trend",quality:"confirmed",category:"Politics",side:"YES",entry_price:0.42,original_cost:100,
+    realized_pnl:20,opened_at:hoursAgo(72+i),closed_at:closedAt});
+  for(let i=0;i<8;i++)learner.closed.push({strategy_version:34,signal_type:"reversal",quality:"reversal",category:"Sports",side:"NO",entry_price:0.42,original_cost:100,
+    realized_pnl:-20,opened_at:hoursAgo(72+i),closed_at:closedAt});
+  const learningProfile=buildAdaptiveProfile(learner);
+  const learnedTrend=learnedOpportunity(AGENTS[0],learner,{market_id:"learn-trend",signal_type:"trend",quality:"confirmed",category:"Politics",side:"YES",entry_price:0.42},learningProfile);
+  const learnedReversal=learnedOpportunity(AGENTS[0],learner,{market_id:"learn-reversal",signal_type:"reversal",quality:"reversal",category:"Sports",side:"NO",entry_price:0.42},learningProfile);
   const mock={agents:{}};AGENTS.forEach(a=>mock.agents[a.id]=defaultPortfolio());
   ["value","momentum","favorite"].forEach((id,i)=>mock.agents[id].positions.push({market_id:"overlap-test",question:"Overlap test",side:"YES",shares:100,current_price:0.5,entry_price:0.5,cost:50,value:50,unrealized_pnl:0,conviction:70-i,opened_at:hoursAgo(24)}));
   reduceStrategyOverlap(mock);
@@ -3850,6 +3979,8 @@ function runEngineSelfTest(){
     noSignal:{ready:noSignal.trade_ready,quality:noSignal.quality,signal:noSignal.signal_type,margin:noSignal.net_edge},
     reversal:{ready:reversal.trade_ready,quality:reversal.quality,side:reversal.side,margin:reversal.net_edge},
     highEntryTargets:targets,targetsReachable:targets.every(x=>x>0.82&&x<1),
+    adaptation:{samples:learningProfile.samples,trendMultiplier:learnedTrend.multiplier,reversalMultiplier:learnedReversal.multiplier,learnsDirection:learnedTrend.multiplier>learnedReversal.multiplier},
+    offline:{fresh:offlineCachePolicy(30*60000),staleEntry:offlineCachePolicy(3*3600000),expired:offlineCachePolicy(25*3600000)},
     exits:{youngConflict:exitReason(young,fresh,conflict,AGENTS[0]),matureConflict:exitReason(mature,fresh,conflict,AGENTS[0]),trailing:trailingProfitReason(trailing)},
     overlapRemaining,rules:window.PMA_ENGINE_DIAGNOSTICS.rules};
 }
@@ -3863,7 +3994,7 @@ initProviderConfig();
 refreshTradeEmailStatus();
 $("runBtn").addEventListener("click",async()=>{
   const btn=$("runBtn");btn.disabled=true;btn.textContent="Running…";
-  try{const r=await runDailyCycle();const b=board();toast(r.busy?`Cycle already running · ${b[0].c.emoji} ${b[0].c.name} leads`:r.skipped?`Already ran this minute · ${b[0].c.emoji} ${b[0].c.name} leads`:`Cycle done · ${r.suggestions} ideas · ${b[0].c.emoji} ${b[0].c.name} leads`);renderAll();}
+  try{const r=await runDailyCycle();const b=board();toast(r.busy?`Cycle already running · ${b[0].c.emoji} ${b[0].c.name} leads`:r.skipped?`Already ran this minute · ${b[0].c.emoji} ${b[0].c.name} leads`:`${r.offline?"Offline":"Live"} cycle done${r.pendingSync?" · sync queued":""} · ${r.suggestions} ideas · ${b[0].c.emoji} ${b[0].c.name} leads`);renderAll();}
   catch(e){toast("Run failed: "+e.message);setStatus("error",false);}
   btn.disabled=false;btn.textContent="Run cycle";
 });
@@ -3986,6 +4117,15 @@ async function autoRunDueCycle(){
   catch(e){setStatus("error — click Run to retry",false);}
 }
 setInterval(()=>autoRunDueCycle(),RUN_INTERVAL_MS);
+window.addEventListener("online",async()=>{
+  const st=loadState();
+  if(st.pending_sync){
+    setStatus("reconnecting cloud…",true);
+    if(await pushCloudState()){st.pending_sync=false;saveState(st);setStatus("offline work synced",false);toast("Offline cycle synced to the shared portfolio.");}
+  }
+  autoRunDueCycle();
+});
+if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw.js").catch(()=>{});}
 
 /* On load: a new shared portfolio starts with an honest zero baseline; later cycles use live market snapshots. */
 (async function init(){
@@ -3998,20 +4138,15 @@ setInterval(()=>autoRunDueCycle(),RUN_INTERVAL_MS);
   }else if(cloud.ok&&st.seeded){
     pushCloudState();
   }else if(!cloud.ok){
-    setStatus("cloud sync unavailable",false);
+    setStatus("offline-ready · local state",false);
   }
   renderAll();
   const btn=$("runBtn");
-  if(!cloud.ok){
-    toast("Cloud sync is unavailable. Reconnect before running a cycle.");
-    return;
-  }
   if(!st.seeded){
     btn.disabled=true;btn.textContent="Starting…";
     try{
       SNAP_TS=nowIso();AGENTS.forEach(a=>recordSnapshot(st.agents[a.id]));SNAP_TS=null;
       st.seeded=true;st.date=todayStr();st.last_run=nowIso();st.last_cycle_hour=null;saveState(st);
-      if(!(await pushCloudState()))throw new Error("Cloud sync unavailable");
       await runDailyCycle();renderAll();toast("Live paper tracking started from a clean zero baseline.");
     }
     catch(e){setStatus("start error — click Run",false);}

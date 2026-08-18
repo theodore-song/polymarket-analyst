@@ -225,9 +225,19 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "GET") {
-      const state = await readJsonBlob();
-      if (state && state.items) state.items = compactItems(state.items);
-      return res.status(200).json({ ok: true, state });
+      try {
+        const state = await readJsonBlob();
+        if (state && state.items) state.items = compactItems(state.items);
+        return res.status(200).json({ ok: true, state, degraded: false });
+      } catch (err) {
+        // A storage outage must not prevent the installed app from using its local paper state.
+        return res.status(200).json({
+          ok: true,
+          state: null,
+          degraded: true,
+          error: err && err.message ? err.message : "Cloud state provider unavailable",
+        });
+      }
     }
 
     if (req.method === "POST") {
@@ -235,7 +245,17 @@ export default async function handler(req, res) {
       if (!body || typeof body !== "object" || !body.items || typeof body.items !== "object") {
         return res.status(400).json({ ok: false, error: "Invalid state payload" });
       }
-      const current = await readJsonBlob();
+      let current;
+      try {
+        current = await readJsonBlob();
+      } catch (err) {
+        return res.status(503).json({
+          ok: false,
+          degraded: true,
+          retryable: true,
+          error: err && err.message ? err.message : "Cloud state provider unavailable",
+        });
+      }
       const incomingItems = { ...body.items };
       const currentAgents = agentStateFromItems(current && current.items);
       let incomingAgents = agentStateFromItems(incomingItems);

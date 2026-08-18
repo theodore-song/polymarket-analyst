@@ -14,8 +14,17 @@ Personal research mode:
 https://polymarket-site-eta.vercel.app/personal.html
 
 The site fetches live Polymarket markets, generates agent suggestions, lets you
-run frequent paper cycles, and syncs the shared arena state through the Vercel
-API when `BLOB_READ_WRITE_TOKEN` is configured.
+run frequent paper cycles, and syncs the shared arena state through Neon or
+Vercel Blob. Engine v35 also installs an offline app shell and caches timestamped
+market snapshots. During an outage, cycles continue locally; cached entries are
+allowed for 90 minutes, older snapshots become mark-only, and all cached data
+expires after 24 hours.
+
+Each agent learns bounded weights from its own v34+ trade outcomes across signal
+type, setup quality, category, side, and entry-price band. The learner shrinks
+small samples toward neutral, caps sizing changes to 0.72x-1.28x, and reserves
+15% of candidates for deterministic exploration so a stale regime cannot become
+permanent.
 
 Paper accounts created with a password are also saved through the backend, so a
 user can log in from another device and see the same paper portfolio, activity,
@@ -43,7 +52,8 @@ Pick one — all give you a public URL:
 
 Use `.env.example` as the setup template.
 
-- `BLOB_READ_WRITE_TOKEN` enables cross-device shared state.
+- `DATABASE_URL` or `NEON_DATABASE_URL` enables Neon-backed shared state;
+  `BLOB_READ_WRITE_TOKEN` is the fallback provider.
 - `ACCOUNT_SESSION_SECRET` signs cloud paper-account sessions. If omitted, the
   app falls back to the existing server secret/token, but production should use
   a dedicated value.
