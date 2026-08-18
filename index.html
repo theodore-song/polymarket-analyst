@@ -891,7 +891,7 @@ const AGENTS = [
   {id:"conviction", name:"Conviction Max", emoji:"◆", color:"#b58cff", kind:"strategy", aggressive:true,
    blurb:"A concentrated highest-conviction strategy that ignores mediocre opportunities and commits to the few markets with the strongest combined confirmation, evidence, and signal margin. It deliberately runs a smaller book so its best ideas matter without filling exposure for its own sake.",
    rank:(s)=>[...s].sort((a,b)=>(effectiveEntryEdge(b)*250+Number(b.evidence_score||0)*55+b.conviction*1.4+Number(b.evidence_source_count||0)*12)-(effectiveEntryEdge(a)*250+Number(a.evidence_score||0)*55+a.conviction*1.4+Number(a.evidence_source_count||0)*12)),
-   maxNew:4, maxFrac:0.10, minConv:60, kelly:0.58, maxPositions:12, maxCategoryPct:0.45, maxCycleDrawdown:8, targetExposure:0.82, drawdownExposure:0.68},
+   maxNew:4, maxFrac:0.10, minConv:60, kelly:0.58, maxPositions:18, maxCategoryPct:0.45, maxCycleDrawdown:8, targetExposure:0.82, drawdownExposure:0.68},
 ];
 const agentById = (id) => AGENTS.find(a=>a.id===id) || AGENTS[0];
 
@@ -4144,6 +4144,7 @@ function runEngineSelfTest(){
   rejectBook.positions.push({market_id:trend.market_id,question:trend.question,side:trend.side,shares:100/Number(trend.entry_price),current_price:trend.entry_price,entry_price:trend.entry_price,cost:100,value:100,unrealized_pnl:0,opened_at:hoursAgo(24)});
   openPositions(rejectBook,AGENTS[0],[trend],"All",{minConv:0,maxNew:1,maxFrac:0.04,reserve:0.1,targetExposure:0.6,learning:buildAdaptiveProfile(rejectBook),marketLearning:{samples:0,pending:0,buckets:{}}},new Set(),{});
   const rejectionAccounting=Number(rejectBook.lastDecision&&rejectBook.lastDecision.rejectionCounts&&rejectBook.lastDecision.rejectionCounts.already_held||0)===1;
+  const convictionCfg=AGENTS.find(a=>a.id==="conviction"),convictionCapacityCoversTarget=convictionCfg.maxPositions*MAX_AGGRESSIVE_TRADE_LOSS_PCT>=convictionCfg.targetExposure;
   return {version:SUGGESTION_ENGINE_VERSION,
     trend:{ready:trend.trade_ready,quality:trend.quality,side:trend.side,margin:trend.net_edge},
     noSignal:{ready:noSignal.trade_ready,quality:noSignal.quality,signal:noSignal.signal_type,margin:noSignal.net_edge},
@@ -4158,7 +4159,7 @@ function runEngineSelfTest(){
       legacyNormalizedValue:riskPos.value,equityPreserved:+equity(riskBook).toFixed(2),capsBinaryGap:aggressiveGapBudget===0.03&&riskPos.value<=300.01},
     offline:{fresh:offlineCachePolicy(30*60000),staleEntry:offlineCachePolicy(3*3600000),expired:offlineCachePolicy(25*3600000)},
     exits:{youngConflict:exitReason(young,fresh,conflict,AGENTS[0]),matureConflict:exitReason(mature,fresh,conflict,AGENTS[0]),trailing:trailingProfitReason(trailing)},
-    overlapRemaining,immaterialRunnerDoesNotBlock,rejectionAccounting,rules:window.PMA_ENGINE_DIAGNOSTICS.rules};
+    overlapRemaining,immaterialRunnerDoesNotBlock,rejectionAccounting,convictionCapacityCoversTarget,rules:window.PMA_ENGINE_DIAGNOSTICS.rules};
 }
 if(new URLSearchParams(location.search).get("engine_test")==="1"){
   const output=document.createElement("output");output.id="engineSelfTest";output.hidden=true;output.textContent=JSON.stringify(runEngineSelfTest());document.body.appendChild(output);
