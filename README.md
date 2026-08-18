@@ -15,7 +15,7 @@ https://polymarket-site-eta.vercel.app/personal.html
 
 The site fetches live Polymarket markets, generates agent suggestions, lets you
 run frequent paper cycles, and syncs the shared arena state through Neon or
-Vercel Blob. Build 43 also installs an offline app shell and caches timestamped
+Vercel Blob. Build 44 also installs an offline app shell and caches timestamped
 market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
@@ -26,7 +26,7 @@ small samples toward neutral, caps sizing changes to 0.68x-1.30x, and reserves
 15% of candidates for deterministic exploration so a stale regime cannot become
 permanent.
 
-Strategy 40 treats each binary stake as capable of falling to zero even when the
+Strategy 42 treats each binary stake as capable of falling to zero even when the
 18% stop cannot fill. New core positions are capped at 2.5%-4% of equity and
 aggressive positions at 3%-5%, with lower limits for near-term, extreme-price,
 reversal, and fast-moving setups. Oversized positions inherited from older
@@ -55,7 +55,7 @@ evidence. Set `EVAL_MARKETS`, `EVAL_CONCURRENCY`, `EVAL_HORIZONS`, or
 `EVAL_COST_CENTS` to change the audit.
 The first 80-market audit found that reversal signals lost 4.34% on average in
 both chronological partitions, while crypto and longshot samples were also
-negative overall. Strategy 40 therefore blocks reversal and sports-trend entries outside the fixed
+negative overall. Strategy 42 therefore blocks reversal and sports-trend entries outside the fixed
 15% exploration lane and applies modest sizing penalties to crypto and longshots.
 It does not boost any rule from this audit because no positive rule was robust
 across the chronological split.
@@ -66,23 +66,23 @@ segment and averaged -4.13%. Sports trends were negative in train and test and
 averaged -3.53% at 72 hours. Politics trends were the sole cohort with positive
 row-level returns in all three 72-hour segments, but its market-cluster interval
 still crossed zero; that supports a longer hold test, not a larger entry bet.
-Strategy 40 gives Politics trend positions that 72-hour observation window before
+Strategy 42 gives Politics trend positions that 72-hour observation window before
 ordinary signal exits. Stops, profit locks, settlement handling, and risk-budget
 reductions remain immediate.
 
-Strategy 40 also subtracts a half-cent round-trip cost when grading each live
+Strategy 42 also subtracts a half-cent round-trip cost when grading each live
 walk-forward signal. Confidence uses the largest independent matching bucket,
 not the sum of five overlapping feature buckets, and evidence from older engine
 versions is down-weighted. This prevents a handful of duplicated observations
 from authorizing larger positions or hiding a modest negative regime.
 
-Strategy 40 adds uncertainty-aware promotion and demotion. A matching setup must
+Strategy 42 adds uncertainty-aware promotion and demotion. A matching setup must
 accumulate at least eight effective observations and agree across at least two
 feature views before repeatable positive evidence can increase size or repeatable
 negative evidence can block a new entry. Mixed evidence stays close to neutral
 instead of being mistaken for an edge.
 
-Build 43 enforces the documented offline boundary end to end. Cached snapshots
+Build 44 enforces the documented offline boundary end to end. Cached snapshots
 under 90 minutes old may continue paper execution. Older snapshots remain usable
 for valuation and chart snapshots for up to 24 hours, but cannot trigger entries,
 stop-losses, gain-stops, risk rebalances, settlements, or policy exits. Network
@@ -91,14 +91,20 @@ of leaving a cycle hanging indefinitely.
 
 Build identity is separate from strategy lineage starting with build 42. The
 service worker and deployment metadata advance with each code release, but
-adaptive baselines, pending signal grades, and trade evidence remain in strategy
-40 until the actual entry, sizing, or exit logic changes. Legacy build 40 and 41
+adaptive baselines, pending signal grades, and trade evidence remain in one strategy
+lineage until the actual entry, sizing, or exit logic changes. Legacy build 40 and 41
 records are migrated into the same strategy lineage without losing evidence.
 
-Build 43 independently refreshes markets for matured pending signals that have
+Build 44 independently refreshes markets for matured pending signals that have
 left the current top-500 activity scan. Unavailable markets remain queued for a
 bounded retry window. This prevents activity-rank survivorship from deciding
 which wins and losses reach the adaptive calibration ledger.
+
+Strategy 42 coordinates high-risk exploration globally. Crypto, reversal,
+near-term, extreme-price, and other gap-prone positions may be held materially by
+only one agent, while ordinary independently confirmed markets retain the
+two-agent cap. A historically blocked setup can enter the exploration lane for
+only one designated agent, preventing duplicated speculative losses.
 
 Run `npm run evaluate:settlements` to evaluate fixed decisions made 1, 3, 7,
 14, 30, and 90 days before known binary settlements. The audit uses one
