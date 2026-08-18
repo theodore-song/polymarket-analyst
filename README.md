@@ -70,6 +70,21 @@ Engine v38 gives Politics trend positions that 72-hour observation window before
 ordinary signal exits. Stops, profit locks, settlement handling, and risk-budget
 reductions remain immediate.
 
+Run `npm run evaluate:settlements` to evaluate fixed decisions made 1, 3, 7,
+14, 30, and 90 days before known binary settlements. The audit uses one
+observation per resolved market and horizon, includes losing contracts at zero,
+applies the same half-cent cost assumption, clusters related contracts by event,
+and requires positive event-clustered confidence bounds in train and test plus
+positive results in three chronological segments before it calls a settlement
+cohort robust. Environment variables beginning with
+`SETTLEMENT_` control its market count, concurrency, horizons, and cost.
+
+The first event-clustered run loaded 498 of the 500 highest-volume resolved
+markets. No side, price band, category, or 1-90 day holding rule passed the
+required train/test confidence checks. In particular, older YES/underdog gains
+reversed in the recent test segment. The engine therefore does not install a
+static settlement-direction boost from this audit.
+
 Paper accounts created with a password are also saved through the backend, so a
 user can log in from another device and see the same paper portfolio, activity,
 and value history. Passwordless paper accounts remain local-only.

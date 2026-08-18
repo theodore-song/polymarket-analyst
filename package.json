@@ -1,6 +1,7 @@
 {
   "scripts": {
-    "evaluate:signals": "node scripts/evaluate-signals.mjs"
+    "evaluate:signals": "node scripts/evaluate-signals.mjs",
+    "evaluate:settlements": "node scripts/evaluate-settlements.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
