@@ -1546,7 +1546,7 @@ function tradeReturnForLearning(trade,closed){
   return clamp(pnl/basis,-1,2);
 }
 function buildAdaptiveProfile(p){
-  const buckets={},observations=[];
+  const buckets={},observations=[],closedReturns=[];
   const add=(trade,closed)=>{
     if(Number(trade.strategy_version||0)<34)return;
     const age=Math.max(0,Date.now()-new Date(trade.closed_at||trade.opened_at||0).getTime());
@@ -1554,7 +1554,7 @@ function buildAdaptiveProfile(p){
     const weight=recency*(closed?1:Math.min(0.30,Math.max(0.08,daysHeld(trade)/20)));
     const ret=tradeReturnForLearning(trade,closed);
     if(!Number.isFinite(ret)||weight<=0)return;
-    observations.push({ret,weight,closed});
+    observations.push({ret,weight,closed});if(closed)closedReturns.push(ret);
     learningFeatures(trade).forEach(key=>{
       const b=buckets[key]||(buckets[key]={weight:0,sum:0,wins:0,count:0});
       b.weight+=weight;b.sum+=ret*weight;b.wins+=(ret>0?weight:0);b.count++;
@@ -1571,6 +1571,8 @@ function buildAdaptiveProfile(p){
     .sort((a,b)=>b[1].score-a[1].score);
   return {version:SUGGESTION_ENGINE_VERSION,samples:(p.closed||[]).filter(t=>Number(t.strategy_version||0)>=34).length,
     effective_samples:+totalWeight.toFixed(2),global_score:+globalScore.toFixed(4),buckets:learned,
+    worst_return:closedReturns.length?+Math.min(...closedReturns).toFixed(4):0,
+    large_loss_count:closedReturns.filter(x=>x<=-0.30).length,
     best:ranked[0]?{feature:ranked[0][0],score:ranked[0][1].score}:null,
     worst:ranked.length?{feature:ranked[ranked.length-1][0],score:ranked[ranked.length-1][1].score}:null};
 }
@@ -1583,7 +1585,7 @@ function learnedOpportunity(cfg,p,s,profile=null){
   const model=profile||buildAdaptiveProfile(p),features=learningFeatures(s),rows=features.map(k=>model.buckets[k]).filter(Boolean);
   const weight=rows.reduce((sum,r)=>sum+r.weight,0),score=rows.length?rows.reduce((sum,r)=>sum+r.score,0)/rows.length:0;
   const confidence=weight/(weight+12),exploration=stableExploration(cfg.id,s.market_id);
-  const blocked=model.samples>=8&&confidence>=0.45&&score<-0.055&&!exploration;
+  const blocked=((model.samples>=4&&confidence>=0.32&&score<-0.045)||(model.samples>=8&&confidence>=0.45&&score<-0.035))&&!exploration;
   return {score:+score.toFixed(4),confidence:+confidence.toFixed(3),multiplier:+clamp(1+score*2.4,0.72,1.28).toFixed(3),
     exploration,allowed:!blocked,features};
 }
@@ -1620,6 +1622,10 @@ function adaptiveDecision(cfg,p,rank,total,leaderEq){
   if(profile.effective_samples>=4){
     if(profile.global_score>0.015){maxFrac*=1.08;reason+=" Its own recent trade evidence is positive, so proven setups receive a small bounded size increase.";}
     else if(profile.global_score<-0.015){maxFrac*=0.88;reason+=" Its own recent trade evidence is negative, so weak regimes are down-weighted while a 15% exploration allowance remains.";}
+  }
+  if(profile.effective_samples>=1.5&&(profile.global_score<-0.04||profile.worst_return<=-0.30)){
+    mode="Loss Regime Containment";minConv+=2;maxNew=Math.min(maxNew,1);maxFrac*=0.72;
+    reason+=" A severe realized loss was detected, so new risk is cut immediately while the learner identifies which signal regime failed.";
   }
   reason+=` Emotion is reported as ${emo.label.toLowerCase()} but cannot increase size, reduce confirmation, or add attack slots.`;
   const todaySnaps=(p.snapshots||[]).filter(s=>s.date===todayStr());
@@ -3970,6 +3976,14 @@ function runEngineSelfTest(){
   const learningProfile=buildAdaptiveProfile(learner);
   const learnedTrend=learnedOpportunity(AGENTS[0],learner,{market_id:"learn-trend",signal_type:"trend",quality:"confirmed",category:"Politics",side:"YES",entry_price:0.42},learningProfile);
   const learnedReversal=learnedOpportunity(AGENTS[0],learner,{market_id:"learn-reversal",signal_type:"reversal",quality:"reversal",category:"Sports",side:"NO",entry_price:0.42},learningProfile);
+  const lossLearner=defaultPortfolio();
+  for(let i=0;i<4;i++)lossLearner.closed.push({strategy_version:35,signal_type:"trend",quality:"confirmed",category:"Politics",side:"YES",entry_price:0.42,original_cost:100,
+    realized_pnl:-50,opened_at:hoursAgo(72+i),closed_at:closedAt});
+  let lossMarketId="loss-regime-0",lossIndex=0;
+  while(stableExploration(AGENTS[0].id,lossMarketId))lossMarketId=`loss-regime-${++lossIndex}`;
+  const lossProfile=buildAdaptiveProfile(lossLearner);
+  const lossOpportunity=learnedOpportunity(AGENTS[0],lossLearner,{market_id:lossMarketId,signal_type:"trend",quality:"confirmed",category:"Politics",side:"YES",entry_price:0.42},lossProfile);
+  const lossDecision=adaptiveDecision(AGENTS[0],lossLearner,5,10,STARTING_BALANCE);
   const mock={agents:{}};AGENTS.forEach(a=>mock.agents[a.id]=defaultPortfolio());
   ["value","momentum","favorite"].forEach((id,i)=>mock.agents[id].positions.push({market_id:"overlap-test",question:"Overlap test",side:"YES",shares:100,current_price:0.5,entry_price:0.5,cost:50,value:50,unrealized_pnl:0,conviction:70-i,opened_at:hoursAgo(24)}));
   reduceStrategyOverlap(mock);
@@ -3979,7 +3993,8 @@ function runEngineSelfTest(){
     noSignal:{ready:noSignal.trade_ready,quality:noSignal.quality,signal:noSignal.signal_type,margin:noSignal.net_edge},
     reversal:{ready:reversal.trade_ready,quality:reversal.quality,side:reversal.side,margin:reversal.net_edge},
     highEntryTargets:targets,targetsReachable:targets.every(x=>x>0.82&&x<1),
-    adaptation:{samples:learningProfile.samples,trendMultiplier:learnedTrend.multiplier,reversalMultiplier:learnedReversal.multiplier,learnsDirection:learnedTrend.multiplier>learnedReversal.multiplier},
+    adaptation:{samples:learningProfile.samples,trendMultiplier:learnedTrend.multiplier,reversalMultiplier:learnedReversal.multiplier,learnsDirection:learnedTrend.multiplier>learnedReversal.multiplier,
+      blocksConfirmedLosingRegime:!lossOpportunity.allowed,containmentMode:lossDecision.mode,containmentMaxNew:lossDecision.maxNew},
     offline:{fresh:offlineCachePolicy(30*60000),staleEntry:offlineCachePolicy(3*3600000),expired:offlineCachePolicy(25*3600000)},
     exits:{youngConflict:exitReason(young,fresh,conflict,AGENTS[0]),matureConflict:exitReason(mature,fresh,conflict,AGENTS[0]),trailing:trailingProfitReason(trailing)},
     overlapRemaining,rules:window.PMA_ENGINE_DIAGNOSTICS.rules};
