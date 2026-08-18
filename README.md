@@ -15,7 +15,7 @@ https://polymarket-site-eta.vercel.app/personal.html
 
 The site fetches live Polymarket markets, generates agent suggestions, lets you
 run frequent paper cycles, and syncs the shared arena state through Neon or
-Vercel Blob. Build 45 also installs an offline app shell and caches timestamped
+Vercel Blob. Build 46 also installs an offline app shell and caches timestamped
 market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
@@ -89,7 +89,7 @@ feature views before repeatable positive evidence can increase size or repeatabl
 negative evidence can block a new entry. Mixed evidence stays close to neutral
 instead of being mistaken for an edge.
 
-Build 45 enforces the documented offline boundary end to end. Cached snapshots
+Build 46 enforces the documented offline boundary end to end. Cached snapshots
 under 90 minutes old may continue paper execution. Older snapshots remain usable
 for valuation and chart snapshots for up to 24 hours, but cannot trigger entries,
 stop-losses, gain-stops, risk rebalances, settlements, or policy exits. Network
@@ -102,7 +102,7 @@ adaptive baselines, pending signal grades, and trade evidence remain in one stra
 lineage until the actual entry, sizing, or exit logic changes. Legacy build 40 and 41
 records are migrated into the same strategy lineage without losing evidence.
 
-Build 45 independently refreshes markets for matured pending signals that have
+Build 46 independently refreshes markets for matured pending signals that have
 left the current top-500 activity scan. Unavailable markets remain queued for a
 bounded retry window. This prevents activity-rank survivorship from deciding
 which wins and losses reach the adaptive calibration ledger.

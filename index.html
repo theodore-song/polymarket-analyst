@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 43 · build 45</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 43 · build 46</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 45 active:</b> adaptation now grades signals after the same 24-hour minimum used by ordinary trade policy. Reversal and short-dated NO entries are disabled after independent price-history and settlement audits found repeatable net losses; Trend Endurance replaces the reversal agent. This remains paper trading; profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 46 active:</b> adaptation now grades signals after the same 24-hour minimum used by ordinary trade policy. Reversal and short-dated NO entries are disabled after independent price-history and settlement audits found repeatable net losses; Trend Endurance replaces the reversal agent. This remains paper trading; profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 45 · Adaptive strategy 43 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build 46 · Adaptive strategy 43 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 45;
+const BUILD_VERSION = 46;
 const SUGGESTION_ENGINE_VERSION = 43;
 const PREVIOUS_STRATEGY_VERSION = 42;
 const LEGACY_BUILD_STRATEGY_LINEAGE = Object.freeze({40:40,41:40});
@@ -3109,7 +3109,25 @@ function renderAgentReports(){
     </article>`;
   }).join("");
 }
-function loadAgentChats(){try{return JSON.parse(localStorage.getItem(CHAT_KEY)||"{}");}catch(e){return {};}}
+function migrateAgentChatIdentity(chats){
+  const history=chats&&Array.isArray(chats.reversal)?chats.reversal:null;if(!history)return false;
+  let changed=false;
+  history.forEach((message,index)=>{
+    if(message.role!=="agent"||!/Reversal Edge|crowd move that has gone too far|snapbacks begin/.test(String(message.text||"")))return;
+    const text=String(message.text||"");
+    if(text.includes("Talk to me normally"))history[index]=agentChatSeed("reversal")[0];
+    else history[index]=Object.assign({},message,{text:text.replaceAll("Reversal Edge","Trend Endurance")
+      .replace("I am looking for a crowd move that has gone too far.","I am looking for a confirmed trend with enough time to develop.")
+      .replace("The best snapbacks begin where consensus gets stretched.","I want durable direction, not a reflexive snapback bet.")});
+    changed=true;
+  });
+  return changed;
+}
+function loadAgentChats(){
+  let chats;try{chats=JSON.parse(localStorage.getItem(CHAT_KEY)||"{}");}catch(e){chats={};}
+  if(migrateAgentChatIdentity(chats))localStorage.setItem(CHAT_KEY,JSON.stringify(chats));
+  return chats;
+}
 function saveAgentChats(chats){localStorage.setItem(CHAT_KEY,JSON.stringify(chats));}
 function agentVoice(cfg){
   const voices={
@@ -4378,14 +4396,16 @@ function runEngineSelfTest(){
   delete executableBook.positions[0].price_status;
   markToMarket(executableBook,{"offline-mark":market({id:"offline-mark",yes_price:0.8,no_price:0.2})},AGENTS[0],{policyExits:true,executeTrades:true});
   const buildMigrationState=defaultState();
-  buildMigrationState.engine_version=44;buildMigrationState.strategy_version=SUGGESTION_ENGINE_VERSION;
+  buildMigrationState.engine_version=45;buildMigrationState.strategy_version=SUGGESTION_ENGINE_VERSION;
   buildMigrationState.agents.value.engine_baseline={version:SUGGESTION_ENGINE_VERSION,started_at:hoursAgo(2),equity:9876.54};
   reconcileStateVersions(buildMigrationState);
   const strategyMigrationState=defaultState();
-  strategyMigrationState.engine_version=44;strategyMigrationState.strategy_version=PREVIOUS_STRATEGY_VERSION;
+  strategyMigrationState.engine_version=45;strategyMigrationState.strategy_version=PREVIOUS_STRATEGY_VERSION;
   strategyMigrationState.agents.value.cash=9876.54;
   strategyMigrationState.agents.value.engine_baseline={version:PREVIOUS_STRATEGY_VERSION,started_at:hoursAgo(2),equity:10000};
   reconcileStateVersions(strategyMigrationState);
+  const chatMigrationFixture={reversal:[{role:"agent",text:"I am looking for a crowd move that has gone too far. I am Reversal Edge, sitting at -1.00% with $9,900.00 equity. Talk to me normally."}]};
+  migrateAgentChatIdentity(chatMigrationFixture);
   return {buildVersion:BUILD_VERSION,version:SUGGESTION_ENGINE_VERSION,
     trend:{ready:trend.trade_ready,quality:trend.quality,side:trend.side,margin:trend.net_edge},
     noSignal:{ready:noSignal.trade_ready,quality:noSignal.quality,signal:noSignal.signal_type,margin:noSignal.net_edge},
@@ -4430,6 +4450,7 @@ function runEngineSelfTest(){
       politicsEarlyConflict:exitReason(politicsEarly,fresh,conflict,AGENTS[0]),politicsMatureConflict:exitReason(politicsMature,fresh,conflict,AGENTS[0]),trailing:trailingProfitReason(trailing)},
     backtest:{noLookahead:backtestNoLookahead,features:historicalFeatures},
     overlapRemaining,gapOverlapRemaining,singleGlobalExplorer:explorationOwners.length===1,
+    chatIdentityMigrates:chatMigrationFixture.reversal[0].text.includes("Trend Endurance")&&!chatMigrationFixture.reversal[0].text.includes("Reversal Edge"),
     immaterialRunnerDoesNotBlock,rejectionAccounting,convictionCapacityCoversTarget,rules:window.PMA_ENGINE_DIAGNOSTICS.rules};
 }
 if(new URLSearchParams(location.search).get("engine_test")==="1"){
