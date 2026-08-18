@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive offline engine · v37</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive offline engine · v38</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build v37 active:</b> a chronological price-history audit now suppresses historically weak reversal entries outside the 15% exploration lane and modestly reduces crypto and longshot sizing. Agents still learn from live outcomes, binary-loss budgets cap each stake, and cached minute cycles continue while this page is open. This remains paper trading; profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build v38 active:</b> a 197-market chronological audit suppresses weak reversal and sports-trend entries outside the 15% exploration lane. Politics trends receive a 72-hour evidence window before ordinary signal exits, while stop-losses, profit locks, settlement exits, and binary-loss budgets remain immediate. This remains paper trading; profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -425,7 +425,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
       <div class="card-h"><h3>Returns — all agents</h3><div><span class="small muted">$10,000 start each</span><div class="rangebar" data-chart-ranges></div></div></div>
       <div class="chart-wrap"><svg id="chart2" viewBox="0 0 960 320" preserveAspectRatio="xMidYMid meet"></svg></div>
       <div class="legend" id="comboLegend2"></div>
-      <div class="small muted" style="margin-top:10px">The initial week is an approximate historical replay using prices available on each day and current liquidity as a proxy. The v37 return starts from live cycles only.</div>
+      <div class="small muted" style="margin-top:10px">The initial week is an approximate historical replay using prices available on each day and current liquidity as a proxy. The v38 return starts from live cycles only.</div>
     </div>
   </section>
 
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build adaptive-offline-v37 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build adaptive-offline-v38 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -770,10 +770,11 @@ const GAIN_STOP_TIERS = [
 ];
 const EXIT_STALE_DAYS = 21;
 const MIN_POLICY_HOLD_HOURS = 24;
+const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const SUGGESTION_ENGINE_VERSION = 37;
+const SUGGESTION_ENGINE_VERSION = 38;
 const FOCUS_KEY = "pma_focus_v1";
 const VIEW_KEY = "pma_view_v1";
 const PF_SORT_KEY = "pma_portfolio_sort_v1";
@@ -1658,9 +1659,11 @@ function stableExploration(agentId,marketId){
 }
 function historicalOpportunityPrior(s){
   const rows=[];
-  if((s.signal_type||"")==="reversal")rows.push({feature:"reversal",score:-0.0434,samples:106,blocked:true});
-  if((s.category||"Other")==="Crypto")rows.push({feature:"crypto",score:-0.0265,samples:46,blocked:false});
-  if(entryBand(s.entry_price)==="longshot")rows.push({feature:"longshot",score:-0.0233,samples:83,blocked:false});
+  if((s.signal_type||"")==="reversal")rows.push({feature:"reversal",score:-0.0413,samples:287,blocked:true});
+  if((s.signal_type||"")==="trend"&&(s.category||"Other")==="Sports")rows.push({feature:"sports-trend",score:-0.0353,samples:162,blocked:true});
+  if((s.category||"Other")==="Crypto")rows.push({feature:"crypto",score:-0.0344,samples:140,blocked:false});
+  if(entryBand(s.entry_price)==="longshot")rows.push({feature:"longshot",score:-0.0327,samples:277,blocked:false});
+  if((s.side||"")==="YES")rows.push({feature:"yes-side",score:-0.0190,samples:954,blocked:false});
   if(!rows.length)return {score:0,confidence:0,multiplier:1,blocked:false,features:[]};
   const score=rows.reduce((sum,row)=>sum+row.score,0)/rows.length;
   const samples=rows.reduce((sum,row)=>sum+row.samples,0),confidence=samples/(samples+200);
@@ -1926,6 +1929,10 @@ function trailingProfitReason(pos){
   const retainedFloor=Math.max(0.02,peakReturn*0.55);
   return currentReturn<=retainedFloor?`Trailing profit lock after a ${(peakReturn*100).toFixed(1)}% peak`:null;
 }
+function policyHoldHours(pos){
+  return (pos.category||"Other")==="Politics"&&(pos.signal_type||"")==="trend"
+    ?POLITICS_TREND_MIN_HOLD_HOURS:MIN_POLICY_HOLD_HOURS;
+}
 function exitReason(pos,fresh,analysis,cfg){
   if(fastSettlementRisk(fresh))return "Risk policy removed fast-settling event exposure";
   const trail=trailingProfitReason(pos);if(trail)return trail;
@@ -1933,16 +1940,17 @@ function exitReason(pos,fresh,analysis,cfg){
   if(daysHeld(pos)>=EXIT_STALE_DAYS&&(pos.unrealized_pnl||0)<=0)return `Stale losing exit after ${Math.floor(daysHeld(pos))} days`;
   if(!analysis)return null;
   const net=Math.abs(analysis.net_edge!=null?analysis.net_edge:analysis.edge||0);
+  const minimumHold=policyHoldHours(pos);
   const conflicting=analysis.trade_ready&&analysis.side&&analysis.side!==pos.side&&net>=MIN_SELECTIVE_ENTRY_EDGE;
   if(conflicting){
     if(!pos.signal_conflict_since)pos.signal_conflict_since=cycleIso();
-    if(heldHours>=MIN_POLICY_HOLD_HOURS&&hoursSince(pos.signal_conflict_since)>=EXIT_CONFIRM_HOURS)return `Confirmed signal reversal to ${analysis.side}`;
+    if(heldHours>=minimumHold&&hoursSince(pos.signal_conflict_since)>=EXIT_CONFIRM_HOURS)return `Confirmed signal reversal to ${analysis.side}`;
   }else delete pos.signal_conflict_since;
   const minExit=Math.max(30,(cfg&&cfg.minConv?cfg.minConv:45)-8);
   const faded=(pos.unrealized_pnl||0)<0&&analysis.conviction<minExit&&!analysis.trade_ready;
   if(faded){
     if(!pos.signal_fade_since)pos.signal_fade_since=cycleIso();
-    if(heldHours>=48&&hoursSince(pos.signal_fade_since)>=12)return `Signal remained unconfirmed for 12 hours`;
+    if(heldHours>=Math.max(48,minimumHold)&&hoursSince(pos.signal_fade_since)>=12)return `Signal remained unconfirmed for 12 hours`;
   }else delete pos.signal_fade_since;
   return null;
 }
@@ -2539,7 +2547,7 @@ function decisionSummary(p){
   const blockerRows=Object.entries(d.rejectionCounts||{}).filter(([,count])=>count>0).sort((a,b)=>b[1]-a[1]);
   const blockers=blockerRows.length?` Blocks: ${blockerRows.slice(0,4).map(([key,count])=>`${blockerLabels[key]||key} ${count}`).join(", ")}.`:"";
   const learning=d.learning?` Learning: ${d.learning.samples} completed trades retained with older engines down-weighted, ${(d.learning.global_score*100).toFixed(2)}% shrunk expectancy; ${d.learning.current_samples||0} completed under v${SUGGESTION_ENGINE_VERSION}${d.learning.best?`; strongest ${d.learning.best.feature.replace(":"," ")}`:""}${d.learning.worst?`; weakest ${d.learning.worst.feature.replace(":"," ")}`:""}.`:"";
-  const calibration=d.marketLearning?` Walk-forward calibration: ${d.marketLearning.samples||0} graded signals, ${d.marketLearning.pending||0} awaiting a future price. Historical prior: reversal entries require the fixed 15% exploration lane; crypto and longshots are sized down, not forbidden.`:"";
+  const calibration=d.marketLearning?` Walk-forward calibration: ${d.marketLearning.samples||0} graded signals, ${d.marketLearning.pending||0} awaiting a future price. Historical prior: reversal and sports-trend entries require the fixed 15% exploration lane; crypto, longshots, and YES entries are sized down, not forbidden. Politics trends receive 72 hours before ordinary signal exits.`:"";
   return `${d.mode} mode: ${d.reason}${emotion} Limits now: ${d.maxNew} new trade${d.maxNew===1?"":"s"}, max ${(d.maxFrac*100).toFixed(1)}% per position${d.minConv?`, conviction ${d.minConv}+`:""}.${learning}${calibration}${exposure}${allocation}${candidates}${blockers}`;
 }
 function renderAgentBrief(cfg,p,st){
@@ -2547,7 +2555,7 @@ function renderAgentBrief(cfg,p,st){
   const bw=bestAndWorst(p);
   const risk=cfg.aggressive?"Extreme risk":cfg.maxFrac>=0.055?"Active":cfg.maxFrac<=0.04?"Broad active":"Disciplined";
   const cadence=`${cfg.maxNew||0} new trades max per cycle`;
-  const exitRule=`Exit after a confirmed reversal, a 12h unconfirmed fade after 48h, a trailing-profit retrace, or ${EXIT_STALE_DAYS}d stale while losing`;
+  const exitRule=`Exit after a confirmed reversal, a 12h unconfirmed fade after 48h, a trailing-profit retrace, or ${EXIT_STALE_DAYS}d stale while losing; Politics trends get 72h before ordinary signal exits`;
   const thesis=agentPlainBlurb(cfg,st);
   root.innerHTML=`
     <div class="brief-main" style="border-top:3px solid ${cfg.color}">
@@ -4106,11 +4114,11 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
   historicalPriceFeatures,
   offlineCachePolicy,
   gainStopTargets:(entry)=>GAIN_STOP_TIERS.map(t=>gainStopTarget({entry_price:Number(entry),cost:1,shares:1,gain_stops:{}},t)),
-  rules:Object.freeze({minimumPolicyHoldHours:MIN_POLICY_HOLD_HOURS,exitConfirmationHours:EXIT_CONFIRM_HOURS,maxAgentOverlap:2,materialOverlapPct:1.25,stopLossPct:18,
+  rules:Object.freeze({minimumPolicyHoldHours:MIN_POLICY_HOLD_HOURS,politicsTrendHoldHours:POLITICS_TREND_MIN_HOLD_HOURS,exitConfirmationHours:EXIT_CONFIRM_HOURS,maxAgentOverlap:2,materialOverlapPct:1.25,stopLossPct:18,
     coreTradeLossPct:MAX_CORE_TRADE_LOSS_PCT*100,aggressiveTradeLossPct:MAX_AGGRESSIVE_TRADE_LOSS_PCT*100,
     coreGapTradeLossPct:MAX_CORE_GAP_TRADE_LOSS_PCT*100,aggressiveGapTradeLossPct:MAX_AGGRESSIVE_GAP_TRADE_LOSS_PCT*100,
     offlineEntryMaxAgeMinutes:OFFLINE_ENTRY_MAX_AGE_MS/60000,offlineCacheMaxAgeHours:OFFLINE_CACHE_MAX_AGE_MS/3600000,explorationPct:15,
-    historicalPrior:"reversal blocked outside exploration; crypto and longshots sized down"}),
+    historicalPrior:"reversal and sports trends blocked outside exploration; crypto, longshots, and YES sized down"}),
 });
 function runEngineSelfTest(){
   const market=(overrides={})=>Object.assign({
@@ -4128,6 +4136,8 @@ function runEngineSelfTest(){
   const conflict={trade_ready:true,side:"NO",net_edge:-0.03,conviction:72};
   const mature={entry_price:0.42,current_price:0.39,opened_at:hoursAgo(48),signal_conflict_since:hoursAgo(7),unrealized_pnl:-10,quality:"confirmed"};
   const young={entry_price:0.42,current_price:0.39,opened_at:hoursAgo(2),signal_conflict_since:hoursAgo(1),unrealized_pnl:-10,quality:"confirmed"};
+  const politicsEarly={entry_price:0.42,current_price:0.39,opened_at:hoursAgo(48),signal_conflict_since:hoursAgo(7),unrealized_pnl:-10,quality:"confirmed",category:"Politics",signal_type:"trend"};
+  const politicsMature=Object.assign({},politicsEarly,{opened_at:hoursAgo(73)});
   const trailing={entry_price:0.40,current_price:0.45,peak_price:0.55,opened_at:hoursAgo(48),unrealized_pnl:10,quality:"confirmed"};
   const fresh=market();
   const learner=defaultPortfolio(),closedAt=nowIso();
@@ -4146,6 +4156,10 @@ function runEngineSelfTest(){
   while(stableExploration(AGENTS[0].id,priorMarketId))priorMarketId=`prior-reversal-${++priorIndex}`;
   const priorReversal=learnedOpportunity(AGENTS[0],defaultPortfolio(),{market_id:priorMarketId,signal_type:"reversal",quality:"reversal",category:"Sports",side:"NO",entry_price:0.42});
   const priorCryptoLongshot=historicalOpportunityPrior({signal_type:"trend",category:"Crypto",entry_price:0.20});
+  let sportsPriorId="prior-sports-0",sportsPriorIndex=0;
+  while(stableExploration(AGENTS[0].id,sportsPriorId))sportsPriorId=`prior-sports-${++sportsPriorIndex}`;
+  const priorSportsTrend=learnedOpportunity(AGENTS[0],defaultPortfolio(),{market_id:sportsPriorId,signal_type:"trend",quality:"confirmed",category:"Sports",side:"NO",entry_price:0.58});
+  const priorPoliticsTrend=historicalOpportunityPrior({signal_type:"trend",category:"Politics",side:"NO",entry_price:0.58});
   const ledgerState={signal_ledger:{pending:[{key:"ledger-test",market_id:"ledger-test",observed_at:hoursAgo(13),side:"YES",entry_price:0.40,
     signal_type:"trend",quality:"confirmed",category:"Politics"}],outcomes:[]}};
   updateSignalLedger(ledgerState,[market({id:"ledger-test",yes_price:0.50,no_price:0.50})],[]);
@@ -4193,13 +4207,16 @@ function runEngineSelfTest(){
       calibrationSamples:calibrationProfile.samples,trendMarketScore:learnedTrend.market_score,reversalMarketScore:learnedReversal.market_score,
       historicalPriorBlocksReversal:!priorReversal.allowed&&priorReversal.blocked_by==="historical",
       historicalPriorSizesRisk:!priorCryptoLongshot.blocked&&priorCryptoLongshot.multiplier<1&&priorCryptoLongshot.features.length===2,
+      historicalPriorBlocksSportsTrend:!priorSportsTrend.allowed&&priorSportsTrend.blocked_by==="historical",
+      historicalPriorAllowsPoliticsTrend:!priorPoliticsTrend.blocked,
       ledgerMaturesWithoutLookahead:ledgerState.signal_ledger.pending.length===0&&ledgerState.signal_ledger.outcomes.length===1&&ledgerState.signal_ledger.outcomes[0].return===0.25,
       blocksConfirmedLosingRegime:!lossOpportunity.allowed,containmentMode:lossDecision.mode,containmentMaxNew:lossDecision.maxNew,
       legacyLossDoesNotFreezeCurrentEngine:legacyLossDecision.mode!=="Loss Regime Containment"},
     riskBudget:{core:coreRiskBudget,aggressiveGap:aggressiveGapBudget,boundedStake:boundedStakeForRisk(10000,1000,riskCfg,{entry_price:0.82,days_to_resolution:5,price_change_1d:0.06}),
       legacyNormalizedValue:riskPos.value,equityPreserved:+equity(riskBook).toFixed(2),capsBinaryGap:aggressiveGapBudget===0.03&&riskPos.value<=300.01},
     offline:{fresh:offlineCachePolicy(30*60000),staleEntry:offlineCachePolicy(3*3600000),expired:offlineCachePolicy(25*3600000)},
-    exits:{youngConflict:exitReason(young,fresh,conflict,AGENTS[0]),matureConflict:exitReason(mature,fresh,conflict,AGENTS[0]),trailing:trailingProfitReason(trailing)},
+    exits:{youngConflict:exitReason(young,fresh,conflict,AGENTS[0]),matureConflict:exitReason(mature,fresh,conflict,AGENTS[0]),
+      politicsEarlyConflict:exitReason(politicsEarly,fresh,conflict,AGENTS[0]),politicsMatureConflict:exitReason(politicsMature,fresh,conflict,AGENTS[0]),trailing:trailingProfitReason(trailing)},
     backtest:{noLookahead:backtestNoLookahead,features:historicalFeatures},
     overlapRemaining,immaterialRunnerDoesNotBlock,rejectionAccounting,convictionCapacityCoversTarget,rules:window.PMA_ENGINE_DIAGNOSTICS.rules};
 }

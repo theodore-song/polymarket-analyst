@@ -15,7 +15,7 @@ https://polymarket-site-eta.vercel.app/personal.html
 
 The site fetches live Polymarket markets, generates agent suggestions, lets you
 run frequent paper cycles, and syncs the shared arena state through Neon or
-Vercel Blob. Engine v37 also installs an offline app shell and caches timestamped
+Vercel Blob. Engine v38 also installs an offline app shell and caches timestamped
 market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
@@ -26,7 +26,7 @@ small samples toward neutral, caps sizing changes to 0.68x-1.30x, and reserves
 15% of candidates for deterministic exploration so a stale regime cannot become
 permanent.
 
-Engine v37 treats each binary stake as capable of falling to zero even when the
+Engine v38 treats each binary stake as capable of falling to zero even when the
 18% stop cannot fill. New core positions are capped at 2.5%-4% of equity and
 aggressive positions at 3%-5%, with lower limits for near-term, extreme-price,
 reversal, and fast-moving setups. Oversized positions inherited from older
@@ -55,7 +55,7 @@ evidence. Set `EVAL_MARKETS`, `EVAL_CONCURRENCY`, `EVAL_HORIZONS`, or
 `EVAL_COST_CENTS` to change the audit.
 The first 80-market audit found that reversal signals lost 4.34% on average in
 both chronological partitions, while crypto and longshot samples were also
-negative overall. Engine v37 therefore blocks reversal entries outside the fixed
+negative overall. Engine v38 therefore blocks reversal and sports-trend entries outside the fixed
 15% exploration lane and applies modest sizing penalties to crypto and longshots.
 It does not boost any rule from this audit because no positive rule was robust
 across the chronological split.
@@ -66,6 +66,9 @@ segment and averaged -4.13%. Sports trends were negative in train and test and
 averaged -3.53% at 72 hours. Politics trends were the sole cohort with positive
 row-level returns in all three 72-hour segments, but its market-cluster interval
 still crossed zero; that supports a longer hold test, not a larger entry bet.
+Engine v38 gives Politics trend positions that 72-hour observation window before
+ordinary signal exits. Stops, profit locks, settlement handling, and risk-budget
+reductions remain immediate.
 
 Paper accounts created with a password are also saved through the backend, so a
 user can log in from another device and see the same paper portfolio, activity,
