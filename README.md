@@ -47,15 +47,25 @@ clean live comparison.
 
 Run `npm run evaluate:signals` to test the price-signal rules against one month
 of hourly Polymarket history. The evaluator forms signals only from prior
-one-hour, one-day, and one-week prices, marks them 12 hours later, applies a
-conservative half-cent cost estimate, and reports a chronological 70/30 split.
-Set `EVAL_MARKETS` or `EVAL_CONCURRENCY` to change the default 80-market run.
+one-hour, one-day, and one-week prices, marks them 6, 12, 24, and 72 hours later,
+applies a conservative half-cent cost estimate, and reports a chronological
+70/30 split plus three consecutive time segments. Results are also clustered by
+market so repeated observations from one contract cannot masquerade as broad
+evidence. Set `EVAL_MARKETS`, `EVAL_CONCURRENCY`, `EVAL_HORIZONS`, or
+`EVAL_COST_CENTS` to change the audit.
 The first 80-market audit found that reversal signals lost 4.34% on average in
 both chronological partitions, while crypto and longshot samples were also
 negative overall. Engine v37 therefore blocks reversal entries outside the fixed
 15% exploration lane and applies modest sizing penalties to crypto and longshots.
 It does not boost any rule from this audit because no positive rule was robust
 across the chronological split.
+
+A corrected 200-market audit paged through 197 markets with usable history and
+1,912 twelve-hour outcomes. Reversals remained negative in every chronological
+segment and averaged -4.13%. Sports trends were negative in train and test and
+averaged -3.53% at 72 hours. Politics trends were the sole cohort with positive
+row-level returns in all three 72-hour segments, but its market-cluster interval
+still crossed zero; that supports a longer hold test, not a larger entry bet.
 
 Paper accounts created with a password are also saved through the backend, so a
 user can log in from another device and see the same paper portfolio, activity,
