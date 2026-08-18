@@ -15,16 +15,22 @@ https://polymarket-site-eta.vercel.app/personal.html
 
 The site fetches live Polymarket markets, generates agent suggestions, lets you
 run frequent paper cycles, and syncs the shared arena state through Neon or
-Vercel Blob. Engine v35 also installs an offline app shell and caches timestamped
+Vercel Blob. Engine v36 also installs an offline app shell and caches timestamped
 market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
 
 Each agent learns bounded weights from its own v34+ trade outcomes across signal
 type, setup quality, category, side, and entry-price band. The learner shrinks
-small samples toward neutral, caps sizing changes to 0.72x-1.28x, and reserves
+small samples toward neutral, caps sizing changes to 0.68x-1.30x, and reserves
 15% of candidates for deterministic exploration so a stale regime cannot become
 permanent.
+
+Engine v36 treats each binary stake as capable of falling to zero even when the
+18% stop cannot fill. New core positions are capped at 2.5%-4% of equity and
+aggressive positions at 3%-5%, with lower limits for near-term, extreme-price,
+reversal, and fast-moving setups. Oversized positions inherited from older
+engines are reduced to the same loss budget during live marking.
 
 A separate walk-forward ledger records each trade-ready signal before its future
 price is known, grades it at least 12 hours later, and combines that broad market

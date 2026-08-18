@@ -238,6 +238,7 @@ a.market-title:hover{color:#fff;text-decoration:underline;text-decoration-color:
 .badge.STOP{background:rgba(251,113,133,.2);color:var(--red)}
 .badge.GAIN{background:rgba(52,211,153,.18);color:var(--green)}
 .badge.EXIT{background:rgba(251,191,36,.18);color:var(--yellow)}
+.badge.RISK{background:rgba(56,210,230,.16);color:var(--cyan)}
 .log-date{color:var(--muted)}
 .empty{color:var(--muted);font-size:13.5px;padding:14px 0;text-align:center}
 
@@ -340,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive offline engine · v35</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive offline engine · v36</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -362,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build v35 active:</b> every agent learns from personal outcomes plus walk-forward signal calibration, with bounded weights and controlled exploration. Timestamped market snapshots allow local paper cycles during outages, a background worker keeps minute checks running while this page remains open, and reconnecting retries cloud sync. This remains paper trading; profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build v36 active:</b> agents learn from personal and walk-forward outcomes while settlement-gap risk caps prevent one binary result from dominating a portfolio. Oversized legacy positions are normalized on their next live mark, controlled exploration remains active, and cached minute cycles continue while this page is open. This remains paper trading; profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -744,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build adaptive-offline-v35 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build adaptive-offline-v36 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -772,7 +773,7 @@ const MIN_POLICY_HOLD_HOURS = 24;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const SUGGESTION_ENGINE_VERSION = 35;
+const SUGGESTION_ENGINE_VERSION = 36;
 const FOCUS_KEY = "pma_focus_v1";
 const VIEW_KEY = "pma_view_v1";
 const PF_SORT_KEY = "pma_portfolio_sort_v1";
@@ -1031,6 +1032,10 @@ const MAX_CORE_ALLOCATION_PCT=0.04;
 const MAX_AGGRESSIVE_ALLOCATION_PCT=0.045;
 const MAX_CATEGORY_EXPOSURE_PCT=0.25;
 const MAX_CYCLE_DRAWDOWN_PCT=4;
+const MAX_CORE_TRADE_LOSS_PCT=0.04;
+const MAX_AGGRESSIVE_TRADE_LOSS_PCT=0.05;
+const MAX_CORE_GAP_TRADE_LOSS_PCT=0.025;
+const MAX_AGGRESSIVE_GAP_TRADE_LOSS_PCT=0.03;
 const STOP_COOLDOWN_HOURS=72;
 const MAX_ACTIVE_MARKET_PAGES=1000;
 const MARKET_ANALYSIS_LIMIT=500;
@@ -1153,6 +1158,18 @@ function directionalPriceSignal(m){
 function effectiveEntryEdge(s){
   const net=Math.abs(Number(s&&s.net_edge));
   return Number.isFinite(net)?net:0;
+}
+function tradeLossBudgetPct(cfg,s={}){
+  const aggressive=Boolean(cfg&&cfg.aggressive);
+  let cap=aggressive?MAX_AGGRESSIVE_TRADE_LOSS_PCT:MAX_CORE_TRADE_LOSS_PCT;
+  const days=Number(s.days_to_resolution),entry=Number(s.entry_price),dayMove=Math.abs(Number(s.price_change_1d||0));
+  const gapProne=(Number.isFinite(days)&&days<=14)||(Number.isFinite(entry)&&(entry<=0.22||entry>=0.80))
+    ||dayMove>=0.045||s.signal_type==="reversal"||Boolean(s.jump_risk);
+  if(gapProne)cap=Math.min(cap,aggressive?MAX_AGGRESSIVE_GAP_TRADE_LOSS_PCT:MAX_CORE_GAP_TRADE_LOSS_PCT);
+  return +cap.toFixed(4);
+}
+function boundedStakeForRisk(eq,stake,cfg,s){
+  return Math.max(0,Math.min(Number(stake||0),Number(eq||0)*tradeLossBudgetPct(cfg,s)));
 }
 function reversalCandidate(s){
   return s&&s.signal_type==="reversal"&&s.trade_ready?s:null;
@@ -1450,12 +1467,13 @@ const EMAIL_ALERT_TYPES=[
   {id:"EXIT",label:"Policy exits"},
   {id:"STOP",label:"Stop losses"},
   {id:"GAIN",label:"Gain stops"},
+  {id:"RISK",label:"Risk rebalances"},
 ];
 function defaultEmailAlerts(){
   return {
     enabled:false,
     email:"",
-    events:{OPEN:true,CLOSE:true,EXIT:true,STOP:true,GAIN:true},
+    events:{OPEN:true,CLOSE:true,EXIT:true,STOP:true,GAIN:true,RISK:true},
     agents:Object.fromEntries(AGENTS.map(a=>[a.id,true])),
     last_sent_at:null,
     last_error:null,
@@ -1597,15 +1615,17 @@ function tradeReturnForLearning(trade,closed){
   return clamp(pnl/basis,-1,2);
 }
 function buildAdaptiveProfile(p){
-  const buckets={},observations=[],closedReturns=[];
+  const buckets={},observations=[],currentClosedObservations=[],currentClosedReturns=[];
   const add=(trade,closed)=>{
-    if(Number(trade.strategy_version||0)<34)return;
+    const version=Number(trade.strategy_version||0);if(version<34)return;
     const age=Math.max(0,Date.now()-new Date(trade.closed_at||trade.opened_at||0).getTime());
     const recency=Number.isFinite(age)?Math.exp(-age/(45*86400000)):0.4;
-    const weight=recency*(closed?1:Math.min(0.30,Math.max(0.08,daysHeld(trade)/20)));
+    const versionWeight=version===SUGGESTION_ENGINE_VERSION?1:(version===SUGGESTION_ENGINE_VERSION-1?0.45:0.20);
+    const weight=recency*versionWeight*(closed?1:Math.min(0.30,Math.max(0.08,daysHeld(trade)/20)));
     const ret=tradeReturnForLearning(trade,closed);
     if(!Number.isFinite(ret)||weight<=0)return;
-    observations.push({ret,weight,closed});if(closed)closedReturns.push(ret);
+    observations.push({ret,weight,closed,version});
+    if(closed&&version===SUGGESTION_ENGINE_VERSION){currentClosedObservations.push({ret,weight});currentClosedReturns.push(ret);}
     learningFeatures(trade).forEach(key=>{
       const b=buckets[key]||(buckets[key]={weight:0,sum:0,wins:0,count:0});
       b.weight+=weight;b.sum+=ret*weight;b.wins+=(ret>0?weight:0);b.count++;
@@ -1618,12 +1638,16 @@ function buildAdaptiveProfile(p){
   const learned=Object.fromEntries(Object.entries(buckets).map(([k,b])=>[k,summarize(b)]));
   const totalWeight=observations.reduce((s,x)=>s+x.weight,0),totalSum=observations.reduce((s,x)=>s+x.ret*x.weight,0);
   const globalScore=totalSum/(totalWeight+10);
+  const currentClosedWeight=currentClosedObservations.reduce((s,x)=>s+x.weight,0);
+  const currentClosedSum=currentClosedObservations.reduce((s,x)=>s+x.ret*x.weight,0);
   const ranked=Object.entries(learned).filter(([k,v])=>!k.startsWith("side:")&&v.weight>=1)
     .sort((a,b)=>b[1].score-a[1].score);
   return {version:SUGGESTION_ENGINE_VERSION,samples:(p.closed||[]).filter(t=>Number(t.strategy_version||0)>=34).length,
     effective_samples:+totalWeight.toFixed(2),global_score:+globalScore.toFixed(4),buckets:learned,
-    worst_return:closedReturns.length?+Math.min(...closedReturns).toFixed(4):0,
-    large_loss_count:closedReturns.filter(x=>x<=-0.30).length,
+    current_samples:currentClosedReturns.length,current_effective_samples:+currentClosedWeight.toFixed(2),
+    current_global_score:+(currentClosedSum/(currentClosedWeight+4)).toFixed(4),
+    worst_return:currentClosedReturns.length?+Math.min(...currentClosedReturns).toFixed(4):0,
+    large_loss_count:currentClosedReturns.filter(x=>x<=-0.30).length,
     best:ranked[0]?{feature:ranked[0][0],score:ranked[0][1].score}:null,
     worst:ranked.length?{feature:ranked[ranked.length-1][0],score:ranked[ranked.length-1][1].score}:null};
 }
@@ -1675,7 +1699,7 @@ function adaptiveDecision(cfg,p,rank,total,leaderEq,marketLearning=null){
     if(profile.global_score>0.015){maxFrac*=1.08;reason+=" Its own recent trade evidence is positive, so proven setups receive a small bounded size increase.";}
     else if(profile.global_score<-0.015){maxFrac*=0.88;reason+=" Its own recent trade evidence is negative, so weak regimes are down-weighted while a 15% exploration allowance remains.";}
   }
-  if(profile.effective_samples>=1.5&&(profile.global_score<-0.04||profile.worst_return<=-0.30)){
+  if(profile.current_effective_samples>=1.5&&(profile.current_global_score<-0.04||profile.worst_return<=-0.30)){
     mode="Loss Regime Containment";minConv+=2;maxNew=Math.min(maxNew,1);maxFrac*=0.72;
     reason+=" A severe realized loss was detected, so new risk is cut immediately while the learner identifies which signal regime failed.";
   }
@@ -1846,6 +1870,27 @@ function takeProfitPosition(p,pos,tier){
   p.history.push({date:logDay(),action:"GAIN",question:pos.question,side:pos.side,
     detail:`${tier.label} sold 25% of '${pos.question.slice(0,40)}' at ${pct(pos.current_price)} for ${fmtUSD(proceeds)} (realized ${fmtUSD(realizedPnl)})`});
 }
+function normalizeLegacyPositionRisk(p,pos,cfg,fresh){
+  if(!cfg||Number(pos.strategy_version||0)>=SUGGESTION_ENGINE_VERSION||!(pos.shares>0)||!(pos.current_price>0))return 0;
+  const eq=equity(p),riskContext=Object.assign({},fresh||{},pos,{entry_price:pos.entry_price});
+  const riskCap=tradeLossBudgetPct(cfg,riskContext),allowedValue=eq*riskCap,currentValue=Number(pos.shares)*Number(pos.current_price);
+  if(!(eq>0)||currentValue<=allowedValue*1.10)return 0;
+  const originalShares=Number(pos.original_shares||pos.shares),originalCost=Number(pos.original_cost||pos.cost);
+  const sharesBefore=Number(pos.shares),costBefore=Number(pos.cost),sellValue=currentValue-allowedValue;
+  const soldShares=+Math.min(sharesBefore,Math.max(0,sellValue/Number(pos.current_price))).toFixed(2);
+  if(soldShares<=0)return 0;
+  const soldFraction=Math.min(1,soldShares/sharesBefore),realizedCost=+(costBefore*soldFraction).toFixed(2);
+  const proceeds=+(soldShares*Number(pos.current_price)).toFixed(2),realizedPnl=+(proceeds-realizedCost).toFixed(2);
+  p.cash=+(Number(p.cash)+proceeds).toFixed(2);
+  pos.original_shares=originalShares;pos.original_cost=originalCost;
+  pos.shares=+(sharesBefore-soldShares).toFixed(2);pos.cost=+(costBefore-realizedCost).toFixed(2);
+  pos.value=+(pos.shares*Number(pos.current_price)).toFixed(2);pos.unrealized_pnl=+(pos.value-pos.cost).toFixed(2);
+  pos.partial_realized_pnl=+(Number(pos.partial_realized_pnl||0)+realizedPnl).toFixed(2);
+  pos.risk_budget_pct=+(riskCap*100).toFixed(2);pos.risk_rebalanced_at=cycleIso();
+  p.history.push({date:logDay(),action:"RISK",question:pos.question,side:pos.side,
+    detail:`Settlement-gap budget trimmed '${pos.question.slice(0,40)}' to ${(riskCap*100).toFixed(1)}% of equity at ${pct(pos.current_price)} for ${fmtUSD(proceeds)} (realized ${fmtUSD(realizedPnl)})`});
+  return proceeds;
+}
 function daysHeld(pos){
   if(!pos.opened_at)return 0;
   const start=new Date(pos.opened_at).getTime(),end=new Date(cycleIso()).getTime();
@@ -1902,6 +1947,7 @@ function markToMarket(p,priceMap,cfg=null,{policyExits=false}={}){
     for(const stopTier of triggeredStopLosses(pos))scaleStopLossPosition(p,pos,stopTier);
     if(pos._closedByStop){delete pos._closedByStop;continue;}
     for(const gainTier of triggeredGainStops(pos))takeProfitPosition(p,pos,gainTier);
+    if(policyExits)normalizeLegacyPositionRisk(p,pos,cfg,fresh);
     if(fresh.closed||fresh.accepting_orders===false){
       closePosition(p,pos,"Market settled","CLOSE");
       continue;
@@ -2068,6 +2114,8 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
     if(s.peer_boost>0&&decision&&decision.urgency>0.65)frac*=1.08;
     frac*=Number(s.learning_multiplier||1);
     let stake=Math.min(eq*frac,investable);
+    const riskBudgetPct=tradeLossBudgetPct(cfg,s);
+    stake=boundedStakeForRisk(eq,stake,cfg,s);
     const categoryValue=(p.positions||[]).filter(pos=>(pos.category||"Other")===(s.category||"Other")).reduce((sum,pos)=>sum+Number(pos.value||0),0);
     stake=Math.min(stake,Math.max(0,eq*categoryCap-categoryValue));
     if(stake<50)continue;
@@ -2085,9 +2133,10 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
       momentum_strength:s.momentum_strength,signal_strength:s.signal_strength,signal_confidence:s.signal_confidence,signal_type:s.signal_type,price_change_1d:s.price_change_1d,price_change_1w:s.price_change_1w,
       learning_score:s.learning_score,learning_confidence:s.learning_confidence,market_learning_score:s.market_learning_score,market_learning_confidence:s.market_learning_confidence,
       learning_multiplier:s.learning_multiplier,learning_exploration:s.learning_exploration,
+      risk_budget_pct:+(riskBudgetPct*100).toFixed(2),
       peak_price:+entry.toFixed(4),gain_stops:{},stop_losses:{}});
     p.history.push({date:logDay(),action:"OPEN",question:s.question,side:s.side,
-      detail:`${decision?decision.mode+" mode — ":""}Bought ${shares} ${s.side} '${s.question.slice(0,40)}' @ ${pct(entry)} for ${fmtUSD(cost)} · signal margin ${((Math.abs(s.net_edge!=null?s.net_edge:s.edge))*100).toFixed(1)}c · learned weight ${Number(s.learning_multiplier||1).toFixed(2)}x · evidence ${Math.round((s.evidence_score||0)*100)}${s.peer_note?` (${s.peer_note})`:""}`});
+      detail:`${decision?decision.mode+" mode — ":""}Bought ${shares} ${s.side} '${s.question.slice(0,40)}' @ ${pct(entry)} for ${fmtUSD(cost)} · max binary loss budget ${(riskBudgetPct*100).toFixed(1)}% · signal margin ${((Math.abs(s.net_edge!=null?s.net_edge:s.edge))*100).toFixed(1)}c · learned weight ${Number(s.learning_multiplier||1).toFixed(2)}x · evidence ${Math.round((s.evidence_score||0)*100)}${s.peer_note?` (${s.peer_note})`:""}`});
     opened++;openedIds.push(String(s.market_id));
   }
   const eqAfter=equity(p);
@@ -2443,7 +2492,7 @@ function decisionSummary(p){
   const exposure=d.currentExposure!=null&&d.targetExposure!=null?` Exposure ${Math.round(d.currentExposure*100)}%; ceiling ${Math.round(d.targetExposure*100)}%.`:"";
   const allocation=d.allocationStatus?` ${d.allocationStatus}`:"";
   const candidates=d.tradeReadyCount!=null?` Candidate audit: ${d.tradeReadyCount} trade-ready, ${d.strategyCandidates||0} strategy matches, ${d.eligibleCandidates||0} fully eligible, ${d.opened||0} opened.`:"";
-  const learning=d.learning?` Learning: ${d.learning.samples} completed v34+ trades, ${(d.learning.global_score*100).toFixed(2)}% shrunk expectancy${d.learning.best?`; strongest ${d.learning.best.feature.replace(":"," ")}`:""}${d.learning.worst?`; weakest ${d.learning.worst.feature.replace(":"," ")}`:""}.`:"";
+  const learning=d.learning?` Learning: ${d.learning.samples} completed trades retained with older engines down-weighted, ${(d.learning.global_score*100).toFixed(2)}% shrunk expectancy; ${d.learning.current_samples||0} completed under v${SUGGESTION_ENGINE_VERSION}${d.learning.best?`; strongest ${d.learning.best.feature.replace(":"," ")}`:""}${d.learning.worst?`; weakest ${d.learning.worst.feature.replace(":"," ")}`:""}.`:"";
   const calibration=d.marketLearning?` Walk-forward calibration: ${d.marketLearning.samples||0} graded signals, ${d.marketLearning.pending||0} awaiting a future price.`:"";
   return `${d.mode} mode: ${d.reason}${emotion} Limits now: ${d.maxNew} new trade${d.maxNew===1?"":"s"}, max ${(d.maxFrac*100).toFixed(1)}% per position${d.minConv?`, conviction ${d.minConv}+`:""}.${learning}${calibration}${exposure}${allocation}${candidates}`;
 }
@@ -2763,12 +2812,13 @@ function agentCompetitionPlan(cfg,row,rank,leader){
 }
 function recentActionSummary(p){
   const recent=(p.history||[]).slice(-8);
-  const counts={STOP:0,GAIN:0,EXIT:0,CLOSE:0,OPEN:0};
+  const counts={STOP:0,GAIN:0,EXIT:0,CLOSE:0,OPEN:0,RISK:0};
   recent.forEach(h=>{if(counts[h.action]!==undefined)counts[h.action]++;});
   const bits=[];
   if(counts.STOP)bits.push(`${counts.STOP} stop-loss sale${counts.STOP===1?"":"s"}`);
   if(counts.GAIN)bits.push(`${counts.GAIN} gain-stop cash-in${counts.GAIN===1?"":"s"}`);
   if(counts.EXIT||counts.CLOSE)bits.push(`${counts.EXIT+counts.CLOSE} exit${counts.EXIT+counts.CLOSE===1?"":"s"}`);
+  if(counts.RISK)bits.push(`${counts.RISK} binary-risk rebalance${counts.RISK===1?"":"s"}`);
   if(counts.OPEN)bits.push(`${counts.OPEN} new entr${counts.OPEN===1?"y":"ies"}`);
   return bits.length?bits.join(", "):"no major recent trade actions";
 }
@@ -2780,7 +2830,7 @@ function snapshotNearDayAgo(snaps,lastTime){
 }
 function dailyActionSummary(p,lastTime){
   const cutoff=lastTime-86400000;
-  const counts={STOP:0,GAIN:0,EXIT:0,CLOSE:0,OPEN:0};
+  const counts={STOP:0,GAIN:0,EXIT:0,CLOSE:0,OPEN:0,RISK:0};
   (p.history||[]).forEach(h=>{
     const t=h.date?new Date(`${h.date}T12:00:00`).getTime():NaN;
     if(Number.isFinite(t)&&t>=cutoff&&counts[h.action]!==undefined)counts[h.action]++;
@@ -2790,6 +2840,7 @@ function dailyActionSummary(p,lastTime){
   if(counts.GAIN)bits.push(`${counts.GAIN} gain-stop sale${counts.GAIN===1?"":"s"}`);
   if(counts.STOP)bits.push(`${counts.STOP} stop-loss sale${counts.STOP===1?"":"s"}`);
   if(counts.EXIT||counts.CLOSE)bits.push(`${counts.EXIT+counts.CLOSE} exit${counts.EXIT+counts.CLOSE===1?"":"s"}`);
+  if(counts.RISK)bits.push(`${counts.RISK} binary-risk rebalance${counts.RISK===1?"":"s"}`);
   return bits.length?bits.join(", "):recentActionSummary(p);
 }
 function recentClosedAttribution(p,lastTime){
@@ -3008,7 +3059,7 @@ function agentChatReply(agentId,question,history=[]){
     return `My style is ${agentVoice(cfg).tone}.\n\n${agentPlainBlurb(cfg,st)}\n\nCurrent adaptation: ${decisionSummary(p)}`;
   }
   if(/risk|stop|loss|gain|take profit|sell/.test(combined)){
-    return `My risk rules are mechanical:\n\nStop loss: sell the full remaining position at -18% from entry.\nProfit locks: sell 25% at three entry-aware targets that remain reachable below $1, then protect gains with a trailing exit. Signal exits need at least 24 hours of holding and six hours of confirmed conflict.\n\nRecent risk behavior: ${recentActionSummary(p)}.`;
+    return `My risk rules are mechanical:\n\nStop loss: sell the full remaining position at -18% from entry. Because binary markets can jump through that price, each new stake also has a hard maximum-loss budget of 2.5–4.0% for core agents or 3.0–5.0% for aggressive agents, with the lower cap used for near-term and gap-prone contracts.\nProfit locks: sell 25% at three entry-aware targets that remain reachable below $1, then protect gains with a trailing exit. Signal exits need at least 24 hours of holding and six hours of confirmed conflict.\n\nRecent risk behavior: ${recentActionSummary(p)}.`;
   }
   if(/mistake|wrong|regret|fix|improve|better/.test(combined)){
     return `${regretNarrative(row,p)}\n\nThe fix is not “bet harder.” The fix is stricter entries, fewer positions, and cutting trades when the model edge fades. That is the discipline I am trying to follow now.`;
@@ -3132,6 +3183,7 @@ function renderPositions(positions){
       <div class="sub">${p.category?`<span class="cat-badge" style="background:${col}22;color:${col}">${esc(p.category)}</span> `:""}${p.shares} ${p.side} @ ${Math.round(p.entry_price*100)}¢ → ${Math.round(p.current_price*100)}¢</div>
       ${p.peer_note?`<div class="sub">Peer read: ${esc(p.peer_note)}</div>`:""}
       ${p.net_edge!=null||p.evidence_score!=null?`<div class="sub">Entry quality: ${p.net_edge!=null?`net edge ${((Math.abs(p.net_edge))*100).toFixed(1)}c`:"net edge n/a"} · ${p.evidence_score!=null?`evidence ${Math.round(Number(p.evidence_score||0)*100)}`:"evidence n/a"}</div>`:""}
+      ${p.risk_budget_pct?`<div class="sub">Binary loss budget: max ${Number(p.risk_budget_pct).toFixed(1)}% of agent equity at entry</div>`:""}
       <div class="sub">${esc(stopLossLabel(p))}</div>
       <div class="sub">${esc(gainStopLabel(p))}</div>
       <div class="sub"><a class="market-link" href="${esc(positionUrl(p))}" target="_blank" rel="noopener">Open exact market</a></div>
@@ -4002,9 +4054,13 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
   analyzeMarket,
   buildAdaptiveProfile,
   learnedOpportunity,
+  tradeLossBudgetPct,
+  boundedStakeForRisk,
   offlineCachePolicy,
   gainStopTargets:(entry)=>GAIN_STOP_TIERS.map(t=>gainStopTarget({entry_price:Number(entry),cost:1,shares:1,gain_stops:{}},t)),
   rules:Object.freeze({minimumPolicyHoldHours:MIN_POLICY_HOLD_HOURS,exitConfirmationHours:EXIT_CONFIRM_HOURS,maxAgentOverlap:2,stopLossPct:18,
+    coreTradeLossPct:MAX_CORE_TRADE_LOSS_PCT*100,aggressiveTradeLossPct:MAX_AGGRESSIVE_TRADE_LOSS_PCT*100,
+    coreGapTradeLossPct:MAX_CORE_GAP_TRADE_LOSS_PCT*100,aggressiveGapTradeLossPct:MAX_AGGRESSIVE_GAP_TRADE_LOSS_PCT*100,
     offlineEntryMaxAgeMinutes:OFFLINE_ENTRY_MAX_AGE_MS/60000,offlineCacheMaxAgeHours:OFFLINE_CACHE_MAX_AGE_MS/3600000,explorationPct:15}),
 });
 function runEngineSelfTest(){
@@ -4041,13 +4097,25 @@ function runEngineSelfTest(){
     signal_type:"trend",quality:"confirmed",category:"Politics"}],outcomes:[]}};
   updateSignalLedger(ledgerState,[market({id:"ledger-test",yes_price:0.50,no_price:0.50})],[]);
   const lossLearner=defaultPortfolio();
-  for(let i=0;i<4;i++)lossLearner.closed.push({strategy_version:35,signal_type:"trend",quality:"confirmed",category:"Politics",side:"YES",entry_price:0.42,original_cost:100,
+  for(let i=0;i<4;i++)lossLearner.closed.push({strategy_version:SUGGESTION_ENGINE_VERSION,signal_type:"trend",quality:"confirmed",category:"Politics",side:"YES",entry_price:0.42,original_cost:100,
     realized_pnl:-50,opened_at:hoursAgo(72+i),closed_at:closedAt});
   let lossMarketId="loss-regime-0",lossIndex=0;
   while(stableExploration(AGENTS[0].id,lossMarketId))lossMarketId=`loss-regime-${++lossIndex}`;
   const lossProfile=buildAdaptiveProfile(lossLearner);
   const lossOpportunity=learnedOpportunity(AGENTS[0],lossLearner,{market_id:lossMarketId,signal_type:"trend",quality:"confirmed",category:"Politics",side:"YES",entry_price:0.42},lossProfile);
   const lossDecision=adaptiveDecision(AGENTS[0],lossLearner,5,10,STARTING_BALANCE);
+  const legacyLossLearner=defaultPortfolio();
+  for(let i=0;i<4;i++)legacyLossLearner.closed.push({strategy_version:SUGGESTION_ENGINE_VERSION-1,signal_type:"trend",quality:"confirmed",category:"Politics",side:"YES",entry_price:0.42,original_cost:100,
+    realized_pnl:-50,opened_at:hoursAgo(72+i),closed_at:closedAt});
+  const legacyLossDecision=adaptiveDecision(AGENTS[0],legacyLossLearner,5,10,STARTING_BALANCE);
+  const coreRiskBudget=tradeLossBudgetPct(AGENTS[0],{entry_price:0.50,days_to_resolution:40,price_change_1d:0.01,signal_type:"trend"});
+  const aggressiveGapBudget=tradeLossBudgetPct(AGENTS.find(a=>a.id==="conviction"),{entry_price:0.82,days_to_resolution:5,price_change_1d:0.06,signal_type:"trend"});
+  const riskBook=defaultPortfolio(),riskCfg=AGENTS.find(a=>a.id==="conviction");
+  riskBook.cash=9000;
+  const riskPos={market_id:"risk-test",question:"Risk test",side:"YES",shares:2000,entry_price:0.5,current_price:0.5,cost:1000,value:1000,
+    original_shares:2000,original_cost:1000,unrealized_pnl:0,opened_at:hoursAgo(48),strategy_version:35,quality:"confirmed",signal_type:"trend",price_change_1d:0.06};
+  riskBook.positions=[riskPos];
+  normalizeLegacyPositionRisk(riskBook,riskPos,riskCfg,market({id:"risk-test",yes_price:0.5,no_price:0.5,days_to_resolution:5,price_change_1d:0.06}));
   const mock={agents:{}};AGENTS.forEach(a=>mock.agents[a.id]=defaultPortfolio());
   ["value","momentum","favorite"].forEach((id,i)=>mock.agents[id].positions.push({market_id:"overlap-test",question:"Overlap test",side:"YES",shares:100,current_price:0.5,entry_price:0.5,cost:50,value:50,unrealized_pnl:0,conviction:70-i,opened_at:hoursAgo(24)}));
   reduceStrategyOverlap(mock);
@@ -4060,7 +4128,10 @@ function runEngineSelfTest(){
     adaptation:{samples:learningProfile.samples,trendMultiplier:learnedTrend.multiplier,reversalMultiplier:learnedReversal.multiplier,learnsDirection:learnedTrend.multiplier>learnedReversal.multiplier,
       calibrationSamples:calibrationProfile.samples,trendMarketScore:learnedTrend.market_score,reversalMarketScore:learnedReversal.market_score,
       ledgerMaturesWithoutLookahead:ledgerState.signal_ledger.pending.length===0&&ledgerState.signal_ledger.outcomes.length===1&&ledgerState.signal_ledger.outcomes[0].return===0.25,
-      blocksConfirmedLosingRegime:!lossOpportunity.allowed,containmentMode:lossDecision.mode,containmentMaxNew:lossDecision.maxNew},
+      blocksConfirmedLosingRegime:!lossOpportunity.allowed,containmentMode:lossDecision.mode,containmentMaxNew:lossDecision.maxNew,
+      legacyLossDoesNotFreezeCurrentEngine:legacyLossDecision.mode!=="Loss Regime Containment"},
+    riskBudget:{core:coreRiskBudget,aggressiveGap:aggressiveGapBudget,boundedStake:boundedStakeForRisk(10000,1000,riskCfg,{entry_price:0.82,days_to_resolution:5,price_change_1d:0.06}),
+      legacyNormalizedValue:riskPos.value,equityPreserved:+equity(riskBook).toFixed(2),capsBinaryGap:aggressiveGapBudget===0.03&&riskPos.value<=300.01},
     offline:{fresh:offlineCachePolicy(30*60000),staleEntry:offlineCachePolicy(3*3600000),expired:offlineCachePolicy(25*3600000)},
     exits:{youngConflict:exitReason(young,fresh,conflict,AGENTS[0]),matureConflict:exitReason(mature,fresh,conflict,AGENTS[0]),trailing:trailingProfitReason(trailing)},
     overlapRemaining,rules:window.PMA_ENGINE_DIAGNOSTICS.rules};
