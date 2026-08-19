@@ -15,7 +15,7 @@ https://polymarket-site-eta.vercel.app/personal.html
 
 The site fetches live Polymarket markets, generates agent suggestions, lets you
 run frequent paper cycles, and syncs the shared arena state through Neon or
-Vercel Blob. Build 64 also installs an offline app shell and caches timestamped
+Vercel Blob. Build 65 also installs an offline app shell and caches timestamped
 market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
@@ -26,7 +26,7 @@ team names, Over/Under, or another pair are rejected instead of being silently
 reinterpreted as Yes/No. The same semantic check applies to complete event
 bundles and the offline evaluators.
 
-Build 64 ranks the competition by each agent's return since Strategy 53 began.
+Build 65 ranks the competition by each agent's return since Strategy 54 began.
 Historical replay equity remains visible for context, but it no longer makes an
 agent look like the current leader when the live adaptive strategy is losing.
 
@@ -37,7 +37,7 @@ The learner shrinks small samples toward neutral, caps sizing changes to
 15% of candidates for deterministic exploration so a stale regime cannot become
 permanent.
 
-Strategy 53 treats each binary stake as capable of falling to zero even when the
+Strategy 54 treats each binary stake as capable of falling to zero even when the
 18% stop cannot fill. New core positions are capped at 2.5%-4% of equity and
 aggressive positions at 3%-5%, with lower limits for near-term, extreme-price,
 reversal, and fast-moving setups. Oversized positions inherited from older
@@ -74,24 +74,35 @@ Run `npm run evaluate:adaptive` for a stricter chronological search across 1,920
 predefined price-action rules. It uses a 60/20/20 train, validation, and holdout
 split and never selects a rule from the holdout period. The August 19 run loaded
 all 300 requested histories and found no directional rule that passed both train
-and validation at either 24 or 72 hours. Strategy 53 therefore keeps directional
+and validation at either 24 or 72 hours. Strategy 54 therefore keeps directional
 signals in the walk-forward observation ledger until current, independent-event
 evidence proves an edge.
 
 Run `npm run evaluate:liquidity` to inspect live reward-scoring markets for
 paired resting YES and NO bids whose combined cost is below the $1 settlement
-payout. Strategy 53 lets Value Hunter stage a maximum of six paper quote pairs,
-reserving at most 10% of equity and 2% per quote. A later live cycle must show
-that each bid was touched in Polymarket's public CLOB price history or crossed by
-the current executable book before a paper fill is recorded. Repriced legs
-ignore all history from before the new
-quote timestamp. The first unmatched leg is unwound after 24 hours; once both
-legs fill, the complete hedge is held intact through settlement. Locked pairs,
-adverse one-leg exits, and unfilled attempts feed a persistent category and
-spread-cohort learner. At least five outcomes are required before profitable
-cohorts can scale up to 1.5x or losing cohorts rotate out, with a deterministic
-20% exploration lane preserving adaptation. The engine does not credit
-hypothetical fills or unverified liquidity rewards.
+payout. Run `npm run evaluate:maker` for the chronological fill-path audit; set
+`MAKER_MARKETS`, `MAKER_HISTORY_DAYS`, `MAKER_CONCURRENCY`, or
+`MAKER_EXIT_COST_CENTS` to change it and `MAKER_SUMMARY=1` for compact output.
+
+The August 19 audit loaded both token histories for all 300 requested markets,
+formed 5,477 non-overlapping observations, and tested 3,024 rules over 3, 6, 12,
+and 24-hour horizons. Zero rules passed training, validation, or untouched
+holdout. At three hours, the broad 0.5-cent quote-gap rule still lost 0.63% per
+event in holdout; only 0.61% of observations completed both legs while 23.33%
+produced adverse one-leg inventory. Wider quotes traded less but remained
+negative. Strategy 54 therefore does not risk paper capital on an unproven
+maker rule.
+
+Value Hunter now tracks up to six zero-capital shadow quote pairs. A later live
+cycle must still verify each touch from public CLOB price history or a current
+book cross. A three-hour executable exit grades one-sided touches after a
+conservative half-cent cost, while paired touches and unfilled attempts are also
+retained. Results are clustered by Polymarket event. Capital exposure can only
+resume after at least 20 current-strategy event clusters in both the matching
+category and spread cohort have positive 90% confidence bounds and at least
+three completed pairs, with any mature losing cohort acting as a veto. There is
+no capital-backed exploration lane. Existing paper inventory from prior builds
+is still reconciled honestly. The engine does not credit hypothetical rewards.
 See Polymarket's official [fees](https://docs.polymarket.com/trading/fees),
 [maker rebates](https://docs.polymarket.com/market-makers/maker-rebates), and
 [liquidity rewards](https://docs.polymarket.com/market-makers/liquidity-rewards)
@@ -103,7 +114,7 @@ negative in all three chronological segments. Reversals averaged -3.69%, with a
 market-clustered 90% interval entirely below zero. Crypto and Sports were also
 negative but covered only three and five markets. The 24-hour cohort improved to
 -0.82% row mean and +1.31% market mean, with no rule robustly negative across all
-segments. Strategy 53 therefore keeps reversal entries observation-only until
+segments. Strategy 54 therefore keeps reversal entries observation-only until
 their recent signal and quality cohorts independently earn promotion, retains
 their signals for paper grading, and evaluates adaptation at 24 and 72 hours.
 
@@ -112,7 +123,7 @@ markets with no failures and produced 3,597 net-of-cost 24-hour outcomes across
 142 markets. No tested follow or fade rule was robustly positive. Crypto trends
 averaged -3.83% per observation and -3.99% per market; Sports trends averaged
 -5.44% and -6.61%. Both stayed negative in every chronological segment and their
-market-clustered 90% intervals were entirely below zero. Strategy 53 therefore
+market-clustered 90% intervals were entirely below zero. Strategy 54 therefore
 keeps Crypto and Sports trends observation-only while continuing to grade them.
 
 The August 18 event-clustered rerun loaded 499 of 500 active markets and produced
@@ -121,7 +132,7 @@ The broad mean was -1.14%, the event mean was -1.11%, and the event-clustered
 90% interval stayed below zero. No tested category, side, price band, signal
 strength, or combined feature cohort was robustly positive. Broad trends,
 YES trends, favorite trends, strong trends, and hour-confirmed trends were all
-robustly negative. Strategy 53 therefore makes every directional trend or
+robustly negative. Strategy 54 therefore makes every directional trend or
 reversal observation-only until its own signal, side, and category cohorts each
 earn positive promotion from recent independent events. This is a strategy reset,
 so current adaptive returns begin from the portfolio equity at migration.
@@ -130,7 +141,7 @@ The final August 19 300-market rerun loaded all 300 eligible Yes/No price
 histories without a failure and produced 2,598 twelve-hour observations across
 64 independent events. The broad row mean was -0.65% and the event-cluster mean
 was -1.71%. The 72-hour event-cluster mean was -3.59% with its 90% interval below
-zero, and no tested directional rule was robustly positive. Strategy 53
+zero, and no tested directional rule was robustly positive. Strategy 54
 therefore requires positive evidence at both 24 and 72 hours rather than
 allowing one favorable short-horizon mark to authorize cash exposure.
 
@@ -140,24 +151,24 @@ segment and averaged -4.13%. Sports trends were negative in train and test and
 averaged -3.53% at 72 hours. Politics trends were the sole cohort with positive
 row-level returns in all three 72-hour segments, but its market-cluster interval
 still crossed zero; that supports a longer hold test, not a larger entry bet.
-Strategy 53 gives previously opened Politics trend positions that 72-hour observation window before
+Strategy 54 gives previously opened Politics trend positions that 72-hour observation window before
 ordinary signal exits. Stops, profit locks, settlement handling, and risk-budget
 reductions remain immediate.
 
-Strategy 53 also subtracts a half-cent round-trip cost when grading each live
+Strategy 54 also subtracts a half-cent round-trip cost when grading each live
 walk-forward signal. Confidence uses the largest independent matching bucket,
 not the sum of five overlapping feature buckets, and evidence from older engine
 versions is down-weighted. This prevents a handful of duplicated observations
 from authorizing larger positions or hiding a modest negative regime.
 
-Strategy 53 adds uncertainty-aware, multi-horizon promotion and demotion. A
+Strategy 54 adds uncertainty-aware, multi-horizon promotion and demotion. A
 matching setup must accumulate at least eight effective independent-event
 observations, including at least five from the current strategy, and agree across
 at least two feature views at both the 24-hour and 72-hour checkpoints before it
 can risk cash. Mixed or one-horizon evidence stays observation-only instead of
 being mistaken for an edge.
 
-Build 64 enforces the documented offline boundary end to end. Cached snapshots
+Build 65 enforces the documented offline boundary end to end. Cached snapshots
 under 90 minutes old may continue paper execution. Older snapshots remain usable
 for valuation and chart snapshots for up to 24 hours, but cannot trigger entries,
 stop-losses, gain-stops, risk rebalances, settlements, or policy exits. Network
@@ -170,26 +181,26 @@ adaptive baselines, pending signal grades, and trade evidence remain in one stra
 lineage until the actual entry, sizing, or exit logic changes. Legacy build 40 and 41
 records are migrated into the same strategy lineage without losing evidence.
 
-Build 64 independently refreshes markets for due pending signals that have
+Build 65 independently refreshes markets for due pending signals that have
 left the current top-500 activity scan. Unavailable markets remain queued for a
 bounded retry window. This prevents activity-rank survivorship from deciding
 which wins and losses reach the adaptive calibration ledger.
 
-Build 64 also allocates the 300 pending observation slots by evidence coverage.
+Build 65 also allocates the 300 pending observation slots by evidence coverage.
 Under-sampled signal/side/category cohorts are observed first, followed by
 under-sampled independent events and market sides, with conviction used only as
 a later tie-breaker. This prevents the same popular contracts from monopolizing
 the ledger and gives the learner a realistic path to promote or reject more
 diverse cohorts.
 
-Build 64 retains safe shared-state provider diagnostics from both reads and
+Build 65 retains safe shared-state provider diagnostics from both reads and
 writes. A device now says `local only` when Neon is paused or a Blob credential
 is rejected, instead of presenting a local browser save as a successful
 cross-device sync. Completed cycle statuses retain that `local only` warning
 until a cloud provider succeeds. Database URLs still fail over across configured Neon
 aliases without exposing credentials in the API response.
 
-Strategy 53 coordinates high-risk exploration globally. Near-term, extreme-price,
+Strategy 54 coordinates high-risk exploration globally. Near-term, extreme-price,
 and other gap-prone positions may be held materially by only one agent, while
 ordinary independently confirmed markets retain the two-agent cap. The robustly
 negative Sports- and Crypto-trend cohorts cannot enter through exploration.
@@ -215,7 +226,7 @@ removed the apparent edge. The August 18 rerun found 35 eligible events and one
 three-leg NO bundle with a 0.25%
 modeled margin after estimated costs. The final August 19 scan found 49 eligible
 events and no currently actionable bundle; its closest complete bundle remained
-0.25% negative after modeled costs. Strategy 53 can paper-trade either a
+0.25% negative after modeled costs. Strategy 54 can paper-trade either a
 complete YES or complete NO bundle only from live executable prices, opens every
 leg together, and holds
 the hedge intact until settlement. It also requires at least a 0.15% modeled net
@@ -238,19 +249,19 @@ static settlement-direction boost from this audit.
 
 The earlier 200-resolved-market audit found short-dated NO entries strongly
 negative, but the 500-market rerun did not reproduce that loss in its newer test
-segment. Strategy 53 therefore treats the result as a provisional prior instead
+segment. Strategy 54 therefore treats the result as a provisional prior instead
 of a permanent ban: NO entries with 21 days or less remain observation-only until
 the recent walk-forward calibration promotes their matching side and duration
 cohorts. Exact numeric-range contracts are excluded from new entries because a
 settlement jump can pass directly through an 18% stop; the live audit found that
 this failure mode caused the largest latest-day loss.
 
-Strategy 53 also excludes path-dependent barriers such as "reach $66,000," "hit
+Strategy 54 also excludes path-dependent barriers such as "reach $66,000," "hit
 $90," and "dip to $62,000." These contracts can resolve abruptly as soon as the
 barrier is touched, so a later hourly stop cannot reliably cap the loss. Fixed-date
 level questions such as "above $66,000 on August 23" remain eligible.
 
-Strategy 53 clusters live walk-forward observations by Polymarket event and checkpoint before
+Strategy 54 clusters live walk-forward observations by Polymarket event and checkpoint before
 calculating confidence. Multiple six-hour snapshots and correlated outcome
 markets from the same event are averaged into one effective outcome, so one
 election or tournament cannot promote or demote an entire feature cohort.

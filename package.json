@@ -5,6 +5,7 @@
     "evaluate:dominance": "node scripts/evaluate-dominance.mjs",
     "evaluate:adaptive": "node scripts/evaluate-adaptive.mjs",
     "evaluate:liquidity": "node scripts/evaluate-liquidity.mjs",
+    "evaluate:maker": "node scripts/evaluate-maker.mjs",
     "evaluate:signals": "node scripts/evaluate-signals.mjs",
     "evaluate:settlements": "node scripts/evaluate-settlements.mjs",
     "test:server-state": "node scripts/test-server-state.mjs"
