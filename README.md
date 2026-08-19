@@ -15,7 +15,7 @@ https://polymarket-site-eta.vercel.app/personal.html
 
 The site fetches live Polymarket markets, generates agent suggestions, lets you
 run frequent paper cycles, and syncs the shared arena state through Neon or
-Vercel Blob. Build 68 also installs an offline app shell and caches timestamped
+Vercel Blob. Build 69 also installs an offline app shell and caches timestamped
 market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
@@ -26,7 +26,7 @@ team names, Over/Under, or another pair are rejected instead of being silently
 reinterpreted as Yes/No. The same semantic check applies to complete event
 bundles and the offline evaluators.
 
-Build 68 ranks the competition by each agent's return since Strategy 56 began.
+Build 69 ranks the competition by each agent's return since Strategy 56 began.
 Historical replay equity remains visible for context, but it no longer makes an
 agent look like the current leader when the live adaptive strategy is losing.
 
@@ -46,13 +46,24 @@ The two-agent overlap guard counts only positions worth at least 1.25% of an
 agent's equity, so tiny profit-lock runners do not block a new material trade.
 
 A separate walk-forward ledger records every confirmed signal before its future
-price is known, grades it in separate 24-hour and 72-hour windows, and combines
+price is known, grades it at 6 hours for early loss vetoes and in separate
+24-hour and 72-hour promotion windows, and combines
 that broad market calibration with each agent's personal outcomes. This expands
 the learning sample without forcing observation-only signals into portfolios or
 backfilling future information into old decisions. Missed windows expire instead
 of borrowing an arbitrarily later price. The 24-hour checkpoint matches the
 minimum ordinary holding policy while the 72-hour checkpoint tests persistence;
-stops and profit locks still act immediately from fresh prices.
+stops and profit locks still act immediately from fresh prices. Positive
+six-hour evidence cannot promote capital, while a mature negative six-hour
+cohort can demote it.
+
+The Build 69 re-audit loaded all 500 requested histories with no failures. The
+six-hour family lost 1.27% net on average across 106 independent events, with
+its full 90% interval below zero; no tested rule was robustly positive at 6,
+12, 24, or 72 hours. Build 69 therefore uses six hours only to stop bad regimes
+sooner. It also closes every stale pre-Strategy-56 directional holding at the
+next fresh mark, including legacy records missing a signal label, while leaving
+complete arbitrage bundles and paired maker inventory under their own accounting.
 
 The initial seven-day chart seed is an approximate replay, not a live return.
 It uses only prices available on each simulated date, computes daily and weekly
@@ -301,12 +312,13 @@ Strategy 54 clusters live walk-forward observations by Polymarket event and chec
 calculating confidence. Multiple six-hour snapshots and correlated outcome
 markets from the same event are averaged into one effective outcome, so one
 election or tournament cannot promote or demote an entire feature cohort.
-Promotion requires agreement across two feature views at both horizons, with
-current-strategy support preventing old lineage data from authorizing a new rule.
+Promotion requires agreement across two feature views at both 24-hour and
+72-hour promotion horizons, while a mature negative six-hour view may veto risk.
+Current-strategy support prevents old lineage data from authorizing a new rule.
 
 The pending signal ledger keeps only one ungraded observation for each market and
 side. When its bounded queue is full, it preserves the oldest evidence through
-the 24-hour and 72-hour grades and admits new signals in ranked order as space opens.
+the 6-hour, 24-hour, and 72-hour grades and admits new signals in ranked order as space opens.
 This prevents frequent cycles from evicting every signal shortly before maturity.
 
 Paper accounts created with a password are also saved through the backend, so a

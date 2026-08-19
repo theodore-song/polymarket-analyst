@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 56 · maker research 2 · build 68</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 56 · maker research 2 · build 69</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 68 active:</b> all ten agents now split distinct one-hour reward-book shadow quotes and learn from one shared, event-deduplicated maker ledger. The shorter window passed a conservative path screen in 2 of 24 current candidates, while the three-hour rule passed none; actual paired touches and positive confidence bounds are still required before paper capital is enabled. Offline snapshots can value positions but cannot invent fills. This remains paper trading; profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 69 active:</b> the next fresh cycle retires every stale pre-Strategy-56 directional holding, including old positions with missing signal labels, while preserving complete bundles and maker inventory. A 500-market audit found six-hour directional signals robustly negative, so six hours is now an early demotion checkpoint; positive promotion still requires independent 24-hour and 72-hour evidence. Offline snapshots can value positions but cannot invent fills. This remains paper trading; profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 68 · Adaptive strategy 56 · Maker research 2 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 69 · Adaptive strategy 56 · Maker research 2 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 68;
+const BUILD_VERSION = 69;
 const SUGGESTION_ENGINE_VERSION = 56;
 const MAKER_STRATEGY_VERSION = 2;
 const PREVIOUS_STRATEGY_VERSION = 55;
@@ -924,7 +924,9 @@ const OFFLINE_ENTRY_MAX_AGE_MS = 90*60*1000;
 const OFFLINE_CACHE_MAX_AGE_MS = 24*60*60*1000;
 const NETWORK_REQUEST_TIMEOUT_MS = 8000;
 const PRICE_REQUEST_TIMEOUT_MS = 4000;
-const SIGNAL_EVAL_HORIZONS = Object.freeze([24,72]);
+const SIGNAL_EARLY_RISK_HORIZONS = Object.freeze([6]);
+const SIGNAL_PROMOTION_HORIZONS = Object.freeze([24,72]);
+const SIGNAL_EVAL_HORIZONS = Object.freeze([...SIGNAL_EARLY_RISK_HORIZONS,...SIGNAL_PROMOTION_HORIZONS]);
 const SIGNAL_EVAL_TOLERANCE_HOURS = 6;
 const SIGNAL_EVAL_HOURS = SIGNAL_EVAL_HORIZONS[0];
 const SIGNAL_LEDGER_PENDING_LIMIT = 300;
@@ -1914,14 +1916,16 @@ function calibratedOpportunity(s,calibration){
   const rows=features.map(k=>buckets[k]).filter(Boolean);
   const independentWeight=rows.length?Math.max(...rows.map(r=>Number(r.weight||0))):0;
   const score=rows.length?rows.reduce((sum,r)=>sum+r.score,0)/rows.length:0,confidence=independentWeight/(independentWeight+20);
-  const horizonRows=features.map(feature=>({feature,rows:SIGNAL_EVAL_HORIZONS.map(horizon=>buckets[`${feature}|horizon:${horizon}`])}));
+  const horizonRows=features.map(feature=>({feature,
+    promotionRows:SIGNAL_PROMOTION_HORIZONS.map(horizon=>buckets[`${feature}|horizon:${horizon}`]),
+    riskRows:SIGNAL_EVAL_HORIZONS.map(horizon=>buckets[`${feature}|horizon:${horizon}`])}));
   const rowIsCurrent=(row)=>Number(row&&row.weight||0)>=8&&Number(row&&row.current_weight||0)>=5;
-  const positiveRows=horizonRows.filter(group=>group.rows.every(row=>rowIsCurrent(row)&&Number(row.lower_bound||0)>0.003));
-  const negativeRows=horizonRows.filter(group=>group.rows.some(row=>rowIsCurrent(row)&&Number(row.upper_bound||0)<-0.003));
+  const positiveRows=horizonRows.filter(group=>group.promotionRows.every(row=>rowIsCurrent(row)&&Number(row.lower_bound||0)>0.003));
+  const negativeRows=horizonRows.filter(group=>group.riskRows.some(row=>rowIsCurrent(row)&&Number(row.upper_bound||0)<-0.003));
   const promoted=positiveRows.length>=2&&negativeRows.length===0;
   const demoted=negativeRows.length>=2&&positiveRows.length===0;
-  const trustedScore=promoted?positiveRows.reduce((sum,group)=>sum+Math.min(...group.rows.map(row=>Number(row.lower_bound||0))),0)/positiveRows.length
-    :(demoted?negativeRows.reduce((sum,group)=>sum+Math.min(...group.rows.filter(rowIsCurrent).map(row=>Number(row.upper_bound||0))),0)/negativeRows.length:score*0.10);
+  const trustedScore=promoted?positiveRows.reduce((sum,group)=>sum+Math.min(...group.promotionRows.map(row=>Number(row.lower_bound||0))),0)/positiveRows.length
+    :(demoted?negativeRows.reduce((sum,group)=>sum+Math.min(...group.riskRows.filter(rowIsCurrent).map(row=>Number(row.upper_bound||0))),0)/negativeRows.length:score*0.10);
   const state=promoted?"promoted":(demoted?"demoted":"observing");
   return {score:+score.toFixed(4),confidence:+confidence.toFixed(3),state,promoted,demoted,
     supporting_features:promoted?positiveRows.length:negativeRows.length,
@@ -2001,7 +2005,7 @@ function historicalOpportunityPrior(s){
 }
 function historicalPromotionMet(historical,calibrationModel){
   const buckets=calibrationModel&&calibrationModel.buckets||{};
-  return !historical.requiresPromotion||historical.requiredPromotionFeatures.every(key=>SIGNAL_EVAL_HORIZONS.every(horizon=>{
+  return !historical.requiresPromotion||historical.requiredPromotionFeatures.every(key=>SIGNAL_PROMOTION_HORIZONS.every(horizon=>{
     const row=buckets[`${key}|horizon:${horizon}`];
     return Number(row&&row.weight||0)>=8&&Number(row&&row.current_weight||0)>=5&&Number(row&&row.lower_bound||0)>0.003;
   }));
@@ -2336,8 +2340,8 @@ function markToMarket(p,priceMap,cfg=null,{policyExits=false,executeTrades=true}
       if(fresh.closed||fresh.accepting_orders===false){closePosition(p,pos,"Complete bundle leg settled","CLOSE");continue;}
       stillOpen.push(pos);continue;
     }
-    if(policyExits&&normalizedStrategyVersion(pos.strategy_version)<SUGGESTION_ENGINE_VERSION&&["trend","reversal"].includes(pos.signal_type||"")){
-      closePosition(p,pos,`Strategy ${SUGGESTION_ENGINE_VERSION} retired this unproven directional setup`,"EXIT");continue;
+    if(policyExits&&normalizedStrategyVersion(pos.strategy_version)<SUGGESTION_ENGINE_VERSION){
+      closePosition(p,pos,`Strategy ${SUGGESTION_ENGINE_VERSION} retired this legacy directional holding`,"EXIT");continue;
     }
     for(const stopTier of triggeredStopLosses(pos))scaleStopLossPosition(p,pos,stopTier);
     if(pos._closedByStop){delete pos._closedByStop;continue;}
@@ -3326,7 +3330,7 @@ function decisionSummary(p){
   const blockerRows=Object.entries(d.rejectionCounts||{}).filter(([,count])=>count>0).sort((a,b)=>b[1]-a[1]);
   const blockers=blockerRows.length?` Blocks: ${blockerRows.slice(0,4).map(([key,count])=>`${blockerLabels[key]||key} ${count}`).join(", ")}.`:"";
   const learning=d.learning?` Learning: ${d.learning.samples} completed trades retained with older strategies down-weighted, ${(d.learning.global_score*100).toFixed(2)}% shrunk expectancy; ${d.learning.current_samples||0} completed under adaptive strategy ${SUGGESTION_ENGINE_VERSION}${d.learning.best?`; strongest ${d.learning.best.feature.replace(":"," ")}`:""}${d.learning.worst?`; weakest ${d.learning.worst.feature.replace(":"," ")}`:""}.`:"";
-  const calibration=d.marketLearning?` Walk-forward calibration: ${d.marketLearning.samples||0} net-of-cost checkpoint observations across ${d.marketLearning.events||d.marketLearning.markets||0} event clusters / ${d.marketLearning.markets||0} markets, graded separately near ${SIGNAL_EVAL_HORIZONS.join("h and ")}h (${d.marketLearning.current_samples||0} observations / ${d.marketLearning.current_events||0} events under adaptive strategy ${SUGGESTION_ENGINE_VERSION}), ${d.marketLearning.pending||0} awaiting a future checkpoint${d.marketLearning.expired_ungraded?`, ${d.marketLearning.expired_ungraded} expired checkpoints`:""}; ${d.marketLearning.promoted_buckets||0} horizon-specific feature cohorts promoted and ${d.marketLearning.demoted_buckets||0} demoted. Promotion requires positive current-strategy evidence at both horizons across independent events. Missed windows expire rather than borrowing a later price. New observations prioritize under-sampled signal/side/category cohorts and independent events before repeats. Correlated outcome markets in one event count as one effective outcome. Historical prior: every directional trend and reversal remains observation-only until its exact recent cohorts independently promote; settlement-jump barriers stay excluded.`:"";
+  const calibration=d.marketLearning?` Walk-forward calibration: ${d.marketLearning.samples||0} net-of-cost checkpoint observations across ${d.marketLearning.events||d.marketLearning.markets||0} event clusters / ${d.marketLearning.markets||0} markets, graded at ${SIGNAL_EARLY_RISK_HORIZONS.join("h, ")}h for early loss vetoes and ${SIGNAL_PROMOTION_HORIZONS.join("h and ")}h for promotion (${d.marketLearning.current_samples||0} observations / ${d.marketLearning.current_events||0} events under adaptive strategy ${SUGGESTION_ENGINE_VERSION}), ${d.marketLearning.pending||0} awaiting a future checkpoint${d.marketLearning.expired_ungraded?`, ${d.marketLearning.expired_ungraded} expired checkpoints`:""}; ${d.marketLearning.promoted_buckets||0} horizon-specific feature cohorts promoted and ${d.marketLearning.demoted_buckets||0} demoted. Promotion requires positive current-strategy evidence at both promotion horizons across independent events; one mature negative cohort at any checkpoint can veto risk. Missed windows expire rather than borrowing a later price. New observations prioritize under-sampled signal/side/category cohorts and independent events before repeats. Correlated outcome markets in one event count as one effective outcome. Historical prior: every directional trend and reversal remains observation-only until its exact recent cohorts independently promote; settlement-jump barriers stay excluded.`:"";
   const makerStats=d.makerProfile&&d.makerProfile.global;
   const maker=d.makerQuotes!=null?` Maker learner: ${d.makerShadowActive||0} zero-capital shadow observations and ${d.makerCapitalActive||0} evidence-promoted capital quotes active; ${d.makerFills||0} verified touches and ${d.makerShadowCompleted||0} shadow outcomes completed this cycle, ${fmtUSD(d.makerReserved||0)} capital reserved.${makerStats?` Event-clustered ledger: ${makerStats.attempts} attempts / ${makerStats.events} events, ${makerStats.locked} paired touches, ${makerStats.adverse} adverse single touches, ${makerStats.unfilled} unfilled, ${fmtUSD(makerStats.shadow_pnl)} simulated shadow net and ${fmtUSD(makerStats.pnl)} actual paper net.`:""} Capital promotion requires ${MAKER_MIN_COHORT_ATTEMPTS} current-strategy events with positive confidence bounds in both category and spread cohorts. Rewards remain excluded until externally verified.`:"";
   return `${d.mode} mode: ${d.reason}${emotion} Limits now: ${d.maxNew} new trade${d.maxNew===1?"":"s"}, max ${(d.maxFrac*100).toFixed(1)}% per position${d.minConv?`, conviction ${d.minConv}+`:""}.${learning}${calibration}${maker}${exposure}${allocation}${candidates}${blockers}`;
@@ -4942,7 +4946,9 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
     coreGapTradeLossPct:MAX_CORE_GAP_TRADE_LOSS_PCT*100,aggressiveGapTradeLossPct:MAX_AGGRESSIVE_GAP_TRADE_LOSS_PCT*100,
     offlineEntryMaxAgeMinutes:OFFLINE_ENTRY_MAX_AGE_MS/60000,offlineCacheMaxAgeHours:OFFLINE_CACHE_MAX_AGE_MS/3600000,explorationPct:15,
     networkTimeoutSeconds:NETWORK_REQUEST_TIMEOUT_MS/1000,priceTimeoutSeconds:PRICE_REQUEST_TIMEOUT_MS/1000,
-    staleCacheIsMarkOnly:true,strategyEvidenceSurvivesBuilds:true,signalEvaluationHours:SIGNAL_EVAL_HOURS,signalEvaluationHorizons:SIGNAL_EVAL_HORIZONS,signalEvaluationToleranceHours:SIGNAL_EVAL_TOLERANCE_HOURS,signalRetryHours:SIGNAL_LEDGER_RETRY_HOURS,
+    staleCacheIsMarkOnly:true,strategyEvidenceSurvivesBuilds:true,signalEvaluationHours:SIGNAL_EVAL_HOURS,signalEvaluationHorizons:SIGNAL_EVAL_HORIZONS,
+    signalEarlyRiskHorizons:SIGNAL_EARLY_RISK_HORIZONS,signalPromotionHorizons:SIGNAL_PROMOTION_HORIZONS,
+    signalEvaluationToleranceHours:SIGNAL_EVAL_TOLERANCE_HOURS,signalRetryHours:SIGNAL_LEDGER_RETRY_HOURS,
     signalDueFetchLimit:SIGNAL_LEDGER_DUE_FETCH_LIMIT,survivorshipSafeSignalGrading:true,
     signalRoundTripCostCents:SIGNAL_ROUND_TRIP_COST*100,independentConfidence:true,eventClusteredCalibration:true,
     onePendingObservationPerMarketSide:true,oldestPendingEvidenceFirst:true,coverageAwareObservationSampling:true,uncertaintyGatedCalibration:true,
@@ -5056,6 +5062,8 @@ function runEngineSelfTest(){
     {market_id:`correlated-market-${index}`,event_key:"one-correlated-event",target_horizon_hours:horizon,strategy_version:SUGGESTION_ENGINE_VERSION,return:0.12,evaluated_at:closedAt}))).flat()});
   const correlatedEventState=calibratedOpportunity(calibrationCandidate,correlatedEventCalibration);
   const singleCalibration=calibratedOpportunity(calibrationCandidate,calibrationFromReturns([0.10]));
+  const earlyPositiveCalibration=calibratedOpportunity(calibrationCandidate,calibrationFromReturns(Array(24).fill(0.12),calibrationCandidate,SIGNAL_EARLY_RISK_HORIZONS));
+  const earlyNegativeCalibration=calibratedOpportunity(calibrationCandidate,calibrationFromReturns(Array(24).fill(-0.12),calibrationCandidate,SIGNAL_EARLY_RISK_HORIZONS));
   const oneHorizonPositiveCalibration=calibratedOpportunity(calibrationCandidate,calibrationFromReturns(Array(24).fill(0.12),calibrationCandidate,[24]));
   const previousOnlyProfile=buildSignalCalibration({pending:[],outcomes:Array.from({length:24},(_,index)=>SIGNAL_EVAL_HORIZONS.map(horizon=>Object.assign({},calibrationCandidate,
     {market_id:`previous-only-${index}`,event_key:`previous-only-event-${index}`,target_horizon_hours:horizon,strategy_version:PREVIOUS_STRATEGY_VERSION,return:0.12,evaluated_at:closedAt}))).flat()});
@@ -5124,6 +5132,11 @@ function runEngineSelfTest(){
   const retiredFixture=accountingBook(0.45),retiredEquityBefore=equity(retiredFixture.book);
   retiredFixture.pos.strategy_version=PREVIOUS_STRATEGY_VERSION;
   markToMarket(retiredFixture.book,{[retiredFixture.pos.market_id]:market({id:retiredFixture.pos.market_id,yes_price:0.45,no_price:0.55})},AGENTS[0],{policyExits:true,executeTrades:true});
+  const unlabeledLegacyFixture=accountingBook(0.45),unlabeledLegacyEquityBefore=equity(unlabeledLegacyFixture.book);
+  delete unlabeledLegacyFixture.pos.strategy_version;delete unlabeledLegacyFixture.pos.signal_type;
+  markToMarket(unlabeledLegacyFixture.book,{[unlabeledLegacyFixture.pos.market_id]:market({id:unlabeledLegacyFixture.pos.market_id,yes_price:0.45,no_price:0.55})},AGENTS[0],{policyExits:true,executeTrades:true});
+  const currentUnlabeledFixture=accountingBook(0.45);currentUnlabeledFixture.pos.strategy_version=SUGGESTION_ENGINE_VERSION;delete currentUnlabeledFixture.pos.signal_type;
+  markToMarket(currentUnlabeledFixture.book,{[currentUnlabeledFixture.pos.market_id]:market({id:currentUnlabeledFixture.pos.market_id,yes_price:0.45,no_price:0.55})},AGENTS[0],{policyExits:true,executeTrades:true});
   const nonBinaryMarketRejected=normalizeMarket({id:"over-under-test",question:"Over/Under 2.5",outcomes:'["Over","Under"]',outcomePrices:'["0.5","0.5"]',acceptingOrders:true})===null;
   const makerMarket=market({id:"maker-test",question:"Will the paired quote test pass?",yes_price:0.42,no_price:0.58,best_bid:0.40,best_ask:0.44,spread:0.04,
     tick_size:0.01,order_min_size:5,rewards_daily_rate:10,rewards_min_size:50,rewards_max_spread:4.5,competitive:0.8,price_change_1d:0.01});
@@ -5339,16 +5352,18 @@ function runEngineSelfTest(){
       missed24hWindowIsNotBackfilled:missedFirstWindowState.signal_ledger.pending.length===1&&missedFirstWindowState.signal_ledger.outcomes.length===0,
       fetchesMaturedMarketsOutsideActiveScan:dueFetchIds.length===1&&dueFetchIds[0]==="outside-active-scan",
       keepsUnavailableGradesQueued:retryLedgerState.signal_ledger.pending.length===1&&retryLedgerState.signal_ledger.outcomes.length===0,
-      expiresOnlyAfterRetryWindow:expiredLedgerState.signal_ledger.pending.length===0&&expiredLedgerState.signal_ledger.expired_ungraded===2,
+      expiresOnlyAfterRetryWindow:expiredLedgerState.signal_ledger.pending.length===0&&expiredLedgerState.signal_ledger.expired_ungraded===3,
       ledgerIsNetOfCosts:ledgerState.signal_ledger.outcomes[0].gross_return===0.25&&ledgerState.signal_ledger.outcomes[0].estimated_cost_return===0.0125,
       independentCalibrationConfidence:singleCalibration.confidence<0.06,
       repeatedSnapshotsCountAsOneMarket:repeatedMarketCalibration.markets===1&&repeatedMarketCalibration.buckets["signal:trend"].samples===1
-        &&repeatedMarketCalibration.buckets["signal:trend"].observations===48&&repeatedMarketState.state==="observing",
+        &&repeatedMarketCalibration.buckets["signal:trend"].observations===72&&repeatedMarketState.state==="observing",
       correlatedMarketsCountAsOneEvent:correlatedEventCalibration.markets===24&&correlatedEventCalibration.events===1
         &&correlatedEventCalibration.buckets["signal:trend"].samples===1&&correlatedEventState.state==="observing",
       stablePositiveEventCount:stablePositiveProfile.events,
       stablePositiveMarketCount:stablePositiveProfile.markets,
       distinctEventsCanPromote:stablePositiveProfile.events===24&&stablePositiveCalibration.state==="promoted"&&stablePositiveCalibration.supporting_features>=2,
+      sixHourPositiveEvidenceCannotPromote:earlyPositiveCalibration.state==="observing"&&!earlyPositiveCalibration.promoted,
+      sixHourNegativeEvidenceCanDemote:earlyNegativeCalibration.state==="demoted"&&!earlyNegativeCalibration.allowed,
       oneHorizonCannotPromote:oneHorizonPositiveCalibration.state==="observing"&&!oneHorizonPositiveCalibration.promoted,
       previousStrategyCannotPromote:previousOnlyCalibration.state==="observing"&&!previousOnlyCalibration.promoted,
       legacyBuildLineageRemainsHistorical:normalizedStrategyVersion(41)===40,
@@ -5377,6 +5392,8 @@ function runEngineSelfTest(){
       stopOutReconciles:stopFixture.book.positions.length===0&&stopFixture.book.cash===9800&&stopFixture.book.closed[0].realized_pnl===-200,
       settlementReconciles:settlementFixture.book.positions.length===0&&settlementFixture.book.cash===11000&&settlementFixture.book.closed[0].realized_pnl===1000,
       retiredDirectionalPositionExitsAtFreshPrice:retiredFixture.book.positions.length===0&&retiredFixture.book.closed[0].close_reason.includes("retired")&&Math.abs(retiredFixture.book.cash-retiredEquityBefore)<=0.02,
+      unlabeledLegacyPositionExitsAtFreshPrice:unlabeledLegacyFixture.book.positions.length===0&&unlabeledLegacyFixture.book.closed[0].close_reason.includes("retired")&&Math.abs(unlabeledLegacyFixture.book.cash-unlabeledLegacyEquityBefore)<=0.02,
+      currentUnlabeledPositionIsPreserved:currentUnlabeledFixture.book.positions.length===1&&currentUnlabeledFixture.book.closed.length===0,
       riskTrimConservesEquity:+equity(riskBook).toFixed(2)===10000,
       adaptiveReturnSetsLeader:adaptiveRankFixture[0].c.id==="adaptive-leader",
     },
