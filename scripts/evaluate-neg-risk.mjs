@@ -2,6 +2,8 @@ const GAMMA = "https://gamma-api.polymarket.com";
 const EVENT_LIMIT = Math.max(20, Math.min(1000, Number(process.env.NEG_RISK_EVENTS || 300)));
 const COST_CENTS = Math.max(0, Math.min(5, Number(process.env.NEG_RISK_COST_CENTS || 0.5)));
 const MIN_LIQUIDITY = Math.max(0, Number(process.env.NEG_RISK_MIN_LIQUIDITY || 1000));
+const MIN_NET_PROFIT = Math.max(0, Number(process.env.NEG_RISK_MIN_NET_PROFIT || 0.003));
+const MIN_NET_RETURN = Math.max(0, Number(process.env.NEG_RISK_MIN_NET_RETURN || 0.0015));
 
 async function fetchJson(url, attempts = 3) {
   let lastError;
@@ -53,10 +55,10 @@ function evaluateEvent(event) {
   if (legs.some((leg) => !leg.id || leg.yes == null || leg.bid == null || leg.ask == null
     || leg.bid < 0 || leg.ask > 1 || leg.ask < leg.bid || leg.liquidity < MIN_LIQUIDITY)) return null;
   const count = legs.length, costPerLeg = COST_CENTS / 100;
-  const yesCost = legs.reduce((sum, leg) => sum + leg.ask, 0);
-  const yesProfit = 1 - yesCost - count * costPerLeg;
-  const noCost = count - legs.reduce((sum, leg) => sum + leg.bid, 0);
-  const noProfit = count - 1 - noCost - count * costPerLeg;
+  const yesCost = legs.reduce((sum, leg) => sum + leg.ask, 0) + count * costPerLeg;
+  const yesProfit = 1 - yesCost;
+  const noCost = count - legs.reduce((sum, leg) => sum + leg.bid, 0) + count * costPerLeg;
+  const noProfit = count - 1 - noCost;
   const yesReturn = yesCost > 0 ? yesProfit / yesCost : 0;
   const noReturn = noCost > 0 ? noProfit / noCost : 0;
   const side = yesReturn >= noReturn ? "YES_BUNDLE" : "NO_BUNDLE";
@@ -71,7 +73,7 @@ function evaluateEvent(event) {
 
 const events = await fetchEvents(EVENT_LIMIT);
 const evaluated = events.map(evaluateEvent).filter(Boolean).sort((a, b) => b.netReturn - a.netReturn);
-const actionable = evaluated.filter((event) => event.netProfitPerBundle > 0);
+const actionable = evaluated.filter((event) => event.netProfitPerBundle >= MIN_NET_PROFIT && event.netReturn >= MIN_NET_RETURN);
 const compact = (event) => ({ eventId: event.eventId, title: event.title, markets: event.markets, side: event.side,
   executableCost: +event.executableCost.toFixed(4), worstCasePayout: event.worstCasePayout,
   netProfitPerBundle: +event.netProfitPerBundle.toFixed(4), netReturn: +event.netReturn.toFixed(4),
@@ -81,4 +83,5 @@ const compact = (event) => ({ eventId: event.eventId, title: event.title, market
 console.log(JSON.stringify({ generatedAt: new Date().toISOString(), requestedEvents: EVENT_LIMIT,
   fetchedEvents: events.length, eligibleNegativeRiskEvents: evaluated.length, actionableBundles: actionable.length,
   estimatedCostCentsPerLeg: COST_CENTS, minimumLiquidityPerLeg: MIN_LIQUIDITY,
+  minimumNetProfitPerBundle: MIN_NET_PROFIT, minimumNetReturn: MIN_NET_RETURN,
   actionable: actionable.slice(0, 50).map(compact), bestObserved: evaluated.slice(0, 20).map(compact) }, null, 2));

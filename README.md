@@ -15,12 +15,12 @@ https://polymarket-site-eta.vercel.app/personal.html
 
 The site fetches live Polymarket markets, generates agent suggestions, lets you
 run frequent paper cycles, and syncs the shared arena state through Neon or
-Vercel Blob. Build 56 also installs an offline app shell and caches timestamped
+Vercel Blob. Build 57 also installs an offline app shell and caches timestamped
 market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
 
-Build 56 ranks the competition by each agent's return since Strategy 50 began.
+Build 57 ranks the competition by each agent's return since Strategy 50 began.
 Historical replay equity remains visible for context, but it no longer makes an
 agent look like the current leader when the live adaptive strategy is losing.
 
@@ -114,7 +114,7 @@ feature views before repeatable positive evidence can increase size or repeatabl
 negative evidence can block a new entry. Mixed evidence stays close to neutral
 instead of being mistaken for an edge.
 
-Build 56 enforces the documented offline boundary end to end. Cached snapshots
+Build 57 enforces the documented offline boundary end to end. Cached snapshots
 under 90 minutes old may continue paper execution. Older snapshots remain usable
 for valuation and chart snapshots for up to 24 hours, but cannot trigger entries,
 stop-losses, gain-stops, risk rebalances, settlements, or policy exits. Network
@@ -127,7 +127,7 @@ adaptive baselines, pending signal grades, and trade evidence remain in one stra
 lineage until the actual entry, sizing, or exit logic changes. Legacy build 40 and 41
 records are migrated into the same strategy lineage without losing evidence.
 
-Build 56 independently refreshes markets for matured pending signals that have
+Build 57 independently refreshes markets for matured pending signals that have
 left the current top-500 activity scan. Unavailable markets remain queued for a
 bounded retry window. This prevents activity-rank survivorship from deciding
 which wins and losses reach the adaptive calibration ledger.
@@ -156,11 +156,14 @@ liquid negative-risk events and zero positive worst-case bundle returns after
 costs. Midpoint price sums sometimes looked attractive, but executable spreads
 removed the apparent edge. The August 18 rerun found 35 eligible events and one
 three-leg NO bundle with a 0.25%
-modeled margin after estimated costs. Strategy 50 can paper-trade such a bundle
-only from live executable prices, opens every leg together, and holds the hedge
-intact until settlement. It also requires at least a 0.15% modeled net return so
-large bundles cannot tie up capital for a negligible absolute edge. Cached bundle
-prices are never allowed to open positions.
+modeled margin after estimated costs. The corrected August 19 scan found 39
+eligible events and no currently actionable bundle; its closest complete bundle
+remained 0.37% negative after modeled costs. Strategy 50 can paper-trade either a
+complete YES or complete NO bundle only from live executable prices, opens every
+leg together, and holds
+the hedge intact until settlement. It also requires at least a 0.15% modeled net
+return so large bundles cannot tie up capital for a negligible absolute edge.
+Cached bundle prices are never allowed to open positions.
 
 The expanded event-clustered run loaded history for 498 of the 500 highest-volume
 resolved markets with no fetch failures. No side, price band, category, trend,
