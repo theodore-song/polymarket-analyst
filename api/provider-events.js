@@ -1,4 +1,4 @@
-import { hasDatabase, providerEventSummary } from "./_db.js";
+import { hasDatabase, providerEventSummary } from "../lib/db.js";
 
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");

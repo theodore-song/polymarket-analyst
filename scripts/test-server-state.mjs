@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { databaseConnectionDiagnostics, databaseUrl, databaseUrls, normalizeDatabaseUrl } from "../api/_db.js";
+import { databaseConnectionDiagnostics, databaseUrl, databaseUrls, normalizeDatabaseUrl } from "../lib/db.js";
 import { compactAgentState, compactSuggestion, providerErrorCode } from "../api/state.js";
 
 assert.equal(normalizeDatabaseUrl("psql 'postgresql://user:pass@example.test/db?sslmode=require'"),

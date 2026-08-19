@@ -1,4 +1,4 @@
-import { latestRiskProfile, recordAuditEvent, upsertRiskProfile } from "./_db.js";
+import { latestRiskProfile, recordAuditEvent, upsertRiskProfile } from "../lib/db.js";
 
 function validateProfile(profile) {
   const errors = [];

@@ -1,4 +1,4 @@
-import { recordAuditEvent, recordUserConsent } from "./_db.js";
+import { recordAuditEvent, recordUserConsent } from "../lib/db.js";
 
 function activeVersions() {
   return {

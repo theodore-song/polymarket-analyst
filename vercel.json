@@ -1,4 +1,10 @@
 {
+  "rewrites": [
+    {
+      "source": "/api/liquidity",
+      "destination": "/api/live?action=liquidity"
+    }
+  ],
   "headers": [
     {
       "source": "/",

@@ -1,5 +1,5 @@
 import { get, list, put } from "@vercel/blob";
-import { databaseConnectionDiagnostics, hasDatabase, readSharedAppState, writeSharedAppState } from "./_db.js";
+import { databaseConnectionDiagnostics, hasDatabase, readSharedAppState, writeSharedAppState } from "../lib/db.js";
 
 const STATE_PATH = process.env.PMA_STATE_PATH || "shared/state.json";
 const STATE_VERSION_PREFIX = process.env.PMA_STATE_VERSION_PREFIX || "shared/state-versions/";

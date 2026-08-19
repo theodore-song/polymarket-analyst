@@ -1,5 +1,5 @@
-import { recordProviderEvent } from "../_db.js";
-import { firstHeader, parseJson, rawBody, safeHeaders, sendMethodNotAllowed, verifyHmacSignature } from "../_webhook.js";
+import { recordProviderEvent } from "../../lib/db.js";
+import { firstHeader, parseJson, rawBody, safeHeaders, sendMethodNotAllowed, verifyHmacSignature } from "../../lib/webhook.js";
 
 const SIGNATURE_HEADERS = [
   "x-hmac-signature",

@@ -8,7 +8,8 @@ import {
   recordRealFill,
   updateRealPositionMark,
   updateTradeTicketStatus,
-} from "./_db.js";
+} from "../lib/db.js";
+import { auditLiquidity } from "../lib/liquidity-audit.js";
 import nodemailer from "nodemailer";
 
 const REQUIRED_ENV = [
@@ -731,6 +732,22 @@ export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
 
   if (req.method === "GET") {
+    if (req.query?.action === "liquidity") {
+      try {
+        const report = await auditLiquidity({
+          marketLimit: Number(req.query.limit || 60),
+          minHoursToEnd: Number(req.query.min_hours || 48),
+        });
+        res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate=120");
+        return res.status(200).json({ ok: true, ...report });
+      } catch (error) {
+        return res.status(502).json({
+          ok: false,
+          error: "liquidity_audit_unavailable",
+          detail: String(error?.message || error),
+        });
+      }
+    }
     if (req.query?.action === "tickets") {
       const userId = String(req.query?.user_id || "local-readiness-user").trim();
       const tickets = await listTradeTickets(userId, req.query?.limit || 50);

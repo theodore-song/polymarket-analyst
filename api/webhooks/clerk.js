@@ -1,6 +1,6 @@
 import { Webhook } from "svix";
-import { recordProviderEvent } from "../_db.js";
-import { rawBody, parseJson, safeHeaders, sendMethodNotAllowed } from "../_webhook.js";
+import { recordProviderEvent } from "../../lib/db.js";
+import { rawBody, parseJson, safeHeaders, sendMethodNotAllowed } from "../../lib/webhook.js";
 
 function eventType(payload) {
   return payload.type || "clerk.webhook";

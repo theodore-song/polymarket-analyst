@@ -1,4 +1,4 @@
-import { recordAuditEvent } from "./_db.js";
+import { recordAuditEvent } from "../lib/db.js";
 
 async function notifyIncidentWebhook(payload) {
   const url = process.env.INCIDENT_WEBHOOK_URL || process.env.SENTRY_WEBHOOK_URL;
