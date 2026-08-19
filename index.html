@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 56 · build 67</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 56 · maker research 2 · build 68</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 67 active:</b> a corrected 5,000-market settlement audit rejected every static side, price, category, and horizon rule after event-overlap and stale-price controls. Emotion is commentary only and can never increase stake size; a small peer boost requires independent promotion from both personal outcomes and the shared walk-forward ledger. Reward-book maker observations remain zero-capital until current cohorts prove positive net outcomes. Offline snapshots can value positions but cannot invent fills. This remains paper trading; profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 68 active:</b> all ten agents now split distinct one-hour reward-book shadow quotes and learn from one shared, event-deduplicated maker ledger. The shorter window passed a conservative path screen in 2 of 24 current candidates, while the three-hour rule passed none; actual paired touches and positive confidence bounds are still required before paper capital is enabled. Offline snapshots can value positions but cannot invent fills. This remains paper trading; profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 67 · Adaptive strategy 56 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 68 · Adaptive strategy 56 · Maker research 2 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,8 +774,9 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 67;
+const BUILD_VERSION = 68;
 const SUGGESTION_ENGINE_VERSION = 56;
+const MAKER_STRATEGY_VERSION = 2;
 const PREVIOUS_STRATEGY_VERSION = 55;
 const LEGACY_BUILD_STRATEGY_LINEAGE = Object.freeze({40:40,41:40});
 function normalizedStrategyVersion(value){
@@ -1165,7 +1166,7 @@ const MAKER_MAX_QUOTES=6;
 const MAKER_MAX_QUOTE_CAPITAL_PCT=0.02;
 const MAKER_TOTAL_CAPITAL_PCT=0.10;
 const MAKER_QUOTE_EXPIRY_HOURS=24;
-const MAKER_SHADOW_HORIZON_HOURS=3;
+const MAKER_SHADOW_HORIZON_HOURS=1;
 const MAKER_MIN_LOCK_MARGIN=0.005;
 const MAKER_OUTCOME_LIMIT=240;
 const MAKER_MIN_COHORT_ATTEMPTS=20;
@@ -2364,42 +2365,49 @@ function makerRewardBand(row){
 function summarizeMakerOutcomes(rows){
   const weighted=[];
   (rows||[]).forEach(row=>{
-    const version=normalizedStrategyVersion(row.strategy_version),weight=version===SUGGESTION_ENGINE_VERSION?1:(version===PREVIOUS_STRATEGY_VERSION?0.5:0.2);
+    const version=Number(row.maker_strategy_version||1),weight=version===MAKER_STRATEGY_VERSION?1:0.2;
     const reserved=Math.max(0.01,Number(row.reserved_capital||row.deployed_capital||0.01));
     weighted.push({value:Number(row.pnl||0)/reserved,weight,status:row.status,shadow:Boolean(row.shadow_only),
-      current:version===SUGGESTION_ENGINE_VERSION,eventKey:String(row.event_key||row.market_id||row.quote_id)});
+      current:version===MAKER_STRATEGY_VERSION,eventKey:String(row.event_key||row.market_id||row.quote_id)});
   });
   const clusters=new Map();
-  weighted.forEach(row=>{const cluster=clusters.get(row.eventKey)||{weighted:0,weight:0,evidenceWeight:0,current:false};
+  weighted.forEach(row=>{const cluster=clusters.get(row.eventKey)||{weighted:0,weight:0,evidenceWeight:0,current:false,locked:false,currentLocked:false};
     cluster.weighted+=row.value*row.weight;cluster.weight+=row.weight;cluster.evidenceWeight=Math.max(cluster.evidenceWeight,row.weight);
-    cluster.current=cluster.current||row.current;clusters.set(row.eventKey,cluster);});
-  const evidence=[...clusters.values()].map(cluster=>({value:cluster.weighted/Math.max(0.01,cluster.weight),weight:cluster.evidenceWeight,current:cluster.current}));
+    cluster.current=cluster.current||row.current;cluster.locked=cluster.locked||row.status==="locked";
+    cluster.currentLocked=cluster.currentLocked||(row.current&&row.status==="locked");clusters.set(row.eventKey,cluster);});
+  const evidence=[...clusters.values()].map(cluster=>({value:cluster.weighted/Math.max(0.01,cluster.weight),weight:cluster.evidenceWeight,
+    current:cluster.current,locked:cluster.locked,currentLocked:cluster.currentLocked}));
   const totalWeight=evidence.reduce((sum,row)=>sum+row.weight,0),attempts=weighted.length;
   const mean=totalWeight?evidence.reduce((sum,row)=>sum+row.value*row.weight,0)/totalWeight:0;
   const variance=totalWeight?evidence.reduce((sum,row)=>sum+row.weight*(row.value-mean)**2,0)/totalWeight:0;
   const margin=evidence.length>1?1.645*Math.sqrt(variance/Math.max(1,totalWeight)):1;
   return {attempts,events:evidence.length,current_events:evidence.filter(row=>row.current).length,effective_attempts:+totalWeight.toFixed(2),
     locked:weighted.filter(row=>row.status==="locked").length,current_locked:weighted.filter(row=>row.current&&row.status==="locked").length,
+    locked_events:evidence.filter(row=>row.locked).length,current_locked_events:evidence.filter(row=>row.currentLocked).length,
     adverse:weighted.filter(row=>row.status==="single-exit").length,unfilled:weighted.filter(row=>row.status==="unfilled").length,
     pnl:+(rows||[]).filter(row=>!row.shadow_only).reduce((sum,row)=>sum+Number(row.pnl||0),0).toFixed(2),
     shadow_pnl:+(rows||[]).filter(row=>row.shadow_only).reduce((sum,row)=>sum+Number(row.pnl||0),0).toFixed(2),mean:+mean.toFixed(5),
     lower:+(mean-margin).toFixed(5),upper:+(mean+margin).toFixed(5),confidence:+(totalWeight/(totalWeight+8)).toFixed(4)};
 }
-function buildMakerProfile(p){
-  const outcomes=(p&&p.maker_outcomes||[]).slice(-MAKER_OUTCOME_LIMIT),buckets={};
+function buildMakerProfile(p,limit=MAKER_OUTCOME_LIMIT){
+  const outcomes=(p&&p.maker_outcomes||[]).slice(-limit),buckets={};
   const add=(key,row)=>{if(!buckets[key])buckets[key]=[];buckets[key].push(row);};
   outcomes.forEach(row=>{add(`category:${row.category||"Other"}`,row);add(`spread:${row.spread_band||makerSpreadBand(row.spread)}`,row);
     add(`reward:${row.reward_yield_band||makerRewardBand(row)}`,row);});
-  return {version:SUGGESTION_ENGINE_VERSION,outcomes:outcomes.length,global:summarizeMakerOutcomes(outcomes),
+  return {version:MAKER_STRATEGY_VERSION,outcomes:outcomes.length,global:summarizeMakerOutcomes(outcomes),
     buckets:Object.fromEntries(Object.entries(buckets).map(([key,rows])=>[key,summarizeMakerOutcomes(rows)]))};
+}
+function buildSharedMakerProfile(st){
+  const outcomes=AGENTS.flatMap(agent=>(st.agents[agent.id].maker_outcomes||[])).slice(-MAKER_OUTCOME_LIMIT*AGENTS.length);
+  return buildMakerProfile({maker_outcomes:outcomes},MAKER_OUTCOME_LIMIT*AGENTS.length);
 }
 function makerCandidateLearning(candidate,profile){
   const category=profile.buckets[`category:${candidate.category}`],spread=profile.buckets[`spread:${makerSpreadBand(candidate.spread)}`];
   const rewardBand=candidate.reward_yield_band||makerRewardBand(candidate),reward=profile.buckets[`reward:${rewardBand}`];
   const matching=[profile.global,category,spread,reward].filter(Boolean),mature=matching.filter(stats=>stats.current_events>=MAKER_MIN_COHORT_ATTEMPTS);
   const losing=mature.some(stats=>stats.upper<0),promoted=!losing&&category&&spread&&[category,spread].every(stats=>
-    stats.current_events>=MAKER_MIN_COHORT_ATTEMPTS&&stats.current_locked>=MAKER_MIN_PROMOTION_LOCKS&&stats.lower>0)
-    &&reward&&reward.current_events>=MAKER_MIN_COHORT_ATTEMPTS&&reward.current_locked>=MAKER_MIN_PROMOTION_LOCKS&&reward.lower>0;
+    stats.current_events>=MAKER_MIN_COHORT_ATTEMPTS&&stats.current_locked_events>=MAKER_MIN_PROMOTION_LOCKS&&stats.lower>0)
+    &&reward&&reward.current_events>=MAKER_MIN_COHORT_ATTEMPTS&&reward.current_locked_events>=MAKER_MIN_PROMOTION_LOCKS&&reward.lower>0;
   const positive=[category,spread,reward].filter(Boolean).sort((a,b)=>b.lower-a.lower)[0];
   const multiplier=promoted?clamp(1+Math.max(0,positive.lower)*6*positive.confidence,1,1.25):1;
   const units=+(candidate.units*multiplier).toFixed(2),requiredCapital=+(units*candidate.paired_cost).toFixed(2),lockedProfit=+(units*(1-candidate.paired_cost)).toFixed(2);
@@ -2418,7 +2426,8 @@ function recordMakerOutcome(p,quote,status,pnl,deployedCapital){
     reward_share_floor:+Number(quote.reward_share_floor||0).toFixed(6),status,pnl:+Number(pnl||0).toFixed(2),shadow_only:Boolean(quote.shadow_only),
     deployed_capital:+Number(deployedCapital||0).toFixed(2),reserved_capital:+reserved.toFixed(2),return_on_reserved:+(Number(pnl||0)/reserved).toFixed(5),
     created_at:quote.created_at,completed_at:cycleIso(),hours_to_outcome:+hoursSince(quote.created_at).toFixed(2),
-    strategy_version:Number(quote.strategy_version||SUGGESTION_ENGINE_VERSION),build_version:Number(quote.build_version||BUILD_VERSION)});
+    strategy_version:Number(quote.strategy_version||SUGGESTION_ENGINE_VERSION),maker_strategy_version:Number(quote.maker_strategy_version||MAKER_STRATEGY_VERSION),
+    build_version:Number(quote.build_version||BUILD_VERSION)});
   p.maker_outcomes=p.maker_outcomes.slice(-MAKER_OUTCOME_LIMIT);
   return true;
 }
@@ -2450,23 +2459,27 @@ function makerPairCandidate(m){
     competitive:+competition.toFixed(4),spread:+spread.toFixed(4),tick_size:tick,day_move:+dayMove.toFixed(4),
     score:+(activity*0.25+(1-competition)*1.5+spread*20-dayMove*12+Math.log10(reward+1)*0.2).toFixed(4)};
 }
-function stageMakerQuotes(p,markets){
+function stageMakerQuotes(p,markets,{profile=null,agentIndex=null,agentCount=1,globalMarketIds=null,globalEventKeys=null}={}){
   p.maker_quotes=Array.isArray(p.maker_quotes)?p.maker_quotes:[];
   const eq=equity(p),existing=new Set(p.maker_quotes.map(quote=>String(quote.market_id))),held=new Set((p.positions||[]).map(pos=>String(pos.market_id)));
   let reserved=p.maker_quotes.filter(quote=>!quote.shadow_only).reduce((sum,quote)=>sum+Number(quote.required_capital||0),0),staged=0,shadowStaged=0,capitalStaged=0;
-  const makerProfile=buildMakerProfile(p);
-  const candidates=(markets||[]).map(makerPairCandidate).filter(Boolean).map(candidate=>makerCandidateLearning(candidate,makerProfile)).filter(Boolean).sort((a,b)=>b.score-a.score);
+  const makerProfile=profile||buildMakerProfile(p);
+  let candidates=(markets||[]).map(makerPairCandidate).filter(Boolean).map(candidate=>makerCandidateLearning(candidate,makerProfile)).filter(Boolean).sort((a,b)=>b.score-a.score);
+  if(Number.isInteger(agentIndex)&&agentCount>1)candidates=candidates.filter((candidate,index)=>index%agentCount===agentIndex);
   for(const candidate of candidates){
     if(p.maker_quotes.length>=MAKER_MAX_QUOTES)break;
     const capitalEnabled=Boolean(candidate.maker_capital_enabled);
-    if(existing.has(candidate.market_id)||held.has(candidate.market_id))continue;
+    if(existing.has(candidate.market_id)||held.has(candidate.market_id)||(globalMarketIds&&globalMarketIds.has(candidate.market_id))
+      ||(globalEventKeys&&globalEventKeys.has(String(candidate.event_key))))continue;
     if(capitalEnabled&&(reserved>=eq*MAKER_TOTAL_CAPITAL_PCT||candidate.required_capital>eq*MAKER_MAX_QUOTE_CAPITAL_PCT
       ||reserved+candidate.required_capital>Math.min(p.cash,eq*MAKER_TOTAL_CAPITAL_PCT)))continue;
     const createdAt=cycleIso(),quote=Object.assign({},candidate,{id:`maker:${candidate.market_id}:${Date.now()}:${p.maker_quotes.length}`,
-      created_at:createdAt,yes_quote_updated_at:createdAt,no_quote_updated_at:createdAt,strategy_version:SUGGESTION_ENGINE_VERSION,build_version:BUILD_VERSION,
+      created_at:createdAt,yes_quote_updated_at:createdAt,no_quote_updated_at:createdAt,strategy_version:SUGGESTION_ENGINE_VERSION,
+      maker_strategy_version:MAKER_STRATEGY_VERSION,build_version:BUILD_VERSION,
       shadow_only:!capitalEnabled,shadow_horizon_hours:MAKER_SHADOW_HORIZON_HOURS,
       yes_filled_at:null,no_filled_at:null,yes_fill_price:null,no_fill_price:null});
-    p.maker_quotes.push(quote);existing.add(candidate.market_id);staged++;
+    p.maker_quotes.push(quote);existing.add(candidate.market_id);if(globalMarketIds)globalMarketIds.add(candidate.market_id);
+    if(globalEventKeys)globalEventKeys.add(String(candidate.event_key));staged++;
     if(capitalEnabled){reserved+=candidate.required_capital;capitalStaged++;}else shadowStaged++;
     p.history.push({date:logDay(),action:capitalEnabled?"QUOTE":"SHADOW_QUOTE",question:candidate.question,side:"PAIR",
       detail:capitalEnabled
@@ -2489,10 +2502,14 @@ async function fetchMakerTouchHistory(quotes,marketMap){
   if(!tokens.size||!created.length)return {};
   try{
     const endTs=Math.floor(Date.now()/1000),startTs=Math.max(endTs-(MAKER_QUOTE_EXPIRY_HOURS+1)*3600,Math.min(...created)-60);
-    const response=await fetchWithTimeout(`${CLOB}/batch-prices-history`,{method:"POST",headers:{"content-type":"application/json"},
-      body:JSON.stringify({markets:[...tokens].slice(0,20),start_ts:startTs,end_ts:endTs,fidelity:MAKER_TOUCH_FIDELITY_MINUTES})},PRICE_REQUEST_TIMEOUT_MS*2);
-    if(!response.ok)return {};
-    const payload=await response.json();return payload&&payload.history&&typeof payload.history==="object"?payload.history:{};
+    const tokenList=[...tokens],history={};
+    for(let index=0;index<tokenList.length;index+=20){
+      const response=await fetchWithTimeout(`${CLOB}/batch-prices-history`,{method:"POST",headers:{"content-type":"application/json"},
+        body:JSON.stringify({markets:tokenList.slice(index,index+20),start_ts:startTs,end_ts:endTs,fidelity:MAKER_TOUCH_FIDELITY_MINUTES})},PRICE_REQUEST_TIMEOUT_MS*2);
+      if(!response.ok)continue;
+      const payload=await response.json();if(payload&&payload.history&&typeof payload.history==="object")Object.assign(history,payload.history);
+    }
+    return history;
   }catch(e){return {};}
 }
 function makerTouchEvidence(quote,side,touchHistory){
@@ -2586,14 +2603,20 @@ function manageMakerQuotes(p,marketMap,{executeTrades=false,touchHistory={}}={})
   if(!executeTrades)return {active:p.maker_quotes.length,fills:0,locked:0,expired:0};
   const keep=[];let fills=0,locked=0,expired=0,historyTouches=0,shadowCompleted=0;
   for(const quote of p.maker_quotes){
-    const fresh=marketMap[String(quote.market_id)];
-    if(!fresh){keep.push(quote);continue;}
-    const legacyCapital=!quote.shadow_only&&normalizedStrategyVersion(quote.strategy_version)<SUGGESTION_ENGINE_VERSION;
+    const legacyMaker=Number(quote.maker_strategy_version||1)<MAKER_STRATEGY_VERSION;
+    if(legacyMaker&&quote.shadow_only){
+      p.history.push({date:logDay(),action:"SHADOW_RETIRE",question:quote.question,side:"PAIR",
+        detail:`Retired the old ${quote.shadow_horizon_hours||3}h maker-research window without grading it into the new one-hour learner`});
+      expired++;continue;
+    }
+    const legacyCapital=!quote.shadow_only&&legacyMaker;
     if(legacyCapital&&!quote.yes_filled_at&&!quote.no_filled_at){
       p.history.push({date:logDay(),action:"MAKER_RETIRE",question:quote.question,side:"PAIR",
         detail:`Canceled untouched Strategy ${normalizedStrategyVersion(quote.strategy_version)} maker bids after the chronological audit rejected the rule; no fill or profit recorded`});
       expired++;continue;
     }
+    const fresh=marketMap[String(quote.market_id)];
+    if(!fresh){keep.push(quote);continue;}
     if(legacyCapital&&Boolean(quote.yes_filled_at)!==Boolean(quote.no_filled_at)){
       if(unwindMakerInventory(p,quote,fresh)){expired++;continue;}
       keep.push(quote);continue;
@@ -3076,10 +3099,13 @@ async function runDailyCycle(){
     const cachePolicy=offlineCachePolicy(cacheAgeMs);
     const executeTrades=runMode==="live"||cachePolicy.exitsAllowed;
     const quoteMarketMap=Object.assign({},cachedById,freshById);
-    const valuePortfolio=st.agents.value;
-    if(runMode==="live"&&(valuePortfolio.maker_quotes||[]).length)setStatus("verifying resting quote touches…",true);
-    const makerTouchHistory=runMode==="live"?await fetchMakerTouchHistory(valuePortfolio.maker_quotes,quoteMarketMap):{};
-    const makerActivity=manageMakerQuotes(valuePortfolio,quoteMarketMap,{executeTrades:runMode==="live"&&executeTrades,touchHistory:makerTouchHistory});
+    const allMakerQuotes=AGENTS.flatMap(agent=>st.agents[agent.id].maker_quotes||[]);
+    if(runMode==="live"&&allMakerQuotes.length)setStatus("verifying resting quote touches…",true);
+    const makerTouchHistory=runMode==="live"?await fetchMakerTouchHistory(allMakerQuotes,quoteMarketMap):{};
+    const makerActivityByAgent={};
+    AGENTS.forEach(agent=>{makerActivityByAgent[agent.id]=manageMakerQuotes(st.agents[agent.id],quoteMarketMap,
+      {executeTrades:runMode==="live"&&executeTrades,touchHistory:makerTouchHistory});});
+    const sharedMakerProfile=buildSharedMakerProfile(st);
     for(const cfg of AGENTS){
       const p=st.agents[cfg.id];
       markToMarket(p,priceMap,cfg,{policyExits:executeTrades,executeTrades});
@@ -3088,6 +3114,11 @@ async function runDailyCycle(){
     const entriesAllowed=runMode==="live"||cachePolicy.entriesAllowed;
     const cycleSuggestions=prepareCycleSuggestions(sugs,runMode,entriesAllowed);
     const claimedMarkets=new Set();
+    const globalMakerMarkets=new Set(AGENTS.flatMap(agent=>[
+      ...(st.agents[agent.id].maker_quotes||[]).map(quote=>String(quote.market_id)),
+      ...(st.agents[agent.id].positions||[]).filter(pos=>pos.signal_type==="maker-pair").map(pos=>String(pos.market_id)),
+    ]));
+    const globalMakerEvents=new Set(AGENTS.flatMap(agent=>(st.agents[agent.id].maker_quotes||[]).map(quote=>String(quote.event_key))));
     for(const cfg of strategyExecutionOrder(st)){
       const p=st.agents[cfg.id];
       const rank=preBoard.findIndex(x=>x.id===cfg.id)+1||preBoard.length;
@@ -3095,13 +3126,15 @@ async function runDailyCycle(){
       const occupied=occupiedStrategyMarkets(st,cfg.id);
       claimedMarkets.forEach(id=>occupied.add(id));
       openPositions(p,cfg,cfg.rank(cycleSuggestions),focus,decision,occupied,peerMarketStats(st,cfg.id)).forEach(id=>claimedMarkets.add(id));
-      if(cfg.id==="value"&&runMode==="live"&&entriesAllowed){
-        const staged=stageMakerQuotes(p,[...makerAuditCandidates,...analysisMarkets]);
+      if(runMode==="live"&&entriesAllowed){
+        const agentIndex=AGENTS.findIndex(agent=>agent.id===cfg.id),makerActivity=makerActivityByAgent[cfg.id];
+        const staged=stageMakerQuotes(p,[...makerAuditCandidates,...analysisMarkets],{profile:sharedMakerProfile,agentIndex,agentCount:AGENTS.length,
+          globalMarketIds:globalMakerMarkets,globalEventKeys:globalMakerEvents});
         p.lastDecision=Object.assign({},p.lastDecision,{makerQuotes:p.maker_quotes.length,makerCandidates:staged.candidates,makerStaged:staged.staged,
           makerShadowStaged:staged.shadowStaged,makerCapitalStaged:staged.capitalStaged,makerShadowActive:staged.shadowActive,makerCapitalActive:staged.capitalActive,
           makerFills:makerActivity.fills,makerLocked:makerActivity.locked,makerExpired:makerActivity.expired,makerHistoryTouches:makerActivity.historyTouches,
           makerShadowCompleted:makerActivity.shadowCompleted,
-          makerReserved:staged.reserved,makerProfile:makerActivity.profile});
+          makerReserved:staged.reserved,makerProfile:sharedMakerProfile});
         if(staged.staged||makerActivity.fills||makerActivity.locked||makerActivity.expired){
           p.lastDecision.allocationStatus=`${p.lastDecision.allocationStatus||""} Reward-book learner: ${staged.shadowActive} zero-capital shadow observation${staged.shadowActive===1?"":"s"}, ${staged.capitalActive} evidence-promoted capital quote${staged.capitalActive===1?"":"s"}, ${makerActivity.shadowCompleted||0} shadow outcome${makerActivity.shadowCompleted===1?"":"s"} graded this cycle; displayed reward estimates are never credited as P&L.`.trim();
         }
@@ -4915,10 +4948,12 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
     onePendingObservationPerMarketSide:true,oldestPendingEvidenceFirst:true,coverageAwareObservationSampling:true,uncertaintyGatedCalibration:true,
     directionalSignalsRequirePromotion:true,liveOnlyCompleteBundles:true,negativeRiskBundleSides:["YES","NO"],negativeRiskEventScanLimit:NEG_RISK_EVENT_SCAN_LIMIT,
     negativeRiskMinimumNetReturnPct:NEG_RISK_MIN_NET_RETURN*100,
-    pairedMakerQuotes:"reward-book-audited-shadow-until-promoted",makerShadowHorizonHours:MAKER_SHADOW_HORIZON_HOURS,makerLegacyQuoteExpiryHours:MAKER_QUOTE_EXPIRY_HOURS,makerMinimumLockMarginPct:MAKER_MIN_LOCK_MARGIN*100,
+    pairedMakerQuotes:"reward-book-audited-shadow-until-promoted",makerStrategyVersion:MAKER_STRATEGY_VERSION,
+    makerShadowHorizonHours:MAKER_SHADOW_HORIZON_HOURS,makerLegacyQuoteExpiryHours:MAKER_QUOTE_EXPIRY_HOURS,makerMinimumLockMarginPct:MAKER_MIN_LOCK_MARGIN*100,
     makerTouchSource:"Polymarket CLOB batch price history",makerOutcomeLimit:MAKER_OUTCOME_LIMIT,makerMinimumCohortAttempts:MAKER_MIN_COHORT_ATTEMPTS,
     makerMinimumPromotionLocks:MAKER_MIN_PROMOTION_LOCKS,makerMaximumLearningMultiplier:1.25,makerCapitalExplorationPct:0,hypotheticalRewardsCredited:false,
-    makerCompetitionSource:"shared public CLOB order-book audit",makerPromotionCohorts:["category","spread","reward-yield"],makerRewardPayoutMinimum:1,
+    makerCompetitionSource:"shared public CLOB order-book audit",makerResearchSharedAcrossAgents:true,makerMarketsPartitionedAcrossAgents:true,
+    makerHistoryRequestsBatched:true,makerPromotionCohorts:["category","spread","reward-yield"],makerRewardPayoutMinimum:1,
     emotionCanIncreaseSize:false,dualPromotionPeerBoostPct:5,
     historicalPrior:"All tested directional, sports-favorite, and corrected settlement-calibration rules failed clean validation and remain observation-only; live-priced complete negative-risk bundles may trade; paired maker quotes require a public-book reward audit and remain zero-capital observations until current category, spread, and reward-yield cohorts independently promote"}),
 });
@@ -5103,11 +5138,11 @@ function runEngineSelfTest(){
   makerQuote.created_at=hoursAgo(1);
   const makerFirst=manageMakerQuotes(makerBook,{"maker-test":market(Object.assign({},makerMarket,{yes_price:0.39,no_price:0.61,best_bid:0.38,best_ask:0.40}))},{executeTrades:true});
   const makerSingleFill=makerBook.positions.length===1&&makerBook.positions[0].side==="YES"&&makerBook.maker_quotes.length===1;
-  const legacyUntouchedBook=defaultPortfolio();stageMakerQuotes(legacyUntouchedBook,[makerMarket]);legacyUntouchedBook.maker_quotes[0].shadow_only=false;legacyUntouchedBook.maker_quotes[0].strategy_version=PREVIOUS_STRATEGY_VERSION;
+  const legacyUntouchedBook=defaultPortfolio();stageMakerQuotes(legacyUntouchedBook,[makerMarket]);legacyUntouchedBook.maker_quotes[0].shadow_only=false;legacyUntouchedBook.maker_quotes[0].maker_strategy_version=1;
   const legacyUntouched=manageMakerQuotes(legacyUntouchedBook,{"maker-test":makerMarket},{executeTrades:true});
   const legacyOneLegBook=defaultPortfolio();stageMakerQuotes(legacyOneLegBook,[makerMarket]);legacyOneLegBook.maker_quotes[0].shadow_only=false;legacyOneLegBook.maker_quotes[0].created_at=hoursAgo(1);
   manageMakerQuotes(legacyOneLegBook,{"maker-test":market(Object.assign({},makerMarket,{yes_price:0.39,no_price:0.61,best_bid:0.38,best_ask:0.40}))},{executeTrades:true});
-  legacyOneLegBook.maker_quotes[0].strategy_version=PREVIOUS_STRATEGY_VERSION;legacyOneLegBook.positions[0].strategy_version=PREVIOUS_STRATEGY_VERSION;
+  legacyOneLegBook.maker_quotes[0].maker_strategy_version=1;legacyOneLegBook.positions[0].strategy_version=PREVIOUS_STRATEGY_VERSION;
   const legacyOneLeg=manageMakerQuotes(legacyOneLegBook,{"maker-test":market(Object.assign({},makerMarket,{yes_price:0.36,no_price:0.64,best_bid:0.35,best_ask:0.37}))},{executeTrades:true});
   const makerSecond=manageMakerQuotes(makerBook,{"maker-test":market(Object.assign({},makerMarket,{yes_price:0.60,no_price:0.40,best_bid:0.57,best_ask:0.61}))},{executeTrades:true});
   const makerExpectedProfit=+(makerQuote.units*(1-Number(makerQuote.yes_fill_price)-Number(makerQuote.no_fill_price))).toFixed(2);
@@ -5135,8 +5170,8 @@ function runEngineSelfTest(){
   const unfilledExpiry=manageMakerQuotes(unfilledBook,{"maker-test":touchMarket},{executeTrades:true});
   const profitableMakerBook=defaultPortfolio(),losingMakerBook=defaultPortfolio();
   for(let i=0;i<24;i++){
-    profitableMakerBook.maker_outcomes.push({quote_id:`profit-${i}`,market_id:`profit-${i}`,event_key:`profit-event-${i}`,category:"Politics",spread:0.04,spread_band:"medium",status:"locked",pnl:4,reserved_capital:100,shadow_only:true,strategy_version:SUGGESTION_ENGINE_VERSION});
-    losingMakerBook.maker_outcomes.push({quote_id:`loss-${i}`,market_id:`loss-${i}`,event_key:`loss-event-${i}`,category:"Politics",spread:0.04,spread_band:"medium",status:"single-exit",pnl:-4,reserved_capital:100,shadow_only:true,strategy_version:SUGGESTION_ENGINE_VERSION});
+    profitableMakerBook.maker_outcomes.push({quote_id:`profit-${i}`,market_id:`profit-${i}`,event_key:`profit-event-${i}`,category:"Politics",spread:0.04,spread_band:"medium",status:"locked",pnl:4,reserved_capital:100,shadow_only:true,strategy_version:SUGGESTION_ENGINE_VERSION,maker_strategy_version:MAKER_STRATEGY_VERSION});
+    losingMakerBook.maker_outcomes.push({quote_id:`loss-${i}`,market_id:`loss-${i}`,event_key:`loss-event-${i}`,category:"Politics",spread:0.04,spread_band:"medium",status:"single-exit",pnl:-4,reserved_capital:100,shadow_only:true,strategy_version:SUGGESTION_ENGINE_VERSION,maker_strategy_version:MAKER_STRATEGY_VERSION});
   }
   const profitableCandidate=makerCandidateLearning(makerPairCandidate(makerMarket),buildMakerProfile(profitableMakerBook));
   let blockedMarket=null,explorationMarket=null;
@@ -5153,6 +5188,15 @@ function runEngineSelfTest(){
   recordMakerOutcome(makerDedupeBook,dedupeQuote,"unfilled",0,0);recordMakerOutcome(makerDedupeBook,dedupeQuote,"unfilled",0,0);
   const makerCompactionBook=defaultPortfolio();makerCompactionBook.maker_quotes=[Object.assign({},makerQuote)];makerCompactionBook.maker_outcomes=[...profitableMakerBook.maker_outcomes];
   const compactedMakerBook=compactPortfolioForSync(makerCompactionBook);
+  const sharedMakerState=defaultState();sharedMakerState.agents.value.maker_outcomes=[profitableMakerBook.maker_outcomes[0]];
+  sharedMakerState.agents.momentum.maker_outcomes=[profitableMakerBook.maker_outcomes[1]];
+  const sharedMakerFixture=buildSharedMakerProfile(sharedMakerState);
+  const distributedMarkets=Array.from({length:4},(_,index)=>Object.assign({},makerMarket,{id:`distributed-maker-${index}`,event:`Distributed event ${index}`}));
+  const distributedIds=new Set(),distributedEvents=new Set(),distributedBookA=defaultPortfolio(),distributedBookB=defaultPortfolio();
+  stageMakerQuotes(distributedBookA,distributedMarkets,{agentIndex:0,agentCount:2,globalMarketIds:distributedIds,globalEventKeys:distributedEvents});
+  stageMakerQuotes(distributedBookB,distributedMarkets,{agentIndex:1,agentCount:2,globalMarketIds:distributedIds,globalEventKeys:distributedEvents});
+  const distributedA=new Set(distributedBookA.maker_quotes.map(quote=>quote.market_id));
+  const distributedB=new Set(distributedBookB.maker_quotes.map(quote=>quote.market_id));
   const bundleSuggestion=negativeRiskBundleSuggestion({id:"bundle-test",title:"Three-way result",slug:"bundle-test",negRisk:true,enableNegRisk:true,tags:[{slug:"sports",label:"Sports"}],markets:[
     {id:"bundle-a",question:"A wins",outcomes:'["Yes","No"]',outcomePrices:'["0.415","0.585"]',clobTokenIds:'["a-yes","a-no"]',bestBid:0.41,bestAsk:0.42,liquidityNum:30000,volumeNum:100000,volume24hr:10000,acceptingOrders:true},
     {id:"bundle-b",question:"B wins",outcomes:'["Yes","No"]',outcomePrices:'["0.315","0.685"]',clobTokenIds:'["b-yes","b-no"]',bestBid:0.31,bestAsk:0.32,liquidityNum:28000,volumeNum:100000,volume24hr:10000,acceptingOrders:true},
@@ -5357,12 +5401,15 @@ function runEngineSelfTest(){
       repricedQuoteRejectsEarlierTouch:preRepriceIgnored,
       repricedQuoteAcceptsLaterTouch:postRepriceTouch.fills===1&&postRepriceTouch.locked===1&&repriceBook.maker_quotes.length===0,
       profitableCohortScalesWithinCap:profitableCandidate&&profitableCandidate.maker_learning_state==="promoted"&&profitableCandidate.maker_capital_enabled&&profitableCandidate.units>makerQuote.units&&profitableCandidate.units<=makerQuote.units*1.25,
+      promotionRequiresDistinctLockedEvents:buildMakerProfile(profitableMakerBook).global.current_locked_events===24,
       losingCohortRemainsShadowOnly:blockedMakerCandidate&&blockedMakerCandidate.maker_learning_state==="shadow-rejected"&&!blockedMakerCandidate.maker_capital_enabled,
       noRealMoneyExplorationLane:explorationMakerCandidate&&explorationMakerCandidate.maker_learning_state==="shadow-rejected"&&!explorationMakerCandidate.maker_capital_enabled,
       shadowSingleTouchChangesNoCash:shadowFinished.shadowCompleted===1&&shadowBook.cash===shadowCashBefore&&shadowBook.positions.length===0&&shadowBook.maker_quotes.length===0,
       shadowSingleTouchRecordsAdverseOutcome:shadowBook.maker_outcomes.length===1&&shadowBook.maker_outcomes[0].shadow_only&&shadowBook.maker_outcomes[0].status==="single-exit"&&shadowBook.maker_outcomes[0].pnl<0,
       outcomesAreDeduplicated:makerDedupeBook.maker_outcomes.length===1,
       makerLearningSurvivesCompaction:compactedMakerBook.maker_quotes.length===1&&compactedMakerBook.maker_outcomes.length===24,
+      sharedLedgerCombinesAgentEvidence:sharedMakerFixture.global.current_events===2&&sharedMakerFixture.global.current_locked_events===2,
+      agentsReceiveDisjointShadowMarkets:distributedA.size===2&&distributedB.size===2&&[...distributedA].every(id=>!distributedB.has(id)),
       noHypotheticalRewardCredited:makerStage.staged===1&&Math.abs(makerBook.cash-(10000+makerExpectedProfit))<=0.02,
       rejectsUnrewardedMarket:makerPairCandidate(Object.assign({},makerMarket,{rewards_daily_rate:0}))===null,
       rejectsVolatileMarket:makerPairCandidate(Object.assign({},makerMarket,{price_change_1d:0.12}))===null,

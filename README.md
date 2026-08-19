@@ -15,7 +15,7 @@ https://polymarket-site-eta.vercel.app/personal.html
 
 The site fetches live Polymarket markets, generates agent suggestions, lets you
 run frequent paper cycles, and syncs the shared arena state through Neon or
-Vercel Blob. Build 67 also installs an offline app shell and caches timestamped
+Vercel Blob. Build 68 also installs an offline app shell and caches timestamped
 market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
@@ -26,7 +26,7 @@ team names, Over/Under, or another pair are rejected instead of being silently
 reinterpreted as Yes/No. The same semantic check applies to complete event
 bundles and the offline evaluators.
 
-Build 67 ranks the competition by each agent's return since Strategy 56 began.
+Build 68 ranks the competition by each agent's return since Strategy 56 began.
 Historical replay equity remains visible for context, but it no longer makes an
 agent look like the current leader when the live adaptive strategy is losing.
 
@@ -119,15 +119,24 @@ produced adverse one-leg inventory. Wider quotes traded less but remained
 negative. Strategy 56 therefore does not risk paper capital on an unproven
 maker rule.
 
-Value Hunter now tracks up to six zero-capital shadow quote pairs selected by
-the shared reward-book audit. A later live
+Run `npm run evaluate:reward-maker` to stress current reward-qualified books
+against 30 days of token history. The August 19 comparison found zero passing
+candidates at a three-hour exit window. At one hour, 2 of 24 current candidates
+passed the chronological path screen at 25% of the present reward estimate, but
+both did so without an adverse historical touch; this prioritizes shadow
+research and does not authorize capital.
+
+Maker research version 2 lets all ten agents split distinct zero-capital shadow
+quote pairs selected by the shared reward-book audit. Token histories are fetched
+in batches, so the learner no longer silently ignores quotes after the first ten
+markets. A later live
 cycle must still verify each touch from public CLOB price history or a current
-book cross. A three-hour executable exit grades one-sided touches after a
+book cross. A one-hour executable exit grades one-sided touches after a
 conservative half-cent cost, while paired touches and unfilled attempts are also
-retained. Results are clustered by Polymarket event. Capital exposure can only
+retained in one shared cross-agent ledger and clustered by Polymarket event. Capital exposure can only
 resume after at least 20 current-strategy event clusters in the matching
 category, spread, and estimated reward-yield cohorts have positive 90% confidence
-bounds and at least three completed pairs, with any mature losing cohort acting as a veto. There is
+bounds and at least three distinct-event completed pairs, with any mature losing cohort acting as a veto. There is
 no capital-backed exploration lane. Existing paper inventory from prior builds
 is still reconciled honestly. The engine does not credit hypothetical rewards.
 See Polymarket's official [fees](https://docs.polymarket.com/trading/fees),

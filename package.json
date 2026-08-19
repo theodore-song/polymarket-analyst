@@ -6,6 +6,7 @@
     "evaluate:adaptive": "node scripts/evaluate-adaptive.mjs",
     "evaluate:liquidity": "node scripts/evaluate-liquidity.mjs",
     "evaluate:maker": "node scripts/evaluate-maker.mjs",
+    "evaluate:reward-maker": "node scripts/evaluate-reward-assisted-maker.mjs",
     "evaluate:signals": "node scripts/evaluate-signals.mjs",
     "evaluate:settlements": "node scripts/evaluate-settlements.mjs",
     "evaluate:settlement-calibration": "node scripts/evaluate-settlement-calibration.mjs",
