@@ -260,25 +260,28 @@ function chronologicalEvaluation(rows) {
 
 async function fetchActiveMarkets(limit) {
   const markets = [], seen = new Set(), pageSize = 100;
-  for (let offset = 0; offset < limit; offset += pageSize) {
+  for (let offset = 0; markets.length < limit && offset < limit * 4; offset += pageSize) {
     const params = new URLSearchParams({ active: "true", closed: "false", archived: "false", include_tag: "true",
-      limit: String(Math.min(pageSize, limit - offset)), offset: String(offset), order: "volume24hr", ascending: "false" });
+      limit: String(pageSize), offset: String(offset), order: "volume24hr", ascending: "false" });
     const page = await fetchJson(`${GAMMA}/markets?${params}`);
     if (!Array.isArray(page) || !page.length) break;
     for (const market of page) {
-      const id = String(market.id || "");
-      if (!id || seen.has(id)) continue;
+      const id = String(market.id || ""), labels = parseJson(market.outcomes).map((outcome) => String(outcome).trim().toLowerCase());
+      if (!id || seen.has(id) || labels[0] !== "yes" || labels[1] !== "no") continue;
       seen.add(id); markets.push(market);
+      if (markets.length >= limit) break;
     }
-    if (page.length < Math.min(pageSize, limit - offset)) break;
+    if (page.length < pageSize) break;
   }
   return markets.slice(0, limit);
 }
 
 const rawMarkets = await fetchActiveMarkets(MARKET_LIMIT);
 const markets = rawMarkets.map((raw) => ({ id: String(raw.id), question: raw.question || "", category: categoryOf(raw),
+  binaryLabels: parseJson(raw.outcomes).map((outcome) => String(outcome).trim().toLowerCase()),
   eventKey: String(raw.events?.[0]?.id || raw.events?.[0]?.slug || raw.eventId || raw.id),
-  tokenId: String(parseJson(raw.clobTokenIds)[0] || "") })).filter((market) => market.id && market.tokenId);
+  tokenId: String(parseJson(raw.clobTokenIds)[0] || "") })).filter((market) => market.id && market.tokenId
+    && market.binaryLabels[0] === "yes" && market.binaryLabels[1] === "no");
 const histories = await mapLimit(markets, CONCURRENCY, async (market) => {
   const data = await fetchJson(`${CLOB}/prices-history?market=${encodeURIComponent(market.tokenId)}&interval=1m&fidelity=60`);
   const points = (data.history || []).map((point) => ({ t: Number(point.t), p: Number(point.p) }))

@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 50 · build 59</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 51 · build 62</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 61 active:</b> unproven directional signals train the event-clustered learner without risking cash. New observations prioritize under-sampled strategy cohorts and independent events before repeats, while shared state normalizes and fails over across configured Neon URLs. Cloud provider failures remain visible after every completed cycle instead of being mistaken for a successful cross-device save. Cohorts can trade only after positive promotion. Live-priced complete YES or NO negative-risk bundles may trade when their worst-case payout remains positive after estimated costs; cached bundle prices never open positions. This remains paper trading; profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 62 active:</b> unproven directional signals train the event-clustered learner without risking cash. Promotion now requires separate positive 24-hour and 72-hour net-of-cost evidence from independent events under the current strategy; missed grading windows expire instead of being mislabeled. Cloud provider failures remain visible after every completed cycle. Live-priced complete YES or NO negative-risk bundles may trade when their worst-case payout remains positive after estimated costs; cached bundle prices never open positions. This remains paper trading; profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -378,11 +378,11 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
         <g fill="#d9b4ff"><circle cx="380" cy="40" r="6"/></g>
       </svg>
       <h1>Ten AI agents race to <span class="grad">beat the market</span></h1>
-      <p>Each cycle loads the 500 most active Polymarket markets, then requires direction to agree across independent time windows before liquidity, evidence, timing, and friction checks can make an idea trade-ready.</p>
+      <p>Each cycle loads the 500 most active eligible Yes/No Polymarket markets, then requires direction to agree across independent time windows before liquidity, evidence, timing, and friction checks can make an idea trade-ready.</p>
       <div class="badges">
         <span class="hbadge">🏆 10 competing agents</span>
         <span class="hbadge">5 aggressive strategies</span>
-        <span class="hbadge">Top 500 active markets</span>
+        <span class="hbadge">Top 500 eligible Yes/No markets</span>
       <span class="hbadge">Ranked by activity + confirmation</span>
         <span class="hbadge">Live Polymarket data</span>
       </div>
@@ -719,7 +719,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
     <div class="card" style="margin-top:16px">
       <div class="card-h"><h3>The live cycle</h3></div>
       <ol class="steps">
-        <li><b>Fetch</b> — load the 500 most active Polymarket markets and tag each by category.</li>
+        <li><b>Fetch</b> — load the 500 most active eligible Yes/No Polymarket markets and tag each by category.</li>
         <li><b>Score</b> — rank those active markets 0–100 by conviction and estimate edge vs. a fair-value model.</li>
         <li><b>Suggest</b> — surface the strongest picks per category with a plain-English rationale.</li>
         <li><b>Compete</b> — the strategy agents trade the same suggestions their own way, stop-loss weak positions, scale out through gain-stop tiers, exit stale or fading trades, then snapshot equity.</li>
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 61 · Adaptive strategy 50 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build 62 · Adaptive strategy 51 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,9 +774,9 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 61;
-const SUGGESTION_ENGINE_VERSION = 50;
-const PREVIOUS_STRATEGY_VERSION = 49;
+const BUILD_VERSION = 62;
+const SUGGESTION_ENGINE_VERSION = 51;
+const PREVIOUS_STRATEGY_VERSION = 50;
 const LEGACY_BUILD_STRATEGY_LINEAGE = Object.freeze({40:40,41:40});
 function normalizedStrategyVersion(value){
   const version=Number(value||0);
@@ -923,10 +923,12 @@ const OFFLINE_ENTRY_MAX_AGE_MS = 90*60*1000;
 const OFFLINE_CACHE_MAX_AGE_MS = 24*60*60*1000;
 const NETWORK_REQUEST_TIMEOUT_MS = 8000;
 const PRICE_REQUEST_TIMEOUT_MS = 4000;
-const SIGNAL_EVAL_HOURS = 24;
+const SIGNAL_EVAL_HORIZONS = Object.freeze([24,72]);
+const SIGNAL_EVAL_TOLERANCE_HOURS = 6;
+const SIGNAL_EVAL_HOURS = SIGNAL_EVAL_HORIZONS[0];
 const SIGNAL_LEDGER_PENDING_LIMIT = 300;
 const SIGNAL_LEDGER_OUTCOME_LIMIT = 500;
-const SIGNAL_LEDGER_RETRY_HOURS = 168;
+const SIGNAL_LEDGER_RETRY_HOURS = SIGNAL_EVAL_HORIZONS[SIGNAL_EVAL_HORIZONS.length-1]+SIGNAL_EVAL_TOLERANCE_HOURS;
 const SIGNAL_LEDGER_DUE_FETCH_LIMIT = 80;
 const currentCycleHour = () => {const p=partsInLocalTime();return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}|s${SUGGESTION_ENGINE_VERSION}`;};
 function cycleHourFromIso(iso){
@@ -975,6 +977,10 @@ async function mapWithConcurrency(items,limit,mapper){
 function parseJsonField(v){if(v==null)return [];if(Array.isArray(v))return v;try{return JSON.parse(v);}catch(e){return [];}}
 function toNum(v,d=0){const n=Number(v);return Number.isFinite(n)?n:d;}
 function daysUntil(iso){if(!iso)return null;const dt=new Date(iso);if(isNaN(dt))return null;return (dt-new Date())/86400000;}
+function hasYesNoOutcomes(raw){
+  const labels=parseJsonField(raw&&raw.outcomes).map(outcome=>String(outcome||"").trim().toLowerCase());
+  return labels.length===2&&labels[0]==="yes"&&labels[1]==="no";
+}
 const CATEGORY_RULES=[
   ["Politics",["politics","election","elections","us-politics","geopolitics","trump","world-leaders","government","congress","policy","biden","2026-election","democrats","republicans"]],
   ["Crypto",["crypto","bitcoin","ethereum","btc","eth","solana","memecoins","defi","stablecoin","xrp"]],
@@ -990,7 +996,7 @@ function classifyCategory(tags){
 function normalizeMarket(raw,{allowClosed=false}={}){
   const outcomes=parseJsonField(raw.outcomes);
   const prices=parseJsonField(raw.outcomePrices).map(p=>toNum(p));
-  if(outcomes.length!==2||prices.length!==2)return null;
+  if(!hasYesNoOutcomes(raw)||prices.length!==2)return null;
   if(!allowClosed&&(raw.acceptingOrders===false||raw.closed))return null;
   const yes=prices[0];
   if(!Number.isFinite(yes)||yes<0||yes>1||(!allowClosed&&(yes<=0||yes>=1)))return null;
@@ -1009,8 +1015,8 @@ function normalizeMarket(raw,{allowClosed=false}={}){
     closed:Boolean(raw.closed),accepting_orders:raw.acceptingOrders!==false,
     url:ev.slug?`https://polymarket.com/event/${ev.slug}`:""};
 }
-async function fetchMarkets(pages=Infinity,perPage=100,onProgress=null){
-  const all=[];
+async function fetchMarkets(pages=Infinity,perPage=100,onProgress=null,eligibleLimit=null){
+  const all=[],eligible=[];
   const maxPages=Number.isFinite(pages)?pages:MAX_ACTIVE_MARKET_PAGES;
   const seen=new Set();
   const useKeyset=!Number.isFinite(pages)||pages>20;
@@ -1034,12 +1040,14 @@ async function fetchMarkets(pages=Infinity,perPage=100,onProgress=null){
       if(id&&seen.has(id))continue;
       if(id)seen.add(id);
       all.push(m);added++;
+      const normalized=normalizeMarket(m);
+      if(normalized&&normalized.question)eligible.push(normalized);
     }
     if(useKeyset)cursor=page.next_cursor||null;
-    if(onProgress)onProgress(all.length);
-    if(raw.length<perPage||added===0||(useKeyset&&!cursor))break;
+    if(onProgress)onProgress(eligible.length,all.length);
+    if((eligibleLimit&&eligible.length>=eligibleLimit)||raw.length<perPage||added===0||(useKeyset&&!cursor))break;
   }
-  return all.map(normalizeMarket).filter(m=>m&&m.question);
+  return eligibleLimit?eligible.slice(0,eligibleLimit):eligible;
 }
 async function fetchMarketPrice(id){
   try{const r=await fetchWithTimeout(`${GAMMA}/markets/${id}`,{},PRICE_REQUEST_TIMEOUT_MS);if(!r.ok)return null;return normalizeMarket(await r.json(),{allowClosed:true});}
@@ -1051,12 +1059,13 @@ function negativeRiskBundleSuggestion(event){
   if(rawLegs.length<2||rawLegs.some(m=>m.closed||m.active===false||m.acceptingOrders===false))return null;
   const eventTags=Array.isArray(event.tags)?event.tags:[],category=classifyCategory(eventTags);
   const quotes=rawLegs.map(raw=>{
+    const outcomes=parseJsonField(raw.outcomes).map(outcome=>String(outcome||"").trim().toLowerCase());
     const prices=parseJsonField(raw.outcomePrices).map(toNum),tokens=parseJsonField(raw.clobTokenIds).map(String);
     return {market_id:String(raw.id||""),question:(raw.question||"").trim(),yes_bid:toNum(raw.bestBid,NaN),yes_ask:toNum(raw.bestAsk,NaN),
       yes_mid:prices[0],no_mid:prices[1],yes_token:tokens[0]||null,no_token:tokens[1]||null,
-      liquidity:toNum(raw.liquidityNum||raw.liquidity),url:event.slug?`https://polymarket.com/event/${event.slug}`:""};
+      binary_labels:outcomes[0]==="yes"&&outcomes[1]==="no",liquidity:toNum(raw.liquidityNum||raw.liquidity),url:event.slug?`https://polymarket.com/event/${event.slug}`:""};
   });
-  if(quotes.some(leg=>!leg.market_id||!leg.yes_token||!leg.no_token||!Number.isFinite(leg.yes_bid)||!Number.isFinite(leg.yes_ask)
+  if(quotes.some(leg=>!leg.binary_labels||!leg.market_id||!leg.yes_token||!leg.no_token||!Number.isFinite(leg.yes_bid)||!Number.isFinite(leg.yes_ask)
     ||leg.yes_bid<0||leg.yes_ask>1||leg.yes_ask<leg.yes_bid||!Number.isFinite(leg.yes_mid)||!Number.isFinite(leg.no_mid)
     ||leg.liquidity<NEG_RISK_MIN_LIQUIDITY))return null;
   const makeCandidate=(side)=>{
@@ -1749,7 +1758,7 @@ function summarizeLearningBucket(bucket,shrinkage){
   const pooledVariance=(priorWeight*priorVariance+weight*variance)/(priorWeight+weight||1);
   const stderr=Math.sqrt(pooledVariance/Math.max(1,weight));
   const score=Number(bucket&&bucket.sum||0)/(weight+shrinkage);
-  return {samples:Number(bucket&&bucket.count||0),observations:Number(bucket&&bucket.observations||bucket&&bucket.count||0),weight:+weight.toFixed(2),raw:+raw.toFixed(4),
+  return {samples:Number(bucket&&bucket.count||0),observations:Number(bucket&&bucket.observations||bucket&&bucket.count||0),weight:+weight.toFixed(2),current_weight:+Number(bucket&&bucket.currentWeight||0).toFixed(2),raw:+raw.toFixed(4),
     score:+score.toFixed(4),stderr:+stderr.toFixed(4),lower_bound:+(score-1.28*stderr).toFixed(4),
     upper_bound:+(score+1.28*stderr).toFixed(4),win_rate:weight?Number(bucket.wins||0)/weight:0};
 }
@@ -1771,10 +1780,17 @@ function prioritizeSignalObservations(suggestions,ledger,pending=[]){
       ||(Number(b.s.conviction||0)-Number(a.s.conviction||0))||(a.index-b.index))
     .map(row=>row.s);
 }
+function signalGradedHorizons(item){
+  return new Set((Array.isArray(item&&item.graded_horizons)?item.graded_horizons:[]).map(Number).filter(Number.isFinite));
+}
+function signalDueHorizon(item,ageHours){
+  const graded=signalGradedHorizons(item);
+  return SIGNAL_EVAL_HORIZONS.find(horizon=>!graded.has(horizon)&&ageHours>=horizon&&ageHours<=horizon+SIGNAL_EVAL_TOLERANCE_HOURS)||null;
+}
 function pendingSignalMarketIds(ledger,knownIds=new Set(),now=Date.now()){
   const rows=((ledger&&ledger.pending)||[]).map(item=>({item,started:new Date(item.observed_at||0).getTime()}))
     .filter(row=>Number.isFinite(row.started))
-    .filter(row=>{const age=(now-row.started)/3600000;return age>=SIGNAL_EVAL_HOURS&&age<=SIGNAL_LEDGER_RETRY_HOURS;})
+    .filter(row=>signalDueHorizon(row.item,(now-row.started)/3600000)!=null)
     .sort((a,b)=>a.started-b.started);
   const ids=[],seen=new Set();
   for(const {item} of rows){
@@ -1791,15 +1807,22 @@ function updateSignalLedger(st,markets,suggestions){
   const now=Date.now(),marketMap=Object.fromEntries((markets||[]).map(m=>[String(m.id),m])),stillPending=[];
   for(const item of ledger.pending){
     const started=new Date(item.observed_at||0).getTime(),ageHours=Number.isFinite(started)?(now-started)/3600000:Infinity;
+    const graded=signalGradedHorizons(item),dueHorizon=signalDueHorizon(item,ageHours);
     const fresh=marketMap[String(item.market_id)],future=signalPrice(fresh,item.side);
-    if(ageHours>=SIGNAL_EVAL_HOURS&&Number.isFinite(future)&&future>=0&&future<=1){
+    if(dueHorizon!=null&&Number.isFinite(future)&&future>=0&&future<=1){
       const entry=Math.max(0.01,Number(item.entry_price||0.01));
       const gross=future/entry-1,estimatedCost=SIGNAL_ROUND_TRIP_COST/entry;
       const outcome=clamp(gross-estimatedCost,-1,2);
-      ledger.outcomes.push(Object.assign({},item,{evaluated_at:nowIso(),horizon_hours:+ageHours.toFixed(1),future_price:+future.toFixed(4),
+      graded.add(dueHorizon);
+      ledger.outcomes.push(Object.assign({},item,{graded_horizons:undefined,evaluated_at:nowIso(),target_horizon_hours:dueHorizon,horizon_hours:+ageHours.toFixed(1),future_price:+future.toFixed(4),
         gross_return:+gross.toFixed(4),estimated_cost_return:+estimatedCost.toFixed(4),return:+outcome.toFixed(4)}));
-    }else if(ageHours<=SIGNAL_LEDGER_RETRY_HOURS)stillPending.push(item);
-    else ledger.expired_ungraded=Number(ledger.expired_ungraded||0)+1;
+    }
+    const remaining=SIGNAL_EVAL_HORIZONS.filter(horizon=>!graded.has(horizon)&&ageHours<=horizon+SIGNAL_EVAL_TOLERANCE_HOURS);
+    if(remaining.length)stillPending.push(Object.assign({},item,{graded_horizons:[...graded].sort((a,b)=>a-b)}));
+    else{
+      const missed=SIGNAL_EVAL_HORIZONS.filter(horizon=>!graded.has(horizon)).length;
+      if(missed)ledger.expired_ungraded=Number(ledger.expired_ungraded||0)+missed;
+    }
   }
   stillPending.sort((a,b)=>new Date(a.observed_at||0)-new Date(b.observed_at||0));
   const existing=new Set(stillPending.map(x=>x.key)),pendingPairs=new Set(stillPending.map(x=>`${x.market_id}:${x.side}`));
@@ -1809,7 +1832,7 @@ function updateSignalLedger(st,markets,suggestions){
   for(const s of observable){
     const pair=`${s.market_id}:${s.side}`,key=`${pair}:${bucket}`;if(existing.has(key)||pendingPairs.has(pair))continue;
     if(stillPending.length>=SIGNAL_LEDGER_PENDING_LIMIT)break;
-    existing.add(key);pendingPairs.add(pair);stillPending.push({key,market_id:String(s.market_id),event_key:String(s.url||s.event||s.market_id),observed_at:nowIso(),side:s.side,entry_price:Number(s.entry_price),
+    existing.add(key);pendingPairs.add(pair);stillPending.push({key,market_id:String(s.market_id),event_key:String(s.url||s.event||s.market_id),observed_at:nowIso(),graded_horizons:[],side:s.side,entry_price:Number(s.entry_price),
       signal_type:s.signal_type||"unknown",quality:s.quality||"unknown",category:s.category||"Other",conviction:Number(s.conviction||0),
       days_to_resolution:s.days_to_resolution,trade_ready_at_observation:Boolean(s.trade_ready),
       strategy_version:SUGGESTION_ENGINE_VERSION,build_version:BUILD_VERSION});
@@ -1827,17 +1850,21 @@ function buildSignalCalibration(ledger){
     const ret=clamp(Number(outcome.return||0),-1,2);if(!Number.isFinite(ret)||weight<=0)return;
     const marketId=String(outcome.market_id||`unidentified-observation-${index}`);
     const clusterId=String(outcome.event_key||outcome.event||marketId).trim().toLowerCase()||marketId;
-    learningFeatures(outcome).forEach(key=>{
-      const byEvent=clusters[key]||(clusters[key]={}),cluster=byEvent[clusterId]||(byEvent[clusterId]={weight:0,sum:0,observations:0});
-      cluster.weight+=weight;cluster.sum+=ret*weight;cluster.observations++;
+    const horizon=Number(outcome.target_horizon_hours),baseFeatures=learningFeatures(outcome);
+    const featureKeys=SIGNAL_EVAL_HORIZONS.includes(horizon)?[...baseFeatures,...baseFeatures.map(key=>`${key}|horizon:${horizon}`)]:baseFeatures;
+    featureKeys.forEach(key=>{
+      const byEvent=clusters[key]||(clusters[key]={}),cluster=byEvent[clusterId]||(byEvent[clusterId]={weight:0,currentWeight:0,sum:0,observations:0});
+      cluster.weight+=weight;if(version===SUGGESTION_ENGINE_VERSION)cluster.currentWeight+=weight;
+      cluster.sum+=ret*weight;cluster.observations++;
     });
   });
   const buckets={};
   Object.entries(clusters).forEach(([key,byEvent])=>{
-    const b=buckets[key]={weight:0,sum:0,sumSq:0,wins:0,count:0,observations:0};
+    const b=buckets[key]={weight:0,currentWeight:0,sum:0,sumSq:0,wins:0,count:0,observations:0};
     Object.values(byEvent).forEach(cluster=>{
       const clusterWeight=Math.min(1,Number(cluster.weight||0)),ret=Number(cluster.sum||0)/Math.max(0.0001,Number(cluster.weight||0));
       b.weight+=clusterWeight;b.sum+=ret*clusterWeight;b.sumSq+=ret*ret*clusterWeight;b.wins+=(ret>0?clusterWeight:0);
+      b.currentWeight+=Math.min(clusterWeight,Number(cluster.currentWeight||0));
       b.count++;b.observations+=Number(cluster.observations||0);
     });
   });
@@ -1850,21 +1877,24 @@ function buildSignalCalibration(ledger){
   const currentEvents=new Set(currentOutcomes.map((outcome,index)=>String(outcome.event_key||outcome.event||outcome.market_id||`unidentified-current-${index}`).trim().toLowerCase()));
   return {version:SUGGESTION_ENGINE_VERSION,samples:outcomes.length,markets:identifiedMarkets.size,events:identifiedEvents.size,
     current_samples:currentOutcomes.length,current_markets:currentMarkets.size,current_events:currentEvents.size,buckets:learned,
-    promoted_buckets:learnedRows.filter(r=>r.weight>=8&&r.lower_bound>0.003).length,
-    demoted_buckets:learnedRows.filter(r=>r.weight>=8&&r.upper_bound<-0.003).length,
+    promoted_buckets:learnedRows.filter(r=>r.weight>=8&&r.current_weight>=5&&r.lower_bound>0.003).length,
+    demoted_buckets:learnedRows.filter(r=>r.weight>=8&&r.current_weight>=5&&r.upper_bound<-0.003).length,
     expired_ungraded:Number(ledger&&ledger.expired_ungraded||0),
     pending:((ledger&&ledger.pending)||[]).length};
 }
 function calibratedOpportunity(s,calibration){
-  const rows=learningFeatures(s).map(k=>calibration&&calibration.buckets&&calibration.buckets[k]).filter(Boolean);
+  const features=learningFeatures(s),buckets=calibration&&calibration.buckets||{};
+  const rows=features.map(k=>buckets[k]).filter(Boolean);
   const independentWeight=rows.length?Math.max(...rows.map(r=>Number(r.weight||0))):0;
   const score=rows.length?rows.reduce((sum,r)=>sum+r.score,0)/rows.length:0,confidence=independentWeight/(independentWeight+20);
-  const positiveRows=rows.filter(r=>Number(r.weight||0)>=8&&Number(r.lower_bound||0)>0.003);
-  const negativeRows=rows.filter(r=>Number(r.weight||0)>=8&&Number(r.upper_bound||0)<-0.003);
+  const horizonRows=features.map(feature=>({feature,rows:SIGNAL_EVAL_HORIZONS.map(horizon=>buckets[`${feature}|horizon:${horizon}`])}));
+  const rowIsCurrent=(row)=>Number(row&&row.weight||0)>=8&&Number(row&&row.current_weight||0)>=5;
+  const positiveRows=horizonRows.filter(group=>group.rows.every(row=>rowIsCurrent(row)&&Number(row.lower_bound||0)>0.003));
+  const negativeRows=horizonRows.filter(group=>group.rows.some(row=>rowIsCurrent(row)&&Number(row.upper_bound||0)<-0.003));
   const promoted=positiveRows.length>=2&&negativeRows.length===0;
   const demoted=negativeRows.length>=2&&positiveRows.length===0;
-  const trustedScore=promoted?positiveRows.reduce((sum,r)=>sum+Number(r.lower_bound||0),0)/positiveRows.length
-    :(demoted?negativeRows.reduce((sum,r)=>sum+Number(r.upper_bound||0),0)/negativeRows.length:score*0.10);
+  const trustedScore=promoted?positiveRows.reduce((sum,group)=>sum+Math.min(...group.rows.map(row=>Number(row.lower_bound||0))),0)/positiveRows.length
+    :(demoted?negativeRows.reduce((sum,group)=>sum+Math.min(...group.rows.filter(rowIsCurrent).map(row=>Number(row.upper_bound||0))),0)/negativeRows.length:score*0.10);
   const state=promoted?"promoted":(demoted?"demoted":"observing");
   return {score:+score.toFixed(4),confidence:+confidence.toFixed(3),state,promoted,demoted,
     supporting_features:promoted?positiveRows.length:negativeRows.length,
@@ -1943,10 +1973,11 @@ function historicalOpportunityPrior(s){
     requiredPromotionFeatures:[...new Set(rows.flatMap(row=>row.requiredPromotionFeatures||[]))],features:rows.map(row=>row.feature)};
 }
 function historicalPromotionMet(historical,calibrationModel){
-  return !historical.requiresPromotion||historical.requiredPromotionFeatures.every(key=>{
-    const row=calibrationModel&&calibrationModel.buckets&&calibrationModel.buckets[key];
-    return Number(row&&row.weight||0)>=8&&Number(row&&row.lower_bound||0)>0.003;
-  });
+  const buckets=calibrationModel&&calibrationModel.buckets||{};
+  return !historical.requiresPromotion||historical.requiredPromotionFeatures.every(key=>SIGNAL_EVAL_HORIZONS.every(horizon=>{
+    const row=buckets[`${key}|horizon:${horizon}`];
+    return Number(row&&row.weight||0)>=8&&Number(row&&row.current_weight||0)>=5&&Number(row&&row.lower_bound||0)>0.003;
+  }));
 }
 function applyAdaptiveMarketPromotion(s,calibrationModel){
   if(!s||s.trade_ready||!s.entry_candidate)return s;
@@ -2664,8 +2695,8 @@ async function runDailyCycle(){
     SNAP_TS=nowIso();
     let markets=[],analysisMarkets=[],sugs=[],bundleSugs=[],cache=loadMarketCache(),runMode="live",cacheAgeMs=0;
     try{
-      setStatus("loading the 500 most active markets…",true);
-      markets=await fetchMarkets(Math.ceil(ACTIVE_MARKET_FETCH_LIMIT/100),100,count=>setStatus(`loaded ${Math.min(count,ACTIVE_MARKET_FETCH_LIMIT).toLocaleString()} of 500 active markets…`,true));
+      setStatus("loading the 500 most active eligible markets…",true);
+      markets=await fetchMarkets(20,100,count=>setStatus(`loaded ${Math.min(count,ACTIVE_MARKET_FETCH_LIMIT).toLocaleString()} of 500 eligible active markets…`,true),ACTIVE_MARKET_FETCH_LIMIT);
       analysisMarkets=selectMarketsForAnalysis(markets);
       if(!analysisMarkets.length)throw new Error("No active markets returned");
       setStatus(`analyzing ${analysisMarkets.length.toLocaleString()} most-active markets…`,true);
@@ -2929,7 +2960,7 @@ function decisionSummary(p){
   const blockerRows=Object.entries(d.rejectionCounts||{}).filter(([,count])=>count>0).sort((a,b)=>b[1]-a[1]);
   const blockers=blockerRows.length?` Blocks: ${blockerRows.slice(0,4).map(([key,count])=>`${blockerLabels[key]||key} ${count}`).join(", ")}.`:"";
   const learning=d.learning?` Learning: ${d.learning.samples} completed trades retained with older strategies down-weighted, ${(d.learning.global_score*100).toFixed(2)}% shrunk expectancy; ${d.learning.current_samples||0} completed under adaptive strategy ${SUGGESTION_ENGINE_VERSION}${d.learning.best?`; strongest ${d.learning.best.feature.replace(":"," ")}`:""}${d.learning.worst?`; weakest ${d.learning.worst.feature.replace(":"," ")}`:""}.`:"";
-  const calibration=d.marketLearning?` Walk-forward calibration: ${d.marketLearning.samples||0} net-of-cost observations across ${d.marketLearning.events||d.marketLearning.markets||0} event clusters / ${d.marketLearning.markets||0} markets graded after ${SIGNAL_EVAL_HOURS} hours (${d.marketLearning.current_samples||0} observations / ${d.marketLearning.current_events||0} events under adaptive strategy ${SUGGESTION_ENGINE_VERSION}), ${d.marketLearning.pending||0} awaiting a future price${d.marketLearning.expired_ungraded?`, ${d.marketLearning.expired_ungraded} expired ungraded`:""}; ${d.marketLearning.promoted_buckets||0} feature cohorts promoted and ${d.marketLearning.demoted_buckets||0} demoted. New observations prioritize under-sampled signal/side/category cohorts and independent events before repeats. Correlated outcome markets in one event are clustered into one effective outcome, and matured markets are repriced after leaving the active scan. Uncertainty gates sizing. Historical prior: every directional trend and reversal remains observation-only until its exact recent cohorts independently promote; settlement-jump barriers stay excluded.`:"";
+  const calibration=d.marketLearning?` Walk-forward calibration: ${d.marketLearning.samples||0} net-of-cost checkpoint observations across ${d.marketLearning.events||d.marketLearning.markets||0} event clusters / ${d.marketLearning.markets||0} markets, graded separately near ${SIGNAL_EVAL_HORIZONS.join("h and ")}h (${d.marketLearning.current_samples||0} observations / ${d.marketLearning.current_events||0} events under adaptive strategy ${SUGGESTION_ENGINE_VERSION}), ${d.marketLearning.pending||0} awaiting a future checkpoint${d.marketLearning.expired_ungraded?`, ${d.marketLearning.expired_ungraded} expired checkpoints`:""}; ${d.marketLearning.promoted_buckets||0} horizon-specific feature cohorts promoted and ${d.marketLearning.demoted_buckets||0} demoted. Promotion requires positive current-strategy evidence at both horizons across independent events. Missed windows expire rather than borrowing a later price. New observations prioritize under-sampled signal/side/category cohorts and independent events before repeats. Correlated outcome markets in one event count as one effective outcome. Historical prior: every directional trend and reversal remains observation-only until its exact recent cohorts independently promote; settlement-jump barriers stay excluded.`:"";
   return `${d.mode} mode: ${d.reason}${emotion} Limits now: ${d.maxNew} new trade${d.maxNew===1?"":"s"}, max ${(d.maxFrac*100).toFixed(1)}% per position${d.minConv?`, conviction ${d.minConv}+`:""}.${learning}${calibration}${exposure}${allocation}${candidates}${blockers}`;
 }
 function renderAgentBrief(cfg,p,st){
@@ -4523,7 +4554,7 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
     coreGapTradeLossPct:MAX_CORE_GAP_TRADE_LOSS_PCT*100,aggressiveGapTradeLossPct:MAX_AGGRESSIVE_GAP_TRADE_LOSS_PCT*100,
     offlineEntryMaxAgeMinutes:OFFLINE_ENTRY_MAX_AGE_MS/60000,offlineCacheMaxAgeHours:OFFLINE_CACHE_MAX_AGE_MS/3600000,explorationPct:15,
     networkTimeoutSeconds:NETWORK_REQUEST_TIMEOUT_MS/1000,priceTimeoutSeconds:PRICE_REQUEST_TIMEOUT_MS/1000,
-    staleCacheIsMarkOnly:true,strategyEvidenceSurvivesBuilds:true,signalEvaluationHours:SIGNAL_EVAL_HOURS,signalRetryHours:SIGNAL_LEDGER_RETRY_HOURS,
+    staleCacheIsMarkOnly:true,strategyEvidenceSurvivesBuilds:true,signalEvaluationHours:SIGNAL_EVAL_HOURS,signalEvaluationHorizons:SIGNAL_EVAL_HORIZONS,signalEvaluationToleranceHours:SIGNAL_EVAL_TOLERANCE_HOURS,signalRetryHours:SIGNAL_LEDGER_RETRY_HOURS,
     signalDueFetchLimit:SIGNAL_LEDGER_DUE_FETCH_LIMIT,survivorshipSafeSignalGrading:true,
     signalRoundTripCostCents:SIGNAL_ROUND_TRIP_COST*100,independentConfidence:true,eventClusteredCalibration:true,
     onePendingObservationPerMarketSide:true,oldestPendingEvidenceFirst:true,coverageAwareObservationSampling:true,uncertaintyGatedCalibration:true,
@@ -4564,8 +4595,8 @@ function runEngineSelfTest(){
     realized_pnl:-20,opened_at:hoursAgo(72+i),closed_at:closedAt});
   const learningProfile=buildAdaptiveProfile(learner);
   const calibrationLedger=defaultSignalLedger();
-  for(let i=0;i<16;i++)calibrationLedger.outcomes.push({market_id:`trend-market-${i}`,event_key:`trend-event-${i}`,signal_type:"trend",quality:"confirmed",category:"Politics",side:"YES",entry_price:0.42,return:0.12,evaluated_at:closedAt});
-  for(let i=0;i<16;i++)calibrationLedger.outcomes.push({market_id:`reversal-market-${i}`,event_key:`reversal-event-${i}`,signal_type:"reversal",quality:"reversal",category:"Sports",side:"NO",entry_price:0.42,return:-0.12,evaluated_at:closedAt});
+  for(let i=0;i<16;i++)SIGNAL_EVAL_HORIZONS.forEach(horizon=>calibrationLedger.outcomes.push({market_id:`trend-market-${i}`,event_key:`trend-event-${i}`,signal_type:"trend",quality:"confirmed",category:"Politics",side:"YES",entry_price:0.42,target_horizon_hours:horizon,strategy_version:SUGGESTION_ENGINE_VERSION,return:0.12,evaluated_at:closedAt}));
+  for(let i=0;i<16;i++)SIGNAL_EVAL_HORIZONS.forEach(horizon=>calibrationLedger.outcomes.push({market_id:`reversal-market-${i}`,event_key:`reversal-event-${i}`,signal_type:"reversal",quality:"reversal",category:"Sports",side:"NO",entry_price:0.42,target_horizon_hours:horizon,strategy_version:SUGGESTION_ENGINE_VERSION,return:-0.12,evaluated_at:closedAt}));
   const calibrationProfile=buildSignalCalibration(calibrationLedger);
   const learnedTrend=learnedOpportunity(AGENTS[0],learner,{market_id:"learn-trend",signal_type:"trend",quality:"confirmed",category:"Politics",side:"YES",entry_price:0.42},learningProfile,calibrationProfile);
   const learnedReversal=learnedOpportunity(AGENTS[0],learner,{market_id:"learn-reversal",signal_type:"reversal",quality:"reversal",category:"Sports",side:"NO",entry_price:0.42},learningProfile,calibrationProfile);
@@ -4583,9 +4614,15 @@ function runEngineSelfTest(){
   const ledgerState={signal_ledger:{pending:[{key:"ledger-test",market_id:"ledger-test",observed_at:hoursAgo(25),side:"YES",entry_price:0.40,
     signal_type:"trend",quality:"confirmed",category:"Politics"}],outcomes:[]}};
   updateSignalLedger(ledgerState,[market({id:"ledger-test",yes_price:0.50,no_price:0.50})],[]);
+  const secondHorizonState={signal_ledger:{pending:[{key:"ledger-second",market_id:"ledger-second",observed_at:hoursAgo(73),graded_horizons:[24],side:"YES",entry_price:0.40,
+    signal_type:"trend",quality:"confirmed",category:"Politics"}],outcomes:[]}};
+  updateSignalLedger(secondHorizonState,[market({id:"ledger-second",yes_price:0.52,no_price:0.48})],[]);
   const earlyLedgerState={signal_ledger:{pending:[{key:"ledger-early",market_id:"ledger-early",observed_at:hoursAgo(13),side:"YES",entry_price:0.40,
     signal_type:"trend",quality:"confirmed",category:"Politics"}],outcomes:[]}};
   updateSignalLedger(earlyLedgerState,[market({id:"ledger-early",yes_price:0.50,no_price:0.50})],[]);
+  const missedFirstWindowState={signal_ledger:{pending:[{key:"ledger-missed-24",market_id:"ledger-missed-24",observed_at:hoursAgo(31),side:"YES",entry_price:0.40,
+    signal_type:"trend",quality:"confirmed",category:"Politics"}],outcomes:[]}};
+  updateSignalLedger(missedFirstWindowState,[market({id:"ledger-missed-24",yes_price:0.90,no_price:0.10})],[]);
   const observationLedgerState={signal_ledger:defaultSignalLedger()};
   updateSignalLedger(observationLedgerState,[],[{market_id:"observation-only",side:"YES",entry_price:0.42,signal_type:"trend",quality:"watch",
     signal_confidence:0.62,trade_ready:false,jump_risk:false,category:"Politics",days_to_resolution:45}]);
@@ -4609,21 +4646,25 @@ function runEngineSelfTest(){
     {key:"outside-b",market_id:"outside-active-scan",observed_at:hoursAgo(25)},
     {key:"young",market_id:"too-young",observed_at:hoursAgo(2)}],outcomes:[]};
   const dueFetchIds=pendingSignalMarketIds(dueFetchLedger,new Set(["known-active"]));
-  const retryLedgerState={signal_ledger:{pending:[{key:"retry",market_id:"temporarily-unavailable",observed_at:hoursAgo(100),side:"YES",entry_price:0.4}],outcomes:[]}};
+  const retryLedgerState={signal_ledger:{pending:[{key:"retry",market_id:"temporarily-unavailable",observed_at:hoursAgo(25),side:"YES",entry_price:0.4}],outcomes:[]}};
   updateSignalLedger(retryLedgerState,[],[]);
-  const expiredLedgerState={signal_ledger:{pending:[{key:"expired",market_id:"never-returned",observed_at:hoursAgo(169),side:"YES",entry_price:0.4}],outcomes:[]}};
+  const expiredLedgerState={signal_ledger:{pending:[{key:"expired",market_id:"never-returned",observed_at:hoursAgo(79),side:"YES",entry_price:0.4}],outcomes:[]}};
   updateSignalLedger(expiredLedgerState,[],[]);
   const calibrationCandidate={signal_type:"trend",quality:"confirmed",category:"Politics",side:"YES",entry_price:0.42};
-  const calibrationFromReturns=(returns,candidate=calibrationCandidate)=>buildSignalCalibration({pending:[],outcomes:returns.map((ret,index)=>Object.assign({},candidate,
+  const calibrationFromReturns=(returns,candidate=calibrationCandidate,horizons=SIGNAL_EVAL_HORIZONS)=>buildSignalCalibration({pending:[],outcomes:returns.flatMap((ret,index)=>horizons.map(horizon=>Object.assign({},candidate,
     {market_id:`${candidate.market_id||"calibration"}-${index}`,event_key:`${candidate.event_key||candidate.market_id||"calibration-event"}-${index}`,
-      strategy_version:SUGGESTION_ENGINE_VERSION,return:ret,evaluated_at:closedAt}))});
-  const repeatedMarketCalibration=buildSignalCalibration({pending:[],outcomes:Array.from({length:24},()=>Object.assign({},calibrationCandidate,
-    {market_id:"one-repeated-market",event_key:"one-repeated-event",strategy_version:SUGGESTION_ENGINE_VERSION,return:0.12,evaluated_at:closedAt}))});
+      target_horizon_hours:horizon,strategy_version:SUGGESTION_ENGINE_VERSION,return:ret,evaluated_at:closedAt})))});
+  const repeatedMarketCalibration=buildSignalCalibration({pending:[],outcomes:Array.from({length:24},()=>SIGNAL_EVAL_HORIZONS.map(horizon=>Object.assign({},calibrationCandidate,
+    {market_id:"one-repeated-market",event_key:"one-repeated-event",target_horizon_hours:horizon,strategy_version:SUGGESTION_ENGINE_VERSION,return:0.12,evaluated_at:closedAt}))).flat()});
   const repeatedMarketState=calibratedOpportunity(calibrationCandidate,repeatedMarketCalibration);
-  const correlatedEventCalibration=buildSignalCalibration({pending:[],outcomes:Array.from({length:24},(_,index)=>Object.assign({},calibrationCandidate,
-    {market_id:`correlated-market-${index}`,event_key:"one-correlated-event",strategy_version:SUGGESTION_ENGINE_VERSION,return:0.12,evaluated_at:closedAt}))});
+  const correlatedEventCalibration=buildSignalCalibration({pending:[],outcomes:Array.from({length:24},(_,index)=>SIGNAL_EVAL_HORIZONS.map(horizon=>Object.assign({},calibrationCandidate,
+    {market_id:`correlated-market-${index}`,event_key:"one-correlated-event",target_horizon_hours:horizon,strategy_version:SUGGESTION_ENGINE_VERSION,return:0.12,evaluated_at:closedAt}))).flat()});
   const correlatedEventState=calibratedOpportunity(calibrationCandidate,correlatedEventCalibration);
   const singleCalibration=calibratedOpportunity(calibrationCandidate,calibrationFromReturns([0.10]));
+  const oneHorizonPositiveCalibration=calibratedOpportunity(calibrationCandidate,calibrationFromReturns(Array(24).fill(0.12),calibrationCandidate,[24]));
+  const previousOnlyProfile=buildSignalCalibration({pending:[],outcomes:Array.from({length:24},(_,index)=>SIGNAL_EVAL_HORIZONS.map(horizon=>Object.assign({},calibrationCandidate,
+    {market_id:`previous-only-${index}`,event_key:`previous-only-event-${index}`,target_horizon_hours:horizon,strategy_version:PREVIOUS_STRATEGY_VERSION,return:0.12,evaluated_at:closedAt}))).flat()});
+  const previousOnlyCalibration=calibratedOpportunity(calibrationCandidate,previousOnlyProfile);
   const stablePositiveProfile=calibrationFromReturns(Array(24).fill(0.12));
   const stablePositiveCalibration=calibratedOpportunity(calibrationCandidate,stablePositiveProfile);
   const promotedTrendSuggestion=applyAdaptiveMarketPromotion(Object.assign({},trend,{entry_candidate:true}),stablePositiveProfile);
@@ -4685,20 +4726,25 @@ function runEngineSelfTest(){
   const retiredFixture=accountingBook(0.45),retiredEquityBefore=equity(retiredFixture.book);
   retiredFixture.pos.strategy_version=PREVIOUS_STRATEGY_VERSION;
   markToMarket(retiredFixture.book,{[retiredFixture.pos.market_id]:market({id:retiredFixture.pos.market_id,yes_price:0.45,no_price:0.55})},AGENTS[0],{policyExits:true,executeTrades:true});
+  const nonBinaryMarketRejected=normalizeMarket({id:"over-under-test",question:"Over/Under 2.5",outcomes:'["Over","Under"]',outcomePrices:'["0.5","0.5"]',acceptingOrders:true})===null;
   const bundleSuggestion=negativeRiskBundleSuggestion({id:"bundle-test",title:"Three-way result",slug:"bundle-test",negRisk:true,enableNegRisk:true,tags:[{slug:"sports",label:"Sports"}],markets:[
-    {id:"bundle-a",question:"A wins",outcomePrices:'["0.415","0.585"]',clobTokenIds:'["a-yes","a-no"]',bestBid:0.41,bestAsk:0.42,liquidityNum:30000,volumeNum:100000,volume24hr:10000,acceptingOrders:true},
-    {id:"bundle-b",question:"B wins",outcomePrices:'["0.315","0.685"]',clobTokenIds:'["b-yes","b-no"]',bestBid:0.31,bestAsk:0.32,liquidityNum:28000,volumeNum:100000,volume24hr:10000,acceptingOrders:true},
-    {id:"bundle-draw",question:"Draw",outcomePrices:'["0.305","0.695"]',clobTokenIds:'["d-yes","d-no"]',bestBid:0.30,bestAsk:0.31,liquidityNum:20000,volumeNum:100000,volume24hr:10000,acceptingOrders:true},
+    {id:"bundle-a",question:"A wins",outcomes:'["Yes","No"]',outcomePrices:'["0.415","0.585"]',clobTokenIds:'["a-yes","a-no"]',bestBid:0.41,bestAsk:0.42,liquidityNum:30000,volumeNum:100000,volume24hr:10000,acceptingOrders:true},
+    {id:"bundle-b",question:"B wins",outcomes:'["Yes","No"]',outcomePrices:'["0.315","0.685"]',clobTokenIds:'["b-yes","b-no"]',bestBid:0.31,bestAsk:0.32,liquidityNum:28000,volumeNum:100000,volume24hr:10000,acceptingOrders:true},
+    {id:"bundle-draw",question:"Draw",outcomes:'["Yes","No"]',outcomePrices:'["0.305","0.695"]',clobTokenIds:'["d-yes","d-no"]',bestBid:0.30,bestAsk:0.31,liquidityNum:20000,volumeNum:100000,volume24hr:10000,acceptingOrders:true},
   ]});
   const yesBundleSuggestion=negativeRiskBundleSuggestion({id:"bundle-yes-test",title:"Three-way YES result",slug:"bundle-yes-test",negRisk:true,enableNegRisk:true,markets:[
-    {id:"yes-bundle-a",question:"A wins",outcomePrices:'["0.295","0.705"]',clobTokenIds:'["ya-yes","ya-no"]',bestBid:0.29,bestAsk:0.30,liquidityNum:30000,volumeNum:100000,volume24hr:10000,acceptingOrders:true},
-    {id:"yes-bundle-b",question:"B wins",outcomePrices:'["0.305","0.695"]',clobTokenIds:'["yb-yes","yb-no"]',bestBid:0.30,bestAsk:0.31,liquidityNum:28000,volumeNum:100000,volume24hr:10000,acceptingOrders:true},
-    {id:"yes-bundle-draw",question:"Draw",outcomePrices:'["0.335","0.665"]',clobTokenIds:'["yd-yes","yd-no"]',bestBid:0.33,bestAsk:0.34,liquidityNum:20000,volumeNum:100000,volume24hr:10000,acceptingOrders:true},
+    {id:"yes-bundle-a",question:"A wins",outcomes:'["Yes","No"]',outcomePrices:'["0.295","0.705"]',clobTokenIds:'["ya-yes","ya-no"]',bestBid:0.29,bestAsk:0.30,liquidityNum:30000,volumeNum:100000,volume24hr:10000,acceptingOrders:true},
+    {id:"yes-bundle-b",question:"B wins",outcomes:'["Yes","No"]',outcomePrices:'["0.305","0.695"]',clobTokenIds:'["yb-yes","yb-no"]',bestBid:0.30,bestAsk:0.31,liquidityNum:28000,volumeNum:100000,volume24hr:10000,acceptingOrders:true},
+    {id:"yes-bundle-draw",question:"Draw",outcomes:'["Yes","No"]',outcomePrices:'["0.335","0.665"]',clobTokenIds:'["yd-yes","yd-no"]',bestBid:0.33,bestAsk:0.34,liquidityNum:20000,volumeNum:100000,volume24hr:10000,acceptingOrders:true},
   ]});
   const tinyReturnBundle=negativeRiskBundleSuggestion({id:"bundle-tiny",title:"Ten-way result",slug:"bundle-tiny",negRisk:true,enableNegRisk:true,markets:Array.from({length:10},(_,i)=>({
-    id:`bundle-tiny-${i}`,question:`Outcome ${i+1}`,outcomePrices:'["0.1055","0.8945"]',clobTokenIds:`["tiny-${i}-yes","tiny-${i}-no"]`,
+    id:`bundle-tiny-${i}`,question:`Outcome ${i+1}`,outcomes:'["Yes","No"]',outcomePrices:'["0.1055","0.8945"]',clobTokenIds:`["tiny-${i}-yes","tiny-${i}-no"]`,
     bestBid:0.1055,bestAsk:0.1065,liquidityNum:30000,volumeNum:100000,volume24hr:10000,acceptingOrders:true,
   }))});
+  const nonBinaryBundleRejected=negativeRiskBundleSuggestion({id:"bundle-label-test",title:"Over/Under",slug:"bundle-label-test",negRisk:true,enableNegRisk:true,markets:[
+    {id:"over-a",question:"Over/Under 1.5",outcomes:'["Over","Under"]',outcomePrices:'["0.45","0.55"]',clobTokenIds:'["over-a","under-a"]',bestBid:0.44,bestAsk:0.45,liquidityNum:30000,acceptingOrders:true},
+    {id:"over-b",question:"Over/Under 2.5",outcomes:'["Over","Under"]',outcomePrices:'["0.45","0.55"]',clobTokenIds:'["over-b","under-b"]',bestBid:0.44,bestAsk:0.45,liquidityNum:30000,acceptingOrders:true},
+  ]})===null;
   const bundleBook=defaultPortfolio();
   const offlineBundleSuggestion=prepareCycleSuggestions([bundleSuggestion],"offline-cache",true)[0];
   openPositions(bundleBook,AGENTS.find(a=>a.id==="value"),[bundleSuggestion],"All",{
@@ -4815,20 +4861,26 @@ function runEngineSelfTest(){
         &&queueLedgerState.signal_ledger.pending.some(x=>x.market_id==="new-market-0")
         &&!queueLedgerState.signal_ledger.pending.some(x=>x.market_id==="new-market-1"),
       underObservedCohortsAndEventsSampleFirst:coveragePriority.map(x=>x.market_id).join(",")==="new-sports,new-politics,popular-repeat",
-      ledgerMaturesWithoutLookahead:ledgerState.signal_ledger.pending.length===0&&ledgerState.signal_ledger.outcomes.length===1&&ledgerState.signal_ledger.outcomes[0].return===0.2375,
+      firstHorizonGradesWithoutLookahead:ledgerState.signal_ledger.pending.length===1&&ledgerState.signal_ledger.pending[0].graded_horizons.includes(24)
+        &&ledgerState.signal_ledger.outcomes.length===1&&ledgerState.signal_ledger.outcomes[0].target_horizon_hours===24&&ledgerState.signal_ledger.outcomes[0].return===0.2375,
+      secondHorizonGradesAndCompletes:secondHorizonState.signal_ledger.pending.length===0&&secondHorizonState.signal_ledger.outcomes.length===1
+        &&secondHorizonState.signal_ledger.outcomes[0].target_horizon_hours===72,
       holdsSignalsUntilPolicyHorizon:earlyLedgerState.signal_ledger.pending.length===1&&earlyLedgerState.signal_ledger.outcomes.length===0,
+      missed24hWindowIsNotBackfilled:missedFirstWindowState.signal_ledger.pending.length===1&&missedFirstWindowState.signal_ledger.outcomes.length===0,
       fetchesMaturedMarketsOutsideActiveScan:dueFetchIds.length===1&&dueFetchIds[0]==="outside-active-scan",
       keepsUnavailableGradesQueued:retryLedgerState.signal_ledger.pending.length===1&&retryLedgerState.signal_ledger.outcomes.length===0,
-      expiresOnlyAfterRetryWindow:expiredLedgerState.signal_ledger.pending.length===0&&expiredLedgerState.signal_ledger.expired_ungraded===1,
+      expiresOnlyAfterRetryWindow:expiredLedgerState.signal_ledger.pending.length===0&&expiredLedgerState.signal_ledger.expired_ungraded===2,
       ledgerIsNetOfCosts:ledgerState.signal_ledger.outcomes[0].gross_return===0.25&&ledgerState.signal_ledger.outcomes[0].estimated_cost_return===0.0125,
       independentCalibrationConfidence:singleCalibration.confidence<0.06,
       repeatedSnapshotsCountAsOneMarket:repeatedMarketCalibration.markets===1&&repeatedMarketCalibration.buckets["signal:trend"].samples===1
-        &&repeatedMarketCalibration.buckets["signal:trend"].observations===24&&repeatedMarketState.state==="observing",
+        &&repeatedMarketCalibration.buckets["signal:trend"].observations===48&&repeatedMarketState.state==="observing",
       correlatedMarketsCountAsOneEvent:correlatedEventCalibration.markets===24&&correlatedEventCalibration.events===1
         &&correlatedEventCalibration.buckets["signal:trend"].samples===1&&correlatedEventState.state==="observing",
       stablePositiveEventCount:stablePositiveProfile.events,
       stablePositiveMarketCount:stablePositiveProfile.markets,
       distinctEventsCanPromote:stablePositiveProfile.events===24&&stablePositiveCalibration.state==="promoted"&&stablePositiveCalibration.supporting_features>=2,
+      oneHorizonCannotPromote:oneHorizonPositiveCalibration.state==="observing"&&!oneHorizonPositiveCalibration.promoted,
+      previousStrategyCannotPromote:previousOnlyCalibration.state==="observing"&&!previousOnlyCalibration.promoted,
       legacyBuildLineageRemainsHistorical:normalizedStrategyVersion(41)===40,
       previousStrategyIsDownWeighted:legacyBuildCalibration.current_samples===0&&legacyBuildCalibration.buckets["signal:trend"].weight>0.54&&legacyBuildCalibration.buckets["signal:trend"].weight<=0.55,
       currentStrategyKeepsFullWeight:currentStrategyCalibration.current_samples===1&&currentStrategyCalibration.buckets["signal:trend"].weight>0.99,
@@ -4857,6 +4909,8 @@ function runEngineSelfTest(){
       adaptiveReturnSetsLeader:adaptiveRankFixture[0].c.id==="adaptive-leader",
     },
     bundleArbitrage:{
+      rejectsNonBinaryMarketLabels:nonBinaryMarketRejected,
+      rejectsNonBinaryBundleLabels:nonBinaryBundleRejected,
       identifiesPositiveCompleteNoBundle:bundleSuggestion&&bundleSuggestion.trade_ready&&bundleSuggestion.bundle_side==="NO"&&bundleSuggestion.bundle_legs.every(leg=>leg.side==="NO")&&bundleSuggestion.bundle_net_profit_per_unit===0.005,
       identifiesPositiveCompleteYesBundle:yesBundleSuggestion&&yesBundleSuggestion.trade_ready&&yesBundleSuggestion.bundle_side==="YES"&&yesBundleSuggestion.bundle_legs.every(leg=>leg.side==="YES")&&yesBundleSuggestion.bundle_net_profit_per_unit===0.035,
       rejectsEconomicallyTinyLargeBundle:tinyReturnBundle===null,

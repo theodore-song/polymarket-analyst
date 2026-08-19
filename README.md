@@ -15,12 +15,18 @@ https://polymarket-site-eta.vercel.app/personal.html
 
 The site fetches live Polymarket markets, generates agent suggestions, lets you
 run frequent paper cycles, and syncs the shared arena state through Neon or
-Vercel Blob. Build 61 also installs an offline app shell and caches timestamped
+Vercel Blob. Build 62 also installs an offline app shell and caches timestamped
 market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
 
-Build 61 ranks the competition by each agent's return since Strategy 50 began.
+The live scan now continues through activity-ranked pages until it has the 500
+most-active eligible Yes/No contracts. Markets whose actual outcome labels are
+team names, Over/Under, or another pair are rejected instead of being silently
+reinterpreted as Yes/No. The same semantic check applies to complete event
+bundles and the offline evaluators.
+
+Build 62 ranks the competition by each agent's return since Strategy 51 began.
 Historical replay equity remains visible for context, but it no longer makes an
 agent look like the current leader when the live adaptive strategy is losing.
 
@@ -31,7 +37,7 @@ The learner shrinks small samples toward neutral, caps sizing changes to
 15% of candidates for deterministic exploration so a stale regime cannot become
 permanent.
 
-Strategy 50 treats each binary stake as capable of falling to zero even when the
+Strategy 51 treats each binary stake as capable of falling to zero even when the
 18% stop cannot fill. New core positions are capped at 2.5%-4% of equity and
 aggressive positions at 3%-5%, with lower limits for near-term, extreme-price,
 reversal, and fast-moving setups. Oversized positions inherited from older
@@ -40,12 +46,13 @@ The two-agent overlap guard counts only positions worth at least 1.25% of an
 agent's equity, so tiny profit-lock runners do not block a new material trade.
 
 A separate walk-forward ledger records every confirmed signal before its future
-price is known, grades it at least 24 hours later, and combines that broad market
-calibration with each agent's personal outcomes. This expands the learning sample
-without forcing observation-only signals into portfolios or backfilling future
-information into old decisions. The 24-hour horizon
-matches the engine's minimum ordinary holding policy; stops and profit locks still
-act immediately from fresh prices.
+price is known, grades it in separate 24-hour and 72-hour windows, and combines
+that broad market calibration with each agent's personal outcomes. This expands
+the learning sample without forcing observation-only signals into portfolios or
+backfilling future information into old decisions. Missed windows expire instead
+of borrowing an arbitrarily later price. The 24-hour checkpoint matches the
+minimum ordinary holding policy while the 72-hour checkpoint tests persistence;
+stops and profit locks still act immediately from fresh prices.
 
 The initial seven-day chart seed is an approximate replay, not a live return.
 It uses only prices available on each simulated date, computes daily and weekly
@@ -69,16 +76,16 @@ negative in all three chronological segments. Reversals averaged -3.69%, with a
 market-clustered 90% interval entirely below zero. Crypto and Sports were also
 negative but covered only three and five markets. The 24-hour cohort improved to
 -0.82% row mean and +1.31% market mean, with no rule robustly negative across all
-segments. Strategy 50 therefore keeps reversal entries observation-only until
+segments. Strategy 51 therefore keeps reversal entries observation-only until
 their recent signal and quality cohorts independently earn promotion, retains
-their signals for paper grading, and evaluates adaptation at 24 hours.
+their signals for paper grading, and evaluates adaptation at 24 and 72 hours.
 
 The expanded active-market audit loaded history for 498 of the top 500 active
 markets with no failures and produced 3,597 net-of-cost 24-hour outcomes across
 142 markets. No tested follow or fade rule was robustly positive. Crypto trends
 averaged -3.83% per observation and -3.99% per market; Sports trends averaged
 -5.44% and -6.61%. Both stayed negative in every chronological segment and their
-market-clustered 90% intervals were entirely below zero. Strategy 50 therefore
+market-clustered 90% intervals were entirely below zero. Strategy 51 therefore
 keeps Crypto and Sports trends observation-only while continuing to grade them.
 
 The August 18 event-clustered rerun loaded 499 of 500 active markets and produced
@@ -87,10 +94,18 @@ The broad mean was -1.14%, the event mean was -1.11%, and the event-clustered
 90% interval stayed below zero. No tested category, side, price band, signal
 strength, or combined feature cohort was robustly positive. Broad trends,
 YES trends, favorite trends, strong trends, and hour-confirmed trends were all
-robustly negative. Strategy 50 therefore makes every directional trend or
+robustly negative. Strategy 51 therefore makes every directional trend or
 reversal observation-only until its own signal, side, and category cohorts each
 earn positive promotion from recent independent events. This is a strategy reset,
 so current adaptive returns begin from the portfolio equity at migration.
+
+The final August 19 300-market rerun loaded all 300 eligible Yes/No price
+histories without a failure and produced 2,598 twelve-hour observations across
+64 independent events. The broad row mean was -0.65% and the event-cluster mean
+was -1.71%. The 72-hour event-cluster mean was -3.59% with its 90% interval below
+zero, and no tested directional rule was robustly positive. Strategy 51
+therefore requires positive evidence at both 24 and 72 hours rather than
+allowing one favorable short-horizon mark to authorize cash exposure.
 
 A corrected 200-market audit paged through 197 markets with usable history and
 1,912 twelve-hour outcomes. Reversals remained negative in every chronological
@@ -98,23 +113,24 @@ segment and averaged -4.13%. Sports trends were negative in train and test and
 averaged -3.53% at 72 hours. Politics trends were the sole cohort with positive
 row-level returns in all three 72-hour segments, but its market-cluster interval
 still crossed zero; that supports a longer hold test, not a larger entry bet.
-Strategy 50 gives previously opened Politics trend positions that 72-hour observation window before
+Strategy 51 gives previously opened Politics trend positions that 72-hour observation window before
 ordinary signal exits. Stops, profit locks, settlement handling, and risk-budget
 reductions remain immediate.
 
-Strategy 50 also subtracts a half-cent round-trip cost when grading each live
+Strategy 51 also subtracts a half-cent round-trip cost when grading each live
 walk-forward signal. Confidence uses the largest independent matching bucket,
 not the sum of five overlapping feature buckets, and evidence from older engine
 versions is down-weighted. This prevents a handful of duplicated observations
 from authorizing larger positions or hiding a modest negative regime.
 
-Strategy 50 adds uncertainty-aware promotion and demotion. A matching setup must
-accumulate at least eight effective observations and agree across at least two
-feature views before repeatable positive evidence can increase size or repeatable
-negative evidence can block a new entry. Mixed evidence stays close to neutral
-instead of being mistaken for an edge.
+Strategy 51 adds uncertainty-aware, multi-horizon promotion and demotion. A
+matching setup must accumulate at least eight effective independent-event
+observations, including at least five from the current strategy, and agree across
+at least two feature views at both the 24-hour and 72-hour checkpoints before it
+can risk cash. Mixed or one-horizon evidence stays observation-only instead of
+being mistaken for an edge.
 
-Build 61 enforces the documented offline boundary end to end. Cached snapshots
+Build 62 enforces the documented offline boundary end to end. Cached snapshots
 under 90 minutes old may continue paper execution. Older snapshots remain usable
 for valuation and chart snapshots for up to 24 hours, but cannot trigger entries,
 stop-losses, gain-stops, risk rebalances, settlements, or policy exits. Network
@@ -127,26 +143,26 @@ adaptive baselines, pending signal grades, and trade evidence remain in one stra
 lineage until the actual entry, sizing, or exit logic changes. Legacy build 40 and 41
 records are migrated into the same strategy lineage without losing evidence.
 
-Build 61 independently refreshes markets for matured pending signals that have
+Build 62 independently refreshes markets for due pending signals that have
 left the current top-500 activity scan. Unavailable markets remain queued for a
 bounded retry window. This prevents activity-rank survivorship from deciding
 which wins and losses reach the adaptive calibration ledger.
 
-Build 61 also allocates the 300 pending observation slots by evidence coverage.
+Build 62 also allocates the 300 pending observation slots by evidence coverage.
 Under-sampled signal/side/category cohorts are observed first, followed by
 under-sampled independent events and market sides, with conviction used only as
 a later tie-breaker. This prevents the same popular contracts from monopolizing
 the ledger and gives the learner a realistic path to promote or reject more
 diverse cohorts.
 
-Build 61 retains safe shared-state provider diagnostics from both reads and
+Build 62 retains safe shared-state provider diagnostics from both reads and
 writes. A device now says `local only` when Neon is paused or a Blob credential
 is rejected, instead of presenting a local browser save as a successful
 cross-device sync. Completed cycle statuses retain that `local only` warning
 until a cloud provider succeeds. Database URLs still fail over across configured Neon
 aliases without exposing credentials in the API response.
 
-Strategy 50 coordinates high-risk exploration globally. Near-term, extreme-price,
+Strategy 51 coordinates high-risk exploration globally. Near-term, extreme-price,
 and other gap-prone positions may be held materially by only one agent, while
 ordinary independently confirmed markets retain the two-agent cap. The robustly
 negative Sports- and Crypto-trend cohorts cannot enter through exploration.
@@ -170,14 +186,21 @@ liquid negative-risk events and zero positive worst-case bundle returns after
 costs. Midpoint price sums sometimes looked attractive, but executable spreads
 removed the apparent edge. The August 18 rerun found 35 eligible events and one
 three-leg NO bundle with a 0.25%
-modeled margin after estimated costs. The corrected August 19 scan found 39
-eligible events and no currently actionable bundle; its closest complete bundle
-remained 0.37% negative after modeled costs. Strategy 50 can paper-trade either a
+modeled margin after estimated costs. The final August 19 scan found 49 eligible
+events and no currently actionable bundle; its closest complete bundle remained
+0.25% negative after modeled costs. Strategy 51 can paper-trade either a
 complete YES or complete NO bundle only from live executable prices, opens every
 leg together, and holds
 the hedge intact until settlement. It also requires at least a 0.15% modeled net
 return so large bundles cannot tie up capital for a negligible absolute edge.
 Cached bundle prices are never allowed to open positions.
+
+Run `npm run evaluate:dominance` to inspect logically nested threshold contracts
+using executable prices. The corrected August 19 scan tested 807 eligible pairs
+across 500 active events and found zero positive pairs after estimated costs. An
+earlier parser had mistaken Over/Under outcome labels for Yes/No and reported
+false opportunities; the label-aware scanner and live engine now reject that
+failure mode.
 
 The expanded event-clustered run loaded history for 498 of the 500 highest-volume
 resolved markets with no fetch failures. No side, price band, category, trend,
@@ -188,28 +211,28 @@ static settlement-direction boost from this audit.
 
 The earlier 200-resolved-market audit found short-dated NO entries strongly
 negative, but the 500-market rerun did not reproduce that loss in its newer test
-segment. Strategy 50 therefore treats the result as a provisional prior instead
+segment. Strategy 51 therefore treats the result as a provisional prior instead
 of a permanent ban: NO entries with 21 days or less remain observation-only until
 the recent walk-forward calibration promotes their matching side and duration
 cohorts. Exact numeric-range contracts are excluded from new entries because a
 settlement jump can pass directly through an 18% stop; the live audit found that
 this failure mode caused the largest latest-day loss.
 
-Strategy 50 also excludes path-dependent barriers such as "reach $66,000," "hit
+Strategy 51 also excludes path-dependent barriers such as "reach $66,000," "hit
 $90," and "dip to $62,000." These contracts can resolve abruptly as soon as the
 barrier is touched, so a later hourly stop cannot reliably cap the loss. Fixed-date
 level questions such as "above $66,000 on August 23" remain eligible.
 
-Strategy 50 clusters live walk-forward observations by Polymarket event before
+Strategy 51 clusters live walk-forward observations by Polymarket event and checkpoint before
 calculating confidence. Multiple six-hour snapshots and correlated outcome
 markets from the same event are averaged into one effective outcome, so one
 election or tournament cannot promote or demote an entire feature cohort.
-Promotion still requires at least eight weighted event clusters and agreement
-across two feature views.
+Promotion requires agreement across two feature views at both horizons, with
+current-strategy support preventing old lineage data from authorizing a new rule.
 
 The pending signal ledger keeps only one ungraded observation for each market and
-side. When its bounded queue is full, it preserves the oldest evidence until the
-24-hour grade is available and admits new signals in ranked order as space opens.
+side. When its bounded queue is full, it preserves the oldest evidence through
+the 24-hour and 72-hour grades and admits new signals in ranked order as space opens.
 This prevents frequent cycles from evicting every signal shortly before maturity.
 
 Paper accounts created with a password are also saved through the backend, so a

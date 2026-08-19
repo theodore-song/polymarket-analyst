@@ -48,11 +48,13 @@ function evaluateEvent(event) {
   const allMarkets = Array.isArray(event.markets) ? event.markets : [];
   if (allMarkets.length < 2 || allMarkets.some((market) => market.closed || market.active === false || market.acceptingOrders === false)) return null;
   const legs = allMarkets.map((market) => {
+    const outcomes = parseJson(market.outcomes).map((outcome) => String(outcome).trim().toLowerCase());
     const prices = parseJson(market.outcomePrices).map(number);
     return { id: String(market.id || ""), question: market.question || "", yes: prices[0],
+      binaryLabels: outcomes[0] === "yes" && outcomes[1] === "no",
       bid: number(market.bestBid), ask: number(market.bestAsk), liquidity: number(market.liquidityNum || market.liquidity) || 0 };
   });
-  if (legs.some((leg) => !leg.id || leg.yes == null || leg.bid == null || leg.ask == null
+  if (legs.some((leg) => !leg.binaryLabels || !leg.id || leg.yes == null || leg.bid == null || leg.ask == null
     || leg.bid < 0 || leg.ask > 1 || leg.ask < leg.bid || leg.liquidity < MIN_LIQUIDITY)) return null;
   const count = legs.length, costPerLeg = COST_CENTS / 100;
   const yesCost = legs.reduce((sum, leg) => sum + leg.ask, 0) + count * costPerLeg;

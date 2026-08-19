@@ -95,11 +95,12 @@ async function fetchResolvedMarkets(limit) {
     const page = await fetchJson(`${GAMMA}/markets?${params}`);
     if (!Array.isArray(page) || !page.length) break;
     for (const market of page) {
-      const id = String(market.id || ""), outcomes = parseJson(market.outcomePrices).map(Number);
+      const id = String(market.id || ""), labels = parseJson(market.outcomes).map((outcome) => String(outcome).trim().toLowerCase());
+      const outcomes = parseJson(market.outcomePrices).map(Number);
       const tokens = parseJson(market.clobTokenIds), closedAt = toTimestamp(market.closedTime || market.endDate);
       const resolved = outcomes.length === 2 && outcomes.every(Number.isFinite)
         && ((outcomes[0] >= 0.99 && outcomes[1] <= 0.01) || (outcomes[1] >= 0.99 && outcomes[0] <= 0.01));
-      if (!id || seen.has(id) || !resolved || tokens.length !== 2 || !closedAt) continue;
+      if (!id || seen.has(id) || !resolved || labels[0] !== "yes" || labels[1] !== "no" || tokens.length !== 2 || !closedAt) continue;
       seen.add(id); raw.push({ id, question: market.question || "", category: categoryOf(market),
         eventId: String(market.events?.[0]?.id || id),
         tokenId: String(tokens[0]), finalYes: outcomes[0] >= 0.99 ? 1 : 0, closedAt,
