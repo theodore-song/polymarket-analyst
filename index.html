@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 59 active:</b> unproven directional signals train the event-clustered learner without risking cash. New observations prioritize under-sampled strategy cohorts and independent events before repeats, while shared state normalizes and fails over across configured Neon URLs. Cohorts can trade only after positive promotion. Live-priced complete YES or NO negative-risk bundles may trade when their worst-case payout remains positive after estimated costs; cached bundle prices never open positions. This remains paper trading; profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 60 active:</b> unproven directional signals train the event-clustered learner without risking cash. New observations prioritize under-sampled strategy cohorts and independent events before repeats, while shared state normalizes and fails over across configured Neon URLs. Cloud provider failures now remain visible instead of being mistaken for a successful cross-device save. Cohorts can trade only after positive promotion. Live-priced complete YES or NO negative-risk bundles may trade when their worst-case payout remains positive after estimated costs; cached bundle prices never open positions. This remains paper trading; profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 59 · Adaptive strategy 50 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build 60 · Adaptive strategy 50 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 59;
+const BUILD_VERSION = 60;
 const SUGGESTION_ENGINE_VERSION = 50;
 const PREVIOUS_STRATEGY_VERSION = 49;
 const LEGACY_BUILD_STRATEGY_LINEAGE = Object.freeze({40:40,41:40});
@@ -1545,6 +1545,22 @@ function stateFromSyncItems(items){
   try{return items&&items[AGENTS_KEY]?JSON.parse(items[AGENTS_KEY]):null;}
   catch(e){return null;}
 }
+let CLOUD_STATE_HEALTH={ok:null,degraded:false,providers:null,error:null};
+window.PMA_CLOUD_STATE_HEALTH=CLOUD_STATE_HEALTH;
+function rememberCloudHealth(next){
+  CLOUD_STATE_HEALTH={...CLOUD_STATE_HEALTH,...next};
+  window.PMA_CLOUD_STATE_HEALTH=CLOUD_STATE_HEALTH;
+  return CLOUD_STATE_HEALTH;
+}
+function localOnlyStatus(base,providerOverride=null){
+  const providers=providerOverride||CLOUD_STATE_HEALTH.providers||{};
+  const dbStatus=providers.database&&providers.database.status;
+  const blobStatus=providers.blob&&providers.blob.status;
+  if(dbStatus==="provider_payment_required")return `${base} · local only (Neon paused)`;
+  if(blobStatus==="authorization_failed")return `${base} · local only (cloud token invalid)`;
+  return `${base} · saved locally`;
+}
+window.PMA_CLOUD_STATUS_LABEL=localOnlyStatus;
 async function pushCloudState(force=false){
   try{
     const r=await fetchWithTimeout("/api/state",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({items:collectSyncItems(),force})},NETWORK_REQUEST_TIMEOUT_MS);
@@ -1556,17 +1572,29 @@ async function pushCloudState(force=false){
       renderAll();
       return false;
     }
-    if(!r.ok)throw new Error("cloud sync unavailable");
+    const d=await r.json().catch(()=>null);
+    if(!r.ok){
+      rememberCloudHealth({ok:false,degraded:true,providers:d&&d.providers||null,error:d&&d.error||"Cloud sync unavailable"});
+      return false;
+    }
+    rememberCloudHealth({ok:true,degraded:false,providers:null,error:null});
     return true;
-  }catch(e){return false;}
+  }catch(e){rememberCloudHealth({ok:false,degraded:true,error:"Cloud sync unavailable"});return false;}
 }
 async function pullCloudState(){
   try{
     const r=await fetchWithTimeout("/api/state",{cache:"no-store"},NETWORK_REQUEST_TIMEOUT_MS);
-    if(!r.ok)return {ok:false,state:null};
+    if(!r.ok){
+      const d=await r.json().catch(()=>null);
+      rememberCloudHealth({ok:false,degraded:true,providers:d&&d.providers||null,error:d&&d.error||"Cloud sync unavailable"});
+      return {ok:false,state:null,degraded:true,providers:d&&d.providers||null,error:d&&d.error};
+    }
     const d=await r.json();
-    return {ok:true,state:(d&&d.state)||null,degraded:Boolean(d&&d.degraded),error:d&&d.error};
+    const result={ok:true,state:(d&&d.state)||null,degraded:Boolean(d&&d.degraded),error:d&&d.error,providers:d&&d.providers||null};
+    rememberCloudHealth(result);
+    return result;
   }catch(e){}
+  rememberCloudHealth({ok:false,degraded:true,error:"Cloud sync unavailable"});
   return {ok:false,state:null};
 }
 async function loadAuthoritativeCloudState(){
@@ -1575,9 +1603,9 @@ async function loadAuthoritativeCloudState(){
   const cloudState=cloud.state;
   if(cloudState&&cloudState.items&&stateFromSyncItems(cloudState.items)){
     applySyncItems(cloudState.items);
-    return {ok:true,loaded:true,degraded:Boolean(cloud.degraded)};
+    return {ok:true,loaded:true,degraded:Boolean(cloud.degraded),providers:cloud.providers||null};
   }
-  return {ok:true,loaded:false,degraded:Boolean(cloud.degraded)};
+  return {ok:true,loaded:false,degraded:Boolean(cloud.degraded),providers:cloud.providers||null};
 }
 async function refreshFromCloudAndRender(silent=true){
   const cloud=await loadAuthoritativeCloudState();
@@ -1585,6 +1613,9 @@ async function refreshFromCloudAndRender(silent=true){
     renderAll();
     setStatus("cloud synced",false);
     if(!silent)toast("Shared cloud state refreshed.");
+  }else if(cloud.degraded){
+    setStatus(localOnlyStatus("cloud storage paused"),false);
+    if(!silent)toast("Cloud storage is unavailable. This device is using its local backup.");
   }else if(!cloud.ok){
     setStatus("cloud sync unavailable",false);
     if(!silent)toast("Cloud sync is unavailable. Results may be stale until it reconnects.");
@@ -2714,7 +2745,7 @@ async function runDailyCycle(){
     saveState(st);
     const pushed=cloud.ok?await pushCloudState():false;
     if(pushed){st.pending_sync=false;saveState(st);setStatus(runMode==="live"?"up to date":(executeTrades?"offline cycle synced":"offline mark-only synced"),false);await notifyTradeDigest(emailEvents);}
-    else{st.pending_sync=true;saveState(st);setStatus(`${runMode==="live"?"live data":(executeTrades?"offline cycle":"offline mark-only")} · saved locally`,false);}
+    else{st.pending_sync=true;saveState(st);setStatus(localOnlyStatus(runMode==="live"?"live data":(executeTrades?"offline cycle":"offline mark-only")),false);}
     return {suggestions:sugs.length,offline:runMode!=="live",pendingSync:!pushed,entriesAllowed,executeTrades};
   }finally{SNAP_TS=null;CYCLE_RUNNING=false;}
 }
@@ -5006,10 +5037,10 @@ if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw.js").catc
   let st=loadState();
   if(cloud.loaded){
     toast("Cloud state loaded for this device.");
-  }else if(cloud.ok&&st.seeded){
+  }else if(cloud.ok&&!cloud.degraded&&st.seeded){
     pushCloudState();
-  }else if(!cloud.ok){
-    setStatus("offline-ready · local state",false);
+  }else if(cloud.degraded||!cloud.ok){
+    setStatus(localOnlyStatus("offline-ready"),false);
   }
   renderAll();
   const btn=$("runBtn");

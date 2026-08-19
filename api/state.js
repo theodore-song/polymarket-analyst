@@ -22,6 +22,7 @@ export function providerErrorCode(error) {
   const nested = error.sourceError || error.cause;
   const code = String(error.code || nested && (nested.code || nested.cause && nested.cause.code) || "").toUpperCase();
   const message = `${String(error.message || error)} ${String(nested && nested.message || "")}`.toLowerCase();
+  if (/http status\s+402\b/.test(message) || /\b402 payment required\b/.test(message)) return "provider_payment_required";
   if (code === "28P01" || code === "28000") return "authorization_failed";
   if (code === "3D000") return "database_not_found";
   if (code.startsWith("08")) return "connection_failed";

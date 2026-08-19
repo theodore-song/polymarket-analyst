@@ -45,6 +45,7 @@ const compactedState = compactAgentState({
 });
 assert.equal(compactedState.signal_ledger.expired_ungraded, 7);
 assert.equal(providerErrorCode(new Error("403 Forbidden")), "authorization_failed");
+assert.equal(providerErrorCode(new Error("Error connecting to database: HTTP status 402")), "provider_payment_required");
 assert.equal(providerErrorCode(new Error("invalid connection string")), "invalid_connection_string");
 assert.equal(providerErrorCode(Object.assign(new Error("database rejected login"), { code: "28P01" })), "authorization_failed");
 const nestedFetchError = Object.assign(new Error("Error connecting to database"), {
