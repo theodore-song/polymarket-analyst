@@ -1,4 +1,4 @@
-const CACHE_NAME = "polymarket-arena-build-65";
+const CACHE_NAME = "polymarket-arena-build-67";
 const APP_SHELL = ["/", "/index.html", "/personal.html", "/cycle-worker.js"];
 
 self.addEventListener("install", event => {

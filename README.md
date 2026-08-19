@@ -15,7 +15,7 @@ https://polymarket-site-eta.vercel.app/personal.html
 
 The site fetches live Polymarket markets, generates agent suggestions, lets you
 run frequent paper cycles, and syncs the shared arena state through Neon or
-Vercel Blob. Build 66 also installs an offline app shell and caches timestamped
+Vercel Blob. Build 67 also installs an offline app shell and caches timestamped
 market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
@@ -26,7 +26,7 @@ team names, Over/Under, or another pair are rejected instead of being silently
 reinterpreted as Yes/No. The same semantic check applies to complete event
 bundles and the offline evaluators.
 
-Build 66 ranks the competition by each agent's return since Strategy 55 began.
+Build 67 ranks the competition by each agent's return since Strategy 56 began.
 Historical replay equity remains visible for context, but it no longer makes an
 agent look like the current leader when the live adaptive strategy is losing.
 
@@ -37,7 +37,7 @@ The learner shrinks small samples toward neutral, caps sizing changes to
 15% of candidates for deterministic exploration so a stale regime cannot become
 permanent.
 
-Strategy 55 treats each binary stake as capable of falling to zero even when the
+Strategy 56 treats each binary stake as capable of falling to zero even when the
 18% stop cannot fill. New core positions are capped at 2.5%-4% of equity and
 aggressive positions at 3%-5%, with lower limits for near-term, extreme-price,
 reversal, and fast-moving setups. Oversized positions inherited from older
@@ -82,8 +82,24 @@ Run `npm run evaluate:sports-favorites` for the separate pregame favorite audit.
 It anchors decisions to the published game start, rejects stale prices, charges a
 modeled five-cent cost, forms equal-dollar event baskets, and uses a chronological
 60/20/20 split. The clean 3,000-market run produced nine train-pass rules but zero
-validation selections, so Strategy 55 does not promote the apparent sports-favorite
+validation selections, so Strategy 56 does not promote the apparent sports-favorite
 edge or use the holdout set to rescue it.
+
+Run `npm run evaluate:settlement-calibration` for the stricter settlement-bias
+search across up to 5,000 resolved markets. It uses a 60/20/20 chronological
+split, a one-market-per-event limit, 95% event-clustered confidence bounds, four
+stability windows, a 24-hour market-age minimum, and a recent non-flat price
+history requirement. Before those activity and overlap controls, four sports
+rules appeared to pass holdout because correlated props shared one event and
+some histories contained inactive default prices. After correction, 11 of
+1,400 rules passed training and zero passed validation. Strategy 56 therefore
+does not install a static side, category, price-band, or settlement-horizon bet.
+
+Strategy 56 also removes the last emotion-driven sizing path. Agent mood and
+leaderboard urgency remain visible in reports, but neither can increase capital.
+A positive peer signal receives at most a 5% sizing lift, and only when both the
+agent's realized-trade cohort and the independent walk-forward market cohort are
+already promoted. One learner, popularity, or urgency alone leaves size at 1.00x.
 
 Run `npm run evaluate:liquidity` to inspect live reward-scoring markets using
 both public outcome books. It recomputes the minimum-size-adjusted midpoint,
@@ -100,7 +116,7 @@ and 24-hour horizons. Zero rules passed training, validation, or untouched
 holdout. At three hours, the broad 0.5-cent quote-gap rule still lost 0.63% per
 event in holdout; only 0.61% of observations completed both legs while 23.33%
 produced adverse one-leg inventory. Wider quotes traded less but remained
-negative. Strategy 55 therefore does not risk paper capital on an unproven
+negative. Strategy 56 therefore does not risk paper capital on an unproven
 maker rule.
 
 Value Hunter now tracks up to six zero-capital shadow quote pairs selected by

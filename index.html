@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 55 · build 66</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 56 · build 67</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 66 active:</b> directional and sports-favorite rules failed clean holdout tests. The maker learner now measures both public order books, qualifying depth, competition, and the $1 reward payout floor before starting a zero-capital observation. Estimated rewards remain separate from P&amp;L, and capital stays disabled until current category, spread, and reward-yield cohorts independently pass. Offline snapshots can value positions but cannot invent fills. This remains paper trading; profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 67 active:</b> a corrected 5,000-market settlement audit rejected every static side, price, category, and horizon rule after event-overlap and stale-price controls. Emotion is commentary only and can never increase stake size; a small peer boost requires independent promotion from both personal outcomes and the shared walk-forward ledger. Reward-book maker observations remain zero-capital until current cohorts prove positive net outcomes. Offline snapshots can value positions but cannot invent fills. This remains paper trading; profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 66 · Adaptive strategy 55 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 67 · Adaptive strategy 56 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,9 +774,9 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 66;
-const SUGGESTION_ENGINE_VERSION = 55;
-const PREVIOUS_STRATEGY_VERSION = 54;
+const BUILD_VERSION = 67;
+const SUGGESTION_ENGINE_VERSION = 56;
+const PREVIOUS_STRATEGY_VERSION = 55;
 const LEGACY_BUILD_STRATEGY_LINEAGE = Object.freeze({40:40,41:40});
 function normalizedStrategyVersion(value){
   const version=Number(value||0);
@@ -2048,6 +2048,9 @@ function emotionalState(ret,trail,trend,rank){
   if(ret<0)return {mood:"restless",urgency:0.58,label:"Need progress"};
   return {mood:"focused",urgency:0.50,label:"Focused"};
 }
+function peerEvidenceSizeMultiplier(s){
+  return Number(s&&s.peer_boost||0)>0&&s&&s.learning_state==="promoted"&&s.market_learning_state==="promoted"?1.05:1;
+}
 function adaptiveDecision(cfg,p,rank,total,leaderEq,marketLearning=null){
   const eq=equity(p),ret=(eq/p.starting_balance-1)*100,trail=((leaderEq||eq)-eq)/p.starting_balance*100;
   const positionValue=(p.positions||[]).reduce((sum,pos)=>sum+Number(pos.value||pos.shares*pos.current_price||0),0);
@@ -2848,7 +2851,7 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
     else if(cfg.flat){frac=d.maxFrac;}
     else{const base=(s.peer_conviction/100)*Math.min(1,effectiveEntryEdge(s)/EDGE_SCALE);frac=Math.min(d.maxFrac,cfg.kelly*base);}
     if(s.peer_boost<0)frac*=0.82;
-    if(s.peer_boost>0&&decision&&decision.urgency>0.65)frac*=1.08;
+    frac*=peerEvidenceSizeMultiplier(s);
     frac*=Number(s.learning_multiplier||1);
     let stake=Math.min(eq*frac,investable);
     const riskBudgetPct=tradeLossBudgetPct(cfg,s);
@@ -4893,6 +4896,7 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
   buildAdaptiveProfile,
   historicalOpportunityPrior,
   learnedOpportunity,
+  peerEvidenceSizeMultiplier,
   tradeLossBudgetPct,
   boundedStakeForRisk,
   historicalPriceFeatures,
@@ -4915,7 +4919,8 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
     makerTouchSource:"Polymarket CLOB batch price history",makerOutcomeLimit:MAKER_OUTCOME_LIMIT,makerMinimumCohortAttempts:MAKER_MIN_COHORT_ATTEMPTS,
     makerMinimumPromotionLocks:MAKER_MIN_PROMOTION_LOCKS,makerMaximumLearningMultiplier:1.25,makerCapitalExplorationPct:0,hypotheticalRewardsCredited:false,
     makerCompetitionSource:"shared public CLOB order-book audit",makerPromotionCohorts:["category","spread","reward-yield"],makerRewardPayoutMinimum:1,
-    historicalPrior:"All tested directional and sports-favorite rules failed clean validation and remain observation-only; live-priced complete negative-risk bundles may trade; paired maker quotes require a public-book reward audit and remain zero-capital observations until current category, spread, and reward-yield cohorts independently promote"}),
+    emotionCanIncreaseSize:false,dualPromotionPeerBoostPct:5,
+    historicalPrior:"All tested directional, sports-favorite, and corrected settlement-calibration rules failed clean validation and remain observation-only; live-priced complete negative-risk bundles may trade; paired maker quotes require a public-book reward audit and remain zero-capital observations until current category, spread, and reward-yield cohorts independently promote"}),
 });
 function runEngineSelfTest(){
   const market=(overrides={})=>Object.assign({
@@ -5049,6 +5054,9 @@ function runEngineSelfTest(){
   const lossProfile=buildAdaptiveProfile(lossLearner);
   const lossOpportunity=learnedOpportunity(AGENTS[0],lossLearner,{market_id:lossMarketId,signal_type:"trend",quality:"confirmed",category:"Politics",side:"YES",entry_price:0.42},lossProfile);
   const lossDecision=adaptiveDecision(AGENTS[0],lossLearner,5,10,STARTING_BALANCE);
+  const urgencyWithoutEvidenceMultiplier=peerEvidenceSizeMultiplier({peer_boost:4,learning_state:"observing",market_learning_state:"observing"});
+  const urgencyWithOnePromotionMultiplier=peerEvidenceSizeMultiplier({peer_boost:4,learning_state:"promoted",market_learning_state:"observing"});
+  const dualPromotionMultiplier=peerEvidenceSizeMultiplier({peer_boost:4,learning_state:"promoted",market_learning_state:"promoted"});
   const legacyLossLearner=defaultPortfolio();
   for(let i=0;i<4;i++)legacyLossLearner.closed.push({strategy_version:PREVIOUS_STRATEGY_VERSION,signal_type:"trend",quality:"confirmed",category:"Politics",side:"YES",entry_price:0.42,original_cost:100,
     realized_pnl:-50,opened_at:hoursAgo(72+i),closed_at:closedAt});
@@ -5310,6 +5318,8 @@ function runEngineSelfTest(){
       stableNegativeIsBlocked:stableNegativeCalibration.state==="demoted"&&!stableNegativeCalibration.allowed,
       noisyEvidenceStaysNeutral:noisyCalibration.state==="observing"&&noisyCalibration.multiplier>=0.99&&noisyCalibration.multiplier<=1.01,
       blocksConfirmedLosingRegime:!lossOpportunity.allowed,containmentMode:lossDecision.mode,containmentMaxNew:lossDecision.maxNew,
+      urgencyCannotIncreaseSize:urgencyWithoutEvidenceMultiplier===1&&urgencyWithOnePromotionMultiplier===1,
+      dualIndependentPromotionAllowsBoundedPeerBoost:dualPromotionMultiplier===1.05,
       legacyLossDoesNotFreezeCurrentEngine:legacyLossDecision.mode!=="Loss Regime Containment"},
     riskBudget:{core:coreRiskBudget,aggressiveGap:aggressiveGapBudget,blocksExactRange:intervalContract.jump_risk&&!intervalContract.trade_ready,
       blocksPathDependentBarrier:pathBarrierContract.jump_risk&&!pathBarrierContract.trade_ready,
