@@ -17,14 +17,27 @@ function withBlobAuth(options = {}) {
   return token ? { ...options, token } : options;
 }
 
+export function providerErrorCode(error) {
+  if (!error) return "not_configured_or_not_attempted";
+  const message = String(error.message || error).toLowerCase();
+  if (message.includes("invalid") && (message.includes("url") || message.includes("connection string"))) return "invalid_connection_string";
+  if (message.includes("password authentication") || message.includes("unauthorized") || /\b(?:401|403)\b/.test(message)) return "authorization_failed";
+  if (message.includes("enotfound") || message.includes("getaddrinfo") || message.includes("dns")) return "dns_failed";
+  if (message.includes("timeout") || message.includes("timed out")) return "timeout";
+  if (message.includes("fetch failed") || message.includes("connection") || message.includes("connect")) return "connection_failed";
+  return "unavailable";
+}
+
 async function readJsonBlob() {
   let databaseAvailable = false;
+  let databaseError = null;
   if (hasDatabase()) {
     try {
       const row = await readSharedAppState(DATABASE_STATE_KEY);
       databaseAvailable = true;
       if (row && row.payload) return row.payload;
-    } catch {
+    } catch (err) {
+      databaseError = err;
       databaseAvailable = false;
     }
   }
@@ -44,7 +57,14 @@ async function readJsonBlob() {
     if (!primaryError) primaryError = err;
   }
 
-  if (primaryError && !databaseAvailable) throw primaryError;
+  if (primaryError && !databaseAvailable) {
+    const error = new Error("Shared state providers are unavailable");
+    error.providers = {
+      database: hasDatabase() ? providerErrorCode(databaseError) : "not_configured",
+      blob: providerErrorCode(primaryError),
+    };
+    throw error;
+  }
   return null;
 }
 
@@ -155,7 +175,7 @@ function compactPortfolio(p) {
   return out;
 }
 
-function compactAgentState(st) {
+export function compactAgentState(st) {
   if (!st || typeof st !== "object") return st;
   const out = { ...st, agents: {} };
   for (const id of AGENT_IDS) {
@@ -165,6 +185,7 @@ function compactAgentState(st) {
     out.signal_ledger = {
       pending: Array.isArray(st.signal_ledger.pending) ? st.signal_ledger.pending.slice(-SIGNAL_LEDGER_LIMITS.pending) : [],
       outcomes: Array.isArray(st.signal_ledger.outcomes) ? st.signal_ledger.outcomes.slice(-SIGNAL_LEDGER_LIMITS.outcomes) : [],
+      expired_ungraded: Number(st.signal_ledger.expired_ungraded || 0),
     };
   }
   delete out.whales;
@@ -172,7 +193,7 @@ function compactAgentState(st) {
   return out;
 }
 
-function compactSuggestion(s) {
+export function compactSuggestion(s) {
   if (!s || typeof s !== "object") return s;
   return {
     market_id: s.market_id, question: s.question, event: s.event, url: s.url, category: s.category,
@@ -182,7 +203,13 @@ function compactSuggestion(s) {
     evidence_score: s.evidence_score, evidence_source_count: s.evidence_source_count, quality: s.quality,
     conviction: s.conviction, volume: s.volume, volume_24hr: s.volume_24hr, liquidity: s.liquidity,
     spread: s.spread, price_change_1h: s.price_change_1h, price_change_1d: s.price_change_1d, price_change_1w: s.price_change_1w,
-    momentum_strength: s.momentum_strength, trade_ready: s.trade_ready, watch_only: s.watch_only, jump_risk: s.jump_risk,
+    momentum_strength: s.momentum_strength, signal_strength: s.signal_strength, signal_confidence: s.signal_confidence,
+    signal_type: s.signal_type, trade_ready: s.trade_ready, entry_candidate: s.entry_candidate,
+    audited_observation_only: s.audited_observation_only, adaptive_promotion: s.adaptive_promotion,
+    watch_only: s.watch_only, jump_risk: s.jump_risk, requires_live: s.requires_live,
+    bundle_id: s.bundle_id, bundle_side: s.bundle_side, bundle_cost_per_unit: s.bundle_cost_per_unit,
+    bundle_payout_per_unit: s.bundle_payout_per_unit, bundle_net_profit_per_unit: s.bundle_net_profit_per_unit,
+    bundle_legs: s.bundle_legs,
     days_to_resolution: s.days_to_resolution, drivers: s.drivers, rationale: s.rationale,
   };
 }
@@ -243,6 +270,7 @@ export default async function handler(req, res) {
           state: null,
           degraded: true,
           error: err && err.message ? err.message : "Cloud state provider unavailable",
+          providers: err && err.providers ? err.providers : undefined,
         });
       }
     }
@@ -261,6 +289,7 @@ export default async function handler(req, res) {
           degraded: true,
           retryable: true,
           error: err && err.message ? err.message : "Cloud state provider unavailable",
+          providers: err && err.providers ? err.providers : undefined,
         });
       }
       const incomingItems = { ...body.items };

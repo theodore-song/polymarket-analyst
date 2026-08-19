@@ -1,11 +1,31 @@
 import { neon } from "@neondatabase/serverless";
 
-let sqlClient;
+const sqlClients = new Map();
 let schemaReady;
-let sharedStateSchemaReady;
+const sharedStateSchemasReady = new Set();
+
+export function normalizeDatabaseUrl(raw) {
+  let value = String(raw || "").trim();
+  const assignment = value.match(/^(?:DATABASE_URL|NEON_DATABASE_URL)\s*=\s*([\s\S]+)$/i);
+  if (assignment) value = assignment[1].trim();
+  const psql = value.match(/^psql\s+(['"])([\s\S]+)\1\s*$/i);
+  if (psql) value = psql[2].trim();
+  else if ((value.startsWith("'") && value.endsWith("'")) || (value.startsWith('"') && value.endsWith('"'))) {
+    value = value.slice(1, -1).trim();
+  }
+  return value;
+}
+
+export function databaseUrls() {
+  const candidates = [process.env.DATABASE_URL, process.env.NEON_DATABASE_URL]
+    .map(normalizeDatabaseUrl).filter(Boolean);
+  const ordered = [...candidates.filter(value => /^postgres(?:ql)?:\/\//i.test(value)),
+    ...candidates.filter(value => !/^postgres(?:ql)?:\/\//i.test(value))];
+  return [...new Set(ordered)];
+}
 
 export function databaseUrl() {
-  return process.env.DATABASE_URL || process.env.NEON_DATABASE_URL || "";
+  return databaseUrls()[0] || "";
 }
 
 export function hasDatabase() {
@@ -13,17 +33,18 @@ export function hasDatabase() {
 }
 
 export function sql() {
-  if (!sqlClient) {
-    const url = databaseUrl();
-    if (!url) throw new Error("Database is not configured");
-    sqlClient = neon(url);
-  }
-  return sqlClient;
+  const url = databaseUrl();
+  if (!url) throw new Error("Database is not configured");
+  return sqlForUrl(url);
 }
 
-async function ensureSharedStateSchema() {
-  if (sharedStateSchemaReady) return;
-  const db = sql();
+function sqlForUrl(url) {
+  if (!sqlClients.has(url)) sqlClients.set(url, neon(url));
+  return sqlClients.get(url);
+}
+
+async function ensureSharedStateSchema(db, url) {
+  if (sharedStateSchemasReady.has(url)) return;
   await db`
     create table if not exists shared_app_state (
       state_key text primary key,
@@ -31,33 +52,50 @@ async function ensureSharedStateSchema() {
       updated_at timestamptz not null default now()
     )
   `;
-  sharedStateSchemaReady = true;
+  sharedStateSchemasReady.add(url);
+}
+
+async function withSharedStateDatabase(operation, acceptResult = () => true) {
+  let lastError, lastResult, hadSuccess = false;
+  for (const url of databaseUrls()) {
+    try {
+      const db = sqlForUrl(url);
+      await ensureSharedStateSchema(db, url);
+      lastResult = await operation(db);
+      hadSuccess = true;
+      if (acceptResult(lastResult)) return lastResult;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (hadSuccess) return lastResult;
+  throw lastError || new Error("Database is not configured");
 }
 
 export async function readSharedAppState(stateKey) {
-  await ensureSharedStateSchema();
-  const db = sql();
-  const rows = await db`
-    select payload, updated_at
-    from shared_app_state
-    where state_key = ${stateKey}
-    limit 1
-  `;
-  return rows[0] || null;
+  return withSharedStateDatabase(async db => {
+    const rows = await db`
+      select payload, updated_at
+      from shared_app_state
+      where state_key = ${stateKey}
+      limit 1
+    `;
+    return rows[0] || null;
+  }, result => result !== null);
 }
 
 export async function writeSharedAppState(stateKey, payload) {
-  await ensureSharedStateSchema();
-  const db = sql();
-  const rows = await db`
-    insert into shared_app_state (state_key, payload, updated_at)
-    values (${stateKey}, ${JSON.stringify(payload)}::jsonb, now())
-    on conflict (state_key) do update set
-      payload = excluded.payload,
-      updated_at = now()
-    returning updated_at
-  `;
-  return rows[0] || null;
+  return withSharedStateDatabase(async db => {
+    const rows = await db`
+      insert into shared_app_state (state_key, payload, updated_at)
+      values (${stateKey}, ${JSON.stringify(payload)}::jsonb, now())
+      on conflict (state_key) do update set
+        payload = excluded.payload,
+        updated_at = now()
+      returning updated_at
+    `;
+    return rows[0] || null;
+  });
 }
 
 export async function ensureSchema() {

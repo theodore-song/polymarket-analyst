@@ -15,12 +15,12 @@ https://polymarket-site-eta.vercel.app/personal.html
 
 The site fetches live Polymarket markets, generates agent suggestions, lets you
 run frequent paper cycles, and syncs the shared arena state through Neon or
-Vercel Blob. Build 57 also installs an offline app shell and caches timestamped
+Vercel Blob. Build 58 also installs an offline app shell and caches timestamped
 market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
 
-Build 57 ranks the competition by each agent's return since Strategy 50 began.
+Build 58 ranks the competition by each agent's return since Strategy 50 began.
 Historical replay equity remains visible for context, but it no longer makes an
 agent look like the current leader when the live adaptive strategy is losing.
 
@@ -114,7 +114,7 @@ feature views before repeatable positive evidence can increase size or repeatabl
 negative evidence can block a new entry. Mixed evidence stays close to neutral
 instead of being mistaken for an edge.
 
-Build 57 enforces the documented offline boundary end to end. Cached snapshots
+Build 58 enforces the documented offline boundary end to end. Cached snapshots
 under 90 minutes old may continue paper execution. Older snapshots remain usable
 for valuation and chart snapshots for up to 24 hours, but cannot trigger entries,
 stop-losses, gain-stops, risk rebalances, settlements, or policy exits. Network
@@ -127,10 +127,17 @@ adaptive baselines, pending signal grades, and trade evidence remain in one stra
 lineage until the actual entry, sizing, or exit logic changes. Legacy build 40 and 41
 records are migrated into the same strategy lineage without losing evidence.
 
-Build 57 independently refreshes markets for matured pending signals that have
+Build 58 independently refreshes markets for matured pending signals that have
 left the current top-500 activity scan. Unavailable markets remain queued for a
 bounded retry window. This prevents activity-rank survivorship from deciding
 which wins and losses reach the adaptive calibration ledger.
+
+Build 58 also allocates the 300 pending observation slots by evidence coverage.
+Under-sampled signal/side/category cohorts are observed first, followed by
+under-sampled independent events and market sides, with conviction used only as
+a later tie-breaker. This prevents the same popular contracts from monopolizing
+the ledger and gives the learner a realistic path to promote or reject more
+diverse cohorts.
 
 Strategy 50 coordinates high-risk exploration globally. Near-term, extreme-price,
 and other gap-prone positions may be held materially by only one agent, while
@@ -225,7 +232,13 @@ Pick one — all give you a public URL:
 Use `.env.example` as the setup template.
 
 - `DATABASE_URL` or `NEON_DATABASE_URL` enables Neon-backed shared state;
-  `BLOB_READ_WRITE_TOKEN` is the fallback provider.
+  `BLOB_READ_WRITE_TOKEN` is the fallback provider. The backend accepts raw
+  Postgres URLs, quoted URLs, `DATABASE_URL=...`, and Neon dashboard
+  `psql 'postgresql://...'` copy formats, and prefers a syntactically valid
+  alias if the primary value is malformed. Shared-state reads and writes also
+  fail over across distinct configured database URLs when one has stale
+  credentials or points at an empty project. `/api/state` reports only
+  sanitized provider error codes when all stores are unavailable.
 - `ACCOUNT_SESSION_SECRET` signs cloud paper-account sessions. If omitted, the
   app falls back to the existing server secret/token, but production should use
   a dedicated value.
