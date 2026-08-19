@@ -13,7 +13,7 @@ const originalNeonUrl = process.env.NEON_DATABASE_URL;
 process.env.DATABASE_URL = "not-a-postgres-url";
 process.env.NEON_DATABASE_URL = "postgresql://alias:pass@example.test/db";
 assert.equal(databaseUrl(), process.env.NEON_DATABASE_URL);
-assert.deepEqual(databaseUrls(), [process.env.NEON_DATABASE_URL, "not-a-postgres-url"]);
+assert.deepEqual(databaseUrls(), [process.env.NEON_DATABASE_URL]);
 process.env.DATABASE_URL = "postgresql://stale:pass@example.test/db";
 assert.deepEqual(databaseUrls(), [process.env.DATABASE_URL, process.env.NEON_DATABASE_URL]);
 if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL;
@@ -40,5 +40,6 @@ const compactedState = compactAgentState({
 assert.equal(compactedState.signal_ledger.expired_ungraded, 7);
 assert.equal(providerErrorCode(new Error("403 Forbidden")), "authorization_failed");
 assert.equal(providerErrorCode(new Error("invalid connection string")), "invalid_connection_string");
+assert.equal(providerErrorCode(Object.assign(new Error("database rejected login"), { code: "28P01" })), "authorization_failed");
 
 console.log("server state tests passed");

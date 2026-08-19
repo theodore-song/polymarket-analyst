@@ -19,9 +19,8 @@ export function normalizeDatabaseUrl(raw) {
 export function databaseUrls() {
   const candidates = [process.env.DATABASE_URL, process.env.NEON_DATABASE_URL]
     .map(normalizeDatabaseUrl).filter(Boolean);
-  const ordered = [...candidates.filter(value => /^postgres(?:ql)?:\/\//i.test(value)),
-    ...candidates.filter(value => !/^postgres(?:ql)?:\/\//i.test(value))];
-  return [...new Set(ordered)];
+  const valid = candidates.filter(value => /^postgres(?:ql)?:\/\//i.test(value));
+  return [...new Set(valid.length ? valid : candidates)];
 }
 
 export function databaseUrl() {

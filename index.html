@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 50 · build 58</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 50 · build 59</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 58 active:</b> unproven directional signals train the event-clustered learner without risking cash. New observations prioritize under-sampled strategy cohorts and independent events before repeats. Cohorts can trade only after positive promotion. Live-priced complete YES or NO negative-risk bundles may trade when their worst-case payout remains positive after estimated costs; cached bundle prices never open positions. This remains paper trading; profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 59 active:</b> unproven directional signals train the event-clustered learner without risking cash. New observations prioritize under-sampled strategy cohorts and independent events before repeats, while shared state normalizes and fails over across configured Neon URLs. Cohorts can trade only after positive promotion. Live-priced complete YES or NO negative-risk bundles may trade when their worst-case payout remains positive after estimated costs; cached bundle prices never open positions. This remains paper trading; profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 58 · Adaptive strategy 50 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build 59 · Adaptive strategy 50 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 58;
+const BUILD_VERSION = 59;
 const SUGGESTION_ENGINE_VERSION = 50;
 const PREVIOUS_STRATEGY_VERSION = 49;
 const LEGACY_BUILD_STRATEGY_LINEAGE = Object.freeze({40:40,41:40});
@@ -4737,11 +4737,11 @@ function runEngineSelfTest(){
     minConv:0,maxNew:1,maxFrac:0.04,reserve:0.10,targetExposure:0.60,learning:buildAdaptiveProfile(staleEntryBook),marketLearning:{samples:0,pending:0,buckets:{}},
   },new Set(),{});
   const buildMigrationState=defaultState();
-  buildMigrationState.engine_version=57;buildMigrationState.strategy_version=SUGGESTION_ENGINE_VERSION;
+  buildMigrationState.engine_version=58;buildMigrationState.strategy_version=SUGGESTION_ENGINE_VERSION;
   buildMigrationState.agents.value.engine_baseline={version:SUGGESTION_ENGINE_VERSION,started_at:hoursAgo(2),equity:9876.54};
   reconcileStateVersions(buildMigrationState);
   const strategyMigrationState=defaultState();
-  strategyMigrationState.engine_version=57;strategyMigrationState.strategy_version=PREVIOUS_STRATEGY_VERSION;
+  strategyMigrationState.engine_version=58;strategyMigrationState.strategy_version=PREVIOUS_STRATEGY_VERSION;
   strategyMigrationState.agents.value.cash=9876.54;
   strategyMigrationState.agents.value.engine_baseline={version:PREVIOUS_STRATEGY_VERSION,started_at:hoursAgo(2),equity:10000};
   reconcileStateVersions(strategyMigrationState);

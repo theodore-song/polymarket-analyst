@@ -19,7 +19,13 @@ function withBlobAuth(options = {}) {
 
 export function providerErrorCode(error) {
   if (!error) return "not_configured_or_not_attempted";
+  const code = String(error.code || error.cause && error.cause.code || "").toUpperCase();
   const message = String(error.message || error).toLowerCase();
+  if (code === "28P01" || code === "28000") return "authorization_failed";
+  if (code === "3D000") return "database_not_found";
+  if (code.startsWith("08")) return "connection_failed";
+  if (code === "ENOTFOUND" || code === "EAI_AGAIN") return "dns_failed";
+  if (code === "ETIMEDOUT" || code === "UND_ERR_CONNECT_TIMEOUT") return "timeout";
   if (message.includes("invalid") && (message.includes("url") || message.includes("connection string"))) return "invalid_connection_string";
   if (message.includes("password authentication") || message.includes("unauthorized") || /\b(?:401|403)\b/.test(message)) return "authorization_failed";
   if (message.includes("enotfound") || message.includes("getaddrinfo") || message.includes("dns")) return "dns_failed";
