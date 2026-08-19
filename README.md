@@ -15,12 +15,12 @@ https://polymarket-site-eta.vercel.app/personal.html
 
 The site fetches live Polymarket markets, generates agent suggestions, lets you
 run frequent paper cycles, and syncs the shared arena state through Neon or
-Vercel Blob. Build 60 also installs an offline app shell and caches timestamped
+Vercel Blob. Build 61 also installs an offline app shell and caches timestamped
 market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
 
-Build 60 ranks the competition by each agent's return since Strategy 50 began.
+Build 61 ranks the competition by each agent's return since Strategy 50 began.
 Historical replay equity remains visible for context, but it no longer makes an
 agent look like the current leader when the live adaptive strategy is losing.
 
@@ -114,7 +114,7 @@ feature views before repeatable positive evidence can increase size or repeatabl
 negative evidence can block a new entry. Mixed evidence stays close to neutral
 instead of being mistaken for an edge.
 
-Build 60 enforces the documented offline boundary end to end. Cached snapshots
+Build 61 enforces the documented offline boundary end to end. Cached snapshots
 under 90 minutes old may continue paper execution. Older snapshots remain usable
 for valuation and chart snapshots for up to 24 hours, but cannot trigger entries,
 stop-losses, gain-stops, risk rebalances, settlements, or policy exits. Network
@@ -127,22 +127,23 @@ adaptive baselines, pending signal grades, and trade evidence remain in one stra
 lineage until the actual entry, sizing, or exit logic changes. Legacy build 40 and 41
 records are migrated into the same strategy lineage without losing evidence.
 
-Build 60 independently refreshes markets for matured pending signals that have
+Build 61 independently refreshes markets for matured pending signals that have
 left the current top-500 activity scan. Unavailable markets remain queued for a
 bounded retry window. This prevents activity-rank survivorship from deciding
 which wins and losses reach the adaptive calibration ledger.
 
-Build 60 also allocates the 300 pending observation slots by evidence coverage.
+Build 61 also allocates the 300 pending observation slots by evidence coverage.
 Under-sampled signal/side/category cohorts are observed first, followed by
 under-sampled independent events and market sides, with conviction used only as
 a later tie-breaker. This prevents the same popular contracts from monopolizing
 the ledger and gives the learner a realistic path to promote or reject more
 diverse cohorts.
 
-Build 60 retains safe shared-state provider diagnostics from both reads and
+Build 61 retains safe shared-state provider diagnostics from both reads and
 writes. A device now says `local only` when Neon is paused or a Blob credential
 is rejected, instead of presenting a local browser save as a successful
-cross-device sync. Database URLs still fail over across the configured Neon
+cross-device sync. Completed cycle statuses retain that `local only` warning
+until a cloud provider succeeds. Database URLs still fail over across configured Neon
 aliases without exposing credentials in the API response.
 
 Strategy 50 coordinates high-risk exploration globally. Near-term, extreme-price,

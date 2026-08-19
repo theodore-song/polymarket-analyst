@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 60 active:</b> unproven directional signals train the event-clustered learner without risking cash. New observations prioritize under-sampled strategy cohorts and independent events before repeats, while shared state normalizes and fails over across configured Neon URLs. Cloud provider failures now remain visible instead of being mistaken for a successful cross-device save. Cohorts can trade only after positive promotion. Live-priced complete YES or NO negative-risk bundles may trade when their worst-case payout remains positive after estimated costs; cached bundle prices never open positions. This remains paper trading; profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 61 active:</b> unproven directional signals train the event-clustered learner without risking cash. New observations prioritize under-sampled strategy cohorts and independent events before repeats, while shared state normalizes and fails over across configured Neon URLs. Cloud provider failures remain visible after every completed cycle instead of being mistaken for a successful cross-device save. Cohorts can trade only after positive promotion. Live-priced complete YES or NO negative-risk bundles may trade when their worst-case payout remains positive after estimated costs; cached bundle prices never open positions. This remains paper trading; profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 60 · Adaptive strategy 50 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
+    Build 61 · Adaptive strategy 50 · Paper trading only · Live prices from Polymarket's public Gamma API · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 60;
+const BUILD_VERSION = 61;
 const SUGGESTION_ENGINE_VERSION = 50;
 const PREVIOUS_STRATEGY_VERSION = 49;
 const LEGACY_BUILD_STRATEGY_LINEAGE = Object.freeze({40:40,41:40});
@@ -946,7 +946,14 @@ function toast(msg){
   t.textContent=msg;t.classList.add("show");
   clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove("show"),3600);
 }
-function setStatus(text,live){$("statusText").textContent=text;$("statusDot").classList.toggle("live",!!live);}
+function setStatus(text,live){
+  const health=window.PMA_CLOUD_STATE_HEALTH;
+  if(!live&&health&&health.degraded&&!String(text).includes("local only")&&!String(text).includes("cloud sync")){
+    const label=window.PMA_CLOUD_STATUS_LABEL;
+    text=typeof label==="function"?label(text,health.providers):`${text} · local only`;
+  }
+  $("statusText").textContent=text;$("statusDot").classList.toggle("live",!!live);
+}
 
 async function fetchWithTimeout(url,options={},timeoutMs=NETWORK_REQUEST_TIMEOUT_MS){
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);
@@ -1558,7 +1565,7 @@ function localOnlyStatus(base,providerOverride=null){
   const blobStatus=providers.blob&&providers.blob.status;
   if(dbStatus==="provider_payment_required")return `${base} · local only (Neon paused)`;
   if(blobStatus==="authorization_failed")return `${base} · local only (cloud token invalid)`;
-  return `${base} · saved locally`;
+  return `${base} · local only`;
 }
 window.PMA_CLOUD_STATUS_LABEL=localOnlyStatus;
 async function pushCloudState(force=false){
