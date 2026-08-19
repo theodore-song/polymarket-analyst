@@ -15,7 +15,7 @@ https://polymarket-site-eta.vercel.app/personal.html
 
 The site fetches live Polymarket markets, generates agent suggestions, lets you
 run frequent paper cycles, and syncs the shared arena state through Neon or
-Vercel Blob. Build 69 also installs an offline app shell and caches timestamped
+Vercel Blob. Build 70 also installs an offline app shell and caches timestamped
 market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
@@ -26,7 +26,7 @@ team names, Over/Under, or another pair are rejected instead of being silently
 reinterpreted as Yes/No. The same semantic check applies to complete event
 bundles and the offline evaluators.
 
-Build 69 ranks the competition by each agent's return since Strategy 56 began.
+Build 70 ranks the competition by each agent's return since Strategy 56 began.
 Historical replay equity remains visible for context, but it no longer makes an
 agent look like the current leader when the live adaptive strategy is losing.
 
@@ -60,7 +60,7 @@ cohort can demote it.
 The Build 69 re-audit loaded all 500 requested histories with no failures. The
 six-hour family lost 1.27% net on average across 106 independent events, with
 its full 90% interval below zero; no tested rule was robustly positive at 6,
-12, 24, or 72 hours. Build 69 therefore uses six hours only to stop bad regimes
+12, 24, or 72 hours. Build 70 therefore uses six hours only to stop bad regimes
 sooner. It also closes every stale pre-Strategy-56 directional holding at the
 next fresh mark, including legacy records missing a signal label, while leaving
 complete arbitrage bundles and paired maker inventory under their own accounting.
