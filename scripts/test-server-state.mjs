@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { databaseUrl, databaseUrls, normalizeDatabaseUrl } from "../api/_db.js";
+import { databaseConnectionDiagnostics, databaseUrl, databaseUrls, normalizeDatabaseUrl } from "../api/_db.js";
 import { compactAgentState, compactSuggestion, providerErrorCode } from "../api/state.js";
 
 assert.equal(normalizeDatabaseUrl("psql 'postgresql://user:pass@example.test/db?sslmode=require'"),
@@ -16,6 +16,12 @@ assert.equal(databaseUrl(), process.env.NEON_DATABASE_URL);
 assert.deepEqual(databaseUrls(), [process.env.NEON_DATABASE_URL]);
 process.env.DATABASE_URL = "postgresql://stale:pass@example.test/db";
 assert.deepEqual(databaseUrls(), [process.env.DATABASE_URL, process.env.NEON_DATABASE_URL]);
+const diagnostics = databaseConnectionDiagnostics();
+assert.equal(diagnostics.candidates, 2);
+assert.equal(diagnostics.urls[0].valid_postgres_url, true);
+assert.equal(diagnostics.urls[0].has_username, true);
+assert.equal(diagnostics.urls[0].has_password, true);
+assert.equal(diagnostics.urls[0].has_database_name, true);
 if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL;
 else process.env.DATABASE_URL = originalDatabaseUrl;
 if (originalNeonUrl === undefined) delete process.env.NEON_DATABASE_URL;

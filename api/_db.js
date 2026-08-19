@@ -27,6 +27,30 @@ export function databaseUrl() {
   return databaseUrls()[0] || "";
 }
 
+export function databaseConnectionDiagnostics() {
+  const candidates = databaseUrls();
+  return {
+    candidates: candidates.length,
+    urls: candidates.map(value => {
+      try {
+        const parsed = new URL(value);
+        return {
+          valid_postgres_url: /^postgres(?:ql)?:$/i.test(parsed.protocol),
+          neon_host: /(?:^|\.)neon\.tech$/i.test(parsed.hostname),
+          pooled_host: /-pooler(?:\.|$)/i.test(parsed.hostname),
+          has_username: Boolean(parsed.username),
+          has_password: Boolean(parsed.password),
+          has_database_name: parsed.pathname.length > 1,
+          sslmode: parsed.searchParams.get("sslmode") || "missing",
+          channel_binding: parsed.searchParams.get("channel_binding") || "missing",
+        };
+      } catch {
+        return { valid_postgres_url: false };
+      }
+    }),
+  };
+}
+
 export function hasDatabase() {
   return Boolean(databaseUrl());
 }

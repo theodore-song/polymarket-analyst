@@ -1,5 +1,5 @@
 import { get, list, put } from "@vercel/blob";
-import { hasDatabase, readSharedAppState, writeSharedAppState } from "./_db.js";
+import { databaseConnectionDiagnostics, hasDatabase, readSharedAppState, writeSharedAppState } from "./_db.js";
 
 const STATE_PATH = process.env.PMA_STATE_PATH || "shared/state.json";
 const STATE_VERSION_PREFIX = process.env.PMA_STATE_VERSION_PREFIX || "shared/state-versions/";
@@ -34,6 +34,16 @@ export function providerErrorCode(error) {
   return "unavailable";
 }
 
+function providerErrorMetadata(error) {
+  const name = String(error && error.name || "Error");
+  const code = String(error && (error.code || error.cause && error.cause.code) || "").toUpperCase();
+  return {
+    status: providerErrorCode(error),
+    error_class: /^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(name) ? name : "Error",
+    error_code: /^[A-Z0-9_]{1,32}$/.test(code) ? code : "none",
+  };
+}
+
 async function readJsonBlob() {
   let databaseAvailable = false;
   let databaseError = null;
@@ -66,8 +76,10 @@ async function readJsonBlob() {
   if (primaryError && !databaseAvailable) {
     const error = new Error("Shared state providers are unavailable");
     error.providers = {
-      database: hasDatabase() ? providerErrorCode(databaseError) : "not_configured",
-      blob: providerErrorCode(primaryError),
+      database: hasDatabase()
+        ? { ...providerErrorMetadata(databaseError), ...databaseConnectionDiagnostics() }
+        : { status: "not_configured", candidates: 0, urls: [] },
+      blob: providerErrorMetadata(primaryError),
     };
     throw error;
   }
