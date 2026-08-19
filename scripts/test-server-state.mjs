@@ -47,5 +47,10 @@ assert.equal(compactedState.signal_ledger.expired_ungraded, 7);
 assert.equal(providerErrorCode(new Error("403 Forbidden")), "authorization_failed");
 assert.equal(providerErrorCode(new Error("invalid connection string")), "invalid_connection_string");
 assert.equal(providerErrorCode(Object.assign(new Error("database rejected login"), { code: "28P01" })), "authorization_failed");
+const nestedFetchError = Object.assign(new Error("Error connecting to database"), {
+  name: "NeonDbError",
+  sourceError: Object.assign(new TypeError("fetch failed"), { cause: { code: "ENOTFOUND" } }),
+});
+assert.equal(providerErrorCode(nestedFetchError), "dns_failed");
 
 console.log("server state tests passed");

@@ -19,8 +19,9 @@ function withBlobAuth(options = {}) {
 
 export function providerErrorCode(error) {
   if (!error) return "not_configured_or_not_attempted";
-  const code = String(error.code || error.cause && error.cause.code || "").toUpperCase();
-  const message = String(error.message || error).toLowerCase();
+  const nested = error.sourceError || error.cause;
+  const code = String(error.code || nested && (nested.code || nested.cause && nested.cause.code) || "").toUpperCase();
+  const message = `${String(error.message || error)} ${String(nested && nested.message || "")}`.toLowerCase();
   if (code === "28P01" || code === "28000") return "authorization_failed";
   if (code === "3D000") return "database_not_found";
   if (code.startsWith("08")) return "connection_failed";
@@ -35,12 +36,17 @@ export function providerErrorCode(error) {
 }
 
 function providerErrorMetadata(error) {
+  const nested = error && (error.sourceError || error.cause);
   const name = String(error && error.name || "Error");
-  const code = String(error && (error.code || error.cause && error.cause.code) || "").toUpperCase();
+  const nestedName = String(nested && nested.name || "none");
+  const code = String(error && (error.code || nested && (nested.code || nested.cause && nested.cause.code)) || "").toUpperCase();
+  const httpStatus = String(error && error.message || "").match(/HTTP status\s+(\d{3})/i);
   return {
     status: providerErrorCode(error),
     error_class: /^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(name) ? name : "Error",
+    source_error_class: /^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(nestedName) ? nestedName : "none",
     error_code: /^[A-Z0-9_]{1,32}$/.test(code) ? code : "none",
+    http_status: httpStatus ? Number(httpStatus[1]) : null,
   };
 }
 
