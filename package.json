@@ -8,6 +8,7 @@
     "evaluate:maker": "node scripts/evaluate-maker.mjs",
     "evaluate:signals": "node scripts/evaluate-signals.mjs",
     "evaluate:settlements": "node scripts/evaluate-settlements.mjs",
+    "evaluate:sports-favorites": "node scripts/evaluate-sports-favorites.mjs",
     "test:server-state": "node scripts/test-server-state.mjs"
   },
   "dependencies": {

@@ -1,10 +1,13 @@
 const GAMMA = "https://gamma-api.polymarket.com";
 const CLOB = "https://clob.polymarket.com";
-const MARKET_LIMIT = Math.max(20, Math.min(500, Number(process.env.SETTLEMENT_MARKETS || 200)));
+const MARKET_LIMIT = Math.max(20, Math.min(3000, Number(process.env.SETTLEMENT_MARKETS || 200)));
 const CONCURRENCY = Math.max(1, Math.min(12, Number(process.env.SETTLEMENT_CONCURRENCY || 6)));
 const HORIZON_DAYS = [...new Set(String(process.env.SETTLEMENT_HORIZONS || "1,3,7,14,30,90").split(",")
   .map(Number).filter((value) => Number.isFinite(value) && value >= 1 && value <= 365))].sort((a, b) => a - b);
 const COST_CENTS = Math.max(0, Math.min(5, Number(process.env.SETTLEMENT_COST_CENTS || 0.5)));
+const SELECTION_ORDER = ["volumeNum", "closedTime", "createdAt", "id"].includes(process.env.SETTLEMENT_ORDER)
+  ? process.env.SETTLEMENT_ORDER : "volumeNum";
+const SELECTION_ASCENDING = String(process.env.SETTLEMENT_ASCENDING || "false").toLowerCase() === "true";
 const DAY = 86400;
 
 function parseJson(value) {
@@ -89,10 +92,12 @@ function confirmedTrendAt(points, target, current) {
 
 async function fetchResolvedMarkets(limit) {
   const raw = [], seen = new Set(), pageSize = 100;
-  for (let offset = 0; raw.length < limit && offset < limit * 3; offset += pageSize) {
-    const params = new URLSearchParams({ closed: "true", order: "volumeNum", ascending: "false",
-      limit: String(pageSize), offset: String(offset) });
-    const page = await fetchJson(`${GAMMA}/markets?${params}`);
+  let cursor = "";
+  while (raw.length < limit) {
+    const params = new URLSearchParams({ closed: "true", order: SELECTION_ORDER, ascending: String(SELECTION_ASCENDING),
+      limit: String(pageSize) });
+    if (cursor) params.set("after_cursor", cursor);
+    const payload = await fetchJson(`${GAMMA}/markets/keyset?${params}`), page = payload?.markets;
     if (!Array.isArray(page) || !page.length) break;
     for (const market of page) {
       const id = String(market.id || ""), labels = parseJson(market.outcomes).map((outcome) => String(outcome).trim().toLowerCase());
@@ -107,7 +112,8 @@ async function fetchResolvedMarkets(limit) {
         volume: Number(market.volumeNum || market.volume || 0) });
       if (raw.length >= limit) break;
     }
-    if (page.length < pageSize) break;
+    if (page.length < pageSize || !payload.next_cursor || payload.next_cursor === cursor) break;
+    cursor = payload.next_cursor;
   }
   return raw;
 }
@@ -226,6 +232,7 @@ const report = {
   marketsWithHistory: successful.length, failures: histories.filter((result) => result?.error).length,
   methodology: { horizonDays: HORIZON_DAYS, estimatedRoundTripCostCents: COST_CENTS,
     historyFidelityMinutes: 1440,
+    marketSelection: `${SELECTION_ORDER} ${SELECTION_ASCENDING ? "ascending" : "descending"}`,
     clusterUnit: "event",
     note: "Each rule uses only daily prices available at or before the decision horizon and a subsequently published binary settlement. Trend replays require aligned one-day and one-week direction under the production move bounds. Confidence bounds cluster related markets by event. Markets are selected by resolved volume, so results still carry historical-selection and execution-model limitations." },
   horizons: Object.fromEntries(HORIZON_DAYS.map((horizon) => {

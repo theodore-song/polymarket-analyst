@@ -15,7 +15,7 @@ https://polymarket-site-eta.vercel.app/personal.html
 
 The site fetches live Polymarket markets, generates agent suggestions, lets you
 run frequent paper cycles, and syncs the shared arena state through Neon or
-Vercel Blob. Build 65 also installs an offline app shell and caches timestamped
+Vercel Blob. Build 66 also installs an offline app shell and caches timestamped
 market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
@@ -26,7 +26,7 @@ team names, Over/Under, or another pair are rejected instead of being silently
 reinterpreted as Yes/No. The same semantic check applies to complete event
 bundles and the offline evaluators.
 
-Build 65 ranks the competition by each agent's return since Strategy 54 began.
+Build 66 ranks the competition by each agent's return since Strategy 55 began.
 Historical replay equity remains visible for context, but it no longer makes an
 agent look like the current leader when the live adaptive strategy is losing.
 
@@ -37,7 +37,7 @@ The learner shrinks small samples toward neutral, caps sizing changes to
 15% of candidates for deterministic exploration so a stale regime cannot become
 permanent.
 
-Strategy 54 treats each binary stake as capable of falling to zero even when the
+Strategy 55 treats each binary stake as capable of falling to zero even when the
 18% stop cannot fill. New core positions are capped at 2.5%-4% of equity and
 aggressive positions at 3%-5%, with lower limits for near-term, extreme-price,
 reversal, and fast-moving setups. Oversized positions inherited from older
@@ -74,13 +74,23 @@ Run `npm run evaluate:adaptive` for a stricter chronological search across 1,920
 predefined price-action rules. It uses a 60/20/20 train, validation, and holdout
 split and never selects a rule from the holdout period. The August 19 run loaded
 all 300 requested histories and found no directional rule that passed both train
-and validation at either 24 or 72 hours. Strategy 54 therefore keeps directional
+and validation at either 24 or 72 hours. Strategy 55 therefore keeps directional
 signals in the walk-forward observation ledger until current, independent-event
 evidence proves an edge.
 
-Run `npm run evaluate:liquidity` to inspect live reward-scoring markets for
-paired resting YES and NO bids whose combined cost is below the $1 settlement
-payout. Run `npm run evaluate:maker` for the chronological fill-path audit; set
+Run `npm run evaluate:sports-favorites` for the separate pregame favorite audit.
+It anchors decisions to the published game start, rejects stale prices, charges a
+modeled five-cent cost, forms equal-dollar event baskets, and uses a chronological
+60/20/20 split. The clean 3,000-market run produced nine train-pass rules but zero
+validation selections, so Strategy 55 does not promote the apparent sports-favorite
+edge or use the holdout set to rescue it.
+
+Run `npm run evaluate:liquidity` to inspect live reward-scoring markets using
+both public outcome books. It recomputes the minimum-size-adjusted midpoint,
+upper-bounds competing maker score from visible qualifying depth, enforces the
+$1 payout minimum, and reports one-leg loss beside the estimated reward share.
+The estimate is a single snapshot, not earned income. Run `npm run evaluate:maker`
+for the chronological fill-path audit; set
 `MAKER_MARKETS`, `MAKER_HISTORY_DAYS`, `MAKER_CONCURRENCY`, or
 `MAKER_EXIT_COST_CENTS` to change it and `MAKER_SUMMARY=1` for compact output.
 
@@ -90,17 +100,18 @@ and 24-hour horizons. Zero rules passed training, validation, or untouched
 holdout. At three hours, the broad 0.5-cent quote-gap rule still lost 0.63% per
 event in holdout; only 0.61% of observations completed both legs while 23.33%
 produced adverse one-leg inventory. Wider quotes traded less but remained
-negative. Strategy 54 therefore does not risk paper capital on an unproven
+negative. Strategy 55 therefore does not risk paper capital on an unproven
 maker rule.
 
-Value Hunter now tracks up to six zero-capital shadow quote pairs. A later live
+Value Hunter now tracks up to six zero-capital shadow quote pairs selected by
+the shared reward-book audit. A later live
 cycle must still verify each touch from public CLOB price history or a current
 book cross. A three-hour executable exit grades one-sided touches after a
 conservative half-cent cost, while paired touches and unfilled attempts are also
 retained. Results are clustered by Polymarket event. Capital exposure can only
-resume after at least 20 current-strategy event clusters in both the matching
-category and spread cohort have positive 90% confidence bounds and at least
-three completed pairs, with any mature losing cohort acting as a veto. There is
+resume after at least 20 current-strategy event clusters in the matching
+category, spread, and estimated reward-yield cohorts have positive 90% confidence
+bounds and at least three completed pairs, with any mature losing cohort acting as a veto. There is
 no capital-backed exploration lane. Existing paper inventory from prior builds
 is still reconciled honestly. The engine does not credit hypothetical rewards.
 See Polymarket's official [fees](https://docs.polymarket.com/trading/fees),
