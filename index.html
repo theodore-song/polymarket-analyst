@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 58 · maker research 2 · build 73</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 58 · maker research 2 · build 74</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 73 active:</b> a fresh 3,000-market replay rejected the Strategy 57 sports-capital rule, so that exposure is retired at the next fresh mark. Favorite Backer now records zero-capital 12-hour, 60–75% sports observations and grades only closed markets. Capital stays at zero until 30 new independent forward events produce a positive lower confidence bound; only then can 1.25% positions begin. Temporary trading pauses cannot create exits or learner outcomes. Fresh cached snapshots remain usable for 90 minutes with timing rechecked locally. This remains paper trading; profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 74 active:</b> Favorite Backer's zero-capital sports learner is now quote-aware. It observes one 60–75% favorite per independent event near the 12-hour checkpoint only when the executable ask plus a 0.25-cent slippage buffer is no more than one cent above the market midpoint. The cost audit stayed positive by point estimate near one cent but turned negative around two cents, so expensive entries are rejected. Capital remains zero until 30 new independent closed events produce a positive lower confidence bound. Temporary trading pauses and offline snapshots cannot create outcomes. This remains paper trading; profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 73 · Adaptive strategy 58 · Maker research 2 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 74 · Adaptive strategy 58 · Maker research 2 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 73;
+const BUILD_VERSION = 74;
 const SUGGESTION_ENGINE_VERSION = 58;
 const MAKER_STRATEGY_VERSION = 2;
 const PREVIOUS_STRATEGY_VERSION = 57;
@@ -870,7 +870,7 @@ const AGENTS = [
    rank:(s)=>[...s].sort((a,b)=>(b.volume_24hr*(b.conviction+20)*Math.max(.4,Math.abs(b.net_edge||b.edge||0)*18))-(a.volume_24hr*(a.conviction+20)*Math.max(.4,Math.abs(a.net_edge||a.edge||0)*18))),
    maxNew:5, maxFrac:0.06, minConv:57, kelly:0.30, targetExposure:0.72, drawdownExposure:0.50},
   {id:"favorite", name:"Favorite Backer", emoji:"🛡️", color:"#38d2e6", kind:"strategy",
-   blurb:"Runs a forward-only sports research lane after the fresh 3,000-market replay rejected the old capital rule. It observes one 60–75% favorite per independent event near the 12-hour checkpoint with zero cash, grades only closed markets, and can begin 1.25% positions only after 30 new events establish a positive lower confidence bound.",
+   blurb:"Runs a forward-only sports research lane after the fresh 3,000-market replay rejected the old capital rule. It observes one low-friction 60–75% favorite per independent event near the 12-hour checkpoint using the executable ask plus a slippage buffer, grades only closed markets, and can begin 1.25% positions only after 30 new events establish a positive lower confidence bound.",
    rank:(s)=>[...s].filter(x=>x.entry_price>=0.6).sort((a,b)=>(b.entry_price+Math.abs(b.net_edge||b.edge||0)+Number(b.evidence_score||0)*.2)-(a.entry_price+Math.abs(a.net_edge||a.edge||0)+Number(a.evidence_score||0)*.2)||b.conviction-a.conviction),
    maxNew:4, maxFrac:0.05, minConv:58, kelly:0.24, targetExposure:0.58, drawdownExposure:0.38},
   {id:"longshot", name:"Longshot Hunter", emoji:"🎰", color:"#fbbf24", kind:"strategy",
@@ -1183,6 +1183,8 @@ const SPORTS_FAVORITE_VERDICT_EVENTS=12;
 const SPORTS_FAVORITE_PROMOTION_EVENTS=30;
 const SPORTS_FAVORITE_SHADOW_LIMIT=20;
 const SPORTS_FAVORITE_OUTCOME_LIMIT=240;
+const SPORTS_FAVORITE_SLIPPAGE_BUFFER=0.0025;
+const SPORTS_FAVORITE_MAX_EXECUTION_COST=0.01;
 const MAKER_MAX_QUOTES=6;
 const MAKER_MAX_QUOTE_CAPITAL_PCT=0.02;
 const MAKER_TOTAL_CAPITAL_PCT=0.10;
@@ -1338,20 +1340,27 @@ function sportsFavoritePilotSuggestion(m){
   if(!Number.isFinite(lead)||lead<minLead||lead>maxLead||m.spread<=0||m.spread>0.03||m.volume<5000||m.liquidity<2000)return null;
   const side=Number(m.yes_price)>=Number(m.no_price)?"YES":"NO",marketPrice=side==="YES"?Number(m.yes_price):Number(m.no_price);
   if(marketPrice<SPORTS_FAVORITE_MIN_ENTRY||marketPrice>=SPORTS_FAVORITE_MAX_ENTRY)return null;
-  const modeledEntry=clamp(marketPrice+0.05,0.01,0.99),eventKey=String(m.event_id||m.event||m.id);
+  const quotedAsk=side==="YES"?Number(m.best_ask):(Number(m.best_bid)>0?1-Number(m.best_bid):NaN);
+  const fallbackAsk=marketPrice+Math.max(0.0025,Number(m.spread||0)/2);
+  const executableAsk=Number.isFinite(quotedAsk)&&quotedAsk>=marketPrice&&quotedAsk<1?quotedAsk:fallbackAsk;
+  const modeledEntry=clamp(executableAsk+SPORTS_FAVORITE_SLIPPAGE_BUFFER,0.01,0.99);
+  const executionCost=Math.max(0,modeledEntry-marketPrice);
+  if(executionCost>SPORTS_FAVORITE_MAX_EXECUTION_COST+0.00001)return null;
+  const eventKey=String(m.event_id||m.event||m.id);
   const conviction=+clamp(70+Math.log10(Math.max(1,m.liquidity))*1.4+Math.log10(Math.max(1,m.volume_24hr||m.volume))*0.8,70,80).toFixed(1);
   return {market_id:m.id,question:m.question,event:m.event,event_key:eventKey,url:m.url,category:m.category,tags:m.tags,
     clob_yes:(m.clob_token_ids||[])[0]||null,clob_no:(m.clob_token_ids||[])[1]||null,
     yes_price:m.yes_price,no_price:m.no_price,fair_value:+modeledEntry.toFixed(4),edge:0,net_edge:0,
-    friction:0.05,chase_penalty:0,evidence_score:0.60,evidence_source_count:0,quality:"sports-favorite-shadow",side,
+    friction:+executionCost.toFixed(4),chase_penalty:0,evidence_score:0.60,evidence_source_count:0,quality:"sports-favorite-shadow",side,
     market_price:+marketPrice.toFixed(4),entry_price:+modeledEntry.toFixed(4),conviction,volume:m.volume,volume_24hr:m.volume_24hr,liquidity:m.liquidity,
     spread:m.spread,price_change_1h:m.price_change_1h,price_change_1d:m.price_change_1d,price_change_1w:m.price_change_1w,
     momentum_strength:0,signal_strength:0.60,signal_confidence:0.60,signal_type:"sports-favorite-shadow",
     trade_ready:false,entry_candidate:false,audited_observation_only:true,adaptive_promotion:false,watch_only:true,jump_risk:true,requires_live:false,
     game_start:m.game_start,hours_to_start:+lead.toFixed(2),days_to_resolution:m.days_to_resolution!=null?+m.days_to_resolution.toFixed(1):null,
-    pilot_prior:{markets:3000,event_legs:1,modeled_cost_cents:5,train_mean:0.00960,validation_mean:0.15695,holdout_mean:0.00407,strictly_promoted:false},
-    drivers:["zero-capital forward observation","one observation per sports event","60–75% pregame favorite","within three hours of the 12h checkpoint","five-cent modeled entry cost"],
-    rationale:`Forward research only: ${side} is the ${Math.round(marketPrice*100)}% favorite ${lead.toFixed(1)}h before the published start. The fresh 3,000-market replay rejected the old 24-hour capital rule. This narrower 12-hour, 60–75% cohort had positive point estimates in all three chronological partitions after a modeled five-cent cost, but its confidence bounds did not establish a durable edge. It therefore uses zero cash and can earn 1.25% capital only after 30 new independent closed events produce a positive lower confidence bound.`};
+    pilot_prior:{markets:3000,event_legs:1,modeled_cost_cents:+(executionCost*100).toFixed(2),zero_cost_train_mean:0.03064,
+      zero_cost_holdout_mean:0.01852,one_cent_train_mean:0.01592,one_cent_holdout_mean:0.00364,strictly_promoted:false},
+    drivers:["zero-capital forward observation","one observation per sports event","60–75% pregame favorite","within three hours of the 12h checkpoint","executable ask plus 0.25c slippage","maximum 1c entry friction"],
+    rationale:`Forward research only: ${side} is the ${Math.round(marketPrice*100)}% favorite ${lead.toFixed(1)}h before the published start. The modeled entry is ${pct(modeledEntry)} using the executable ask plus a 0.25-cent slippage buffer, ${(executionCost*100).toFixed(2)} cents above the midpoint. The 3,000-market cost curve kept positive train and holdout point estimates near one cent but turned negative around two cents; confidence bounds still crossed zero. This observation therefore uses zero cash and can earn 1.25% capital only after 30 new independent closed events produce a positive lower confidence bound.`};
 }
 function analyzeMarket(m,realWorldSignals={}){
   if(m.volume<MIN_SCOUT_VOLUME||m.liquidity<MIN_SCOUT_LIQUIDITY)return null;
@@ -2097,9 +2106,9 @@ function stageSportsFavoriteShadows(p,suggestions,{execute=true}={}){
     p.sports_favorite_shadows.push({id:`sports-shadow:${marketId}:${Date.now()}:${staged}`,market_id:marketId,event_key:eventKey,
       question:s.question,event:s.event||"",side:s.side,entry_price:Number(s.entry_price),market_price:Number(s.market_price),
       current_price:Number(s.market_price),game_start:s.game_start,hours_to_start:s.hours_to_start,opened_at:openedAt,
-      strategy_version:SUGGESTION_ENGINE_VERSION,modeled_cost:0.05,url:s.url||""});
+      strategy_version:SUGGESTION_ENGINE_VERSION,modeled_cost:+Math.max(0,Number(s.entry_price)-Number(s.market_price)).toFixed(4),url:s.url||""});
     p.history.push({date:logDay(),action:"SPORTS_SHADOW",question:s.question,side:s.side,
-      detail:`Zero-capital forward observation recorded ${s.side} '${s.question.slice(0,40)}' at modeled ${pct(s.entry_price)} (${pct(s.market_price)} market + 5c cost) · one observation for event ${eventKey} · cash unchanged`});
+      detail:`Zero-capital forward observation recorded ${s.side} '${s.question.slice(0,40)}' at modeled ${pct(s.entry_price)} (${pct(s.market_price)} midpoint + ${((Number(s.entry_price)-Number(s.market_price))*100).toFixed(2)}c executable friction) · one observation for event ${eventKey} · cash unchanged`});
     usedEvents.add(eventKey);usedMarkets.add(marketId);staged++;
   }
   return {active:p.sports_favorite_shadows.length,staged,candidates:candidates.length};
@@ -2119,7 +2128,7 @@ function manageSportsFavoriteShadows(p,priceMap,{execute=true}={}){
     if(!p.sports_favorite_outcomes.some(outcome=>outcome.id===row.id))p.sports_favorite_outcomes.push(Object.assign({},row,{closed_at:cycleIso(),
       exit_price:+price.toFixed(4),net_return:+netReturn.toFixed(4),pnl_per_100:+pnlPer100.toFixed(2)}));
     p.history.push({date:logDay(),action:"SPORTS_GRADE",question:row.question,side:row.side,
-      detail:`Forward sports observation settled at ${pct(price)} · modeled net return ${(netReturn*100).toFixed(2)}% after the five-cent cost · portfolio cash unchanged`});
+      detail:`Forward sports observation settled at ${pct(price)} · modeled net return ${(netReturn*100).toFixed(2)}% after ${((row.modeled_cost||0)*100).toFixed(2)}c executable friction · portfolio cash unchanged`});
     completed++;
   }
   p.sports_favorite_shadows=keep;
@@ -3101,7 +3110,7 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
       risk_budget_pct:+(riskBudgetPct*100).toFixed(2),
       peak_price:+entry.toFixed(4),gain_stops:{},stop_losses:{}});
     const openDetail=s.signal_type==="sports-favorite-pilot"
-      ?`${decision?decision.mode+" mode — ":""}Sports settlement pilot bought ${shares} ${s.side} '${s.question.slice(0,40)}' @ modeled ${pct(entry)} for ${fmtUSD(cost)} (${pct(Number(s.market_price||entry))} market + 5c cost) · one position for event ${s.event_key||s.event||s.market_id} · pilot state ${pilotProfile.state} · ${(Number(s.hours_to_start)||0).toFixed(1)}h before start`
+      ?`${decision?decision.mode+" mode — ":""}Forward-promoted sports position bought ${shares} ${s.side} '${s.question.slice(0,40)}' @ modeled ${pct(entry)} for ${fmtUSD(cost)} (${pct(Number(s.market_price||entry))} midpoint + ${((entry-Number(s.market_price||entry))*100).toFixed(2)}c executable friction) · one position for event ${s.event_key||s.event||s.market_id} · learner state ${pilotProfile.state} · ${(Number(s.hours_to_start)||0).toFixed(1)}h before start`
       :`${decision?decision.mode+" mode — ":""}Bought ${shares} ${s.side} '${s.question.slice(0,40)}' @ ${pct(entry)} for ${fmtUSD(cost)} · max binary loss budget ${(riskBudgetPct*100).toFixed(1)}% · signal margin ${((Math.abs(s.net_edge!=null?s.net_edge:s.edge))*100).toFixed(1)}c · learned weight ${Number(s.learning_multiplier||1).toFixed(2)}x (${s.learning_state||"observing"}/${s.market_learning_state||"observing"})${(s.historical_prior_features||[]).length?` · history prior ${(s.historical_prior_features||[]).join("+")}`:""} · evidence ${Math.round((s.evidence_score||0)*100)}${s.peer_note?` (${s.peer_note})`:""}`;
     p.history.push({date:logDay(),action:"OPEN",question:s.question,side:s.side,detail:openDetail});
     if(s.signal_type==="sports-favorite-pilot")heldEventKeys.add(String(s.event_key||s.event||s.market_id||""));
@@ -5188,7 +5197,8 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
     sportsFavoritePilot:{entryBand:[SPORTS_FAVORITE_MIN_ENTRY,SPORTS_FAVORITE_MAX_ENTRY],targetLeadHours:SPORTS_FAVORITE_TARGET_LEAD_HOURS,
       leadToleranceHours:SPORTS_FAVORITE_LEAD_TOLERANCE_HOURS,pilotPositionPct:SPORTS_FAVORITE_PILOT_POSITION_PCT*100,
       totalCapitalPct:SPORTS_FAVORITE_TOTAL_CAPITAL_PCT*100,shadowLimit:SPORTS_FAVORITE_SHADOW_LIMIT,
-      verdictEvents:SPORTS_FAVORITE_VERDICT_EVENTS,promotionEvents:SPORTS_FAVORITE_PROMOTION_EVENTS,modeledCostCents:5,
+      verdictEvents:SPORTS_FAVORITE_VERDICT_EVENTS,promotionEvents:SPORTS_FAVORITE_PROMOTION_EVENTS,
+      slippageBufferCents:SPORTS_FAVORITE_SLIPPAGE_BUFFER*100,maximumExecutionCostCents:SPORTS_FAVORITE_MAX_EXECUTION_COST*100,
       capitalRequiresForwardPromotion:true,old24HourCapitalRuleRetired:true},
     historicalPrior:"All broad directional and corrected settlement-calibration rules failed clean validation and remain observation-only. The fresh 3,000-market replay rejected the Strategy 57 24-hour sports-capital rule: -11.98% train and -4.04% untouched holdout means after modeled cost. Favorite Backer now records a zero-capital 12-hour, 60%-75% forward cohort and requires 30 new independent closed events with a positive lower confidence bound before any capital. Live-priced complete negative-risk bundles may trade; paired maker quotes remain zero-capital observations until current cohorts independently promote"}),
 });
@@ -5211,7 +5221,14 @@ function runEngineSelfTest(){
   const ordinaryDatedContract=analyzeMarket(market({id:"dated-test",question:"Will the policy pass on 2026-08-22?"}),news);
   const sportsPilotStart=new Date(Date.now()+12*3600000).toISOString();
   const sportsPilot=analyzeMarket(market({id:"sports-pilot",question:"Will Harbor FC win tomorrow?",event:"Harbor FC vs City FC",event_id:"sports-event-1",
-    category:"Sports",yes_price:0.72,no_price:0.28,game_start:sportsPilotStart,days_to_resolution:1,price_change_1h:0,price_change_1d:0,price_change_1w:0}),news);
+    category:"Sports",yes_price:0.72,no_price:0.28,best_bid:0.715,best_ask:0.725,spread:0.01,
+    game_start:sportsPilotStart,days_to_resolution:1,price_change_1h:0,price_change_1d:0,price_change_1w:0}),news);
+  const expensiveSportsPilot=sportsFavoritePilotSuggestion(market({id:"sports-expensive",question:"Will Costly FC win tomorrow?",event:"Costly FC vs City FC",event_id:"sports-event-expensive",
+    category:"Sports",yes_price:0.72,no_price:0.28,best_bid:0.705,best_ask:0.735,spread:0.03,
+    game_start:sportsPilotStart,days_to_resolution:1,price_change_1h:0,price_change_1d:0,price_change_1w:0}));
+  const noSportsPilot=sportsFavoritePilotSuggestion(market({id:"sports-no",question:"Will Harbor FC fail to win tomorrow?",event:"Harbor FC vs City FC",event_id:"sports-event-no",
+    category:"Sports",yes_price:0.30,no_price:0.70,best_bid:0.295,best_ask:0.305,spread:0.01,
+    game_start:sportsPilotStart,days_to_resolution:1,price_change_1h:0,price_change_1d:0,price_change_1w:0}));
   const sportsPilotSecond=Object.assign({},sportsPilot,{market_id:"sports-pilot-second",question:"Harbor FC first-half winner?"});
   const sportsPilotBook=defaultPortfolio(),favoriteAgent=AGENTS.find(agent=>agent.id==="favorite"),sportsPilotCash=sportsPilotBook.cash;
   const sportsShadowStage=stageSportsFavoriteShadows(sportsPilotBook,[sportsPilot,sportsPilotSecond]);
@@ -5661,7 +5678,10 @@ function runEngineSelfTest(){
     sportsFavoritePilot:{
       identifiesTimedForwardShadow:Boolean(sportsPilot&&!sportsPilot.trade_ready&&sportsPilot.audited_observation_only
         &&sportsPilot.quality==="sports-favorite-shadow"&&sportsPilot.side==="YES"),
-      chargesModeledFiveCentCost:Boolean(sportsPilot&&sportsPilot.market_price===0.72&&sportsPilot.entry_price===0.77&&sportsPilot.friction===0.05),
+      usesExecutableAskPlusSlippage:Boolean(sportsPilot&&sportsPilot.market_price===0.72&&sportsPilot.entry_price===0.7275&&sportsPilot.friction===0.0075),
+      derivesNoAskFromYesBid:Boolean(noSportsPilot&&noSportsPilot.side==="NO"&&noSportsPilot.market_price===0.70
+        &&noSportsPilot.entry_price===0.7075&&noSportsPilot.friction===0.0075),
+      rejectsMoreThanOneCentFriction:expensiveSportsPilot===null,
       noAgentAcceptsBeforePromotion:Boolean(sportsPilot&&!agentAcceptsSuggestion(favoriteAgent,sportsPilot)
         &&!agentAcceptsSuggestion(AGENTS.find(agent=>agent.id==="momentum"),sportsPilot)),
       stagesOneShadowPerEvent:sportsShadowStage.staged===1&&sportsPilotBook.sports_favorite_outcomes.length===1,

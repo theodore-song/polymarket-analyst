@@ -96,18 +96,19 @@ signals in the walk-forward observation ledger until current, independent-event
 evidence proves an edge.
 
 Run `npm run evaluate:sports-favorites` for the separate pregame favorite audit.
-It anchors decisions to the published game start, rejects stale prices, charges a
-modeled five-cent cost, takes only the highest-priced eligible favorite per event,
-and uses a chronological 60/20/20 split. The refreshed August 20 run loaded all
-3,000 histories with no failures and found zero train-pass rules. The Strategy 57
-24-hour, 60%-85% capital rule averaged -11.98% across 168 independent training
-events and -4.04% across 100 untouched holdout events after the five-cent cost,
-so Strategy 58 retires it at the next fresh executable mark. The narrower 12-hour,
-60%-75% rule had positive point estimates in train, validation, and holdout but
-did not establish a positive lower confidence bound in train or holdout. Favorite
-Backer therefore records it with zero capital, one market per event, and persists
-the pending and completed forward ledger offline. Only 30 new independent closed
-events with a positive 90% lower confidence bound can promote 1.25% positions.
+It anchors decisions to the published game start, rejects stale prices, takes only
+the highest-priced eligible favorite per event, and uses a chronological 60/20/20
+split. The refreshed August 20 run loaded all 3,000 histories with no failures and
+found zero train-pass rules. The Strategy 57 24-hour, 60%-85% capital rule was
+negative even with zero modeled execution cost, so Strategy 58 retired it. The
+narrower 12-hour, 60%-75% cohort stayed positive by point estimate in train,
+validation, and holdout at a one-cent cost, but the train and holdout confidence
+bounds still crossed zero; its holdout point estimate also turned negative near a
+two-cent cost. Build 74 therefore records only zero-capital observations whose
+executable ask plus a 0.25-cent slippage buffer is no more than one cent above the
+midpoint. It persists the pending and completed forward ledger offline, grades
+only closed markets, and requires 30 new independent closed events with a positive
+90% lower confidence bound before 1.25% positions can begin.
 
 Run `npm run evaluate:settlement-calibration` for the stricter settlement-bias
 search across up to 5,000 resolved markets. It uses a 60/20/20 chronological
