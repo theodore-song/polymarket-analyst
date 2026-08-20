@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 57 · maker research 2 · build 71</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 57 · maker research 2 · build 72</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 71 active:</b> Favorite Backer now runs a small, self-disabling sports-favorite pilot shaped by a 3,000-market chronological replay: one 60–85% favorite per independent event, entered only within three hours of the 24-hour pregame checkpoint. It starts at 1.25% of equity, stops if live settlement evidence turns materially negative, and can scale only after a positive confidence bound. Fresh cached snapshots remain usable for 90 minutes with timing rechecked locally. This remains paper trading; profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 72 active:</b> Favorite Backer's sports-favorite pilot now distinguishes a temporary trading pause from a resolved market. Paused positions stay open and cannot fire simulated stops, exits, or learner outcomes; only Polymarket's closed-market state books settlement. The pilot remains one 60–85% favorite per independent event near the 24-hour checkpoint, starts at 1.25% of equity, disables on materially negative completed evidence, and scales only after a positive confidence bound. Fresh cached snapshots remain usable for 90 minutes with timing rechecked locally. This remains paper trading; profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 71 · Adaptive strategy 57 · Maker research 2 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 72 · Adaptive strategy 57 · Maker research 2 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 71;
+const BUILD_VERSION = 72;
 const SUGGESTION_ENGINE_VERSION = 57;
 const MAKER_STRATEGY_VERSION = 2;
 const PREVIOUS_STRATEGY_VERSION = 56;
@@ -2409,6 +2409,8 @@ function exitReason(pos,fresh,analysis,cfg){
   }else delete pos.signal_fade_since;
   return null;
 }
+function marketIsSettled(fresh){return Boolean(fresh&&fresh.closed);}
+function marketIsSuspended(fresh){return Boolean(fresh&&!fresh.closed&&fresh.accepting_orders===false);}
 function markToMarket(p,priceMap,cfg=null,{policyExits=false,executeTrades=true}={}){
   const stillOpen=[];
   for(const pos of p.positions){
@@ -2425,12 +2427,23 @@ function markToMarket(p,priceMap,cfg=null,{policyExits=false,executeTrades=true}
     if(executeTrades)delete pos.price_status;else pos.price_status="cached-mark-only";
     if(!executeTrades){stillOpen.push(pos);continue;}
     if(pos.signal_type==="maker-pair"&&pos.maker_pair_pending){
-      if(fresh.closed||fresh.accepting_orders===false){closePosition(p,pos,"Paired maker inventory settled before the second fill","CLOSE");continue;}
+      if(marketIsSettled(fresh)){closePosition(p,pos,"Paired maker inventory settled before the second fill","CLOSE");continue;}
+      if(marketIsSuspended(fresh))pos.price_status="orders-paused";
       stillOpen.push(pos);continue;
     }
     if(pos.requires_complete_bundle){
-      if(fresh.closed||fresh.accepting_orders===false){closePosition(p,pos,"Complete bundle leg settled","CLOSE");continue;}
+      if(marketIsSettled(fresh)){closePosition(p,pos,"Complete bundle leg settled","CLOSE");continue;}
+      if(marketIsSuspended(fresh))pos.price_status="orders-paused";
       stillOpen.push(pos);continue;
+    }
+    if(marketIsSettled(fresh)){
+      closePosition(p,pos,"Market settled","CLOSE");
+      continue;
+    }
+    if(marketIsSuspended(fresh)){
+      pos.price_status="orders-paused";
+      stillOpen.push(pos);
+      continue;
     }
     if(policyExits&&normalizedStrategyVersion(pos.strategy_version)<SUGGESTION_ENGINE_VERSION){
       closePosition(p,pos,`Strategy ${SUGGESTION_ENGINE_VERSION} retired this legacy directional holding`,"EXIT");continue;
@@ -2439,10 +2452,6 @@ function markToMarket(p,priceMap,cfg=null,{policyExits=false,executeTrades=true}
     if(pos._closedByStop){delete pos._closedByStop;continue;}
     for(const gainTier of triggeredGainStops(pos))takeProfitPosition(p,pos,gainTier);
     if(policyExits)normalizeLegacyPositionRisk(p,pos,cfg,fresh);
-    if(fresh.closed||fresh.accepting_orders===false){
-      closePosition(p,pos,"Market settled","CLOSE");
-      continue;
-    }
     if(policyExits){
       const reason=exitReason(pos,fresh,analyzeMarket(fresh),cfg);
       if(reason){closePosition(p,pos,reason,"EXIT");continue;}
@@ -5063,6 +5072,8 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
   boundedStakeForRisk,
   sportsFavoritePilotSuggestion,
   sportsFavoritePilotProfile,
+  marketIsSettled,
+  marketIsSuspended,
   historicalPriceFeatures,
   offlineCachePolicy,
   prepareCycleSuggestions,
@@ -5284,6 +5295,12 @@ function runEngineSelfTest(){
   markToMarket(stopFixture.book,{[stopFixture.pos.market_id]:market({id:stopFixture.pos.market_id,yes_price:0.4,no_price:0.6})},AGENTS[0],{policyExits:true,executeTrades:true});
   const settlementFixture=accountingBook(1);
   markToMarket(settlementFixture.book,{[settlementFixture.pos.market_id]:market({id:settlementFixture.pos.market_id,yes_price:1,no_price:0,closed:true,accepting_orders:false})},AGENTS[0],{policyExits:true,executeTrades:true});
+  const suspendedFixture=accountingBook(0.4);
+  markToMarket(suspendedFixture.book,{[suspendedFixture.pos.market_id]:market({id:suspendedFixture.pos.market_id,yes_price:0.4,no_price:0.6,closed:false,accepting_orders:false})},AGENTS[0],{policyExits:true,executeTrades:true});
+  const suspendedMakerFixture=accountingBook(0.4);suspendedMakerFixture.pos.signal_type="maker-pair";suspendedMakerFixture.pos.maker_pair_pending=true;
+  markToMarket(suspendedMakerFixture.book,{[suspendedMakerFixture.pos.market_id]:market({id:suspendedMakerFixture.pos.market_id,yes_price:0.4,no_price:0.6,closed:false,accepting_orders:false})},AGENTS[0],{policyExits:true,executeTrades:true});
+  const suspendedBundleFixture=accountingBook(0.4);suspendedBundleFixture.pos.requires_complete_bundle=true;
+  markToMarket(suspendedBundleFixture.book,{[suspendedBundleFixture.pos.market_id]:market({id:suspendedBundleFixture.pos.market_id,yes_price:0.4,no_price:0.6,closed:false,accepting_orders:false})},AGENTS[0],{policyExits:true,executeTrades:true});
   const retiredFixture=accountingBook(0.45),retiredEquityBefore=equity(retiredFixture.book);
   retiredFixture.pos.strategy_version=PREVIOUS_STRATEGY_VERSION;
   markToMarket(retiredFixture.book,{[retiredFixture.pos.market_id]:market({id:retiredFixture.pos.market_id,yes_price:0.45,no_price:0.55})},AGENTS[0],{policyExits:true,executeTrades:true});
@@ -5575,6 +5592,12 @@ function runEngineSelfTest(){
       partialThenCloseReconciles:partialFixture.book.cash===10200&&partialFixture.pos.realized_pnl===200,
       stopOutReconciles:stopFixture.book.positions.length===0&&stopFixture.book.cash===9800&&stopFixture.book.closed[0].realized_pnl===-200,
       settlementReconciles:settlementFixture.book.positions.length===0&&settlementFixture.book.cash===11000&&settlementFixture.book.closed[0].realized_pnl===1000,
+      suspendedMarketStaysOpen:suspendedFixture.book.positions.length===1&&suspendedFixture.book.closed.length===0
+        &&suspendedFixture.book.positions[0].price_status==="orders-paused"&&suspendedFixture.book.cash===9000,
+      suspendedMakerInventoryStaysOpen:suspendedMakerFixture.book.positions.length===1&&suspendedMakerFixture.book.closed.length===0
+        &&suspendedMakerFixture.book.positions[0].price_status==="orders-paused"&&suspendedMakerFixture.book.cash===9000,
+      suspendedBundleLegStaysOpen:suspendedBundleFixture.book.positions.length===1&&suspendedBundleFixture.book.closed.length===0
+        &&suspendedBundleFixture.book.positions[0].price_status==="orders-paused"&&suspendedBundleFixture.book.cash===9000,
       retiredDirectionalPositionExitsAtFreshPrice:retiredFixture.book.positions.length===0&&retiredFixture.book.closed[0].close_reason.includes("retired")&&Math.abs(retiredFixture.book.cash-retiredEquityBefore)<=0.02,
       unlabeledLegacyPositionExitsAtFreshPrice:unlabeledLegacyFixture.book.positions.length===0&&unlabeledLegacyFixture.book.closed[0].close_reason.includes("retired")&&Math.abs(unlabeledLegacyFixture.book.cash-unlabeledLegacyEquityBefore)<=0.02,
       currentUnlabeledPositionIsPreserved:currentUnlabeledFixture.book.positions.length===1&&currentUnlabeledFixture.book.closed.length===0,

@@ -15,10 +15,16 @@ https://polymarket-site-eta.vercel.app/personal.html
 
 The site fetches live Polymarket markets, generates agent suggestions, lets you
 run frequent paper cycles, and syncs the shared arena state through Neon or
-Vercel Blob. Build 71 also installs an offline app shell and caches timestamped
+Vercel Blob. Build 72 also installs an offline app shell and caches timestamped
 market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
+
+Build 72 distinguishes a temporary order-book pause from settlement. Exact
+market refreshes still mark paused positions to the latest published price, but
+the engine cannot simulate a stop, policy exit, or settlement while
+`acceptingOrders` is false and `closed` is still false. Only a closed market
+books the final paper proceeds and contributes a completed learner outcome.
 
 The live scan now continues through activity-ranked pages until it has the 500
 most-active eligible Yes/No contracts. Markets whose actual outcome labels are
@@ -26,7 +32,7 @@ team names, Over/Under, or another pair are rejected instead of being silently
 reinterpreted as Yes/No. The same semantic check applies to complete event
 bundles and the offline evaluators.
 
-Build 71 ranks the competition by each agent's return since Strategy 57 began.
+Build 72 ranks the competition by each agent's return since Strategy 57 began.
 Historical replay equity remains visible for context, but it no longer makes an
 agent look like the current leader when the live adaptive strategy is losing.
 
@@ -60,7 +66,7 @@ cohort can demote it.
 The Build 69 re-audit loaded all 500 requested histories with no failures. The
 six-hour family lost 1.27% net on average across 106 independent events, with
 its full 90% interval below zero; no tested rule was robustly positive at 6,
-12, 24, or 72 hours. Build 71 therefore uses six hours only to stop bad regimes
+12, 24, or 72 hours. Build 72 therefore uses six hours only to stop bad regimes
 sooner. It also closes every stale pre-Strategy-57 directional holding at the
 next fresh mark, including legacy records missing a signal label, while leaving
 complete arbitrage bundles and paired maker inventory under their own accounting.
