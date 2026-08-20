@@ -161,6 +161,7 @@ const evaluated = rules.map((rule) => {
 });
 const selected = evaluated.filter((row) => row.validationPassed).sort((a, b) => Number(b.passesHoldout) - Number(a.passesHoldout) || b.holdout.lower - a.holdout.lower);
 const baseline = evaluated.find((row) => row.rule.leadHours === 24 && row.rule.minEntry === 0.55 && row.rule.maxEntry === 0.95);
+const livePilot = evaluated.find((row) => row.rule.leadHours === 24 && row.rule.minEntry === 0.60 && row.rule.maxEntry === 0.85);
 const compact = (stats) => Object.fromEntries(Object.entries(stats).map(([key, value]) => [key, Number.isFinite(value) ? +value.toFixed(5) : value]));
 const candidate = (row) => ({ rule: row.rule, train: compact(row.train), validation: compact(row.validation), holdout: compact(row.holdout), passesHoldout: row.passesHoldout });
 const closest = evaluated.filter((row) => row.train.events >= 25 && row.validation.events >= 10 && row.holdout.events >= 10)
@@ -175,6 +176,7 @@ console.log(JSON.stringify({ generatedAt: new Date().toISOString(), requestedMar
   partitionMarkets: Object.fromEntries(Object.entries(partitions).map(([key, value]) => [key, value.length])),
   trainPassed: evaluated.filter((row) => row.trainPassed).length, validationSelected: selected.length,
   holdoutPassed: selected.filter((row) => row.passesHoldout).length, baseline: baseline ? candidate(baseline) : null,
+  livePilot: livePilot ? candidate(livePilot) : null,
   closestCandidates: closest.slice(0, 15).map(candidate),
   candidates: selected.slice(0, 20).map(candidate),
   holdoutExamples: (selected.find((row) => row.passesHoldout)?.holdoutRows || []).slice(0, 12)
