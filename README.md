@@ -15,7 +15,7 @@ https://polymarket-site-eta.vercel.app/personal.html
 
 The site fetches live Polymarket markets, generates agent suggestions, lets you
 run frequent paper cycles, and syncs the shared arena state through Neon or
-Vercel Blob. Build 70 also installs an offline app shell and caches timestamped
+Vercel Blob. Build 71 also installs an offline app shell and caches timestamped
 market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
@@ -26,7 +26,7 @@ team names, Over/Under, or another pair are rejected instead of being silently
 reinterpreted as Yes/No. The same semantic check applies to complete event
 bundles and the offline evaluators.
 
-Build 70 ranks the competition by each agent's return since Strategy 56 began.
+Build 71 ranks the competition by each agent's return since Strategy 57 began.
 Historical replay equity remains visible for context, but it no longer makes an
 agent look like the current leader when the live adaptive strategy is losing.
 
@@ -37,7 +37,7 @@ The learner shrinks small samples toward neutral, caps sizing changes to
 15% of candidates for deterministic exploration so a stale regime cannot become
 permanent.
 
-Strategy 56 treats each binary stake as capable of falling to zero even when the
+Strategy 57 treats each binary stake as capable of falling to zero even when the
 18% stop cannot fill. New core positions are capped at 2.5%-4% of equity and
 aggressive positions at 3%-5%, with lower limits for near-term, extreme-price,
 reversal, and fast-moving setups. Oversized positions inherited from older
@@ -60,8 +60,8 @@ cohort can demote it.
 The Build 69 re-audit loaded all 500 requested histories with no failures. The
 six-hour family lost 1.27% net on average across 106 independent events, with
 its full 90% interval below zero; no tested rule was robustly positive at 6,
-12, 24, or 72 hours. Build 70 therefore uses six hours only to stop bad regimes
-sooner. It also closes every stale pre-Strategy-56 directional holding at the
+12, 24, or 72 hours. Build 71 therefore uses six hours only to stop bad regimes
+sooner. It also closes every stale pre-Strategy-57 directional holding at the
 next fresh mark, including legacy records missing a signal label, while leaving
 complete arbitrage bundles and paired maker inventory under their own accounting.
 
@@ -91,10 +91,16 @@ evidence proves an edge.
 
 Run `npm run evaluate:sports-favorites` for the separate pregame favorite audit.
 It anchors decisions to the published game start, rejects stale prices, charges a
-modeled five-cent cost, forms equal-dollar event baskets, and uses a chronological
-60/20/20 split. The clean 3,000-market run produced nine train-pass rules but zero
-validation selections, so Strategy 56 does not promote the apparent sports-favorite
-edge or use the holdout set to rescue it.
+modeled five-cent cost, takes only the highest-priced eligible favorite per event,
+and uses a chronological 60/20/20 split. The clean 3,000-market run produced nine
+train-pass rules but zero strict validation selections. The exact 24-hour,
+60%-85% rule nevertheless had positive point estimates in all three partitions:
+2.97% train, 3.10% validation, and 19.83% untouched holdout, while its train and
+validation confidence bounds still crossed zero. Strategy 57 therefore permits
+only a labeled paper-capital pilot in Favorite Backer: 1.25% of equity per event,
+6% total, with a five-cent cost booked immediately. It disables after 12 completed
+events with materially negative evidence or a 2.5% account loss, and scales to
+2.5% only after 30 events produce a positive 90% lower confidence bound.
 
 Run `npm run evaluate:settlement-calibration` for the stricter settlement-bias
 search across up to 5,000 resolved markets. It uses a 60/20/20 chronological
@@ -103,10 +109,10 @@ stability windows, a 24-hour market-age minimum, and a recent non-flat price
 history requirement. Before those activity and overlap controls, four sports
 rules appeared to pass holdout because correlated props shared one event and
 some histories contained inactive default prices. After correction, 11 of
-1,400 rules passed training and zero passed validation. Strategy 56 therefore
-does not install a static side, category, price-band, or settlement-horizon bet.
+1,400 rules passed training and zero passed validation. Strategy 57 therefore
+does not install any other static side, category, price-band, or settlement-horizon bet.
 
-Strategy 56 also removes the last emotion-driven sizing path. Agent mood and
+Strategy 57 also removes the last emotion-driven sizing path. Agent mood and
 leaderboard urgency remain visible in reports, but neither can increase capital.
 A positive peer signal receives at most a 5% sizing lift, and only when both the
 agent's realized-trade cohort and the independent walk-forward market cohort are
@@ -127,7 +133,7 @@ and 24-hour horizons. Zero rules passed training, validation, or untouched
 holdout. At three hours, the broad 0.5-cent quote-gap rule still lost 0.63% per
 event in holdout; only 0.61% of observations completed both legs while 23.33%
 produced adverse one-leg inventory. Wider quotes traded less but remained
-negative. Strategy 56 therefore does not risk paper capital on an unproven
+negative. Strategy 57 therefore does not risk paper capital on an unproven
 maker rule.
 
 Run `npm run evaluate:reward-maker` to stress current reward-qualified books

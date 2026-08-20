@@ -4,6 +4,7 @@ const MARKET_LIMIT = Math.max(500, Math.min(5000, Number(process.env.SPORTS_FAVO
 const CONCURRENCY = Math.max(1, Math.min(12, Number(process.env.SPORTS_FAVORITE_CONCURRENCY || 10)));
 const COST = Math.max(0, Math.min(0.10, Number(process.env.SPORTS_FAVORITE_COST_CENTS || 5) / 100));
 const MAX_STALENESS_HOURS = Math.max(1, Math.min(12, Number(process.env.SPORTS_FAVORITE_MAX_STALENESS_HOURS || 3)));
+const EVENT_LEGS = Math.max(1, Math.min(4, Number(process.env.SPORTS_FAVORITE_EVENT_LEGS || 1)));
 const HOUR = 3600;
 
 function parseJson(value) {
@@ -147,7 +148,7 @@ function tradesFor(partition, rule) {
     const rows = events.get(row.eventKey) || [];
     rows.push(row);events.set(row.eventKey, rows);
   });
-  return [...events.values()].flatMap((rows) => rows.sort((a, b) => b.entry - a.entry || a.marketId.localeCompare(b.marketId)).slice(0, 4));
+  return [...events.values()].flatMap((rows) => rows.sort((a, b) => b.entry - a.entry || a.marketId.localeCompare(b.marketId)).slice(0, EVENT_LEGS));
 }
 
 const evaluated = rules.map((rule) => {
@@ -162,15 +163,19 @@ const selected = evaluated.filter((row) => row.validationPassed).sort((a, b) => 
 const baseline = evaluated.find((row) => row.rule.leadHours === 24 && row.rule.minEntry === 0.55 && row.rule.maxEntry === 0.95);
 const compact = (stats) => Object.fromEntries(Object.entries(stats).map(([key, value]) => [key, Number.isFinite(value) ? +value.toFixed(5) : value]));
 const candidate = (row) => ({ rule: row.rule, train: compact(row.train), validation: compact(row.validation), holdout: compact(row.holdout), passesHoldout: row.passesHoldout });
+const closest = evaluated.filter((row) => row.train.events >= 25 && row.validation.events >= 10 && row.holdout.events >= 10)
+  .sort((a, b) => Math.min(b.train.lower, b.validation.lower, b.holdout.lower)
+    - Math.min(a.train.lower, a.validation.lower, a.holdout.lower));
 
 console.log(JSON.stringify({ generatedAt: new Date().toISOString(), requestedMarkets: MARKET_LIMIT, sportsMarkets: markets.length,
   historiesWithData: usable.length, failures: histories.filter((row) => row?.error).length,
   methodology: { selection: "most recently closed eligible Yes/No sports markets", decisionAnchor: "published game start",
     historyFidelityMinutes: 60, maxPriceStalenessHours: MAX_STALENESS_HOURS, modeledCostCents: COST * 100,
-    split: "60% train / 20% validation / 20% untouched holdout", clusterUnit: "equal-dollar event baskets split across at most four highest-priced eligible favorites", testedRules: rules.length },
+    split: "60% train / 20% validation / 20% untouched holdout", clusterUnit: `one equal-dollar position in each event's highest-priced eligible favorite (event legs ${EVENT_LEGS})`, testedRules: rules.length },
   partitionMarkets: Object.fromEntries(Object.entries(partitions).map(([key, value]) => [key, value.length])),
   trainPassed: evaluated.filter((row) => row.trainPassed).length, validationSelected: selected.length,
   holdoutPassed: selected.filter((row) => row.passesHoldout).length, baseline: baseline ? candidate(baseline) : null,
+  closestCandidates: closest.slice(0, 15).map(candidate),
   candidates: selected.slice(0, 20).map(candidate),
   holdoutExamples: (selected.find((row) => row.passesHoldout)?.holdoutRows || []).slice(0, 12)
     .map((row) => ({ question: row.question, event: row.event, side: row.side, entry: +row.entry.toFixed(4), won: row.won, netReturn: +row.netReturn.toFixed(4) }))
