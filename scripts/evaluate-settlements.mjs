@@ -31,6 +31,16 @@ function categoryOf(raw) {
   return "Other";
 }
 
+function hardSettlementJumpRisk(raw) {
+  const text = `${raw?.question || ""} ${raw?.events?.[0]?.title || ""}`.toLowerCase();
+  const numericRange = /\b\d+(?:\.\d+)?\s*(?:%|percent)?\s*(?:-|–|—|to)\s*\d+(?:\.\d+)?\s*(?:%|percent|votes?|points?|seats?|bps|basis points?|tweets?|posts?|goals?)(?![a-z])/;
+  const currencyRange = /[$€£]\d+(?:\.\d+)?\s*(?:-|–|—|to)\s*[$€£]?\d+(?:\.\d+)?/;
+  const betweenRange = /\bbetween\s+[$€£]?\d+(?:\.\d+)?\s*(?:%|percent)?\s+(?:and|to)\s+[$€£]?\d+(?:\.\d+)?/;
+  const pathDependentBarrier = /\b(?:reach|hit|touch|dip(?:\s+(?:to|below))?|rise\s+(?:to|above)|fall\s+(?:to|below))\b[^?]{0,45}(?:[$€£]\s*)?\d[\d,]*(?:\.\d+)?\s*(?:%|percent|k|m|b|points?|bps|basis points?)?/;
+  return numericRange.test(text) || currencyRange.test(text) || betweenRange.test(text) || pathDependentBarrier.test(text)
+    || /\bexact score\b|\bscore:\s*\d|\bposts? \d+-\d+|\bnumber of (tweets|posts)\b/.test(text);
+}
+
 async function fetchJson(url, options = {}, attempts = 3) {
   let lastError;
   for (let attempt = 0; attempt < attempts; attempt++) {
@@ -109,7 +119,7 @@ async function fetchResolvedMarkets(limit) {
       seen.add(id); raw.push({ id, question: market.question || "", category: categoryOf(market),
         eventId: String(market.events?.[0]?.id || id),
         tokenId: String(tokens[0]), finalYes: outcomes[0] >= 0.99 ? 1 : 0, closedAt,
-        volume: Number(market.volumeNum || market.volume || 0) });
+        safeContract: !hardSettlementJumpRisk(market), volume: Number(market.volumeNum || market.volume || 0) });
       if (raw.length >= limit) break;
     }
     if (page.length < pageSize || !payload.next_cursor || payload.next_cursor === cursor) break;
@@ -129,7 +139,8 @@ function evaluateMarket(market, points) {
     for (const side of ["YES", "NO"]) {
       const entry = side === "YES" ? yesEntry : noEntry, final = side === winningSide ? 1 : 0;
       const netReturn = final / entry - 1 - (COST_CENTS / 100) / entry;
-      rows.push({ marketId: market.id, eventId: market.eventId, question: market.question, category: market.category, closedAt: market.closedAt,
+      rows.push({ marketId: market.id, eventId: market.eventId, question: market.question, category: market.category,
+        safeContract: market.safeContract, closedAt: market.closedAt,
         horizonDays, side, favorite: side === favoriteSide, winner: side === winningSide,
         trend: Boolean(trend && trend.side === side), trendSide: trend?.side || null,
         dayMove: trend?.dayMove || 0, weekMove: trend?.weekMove || 0,
@@ -167,6 +178,16 @@ function summarize(rows) {
     worst: Math.min(...values), best: Math.max(...values) };
 }
 
+const SAFE_PRICE_BANDS = Object.freeze([
+  { label: "50_55", min: 0.50, max: 0.55 },
+  { label: "55_60", min: 0.55, max: 0.60 },
+  { label: "60_70", min: 0.60, max: 0.70 },
+  { label: "70_80", min: 0.70, max: 0.80 },
+  { label: "80_90", min: 0.80, max: 0.90 },
+  { label: "90_95", min: 0.90, max: 0.95 },
+  { label: "95_97", min: 0.95, max: 0.97 },
+]);
+
 const RULES = [
   { name: "buy_favorite", test: (row) => row.favorite },
   { name: "buy_heavy_favorite", test: (row) => row.favorite && row.entry >= 0.78 },
@@ -176,8 +197,13 @@ const RULES = [
   { name: "buy_yes", test: (row) => row.side === "YES" },
   { name: "buy_no", test: (row) => row.side === "NO" },
   { name: "buy_no_favorite", test: (row) => row.side === "NO" && row.favorite },
+  { name: "buy_no_45_50", test: (row) => row.side === "NO" && row.entry >= 0.45 && row.entry < 0.50 },
   { name: "buy_no_55_90", test: (row) => row.side === "NO" && row.entry >= 0.55 && row.entry < 0.90 },
   { name: "buy_no_50_55", test: (row) => row.side === "NO" && row.entry >= 0.50 && row.entry < 0.55 },
+  { name: "buy_no_50_55_non_sports", test: (row) => row.side === "NO" && row.entry >= 0.50 && row.entry < 0.55 && row.category !== "Sports" },
+  { name: "buy_no_50_55_safe_non_sports", test: (row) => row.side === "NO" && row.entry >= 0.50 && row.entry < 0.55
+    && row.category !== "Sports" && row.safeContract },
+  { name: "buy_no_55_60", test: (row) => row.side === "NO" && row.entry >= 0.55 && row.entry < 0.60 },
   { name: "buy_no_60_90", test: (row) => row.side === "NO" && row.entry >= 0.60 && row.entry < 0.90 },
   { name: "buy_no_90_95", test: (row) => row.side === "NO" && row.entry >= 0.90 && row.entry < 0.95 },
   { name: "buy_no_95_99", test: (row) => row.side === "NO" && row.entry >= 0.95 && row.entry < 0.99 },
@@ -189,9 +215,17 @@ const RULES = [
   { name: "follow_trend_underdog", test: (row) => row.trend && !row.favorite },
   { name: "follow_strong_trend", test: (row) => row.trend && row.strongTrend },
   { name: "follow_moderate_trend", test: (row) => row.trend && row.moderateTrend },
+  ...SAFE_PRICE_BANDS.flatMap((band) => [
+    { name: `buy_safe_favorite_${band.label}`, test: (row) => row.favorite && row.entry >= band.min && row.entry < band.max
+      && row.category !== "Sports" && row.safeContract },
+    { name: `buy_safe_no_${band.label}`, test: (row) => row.side === "NO" && row.entry >= band.min && row.entry < band.max
+      && row.category !== "Sports" && row.safeContract },
+  ]),
   ...["Politics", "Sports", "Crypto", "Economy", "Pop Culture", "Other"].flatMap((category) => [
     { name: `buy_favorite_${category.toLowerCase().replace(/\s+/g, "_")}`, test: (row) => row.favorite && row.category === category },
     { name: `buy_underdog_${category.toLowerCase().replace(/\s+/g, "_")}`, test: (row) => !row.favorite && row.category === category },
+    { name: `buy_no_50_55_${category.toLowerCase().replace(/\s+/g, "_")}`,
+      test: (row) => row.side === "NO" && row.entry >= 0.50 && row.entry < 0.55 && row.category === category },
     { name: `follow_trend_${category.toLowerCase().replace(/\s+/g, "_")}`, test: (row) => row.trend && row.category === category },
   ]),
 ];

@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 59 · resolution-window pilot 1 · build 96</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 59 · resolution-window pilot 2 · build 97</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 96 active:</b> The public paper agents run autonomously every 15 minutes while every user device is closed. Five aggressive agents can take tightly bounded, fixed-date 50–55% NO positions only in independently passing three-day or seven-day settlement windows. Entries use an executable ask plus slippage, one agent owns each event, positions hold to verified settlement, and each horizon can demote itself from losing forward evidence. Other unproven directional rules remain observation-only. Phones and computers display the same read-only autonomous state. Profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 97 active:</b> The public paper agents run autonomously every 15 minutes while every user device is closed. Five aggressive agents can take tightly bounded, safe non-Sports 50–55% NO positions in independently passing three-through-six-day settlement windows. Entries use an executable ask plus slippage, one agent owns each event, positions hold to verified settlement, and every exact horizon can demote itself from losing forward evidence. Other unproven directional rules remain observation-only. Phones and computers display the same read-only autonomous state. Profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 96 · Adaptive strategy 59 · Resolution-window pilot 1 · Validated 3d/7d entries · Executable 50–55% NO pricing · Settlement-only exits · Per-horizon forward demotion · Autonomous runtime 1 · Offline runtime 2 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 97 · Adaptive strategy 59 · Resolution-window pilot 2 · Validated 3d–6d entries · Executable 50–55% NO pricing · Settlement-only exits · Per-horizon forward demotion · Autonomous runtime 1 · Offline runtime 2 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,12 +774,12 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 96;
+const BUILD_VERSION = 97;
 const AGENT_LEARNING_VERSION = 3;
 const SUGGESTION_ENGINE_VERSION = 59;
 const MAKER_STRATEGY_VERSION = 3;
 const SHOCK_FADE_STRATEGY_VERSION = 4;
-const RESOLUTION_WEEK_NO_STRATEGY_VERSION = 1;
+const RESOLUTION_WEEK_NO_STRATEGY_VERSION = 2;
 const PREVIOUS_STRATEGY_VERSION = 58;
 const DIRECTIONAL_SIGNAL_POLICY_VERSION = 1;
 const DIRECTIONAL_SIGNAL_COMPATIBLE_STRATEGY_MIN = 51;
@@ -1306,7 +1306,16 @@ const SHOCK_FADE_HISTORY_CACHE_MS=10*60*1000;
 const SHOCK_FADE_BACKTEST_APPROVED=false;
 const SHOCK_FADE_ADOPTER_IDS=new Set(["catalyst","reversal","breakout","tailalpha","conviction"]);
 const RESOLUTION_WEEK_NO_ADOPTER_IDS=new Set(["catalyst","reversal","breakout","tailalpha","conviction"]);
-const RESOLUTION_WEEK_NO_WINDOWS=Object.freeze([{days:3,min:2.5,max:3.5},{days:7,min:6.5,max:7.5}]);
+const RESOLUTION_WEEK_NO_WINDOWS=Object.freeze([
+  {days:3,min:2.5,max:3.5},{days:4,min:3.5,max:4.5},
+  {days:5,min:4.5,max:5.5},{days:6,min:5.5,max:6.5},
+]);
+const RESOLUTION_WEEK_NO_AUDIT=Object.freeze({
+  3:{events:121,eventMean:0.2452,lower:0.1578,trainEvents:85,trainLower:0.1315,holdoutEvents:40,holdoutLower:0.0991},
+  4:{events:144,eventMean:0.3815,lower:0.3140,trainEvents:102,trainLower:0.3032,holdoutEvents:47,holdoutLower:0.2717},
+  5:{events:105,eventMean:0.3686,lower:0.2939,trainEvents:77,trainLower:0.2687,holdoutEvents:30,holdoutLower:0.3001},
+  6:{events:87,eventMean:0.4394,lower:0.3767,trainEvents:60,trainLower:0.3309,holdoutEvents:29,holdoutLower:0.4368},
+});
 const RESOLUTION_WEEK_NO_MIN_ENTRY=0.50;
 const RESOLUTION_WEEK_NO_MAX_ENTRY=0.55;
 const RESOLUTION_WEEK_NO_MAX_EXECUTABLE_ENTRY=0.56;
@@ -1484,9 +1493,7 @@ function resolutionWeekNoSuggestion(m){
   const executionCost=Math.max(0,modeledEntry-marketPrice);
   if(modeledEntry>RESOLUTION_WEEK_NO_MAX_EXECUTABLE_ENTRY||executionCost>RESOLUTION_WEEK_NO_MAX_EXECUTION_COST+0.00001)return null;
   const eventKey=String(m.event_id||m.event||m.id),conviction=+clamp(72+Math.log10(Math.max(1,m.volume_24hr||m.volume))*1.2+Math.log10(Math.max(1,m.liquidity)),72,82).toFixed(1);
-  const audit=window.days===3
-    ?{events:158,eventMean:0.3324,lower:0.2552,trainEvents:102,trainLower:0.1932,holdoutEvents:58,holdoutLower:0.2727}
-    :{events:114,eventMean:0.3821,lower:0.3125,trainEvents:79,trainLower:0.3058,holdoutEvents:35,holdoutLower:0.2377};
+  const audit=RESOLUTION_WEEK_NO_AUDIT[window.days];
   return {market_id:m.id,question:m.question,event:m.event,event_key:eventKey,url:m.url,category:m.category,tags:m.tags,
     clob_yes:(m.clob_token_ids||[])[0]||null,clob_no:(m.clob_token_ids||[])[1]||null,
     yes_price:m.yes_price,no_price:m.no_price,fair_value:+modeledEntry.toFixed(4),edge:0,net_edge:0,
@@ -1499,7 +1506,7 @@ function resolutionWeekNoSuggestion(m){
     pilot_prior:{recent_markets:2916,recent_events:audit.events,recent_event_mean:audit.eventMean,recent_event_lower_90:audit.lower,
       train_events:audit.trainEvents,train_lower_90:audit.trainLower,holdout_events:audit.holdoutEvents,holdout_lower_90:audit.holdoutLower,modeled_cost_cents:1,regime_specific:true},
     drivers:[`validated ${window.days}-day settlement window`,"NO midpoint is 50–55%","executable NO ask plus 0.25c slippage","one owner per event","hold to verified settlement"],
-    rationale:`Bounded current-regime pilot: NO is priced at ${pct(marketPrice)} for a fixed-date contract resolving in ${days.toFixed(1)} days, inside the independently passing ${window.days}-day window. The modeled entry is ${pct(modeledEntry)} using the executable NO ask plus 0.25-cent slippage, ${(executionCost*100).toFixed(2)} cents above midpoint. In the most recent 2,916 resolved-market replay at one-cent cost, the exact 50–55% NO rule covered ${audit.events} ${window.days}-day event clusters with a ${(audit.eventMean*100).toFixed(2)}% event mean and ${(audit.lower*100).toFixed(2)}% lower 90% bound; chronological train and holdout bounds were ${(audit.trainLower*100).toFixed(2)}% and ${(audit.holdoutLower*100).toFixed(2)}%. Historical liquidity at the decision point cannot be reconstructed, so this remains a 0.5% paper pilot with live liquidity gates, one owner per event, a 3% total cap, settlement-only exits, and automatic per-horizon forward demotion.`};
+    rationale:`Bounded current-regime pilot: NO is priced at ${pct(marketPrice)} for a safe non-Sports contract resolving in ${days.toFixed(1)} days, inside the independently passing ${window.days}-day window. The modeled entry is ${pct(modeledEntry)} using the executable NO ask plus 0.25-cent slippage, ${(executionCost*100).toFixed(2)} cents above midpoint. In the most recent 2,954 resolved-market replay at one-cent cost, the exact production-matched 50–55% NO rule covered ${audit.events} ${window.days}-day event clusters with a ${(audit.eventMean*100).toFixed(2)}% event mean and ${(audit.lower*100).toFixed(2)}% lower 90% bound; chronological train and holdout bounds were ${(audit.trainLower*100).toFixed(2)}% and ${(audit.holdoutLower*100).toFixed(2)}%. Historical liquidity at the decision point cannot be reconstructed, so this remains a 0.5% paper pilot with live liquidity gates, one owner per event, a 3% total cap, settlement-only exits, and automatic per-horizon forward demotion.`};
 }
 function sportsFavoriteLeadHours(item){return hoursUntil(item&&item.game_start);}
 function sportsFavoritePilotSuggestion(m){
@@ -4011,7 +4018,7 @@ async function runDailyCycle(){
         .forEach(row=>claimedResolutionWeekEvents.add(String(row.event_key||row.market_id)));
       if(RESOLUTION_WEEK_NO_ADOPTER_IDS.has(cfg.id)){
         p.lastDecision=Object.assign({},p.lastDecision,{resolutionWeekNoPilot:sharedResolutionWeekProfile});
-        p.lastDecision.allocationStatus=`${p.lastDecision.allocationStatus||""} Resolution-window NO pilot: shared state ${sharedResolutionWeekProfile.state}, ${sharedResolutionWeekProfile.events} settled events, ${(sharedResolutionWeekProfile.position_pct*100).toFixed(2)}% position cap and ${RESOLUTION_WEEK_NO_TOTAL_CAPITAL_PCT*100}% total cap; only validated 3d/7d windows can trade, one agent owns each event, and positions hold to verified settlement.`.trim();
+        p.lastDecision.allocationStatus=`${p.lastDecision.allocationStatus||""} Resolution-window NO pilot: shared state ${sharedResolutionWeekProfile.state}, ${sharedResolutionWeekProfile.events} settled events, ${(sharedResolutionWeekProfile.position_pct*100).toFixed(2)}% position cap and ${RESOLUTION_WEEK_NO_TOTAL_CAPITAL_PCT*100}% total cap; only validated 3d–6d windows can trade, one agent owns each event, and positions hold to verified settlement.`.trim();
       }
       if(SHOCK_FADE_ADOPTER_IDS.has(cfg.id)){
         (p.positions||[]).filter(row=>row.signal_type==="shock-fade-pilot"&&Number(row.shock_strategy_version||0)===SHOCK_FADE_STRATEGY_VERSION)
@@ -4247,15 +4254,15 @@ function decisionSummary(p){
   const maker=d.makerQuotes!=null?` Maker research: ${d.makerShadowActive||0} zero-capital lock-or-exit observations active; ${d.makerFills||0} verified touches and ${d.makerShadowCompleted||0} outcomes completed this cycle.${makerStats?` Event-clustered ledger: ${makerStats.attempts} attempts / ${makerStats.events} events, ${makerStats.locked} locked pairs, ${makerStats.adverse} immediate adverse exits, ${makerStats.unfilled} unfilled, and ${fmtUSD(makerStats.shadow_pnl)} simulated shadow net.`:""} Capital is disabled because neither the 6,048-rule chronological maker audit nor the reward stress test produced a validated holdout winner. Hypothetical rewards are excluded.`:"";
   const sportsPilot=d.sportsFavoritePilot?` Sports forward learner: ${d.sportsFavoritePilot.state}, ${d.sportsFavoritePilot.active_shadows||0} zero-capital observations active and ${d.sportsFavoritePilot.events} independent closed events, ${d.sportsFavoritePilot.events?`${(d.sportsFavoritePilot.mean*100).toFixed(2)}% mean with ${d.sportsFavoritePilot.lower>=0?"+":""}${(d.sportsFavoritePilot.lower*100).toFixed(2)}% to ${d.sportsFavoritePilot.upper>=0?"+":""}${(d.sportsFavoritePilot.upper*100).toFixed(2)}% 90% interval; `:""}${fmtUSD(d.sportsFavoritePilot.shadow_pnl_per_100||0)} simulated per-$100 net and ${fmtUSD(d.sportsFavoritePilot.pnl)} realized capital P&L. Position cap ${(d.sportsFavoritePilot.position_pct*100).toFixed(2)}%; capital remains zero until ${SPORTS_FAVORITE_PROMOTION_EVENTS} new independent events establish a positive lower bound.`:"";
   const shockPilot=d.shockFadePilot?` Shared shock strategy ${SHOCK_FADE_STRATEGY_VERSION}: ${d.shockFadePilot.state}, ${d.shockFadePilot.active_shadows||0} ${SHOCK_FADE_EXIT_HOURS}-hour observations active and ${d.shockFadePilot.events} deduplicated forward events complete across five adopters. Mean ${(d.shockFadePilot.mean*100).toFixed(2)}%; 90% interval ${(d.shockFadePilot.lower*100).toFixed(2)}% to ${(d.shockFadePilot.upper*100).toFixed(2)}%; ${d.shockFadePilot.expired_ungraded||0} missed windows were discarded. Position cap ${(d.shockFadePilot.position_pct*100).toFixed(2)}%, total cap ${SHOCK_FADE_TOTAL_CAPITAL_PCT*100}%; ${SHOCK_FADE_QUALIFICATION_EVENTS} positive events can qualify 1% capital and ${SHOCK_FADE_PROMOTION_EVENTS} stronger events can raise size to ${SHOCK_FADE_PROMOTED_POSITION_PCT*100}%.`:"";
-  const resolutionWeek=d.resolutionWeekNoPilot?` Resolution-window NO pilot: ${d.resolutionWeekNoPilot.state}, ${d.resolutionWeekNoPilot.events} shared settled events, ${(d.resolutionWeekNoPilot.mean*100).toFixed(2)}% mean and ${(d.resolutionWeekNoPilot.lower*100).toFixed(2)}% lower 90% bound. Position cap ${(d.resolutionWeekNoPilot.position_pct*100).toFixed(2)}%, total cap ${RESOLUTION_WEEK_NO_TOTAL_CAPITAL_PCT*100}%; only validated 3d/7d windows can trade, each horizon adapts separately, one agent owns each event, and every position holds to verified settlement.`:"";
+  const resolutionWeek=d.resolutionWeekNoPilot?` Resolution-window NO pilot: ${d.resolutionWeekNoPilot.state}, ${d.resolutionWeekNoPilot.events} shared settled events, ${(d.resolutionWeekNoPilot.mean*100).toFixed(2)}% mean and ${(d.resolutionWeekNoPilot.lower*100).toFixed(2)}% lower 90% bound. Position cap ${(d.resolutionWeekNoPilot.position_pct*100).toFixed(2)}%, total cap ${RESOLUTION_WEEK_NO_TOTAL_CAPITAL_PCT*100}%; only validated 3d–6d windows can trade, each horizon adapts separately, one agent owns each event, and every position holds to verified settlement.`:"";
   return `${d.mode} mode: ${d.reason}${emotion} Limits now: ${d.maxNew} new trade${d.maxNew===1?"":"s"}, max ${(d.maxFrac*100).toFixed(1)}% per position${d.minConv?`, conviction ${d.minConv}+`:""}.${learning}${calibration}${maker}${sportsPilot}${shockPilot}${resolutionWeek}${exposure}${allocation}${candidates}${blockers}`;
 }
 function renderAgentBrief(cfg,p,st){
   const root=$("agentBrief"); if(!root)return;
   const bw=bestAndWorst(p);
   const risk=cfg.aggressive?"Extreme risk":cfg.maxFrac>=0.055?"Active":cfg.maxFrac<=0.04?"Broad active":"Disciplined";
-  const cadence=cfg.id==="favorite"?"Zero-capital 12h sports observations until 30 forward events promote 1.25% positions":RESOLUTION_WEEK_NO_ADOPTER_IDS.has(cfg.id)?`One bounded 3d/7d resolution-window NO entry per cycle; ${RESOLUTION_WEEK_NO_TOTAL_CAPITAL_PCT*100}% total cap plus zero-capital shock research`:`${cfg.maxNew||0} new trades max per cycle`;
-  const exitRule=cfg.id==="favorite"?"Grade shadow observations only when Polymarket closes the market; after promotion, capital positions retain the 18% stop and profit locks":RESOLUTION_WEEK_NO_ADOPTER_IDS.has(cfg.id)?`Hold 3d/7d resolution-window positions to verified settlement; exit shock positions at the executable bid after ${SHOCK_FADE_EXIT_HOURS} hours and discard missed grading windows`
+  const cadence=cfg.id==="favorite"?"Zero-capital 12h sports observations until 30 forward events promote 1.25% positions":RESOLUTION_WEEK_NO_ADOPTER_IDS.has(cfg.id)?`One bounded 3d–6d resolution-window NO entry per cycle; ${RESOLUTION_WEEK_NO_TOTAL_CAPITAL_PCT*100}% total cap plus zero-capital shock research`:`${cfg.maxNew||0} new trades max per cycle`;
+  const exitRule=cfg.id==="favorite"?"Grade shadow observations only when Polymarket closes the market; after promotion, capital positions retain the 18% stop and profit locks":RESOLUTION_WEEK_NO_ADOPTER_IDS.has(cfg.id)?`Hold 3d–6d resolution-window positions to verified settlement; exit shock positions at the executable bid after ${SHOCK_FADE_EXIT_HOURS} hours and discard missed grading windows`
     :`Exit after a confirmed reversal, a 12h unconfirmed fade after 48h, a trailing-profit retrace, or ${EXIT_STALE_DAYS}d stale while losing; Politics trends get 72h before ordinary signal exits`;
   const thesis=agentPlainBlurb(cfg,st);
   const quoteSummary=(p.maker_quotes||[]).slice(0,3).map(quote=>`${quote.shadow_only?"Shadow":"Capital"} · ${quote.question.slice(0,34)}${quote.question.length>34?"...":""}: YES ${pct(quote.yes_quote)} + NO ${pct(quote.no_quote)}${quote.yes_filled_at||quote.no_filled_at?" (one leg touched)":""}`).join("; ");
@@ -5938,7 +5945,7 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
       maximumExecutableEntry:RESOLUTION_WEEK_NO_MAX_EXECUTABLE_ENTRY,
       adopterAgentIds:[...RESOLUTION_WEEK_NO_ADOPTER_IDS],backtestApproved:RESOLUTION_WEEK_NO_BACKTEST_APPROVED,
       fixedDateOnly:true,sportsExcluded:true,settlementOnlyExit:true,oneOwnerPerEvent:true,sharedForwardDemotion:true},
-    historicalPrior:"No broad directional rule survived the adaptive holdouts at both 24h and 72h. Contract-safe Shock Strategy 4 remains zero-capital after its untouched expansion failed. A separate current-regime 50%-55% NO rule passed exact three-day and seven-day chronological audits at one-cent modeled cost; one-day, fourteen-day, thirty-day, and ninety-day windows failed or lacked evidence and remain disabled. Contemporaneous historical liquidity cannot be reconstructed, so only live, fixed-date, non-sports contracts in the passing windows that clear spread and liquidity gates receive 0.5% paper positions, one owner per event, a 3% cap, settlement-only exits, and automatic per-horizon demotion from forward losses. Favorite-priced trend remains hard-blocked. Maker capital remains disabled"}),
+    historicalPrior:"No broad directional rule survived the adaptive holdouts at both 24h and 72h. Contract-safe Shock Strategy 4 remains zero-capital after its untouched expansion failed. An exact production-matched 50%-55% NO rule passed safe non-Sports chronological audits at three, four, five, and six days with one-cent modeled cost; two days failed holdout and seven through ten days failed the stricter all-segment confidence test or were not retained. Contemporaneous historical liquidity cannot be reconstructed, so only live safe non-Sports contracts in the passing windows that clear spread and liquidity gates receive 0.5% paper positions, one owner per event, a 3% cap, settlement-only exits, and automatic per-horizon demotion from forward losses. Favorite-priced trend remains hard-blocked. Maker capital remains disabled"}),
 });
 function runEngineSelfTest(){
   const market=(overrides={})=>Object.assign({
@@ -5957,15 +5964,19 @@ function runEngineSelfTest(){
   const pathBarrierContract=analyzeMarket(market({id:"barrier-test",question:"Will Bitcoin reach $66,000 August 17-23?",category:"Crypto"}),news);
   const fixedDateLevelContract=analyzeMarket(market({id:"fixed-level-test",question:"Will Bitcoin be above $66,000 on 2026-08-23?",category:"Crypto"}),news);
   const ordinaryDatedContract=analyzeMarket(market({id:"dated-test",question:"Will the policy pass on 2026-08-22?"}),news);
-  const resolutionWeekEnd=new Date(Date.now()+7*86400000).toISOString();
+  const resolutionWeekEnd=new Date(Date.now()+6*86400000).toISOString();
   const resolutionWeekMarket=market({id:"resolution-week",question:"Will Bitcoin be above $82,000 on August 27?",event:"Bitcoin price on August 27",event_id:"btc-aug-27",
     category:"Crypto",yes_price:0.48,no_price:0.52,best_bid:0.477,best_ask:0.483,spread:0.006,volume:250000,volume_24hr:30000,liquidity:35000,
-    days_to_resolution:7,end_date:resolutionWeekEnd,price_change_1h:0,price_change_1d:0,price_change_1w:0});
+    days_to_resolution:6,end_date:resolutionWeekEnd,price_change_1h:0,price_change_1d:0,price_change_1w:0});
   const resolutionWeekSuggestion=resolutionWeekNoSuggestion(resolutionWeekMarket);
+  const validatedResolutionHorizons=[3,4,5,6].map(days=>resolutionWeekNoSuggestion(Object.assign({},resolutionWeekMarket,
+    {id:`resolution-${days}d`,event_id:`resolution-${days}d-event`,days_to_resolution:days})));
+  const unvalidatedSevenDayResolution=resolutionWeekNoSuggestion(Object.assign({},resolutionWeekMarket,
+    {id:"resolution-7d",event_id:"resolution-7d-event",days_to_resolution:7}));
   const pathDependentResolutionWeek=resolutionWeekNoSuggestion(market({id:"resolution-path",question:"Will Bitcoin reach $82,000 by August 27?",event_id:"resolution-path-event",
-    category:"Crypto",yes_price:0.48,no_price:0.52,best_bid:0.477,best_ask:0.483,spread:0.006,volume:250000,liquidity:35000,days_to_resolution:7,end_date:resolutionWeekEnd}));
+    category:"Crypto",yes_price:0.48,no_price:0.52,best_bid:0.477,best_ask:0.483,spread:0.006,volume:250000,liquidity:35000,days_to_resolution:6,end_date:resolutionWeekEnd}));
   const sportsResolutionWeek=resolutionWeekNoSuggestion(market({id:"resolution-sports",question:"Will Harbor FC win?",event_id:"resolution-sports-event",
-    category:"Sports",yes_price:0.48,no_price:0.52,best_bid:0.477,best_ask:0.483,spread:0.006,volume:250000,liquidity:35000,days_to_resolution:7,end_date:resolutionWeekEnd}));
+    category:"Sports",yes_price:0.48,no_price:0.52,best_bid:0.477,best_ask:0.483,spread:0.006,volume:250000,liquidity:35000,days_to_resolution:6,end_date:resolutionWeekEnd}));
   const resolutionAgent=AGENTS.find(agent=>agent.id==="catalyst"),initialResolutionProfile=resolutionWeekNoPilotProfile(defaultPortfolio());
   const resolutionBook=defaultPortfolio(),resolutionDecision={minConv:0,maxNew:4,maxFrac:0.09,reserve:0.10,targetExposure:0.80,
     learning:buildAdaptiveProfile(resolutionBook),marketLearning:buildSignalCalibration(defaultSignalLedger()),resolutionWeekNoPilot:initialResolutionProfile};
@@ -5985,7 +5996,7 @@ function runEngineSelfTest(){
     market_id:`losing-3d-resolution-${i}`,original_cost:50,cost:50,realized_pnl:-5});
   const horizonResolutionProfile=sharedResolutionWeekNoPilotProfile(horizonResolutionState);
   const blockedThreeDayResolution=applyResolutionWeekNoProfile(Object.assign({},resolutionWeekSuggestion,{target_horizon_days:3}),horizonResolutionProfile);
-  const allowedSevenDayResolution=applyResolutionWeekNoProfile(Object.assign({},resolutionWeekSuggestion,{target_horizon_days:7}),horizonResolutionProfile);
+  const allowedSixDayResolution=applyResolutionWeekNoProfile(Object.assign({},resolutionWeekSuggestion,{target_horizon_days:6}),horizonResolutionProfile);
   const duplicateResolutionState=defaultState();
   duplicateResolutionState.agents.catalyst.closed.push({signal_type:"resolution-week-no-pilot",resolution_week_strategy_version:RESOLUTION_WEEK_NO_STRATEGY_VERSION,
     event_key:"duplicate-resolution-event",market_id:"duplicate-a",original_cost:50,cost:50,realized_pnl:5});
@@ -6747,6 +6758,9 @@ function runEngineSelfTest(){
     resolutionWeekNoPilot:{
       identifiesFixedDateNoFavorite:Boolean(resolutionWeekSuggestion&&resolutionWeekSuggestion.trade_ready
         &&resolutionWeekSuggestion.side==="NO"&&resolutionWeekSuggestion.entry_price===0.5255),
+      acceptsEveryValidatedThreeThroughSixDayHorizon:validatedResolutionHorizons.length===4
+        &&validatedResolutionHorizons.every((suggestion,index)=>suggestion&&suggestion.target_horizon_days===index+3),
+      rejectsUnvalidatedSevenDayHorizon:unvalidatedSevenDayResolution===null,
       usesExecutableNoAskPlusSlippage:Boolean(resolutionWeekSuggestion&&resolutionWeekSuggestion.market_price===0.52
         &&resolutionWeekSuggestion.friction===0.0055),
       rejectsPathDependentBarrier:pathDependentResolutionWeek===null,
@@ -6762,9 +6776,9 @@ function runEngineSelfTest(){
       losingForwardCohortDisablesAllAdopters:losingResolutionProfile.demoted&&!losingResolutionProfile.allowed
         &&losingResolutionProfile.position_pct===0,
       horizonsAdaptIndependently:horizonResolutionProfile.allowed&&horizonResolutionProfile.horizons[3].demoted
-        &&!horizonResolutionProfile.horizons[3].allowed&&horizonResolutionProfile.horizons[7].allowed,
+        &&!horizonResolutionProfile.horizons[3].allowed&&horizonResolutionProfile.horizons[6].allowed,
       demotedHorizonCannotTradeWhilePeerHorizonCan:!blockedThreeDayResolution.trade_ready&&blockedThreeDayResolution.watch_only
-        &&allowedSevenDayResolution.trade_ready&&!allowedSevenDayResolution.watch_only,
+        &&allowedSixDayResolution.trade_ready&&!allowedSixDayResolution.watch_only,
       sharedEvidenceDeduplicatesEvent:duplicateResolutionProfile.events===1,
       globalEventClaimsDeduplicateOwner:claimedResolutionKeys.size===1&&claimedResolutionKeys.has("duplicate-resolution-event"),
     },
