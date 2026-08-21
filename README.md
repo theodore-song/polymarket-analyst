@@ -307,10 +307,11 @@ non-Yes/No labels, inadequate liquidity, and non-positive margins are rejected.
 An earlier parser had mistaken Over/Under labels for Yes/No; the label-aware
 scanner and live engine retain a regression test for that failure mode.
 
-Build 76 separates the directional learner's evidence lineage from the global
-strategy release. Strategy 56 through Strategy 58 use the same trend/reversal
-signal policy, so their forward, net-of-cost checkpoint observations remain
-compatible even when an unrelated sports, maker, or bundle subsystem ships.
+Build 77 separates the directional learner's evidence lineage from the global
+strategy release. Code-history verification found the same trend/reversal
+generator and 24-hour/72-hour grading policy in Strategy 51 through Strategy
+58, so their forward, net-of-cost checkpoint observations remain compatible
+even when an unrelated sports, maker, or bundle subsystem ships.
 Older signal policies remain down-weighted and cannot satisfy the current-policy
 promotion gate. This avoids repeatedly emptying a valid evidence set while
 preserving the requirement for positive 24-hour and 72-hour results across

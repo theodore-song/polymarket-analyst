@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 58 · signal policy 1 · build 76</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 58 · signal policy 1 · build 77</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 76 active:</b> directional evidence now follows its own signal-policy version, so unrelated sports, maker, and bundle releases no longer erase compatible trend/reversal learning. Only observations produced by the unchanged Strategy 56–58 directional rules are carried forward; older or different policies stay historical. Returning to the app or reconnecting also triggers an immediate catch-up scan. Bundle entries still require current executable prices and a positive margin after costs. This remains paper trading; profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 77 active:</b> directional evidence now follows its own signal-policy version, so unrelated sports, maker, and bundle releases no longer erase compatible trend/reversal learning. Code-history verification found the same forward directional generator and 24h/72h grading policy in Strategy 51–58, so those outcomes can promote profitable cohorts or veto losing ones immediately; Strategy 50 and older remain historical. Returning to the app or reconnecting also triggers an immediate catch-up scan. Bundle entries still require current executable prices and a positive margin after costs. This remains paper trading; profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 76 · Adaptive strategy 58 · Signal policy 1 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 77 · Adaptive strategy 58 · Signal policy 1 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,12 +774,12 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 76;
+const BUILD_VERSION = 77;
 const SUGGESTION_ENGINE_VERSION = 58;
 const MAKER_STRATEGY_VERSION = 2;
 const PREVIOUS_STRATEGY_VERSION = 57;
 const DIRECTIONAL_SIGNAL_POLICY_VERSION = 1;
-const DIRECTIONAL_SIGNAL_COMPATIBLE_STRATEGY_MIN = 56;
+const DIRECTIONAL_SIGNAL_COMPATIBLE_STRATEGY_MIN = 51;
 const DIRECTIONAL_SIGNAL_COMPATIBLE_STRATEGY_MAX = 58;
 const LEGACY_BUILD_STRATEGY_LINEAGE = Object.freeze({40:40,41:40});
 function normalizedStrategyVersion(value){
