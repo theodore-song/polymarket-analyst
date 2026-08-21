@@ -20,7 +20,7 @@ market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
 
-Build 98 runs the headless GitHub Actions runtime every five minutes, continues
+Build 99 runs the headless GitHub Actions runtime every five minutes, continues
 from the previous agent snapshot,
 and runs the next due paper cycle even when no browser is open. It writes a
 sanitized snapshot to the `runtime-state` branch and `/api/state` uses that as a
@@ -41,7 +41,7 @@ Polymarket event key. Related Ethereum or Bitcoin contracts cannot create
 several simultaneous copies of one move, and outcomes from the same underlying
 three-hour shock window count as one learner event.
 
-Each Build 98 cycle also scans the 1,000 most-active Polymarket events for
+Each Build 99 cycle also scans the 1,000 most-active Polymarket events for
 complete negative-risk bundles and logically nested threshold or deadline
 pairs. Only a positive worst-case payout margin after 0.5 cents of modeled cost
 per leg can enter the Value Discipline portfolio. The Suggestions view stores

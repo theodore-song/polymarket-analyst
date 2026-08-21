@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 98 active:</b> The public paper agents run autonomously every five minutes while every user device is closed. Each cycle scans the 1,000 most-active events for complete negative-risk and same-event dominance bundles, and the shared Suggestions view reports the closest executable margin even when no bundle is profitable after modeled costs. Five aggressive agents can also take tightly bounded, safe non-Sports 50–55% NO positions in independently passing three-through-six-day settlement windows. Other unproven directional rules remain observation-only. Phones and computers display the same read-only autonomous state. Profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 99 active:</b> The public paper agents run autonomously every five minutes while every user device is closed. Each cycle scans the 1,000 most-active events for complete negative-risk and same-event dominance bundles, and the shared Suggestions view reports the closest executable margin even when no bundle is profitable after modeled costs. Five aggressive agents can also take tightly bounded, safe non-Sports 50–55% NO positions in independently passing three-through-six-day settlement windows. Other unproven directional rules remain observation-only. Phones and computers display the same read-only autonomous state. Profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 98 · Adaptive strategy 59 · Five-minute autonomous scans · 1,000-event bundle audit · Resolution-window pilot 2 · Validated 3d–6d entries · Executable 50–55% NO pricing · Settlement-only exits · Per-horizon forward demotion · Autonomous runtime 1 · Offline runtime 2 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 99 · Adaptive strategy 59 · Five-minute autonomous scans · Persistent 1,000-event bundle audit · Resolution-window pilot 2 · Validated 3d–6d entries · Executable 50–55% NO pricing · Settlement-only exits · Per-horizon forward demotion · Autonomous runtime 1 · Offline runtime 2 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 98;
+const BUILD_VERSION = 99;
 const AGENT_LEARNING_VERSION = 3;
 const SUGGESTION_ENGINE_VERSION = 59;
 const MAKER_STRATEGY_VERSION = 3;
@@ -3968,7 +3968,7 @@ async function runDailyCycle(){
     const marketLearningByAgent=Object.fromEntries(AGENTS.map(agent=>[agent.id,buildSignalCalibration(st.signal_ledger,agent.id)]));
     if(runMode==="live"){
       sugs=sugs.map(s=>applyAgentSpecificPromotions(s,marketLearningByAgent));
-      saveSuggestions(sugs,markets.length,analysisMarkets.length);
+      saveSuggestions(sugs,markets.length,analysisMarkets.length,bundleAudit);
       saveMarketCache(analysisMarkets,sugs,priceMap);
     }
     const cachePolicy=offlineCachePolicy(cacheAgeMs);
