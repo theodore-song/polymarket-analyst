@@ -20,7 +20,7 @@ market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
 
-Build 92 runs the headless GitHub Actions runtime every 15 minutes, continues
+Build 93 runs the headless GitHub Actions runtime every 15 minutes, continues
 from the previous agent snapshot,
 and runs the next due paper cycle even when no browser is open. It writes a
 sanitized snapshot to the `runtime-state` branch and `/api/state` uses that as a
@@ -36,6 +36,10 @@ five shock-strategy adopters now learn from one shared,
 event-deduplicated forward ledger. A trade allocated to one agent therefore
 teaches the other four without copying its cash or P&L; shared positive evidence
 can promote bounded size and shared negative evidence disables the lane.
+Active shock positions use a second underlying-risk key in addition to the
+Polymarket event key. Related Ethereum or Bitcoin contracts cannot create
+several simultaneous copies of one move, and outcomes from the same underlying
+three-hour shock window count as one learner event.
 
 Build 73 distinguishes a temporary order-book pause from settlement. Exact
 market refreshes still mark paused positions to the latest published price, but
