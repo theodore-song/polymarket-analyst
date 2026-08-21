@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 58 · agent learning 1 · build 80</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 58 · agent learning 2 · build 81</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 80 active:</b> every forward directional observation records which agent strategies would actually consider it, and the research queue now holds 600 observations instead of 300. This preserves the 300 maturing legacy records while immediately making room for strategy-scoped evidence, so differentiated adaptation starts now rather than after a three-day queue rotation. Each agent can promote a profitable cohort or veto a losing one independently; the 1,000-outcome history preserves enough event diversity for confidence checks. Value Hunter continues scanning live threshold, deadline, and complete negative-risk bundles. This remains paper trading; profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 81 active:</b> each strategy now studies its own broader research universe before deciding whether a setup has earned capital. Observation eligibility is separate from the stricter entry gate, while sports pilots and priced bundles stay out of directional calibration. Agent reports show legacy, strategy-tagged, and unassigned queue counts so differentiated learning is auditable. Capital still requires independent 24h and 72h net-positive evidence; this remains paper trading and profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 80 · Adaptive strategy 58 · Agent learning 1 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 81 · Adaptive strategy 58 · Agent learning 2 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 80;
+const BUILD_VERSION = 81;
 const SUGGESTION_ENGINE_VERSION = 58;
 const MAKER_STRATEGY_VERSION = 2;
 const PREVIOUS_STRATEGY_VERSION = 57;
@@ -2031,22 +2031,30 @@ function updateSignalLedger(st,markets,suggestions){
   const existing=new Set(stillPending.map(x=>x.key)),pendingPairs=new Set(stillPending.map(x=>`${x.market_id}:${x.side}`));
   const bucket=Math.floor(now/(6*3600000));
   const observable=prioritizeSignalObservations((suggestions||[])
-    .filter(x=>x.trade_ready||(!x.jump_risk&&["trend","reversal"].includes(x.signal_type)&&Number(x.signal_confidence||0)>=0.56)),ledger,stillPending);
+    .filter(x=>!x.jump_risk&&["trend","reversal"].includes(x.signal_type)&&Number(x.signal_confidence||0)>=0.56),ledger,stillPending);
   for(const s of observable){
     const pair=`${s.market_id}:${s.side}`,key=`${pair}:${bucket}`;if(existing.has(key)||pendingPairs.has(pair))continue;
     if(stillPending.length>=SIGNAL_LEDGER_PENDING_LIMIT)break;
     existing.add(key);pendingPairs.add(pair);stillPending.push({key,market_id:String(s.market_id),event_key:String(s.url||s.event||s.market_id),observed_at:nowIso(),graded_horizons:[],side:s.side,entry_price:Number(s.entry_price),
       signal_type:s.signal_type||"unknown",quality:s.quality||"unknown",category:s.category||"Other",conviction:Number(s.conviction||0),
       days_to_resolution:s.days_to_resolution,trade_ready_at_observation:Boolean(s.trade_ready),
-      eligible_agent_ids:AGENTS.filter(agent=>agentAcceptsSuggestion(agent,s)).map(agent=>agent.id),
+      eligible_agent_ids:AGENTS.filter(agent=>agentObservesSuggestion(agent,s)).map(agent=>agent.id),
       signal_policy_version:DIRECTIONAL_SIGNAL_POLICY_VERSION,strategy_version:SUGGESTION_ENGINE_VERSION,build_version:BUILD_VERSION});
   }
   ledger.pending=stillPending.slice(0,SIGNAL_LEDGER_PENDING_LIMIT);
   ledger.outcomes=ledger.outcomes.slice(-SIGNAL_LEDGER_OUTCOME_LIMIT);
   st.signal_ledger=ledger;return ledger;
 }
+function signalScopeCounts(items,agentId=null){
+  const rows=Array.isArray(items)?items:[],legacy=rows.filter(item=>!Object.prototype.hasOwnProperty.call(item||{},"eligible_agent_ids"));
+  const scoped=rows.filter(item=>Array.isArray(item&&item.eligible_agent_ids)&&item.eligible_agent_ids.length>0);
+  const unassigned=rows.filter(item=>Object.prototype.hasOwnProperty.call(item||{},"eligible_agent_ids")&&(!Array.isArray(item.eligible_agent_ids)||item.eligible_agent_ids.length===0));
+  return {global:rows.length,legacy:legacy.length,scoped:scoped.length,unassigned:unassigned.length,
+    agent_scoped:agentId?scoped.filter(item=>item.eligible_agent_ids.includes(agentId)).length:scoped.length};
+}
 function buildSignalCalibration(ledger,agentId=null){
-  const clusters={},outcomes=((ledger&&ledger.outcomes)||[]).filter(outcome=>signalEligibleForAgent(outcome,agentId));
+  const allOutcomes=(ledger&&ledger.outcomes)||[],outcomeScopes=signalScopeCounts(allOutcomes,agentId);
+  const clusters={},outcomes=allOutcomes.filter(outcome=>signalEligibleForAgent(outcome,agentId));
   outcomes.forEach((outcome,index)=>{
     const age=Math.max(0,Date.now()-new Date(outcome.evaluated_at||0).getTime()),version=normalizedStrategyVersion(outcome.strategy_version);
     const policyCompatible=currentSignalPolicy(outcome);
@@ -2080,20 +2088,28 @@ function buildSignalCalibration(ledger,agentId=null){
   const currentOutcomes=outcomes.filter(currentSignalPolicy);
   const currentMarkets=new Set(currentOutcomes.map((outcome,index)=>String(outcome.market_id||`unidentified-current-${index}`)));
   const currentEvents=new Set(currentOutcomes.map((outcome,index)=>String(outcome.event_key||outcome.event||outcome.market_id||`unidentified-current-${index}`).trim().toLowerCase()));
-  const pending=((ledger&&ledger.pending)||[]).filter(item=>signalEligibleForAgent(item,agentId));
+  const allPending=(ledger&&ledger.pending)||[],pendingScopes=signalScopeCounts(allPending,agentId);
+  const pending=allPending.filter(item=>signalEligibleForAgent(item,agentId));
   return {version:SUGGESTION_ENGINE_VERSION,policy_version:DIRECTIONAL_SIGNAL_POLICY_VERSION,agent_id:agentId,samples:outcomes.length,markets:identifiedMarkets.size,events:identifiedEvents.size,
     current_samples:currentOutcomes.length,current_markets:currentMarkets.size,current_events:currentEvents.size,buckets:learned,
     promoted_buckets:learnedRows.filter(r=>r.weight>=8&&r.current_weight>=5&&r.lower_bound>0.003).length,
     demoted_buckets:learnedRows.filter(r=>r.weight>=8&&r.current_weight>=5&&r.upper_bound<-0.003).length,
-    expired_ungraded:Number(ledger&&ledger.expired_ungraded||0),
-    pending:pending.length};
+    expired_ungraded:Number(ledger&&ledger.expired_ungraded||0),pending:pending.length,
+    pending_global:pendingScopes.global,pending_legacy:pendingScopes.legacy,pending_scoped:pendingScopes.scoped,
+    pending_unassigned:pendingScopes.unassigned,pending_agent_scoped:pendingScopes.agent_scoped,
+    outcomes_global:outcomeScopes.global,outcomes_legacy:outcomeScopes.legacy,outcomes_scoped:outcomeScopes.scoped,
+    outcomes_unassigned:outcomeScopes.unassigned,outcomes_agent_scoped:outcomeScopes.agent_scoped};
 }
 function calibrationDecisionRecord(calibration){
   const source=calibration||{},count=(key)=>source[key]!=null&&Number.isFinite(Number(source[key]))?Number(source[key]):null;
   return Object.assign({},source,{
     samples:count("samples")??0,markets:count("markets"),events:count("events"),
     current_samples:count("current_samples")??0,current_markets:count("current_markets"),current_events:count("current_events"),
-    pending:count("pending")??0,expired_ungraded:count("expired_ungraded")??0,
+    pending:count("pending")??0,pending_global:count("pending_global"),pending_legacy:count("pending_legacy"),
+    pending_scoped:count("pending_scoped"),pending_unassigned:count("pending_unassigned"),pending_agent_scoped:count("pending_agent_scoped"),
+    outcomes_global:count("outcomes_global"),outcomes_legacy:count("outcomes_legacy"),outcomes_scoped:count("outcomes_scoped"),
+    outcomes_unassigned:count("outcomes_unassigned"),outcomes_agent_scoped:count("outcomes_agent_scoped"),
+    expired_ungraded:count("expired_ungraded")??0,
     promoted_buckets:count("promoted_buckets")??0,demoted_buckets:count("demoted_buckets")??0,
     buckets:source.buckets||{},count_schema:1,
   });
@@ -3052,6 +3068,24 @@ function reduceStrategyOverlap(st){
     const p=st.agents&&st.agents[cfg.id]; if(p)p.positions=(p.positions||[]).filter(pos=>!pos.closed_at);
   });
 }
+function agentObservesSuggestion(cfg,s){
+  if(!cfg||!s||s.jump_risk||!["trend","reversal"].includes(s.signal_type))return false;
+  const entry=Number(s.entry_price||0),confidence=Number(s.signal_confidence||0),strength=Number(s.signal_strength||0);
+  const evidence=Number(s.evidence_score||0),sources=Number(s.evidence_source_count||0),change=Math.abs(Number(s.price_change_1d||0));
+  const days=Number(s.days_to_resolution||0),conviction=Number(s.conviction||0);
+  if(!(entry>0&&entry<1)||confidence<0.56)return false;
+  if(cfg.id==="value")return entry>=0.15&&entry<=0.85;
+  if(cfg.id==="momentum")return s.signal_type==="trend"&&strength>=0.45;
+  if(cfg.id==="favorite")return s.signal_type==="trend"&&entry>=0.55;
+  if(cfg.id==="longshot")return entry<=0.55;
+  if(cfg.id==="diversifier")return true;
+  if(cfg.id==="catalyst")return sources>=1||evidence>=0.40||s.quality==="catalyst";
+  if(cfg.id==="reversal")return s.signal_type==="trend"&&change<=0.06&&days>=14;
+  if(cfg.id==="breakout")return s.signal_type==="trend"&&strength>=0.50;
+  if(cfg.id==="tailalpha")return entry<=0.50;
+  if(cfg.id==="conviction")return conviction>=65&&confidence>=0.58;
+  return false;
+}
 function agentAcceptsSuggestion(cfg,s){
   const quality=s.quality||"watch",edge=effectiveEntryEdge(s),evidence=Number(s.evidence_score||0);
   if(quality==="watch")return false;
@@ -3683,7 +3717,8 @@ function decisionSummary(p){
     const countText=hasCounts?`across ${ml.events} event clusters / ${ml.markets} markets`:`with event and market counts unavailable in this older saved report`;
     const currentText=hasCurrentCounts?`${ml.current_samples||0} observations / ${ml.current_events} events`:`${ml.current_samples||0} observations; independent-event count unavailable`;
     const learningScope=ml.agent_id?`${agentById(ml.agent_id).name}'s eligible strategy universe`:"the shared research universe";
-    calibration=` Walk-forward calibration for ${learningScope}: ${ml.samples||0} net-of-cost checkpoint observations ${countText}, graded at ${SIGNAL_EARLY_RISK_HORIZONS.join("h, ")}h for early loss vetoes and ${SIGNAL_PROMOTION_HORIZONS.join("h and ")}h for promotion (${currentText} under directional signal policy ${ml.policy_version||DIRECTIONAL_SIGNAL_POLICY_VERSION}), ${ml.pending||0} awaiting a future checkpoint${ml.expired_ungraded?`, ${ml.expired_ungraded} expired checkpoints`:""}; ${ml.promoted_buckets||0} horizon-specific feature cohorts promoted and ${ml.demoted_buckets||0} demoted. Promotion requires positive compatible-policy evidence at both promotion horizons across independent events; one mature negative cohort at any checkpoint can veto risk. Each agent learns only from observations its own strategy would have considered, while unlabeled legacy evidence remains readable. Unrelated sports, maker, or bundle releases do not reset this evidence. Missed windows expire rather than borrowing a later price. New observations prioritize under-sampled signal/side/category cohorts and independent events before repeats. Correlated outcome markets in one event count as one effective outcome. Historical prior: every directional trend and reversal remains observation-only until its exact recent cohorts independently promote; settlement-jump barriers stay excluded.`;
+    const queueAudit=Number.isFinite(ml.pending_global)?` Queue audit: ${ml.pending_legacy||0} legacy shared + ${ml.pending_agent_scoped||0} tagged for this agent; ${ml.pending_scoped||0} strategy-tagged and ${ml.pending_unassigned||0} unassigned across ${ml.pending_global||0} global pending records.`:"";
+    calibration=` Walk-forward calibration for ${learningScope}: ${ml.samples||0} net-of-cost checkpoint observations ${countText}, graded at ${SIGNAL_EARLY_RISK_HORIZONS.join("h, ")}h for early loss vetoes and ${SIGNAL_PROMOTION_HORIZONS.join("h and ")}h for promotion (${currentText} under directional signal policy ${ml.policy_version||DIRECTIONAL_SIGNAL_POLICY_VERSION}), ${ml.pending||0} awaiting a future checkpoint${ml.expired_ungraded?`, ${ml.expired_ungraded} expired checkpoints`:""}.${queueAudit} ${ml.promoted_buckets||0} horizon-specific feature cohorts promoted and ${ml.demoted_buckets||0} demoted. Promotion requires positive compatible-policy evidence at both promotion horizons across independent events; one mature negative cohort at any checkpoint can veto risk. Each agent studies a broader strategy-specific research universe before the stricter capital-entry gate is applied, while unlabeled legacy evidence remains readable. Sports pilots and priced bundles stay outside directional calibration. Missed windows expire rather than borrowing a later price. New observations prioritize under-sampled signal/side/category cohorts and independent events before repeats. Correlated outcome markets in one event count as one effective outcome. Historical prior: every directional trend and reversal remains observation-only until its exact recent cohorts independently promote; settlement-jump barriers stay excluded.`;
   }
   const makerStats=d.makerProfile&&d.makerProfile.global;
   const maker=d.makerQuotes!=null?` Maker learner: ${d.makerShadowActive||0} zero-capital shadow observations and ${d.makerCapitalActive||0} evidence-promoted capital quotes active; ${d.makerFills||0} verified touches and ${d.makerShadowCompleted||0} shadow outcomes completed this cycle, ${fmtUSD(d.makerReserved||0)} capital reserved.${makerStats?` Event-clustered ledger: ${makerStats.attempts} attempts / ${makerStats.events} events, ${makerStats.locked} paired touches, ${makerStats.adverse} adverse single touches, ${makerStats.unfilled} unfilled, ${fmtUSD(makerStats.shadow_pnl)} simulated shadow net and ${fmtUSD(makerStats.pnl)} actual paper net.`:""} Capital promotion requires ${MAKER_MIN_COHORT_ATTEMPTS} current-strategy events with positive confidence bounds in both category and spread cohorts. Rewards remain excluded until externally verified.`:"";
@@ -5294,6 +5329,7 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
   dominanceBundleSuggestions,
   buildAdaptiveProfile,
   buildSignalCalibration,
+  agentObservesSuggestion,
   prepareSuggestionForAgent,
   applyAgentSpecificPromotions,
   historicalOpportunityPrior,
@@ -5447,6 +5483,11 @@ function runEngineSelfTest(){
     signal_confidence:0.62,trade_ready:false,jump_risk:false,category:"Politics",days_to_resolution:45}]);
   updateSignalLedger(observationLedgerState,[],[{market_id:"observation-only",side:"YES",entry_price:0.43,signal_type:"trend",quality:"watch",
     signal_confidence:0.64,trade_ready:false,jump_risk:false,category:"Politics",days_to_resolution:45}]);
+  const nonDirectionalLedgerState={signal_ledger:defaultSignalLedger()};
+  updateSignalLedger(nonDirectionalLedgerState,[],[
+    {market_id:"priced-bundle",side:"NO",entry_price:0.80,signal_type:"bundle-arb",quality:"bundle-arb",signal_confidence:1,trade_ready:true,jump_risk:false},
+    {market_id:"sports-pilot",side:"YES",entry_price:0.67,signal_type:"sports-favorite-pilot",quality:"sports-favorite-pilot",signal_confidence:1,trade_ready:true,jump_risk:false},
+  ]);
   const queueLedgerState={signal_ledger:{pending:Array.from({length:SIGNAL_LEDGER_PENDING_LIMIT-1},(_,i)=>({
     key:`old-${i}`,market_id:`old-market-${i}`,observed_at:hoursAgo(12),side:"YES",entry_price:0.42,
   })),outcomes:[]}};
@@ -5864,9 +5905,16 @@ function runEngineSelfTest(){
       broadTrendStartsObservationOnly:!trend.trade_ready&&trend.entry_candidate&&trend.audited_observation_only,
       recentProofCanUnlockTrend:promotedTrendSuggestion.trade_ready&&promotedTrendSuggestion.adaptive_promotion,
       observationsRecordStrategyEligibility:Array.isArray(observationLedgerState.signal_ledger.pending[0].eligible_agent_ids)
-        &&observationLedgerState.signal_ledger.pending[0].eligible_agent_ids.length===0,
+        &&observationLedgerState.signal_ledger.pending[0].eligible_agent_ids.join(",")==="value,longshot,diversifier,reversal,tailalpha",
+      researchEligibilityIsBroaderThanCapitalEntry:agentObservesSuggestion(agentById("value"),{side:"YES",entry_price:0.42,signal_type:"trend",quality:"watch",
+        signal_confidence:0.62,trade_ready:false,jump_risk:false,category:"Politics",days_to_resolution:45})
+        &&!agentAcceptsSuggestion(agentById("value"),{side:"YES",entry_price:0.42,signal_type:"trend",quality:"watch",
+          signal_confidence:0.62,trade_ready:false,jump_risk:false,category:"Politics",days_to_resolution:45}),
+      nonDirectionalSystemsStayOutOfDirectionalLedger:nonDirectionalLedgerState.signal_ledger.pending.length===0,
       agentCalibrationFiltersOutcomes:momentumScopedProfile.samples===72&&momentumScopedProfile.events===24
         &&momentumScopedProfile.pending===1&&valueScopedProfile.samples===0&&valueScopedProfile.pending===1,
+      calibrationReportsQueueComposition:momentumScopedProfile.pending_global===2&&momentumScopedProfile.pending_legacy===0
+        &&momentumScopedProfile.pending_scoped===2&&momentumScopedProfile.pending_agent_scoped===1&&momentumScopedProfile.pending_unassigned===0,
       agentCanPromoteWithoutPromotingPeers:momentumPreparedSuggestion.trade_ready&&!valuePreparedSuggestion.trade_ready,
       aggregatePromotionNamesEligibleAgent:agentScopedAggregate.trade_ready
         &&agentScopedAggregate.promoted_for_agents.length===1&&agentScopedAggregate.promoted_for_agents[0]==="momentum",

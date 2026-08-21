@@ -337,6 +337,15 @@ independent events for per-agent 6-hour risk vetoes and 24-hour/72-hour
 promotion confidence checks without relaxing execution, cost, or evidence
 requirements.
 
+Build 81 separates research eligibility from capital eligibility. Directional
+trend and reversal candidates are tagged for every strategy whose broader
+mandate would study them, including observation-only setups; actual positions
+still require the strategy's stricter quality, edge, evidence, and forward
+promotion gates. Sports-pilot and priced-bundle records are excluded from the
+directional learner. Each agent report now audits the global pending queue as
+legacy shared, strategy-tagged, unassigned, and tagged-for-this-agent counts so
+learning differences are visible instead of inferred from a single total.
+
 Build 77 separates the directional learner's evidence lineage from the global
 strategy release. Code-history verification found the same trend/reversal
 generator and 24-hour/72-hour grading policy in Strategy 51 through Strategy
