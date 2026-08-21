@@ -296,10 +296,16 @@ Cached bundle prices are never allowed to open positions.
 
 Run `npm run evaluate:dominance` to inspect logically nested threshold contracts
 using executable prices. The corrected August 19 scan tested 807 eligible pairs
-across 500 active events and found zero positive pairs after estimated costs. An
-earlier parser had mistaken Over/Under outcome labels for Yes/No and reported
-false opportunities; the label-aware scanner and live engine now reject that
-failure mode.
+across 500 active events and found zero positive pairs after estimated costs. The
+August 20 rerun tested 888 eligible pairs and found one current candidate: YES on
+MetaMask FDV above $2B plus NO on FDV above $3B cost 0.994 per pair after the
+half-cent-per-leg execution allowance, against a guaranteed minimum $1 payout
+when both contracts share the same event terms. Build 75 adds these same-event,
+same-wording dominance pairs to Value Hunter's live scanner. Both legs must open
+together, cached/offline prices cannot create an entry, and mismatched wording,
+non-Yes/No labels, inadequate liquidity, and non-positive margins are rejected.
+An earlier parser had mistaken Over/Under labels for Yes/No; the label-aware
+scanner and live engine retain a regression test for that failure mode.
 
 The expanded event-clustered run loaded history for 498 of the 500 highest-volume
 resolved markets with no fetch failures. No side, price band, category, trend,

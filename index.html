@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 58 · maker research 2 · build 74</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 58 · maker research 2 · build 75</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 74 active:</b> Favorite Backer's zero-capital sports learner is now quote-aware. It observes one 60–75% favorite per independent event near the 12-hour checkpoint only when the executable ask plus a 0.25-cent slippage buffer is no more than one cent above the market midpoint. The cost audit stayed positive by point estimate near one cent but turned negative around two cents, so expensive entries are rejected. Capital remains zero until 30 new independent closed events produce a positive lower confidence bound. Temporary trading pauses and offline snapshots cannot create outcomes. This remains paper trading; profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 75 active:</b> Value Hunter now scans the 500 most-active events for live dominance bundles as well as explicit negative-risk events. When two otherwise identical threshold markets are logically nested, a lower-threshold YES plus higher-threshold NO (or the inverse for below markets) can guarantee at least one payout; the paper engine opens the pair only when current asks leave a positive margin after execution costs. Stale and offline quotes can never create a new bundle. Directional agents continue learning from forward observations instead of reviving failed rules. This remains paper trading; profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 74 · Adaptive strategy 58 · Maker research 2 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 75 · Adaptive strategy 58 · Maker research 2 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 74;
+const BUILD_VERSION = 75;
 const SUGGESTION_ENGINE_VERSION = 58;
 const MAKER_STRATEGY_VERSION = 2;
 const PREVIOUS_STRATEGY_VERSION = 57;
@@ -1068,6 +1068,73 @@ async function fetchMarketPrice(id){
   try{const r=await fetchWithTimeout(`${GAMMA}/markets/${id}`,{},PRICE_REQUEST_TIMEOUT_MS);if(!r.ok)return null;return normalizeMarket(await r.json(),{allowClosed:true});}
   catch(e){return null;}
 }
+const DOMINANCE_THRESHOLD_PATTERNS=Object.freeze([
+  {direction:"above",regex:/(\b(?:above|over|at least|higher than|greater than)\s*(?:[$€£]\s*)?)([0-9]+(?:,[0-9]{3})*(?:\.[0-9]+)?)\s*(k|m|b|%|bps)?\b/i},
+  {direction:"below",regex:/(\b(?:below|(?<!\/)under|at most|lower than|less than)\s*(?:[$€£]\s*)?)([0-9]+(?:,[0-9]{3})*(?:\.[0-9]+)?)\s*(k|m|b|%|bps)?\b/i},
+]);
+function parseDominanceThreshold(question){
+  const text=String(question||"").trim();
+  for(const pattern of DOMINANCE_THRESHOLD_PATTERNS){
+    const match=pattern.regex.exec(text);if(!match)continue;
+    const raw=Number(match[2].replaceAll(",","")),suffix=String(match[3]||"").toLowerCase();
+    const multiplier=suffix==="k"?1e3:(suffix==="m"?1e6:(suffix==="b"?1e9:1)),value=raw*multiplier;
+    if(!Number.isFinite(value))continue;
+    const valueStart=match.index+match[1].length,valueEnd=valueStart+match[2].length;
+    const stem=`${text.slice(0,valueStart)}{threshold}${text.slice(valueEnd)}`.toLowerCase().replace(/\s+/g," ").trim();
+    return {direction:pattern.direction,value,stem};
+  }
+  return null;
+}
+function dominanceBundleSuggestions(event){
+  if(!event||event.closed||event.active===false)return [];
+  const rawLegs=Array.isArray(event.markets)?event.markets:[],eventTags=Array.isArray(event.tags)?event.tags:[];
+  const quotes=rawLegs.map(raw=>{
+    const threshold=parseDominanceThreshold(raw.question),outcomes=parseJsonField(raw.outcomes).map(outcome=>String(outcome||"").trim().toLowerCase());
+    const prices=parseJsonField(raw.outcomePrices).map(toNum),tokens=parseJsonField(raw.clobTokenIds).map(String);
+    const yesBid=toNum(raw.bestBid,NaN),yesAsk=toNum(raw.bestAsk,NaN),liquidity=toNum(raw.liquidityNum||raw.liquidity);
+    if(!threshold||outcomes.length!==2||outcomes[0]!=="yes"||outcomes[1]!=="no"||prices.length!==2||tokens.length!==2
+      ||!tokens[0]||!tokens[1]||!Number.isFinite(yesBid)||!Number.isFinite(yesAsk)||yesBid<0||yesAsk>1||yesAsk<yesBid
+      ||liquidity<NEG_RISK_MIN_LIQUIDITY||raw.closed||raw.active===false||raw.acceptingOrders===false)return null;
+    return Object.assign({},threshold,{market_id:String(raw.id||""),question:String(raw.question||"").trim(),yes_bid:yesBid,yes_ask:yesAsk,
+      yes_mid:prices[0],no_mid:prices[1],yes_token:tokens[0],no_token:tokens[1],liquidity,
+      volume:toNum(raw.volumeNum||raw.volume),volume_24hr:toNum(raw.volume24hr),spread:toNum(raw.spread),
+      url:event.slug?`https://polymarket.com/event/${event.slug}`:""});
+  }).filter(Boolean);
+  const grouped=new Map();
+  quotes.forEach(quote=>{const key=`${quote.direction}|${quote.stem}`,rows=grouped.get(key)||[];rows.push(quote);grouped.set(key,rows);});
+  const candidates=[];
+  for(const rows of grouped.values()){
+    if(rows.length<2||new Set(rows.map(row=>row.value)).size!==rows.length)continue;
+    const ordered=[...rows].sort((a,b)=>a.value-b.value);
+    for(let left=0;left<ordered.length-1;left++)for(let right=left+1;right<ordered.length;right++){
+      const lower=ordered[left],higher=ordered[right],superset=lower.direction==="above"?lower:higher,subset=lower.direction==="above"?higher:lower;
+      const legs=[
+        {market_id:superset.market_id,question:superset.question,side:"YES",token_id:superset.yes_token,
+          entry_price:superset.yes_ask+SIGNAL_ROUND_TRIP_COST,current_price:superset.yes_mid,liquidity:superset.liquidity,url:superset.url},
+        {market_id:subset.market_id,question:subset.question,side:"NO",token_id:subset.no_token,
+          entry_price:1-subset.yes_bid+SIGNAL_ROUND_TRIP_COST,current_price:subset.no_mid,liquidity:subset.liquidity,url:subset.url},
+      ].map(leg=>Object.assign({},leg,{entry_price:+leg.entry_price.toFixed(4),current_price:+Number(leg.current_price).toFixed(4)}));
+      if(legs.some(leg=>!leg.market_id||!Number.isFinite(leg.entry_price)||!Number.isFinite(leg.current_price)||leg.entry_price<=0||leg.entry_price>=1))continue;
+      const cost=legs.reduce((sum,leg)=>sum+leg.entry_price,0),payout=1,profit=payout-cost,netReturn=profit/cost;
+      if(profit<NEG_RISK_MIN_NET_PROFIT||netReturn<NEG_RISK_MIN_NET_RETURN)continue;
+      const bundleId=`dominance:${event.id}:${superset.market_id}:${subset.market_id}`;
+      candidates.push({market_id:bundleId,bundle_id:bundleId,bundle_side:"MIXED",bundle_logic:"threshold-dominance",
+        question:`Dominance pair: ${event.title||superset.stem.replace("{threshold}","___")}`,event:event.title||"",url:superset.url,
+        category:classifyCategory(eventTags),tags:eventTags.map(tag=>tag.label).filter(Boolean).slice(0,4),side:"MIXED",
+        entry_price:+(cost/2).toFixed(4),yes_price:+(cost/2).toFixed(4),no_price:+(cost/2).toFixed(4),fair_value:+(payout/2).toFixed(4),
+        edge:+netReturn.toFixed(4),net_edge:+netReturn.toFixed(4),friction:+(SIGNAL_ROUND_TRIP_COST*2).toFixed(4),chase_penalty:0,
+        evidence_score:1,evidence_source_count:0,quality:"bundle-arb",conviction:+clamp(80+netReturn*1200,80,96).toFixed(1),
+        volume:superset.volume+subset.volume,volume_24hr:superset.volume_24hr+subset.volume_24hr,liquidity:Math.min(superset.liquidity,subset.liquidity),
+        spread:Math.max(superset.spread,subset.spread),price_change_1h:0,price_change_1d:0,price_change_1w:0,momentum_strength:0,
+        signal_strength:1,signal_confidence:1,signal_type:"bundle-arb",trade_ready:true,entry_candidate:true,audited_observation_only:false,
+        adaptive_promotion:false,watch_only:false,jump_risk:false,requires_live:true,days_to_resolution:daysUntil(event.endDate),
+        bundle_cost_per_unit:+cost.toFixed(4),bundle_payout_per_unit:payout,bundle_net_profit_per_unit:+profit.toFixed(4),bundle_legs:legs,
+        drivers:["same-event nested thresholds","live executable ask pair","guaranteed minimum one-contract payout","positive margin after estimated costs"],
+        rationale:`Threshold dominance: ${superset.question} logically contains ${subset.question}. Buying YES on the superset and NO on the subset costs ${cost.toFixed(3)} per pair against a guaranteed minimum payout of $1.00 when both use the same event terms. The modeled margin is ${profit.toFixed(3)} (${(netReturn*100).toFixed(2)}%) after 0.5c estimated cost per leg. Both live legs must open together and remain paired through settlement.`});
+    }
+  }
+  return candidates.sort((a,b)=>b.net_edge-a.net_edge);
+}
 function negativeRiskBundleSuggestion(event){
   if(!event||!event.negRisk||event.enableNegRisk===false)return null;
   const rawLegs=Array.isArray(event.markets)?event.markets:[];
@@ -1123,7 +1190,12 @@ async function fetchNegativeRiskBundles(limit=NEG_RISK_EVENT_SCAN_LIMIT){
     const page=await response.json();if(!Array.isArray(page)||!page.length)break;
     events.push(...page);if(page.length<size)break;
   }
-  return events.map(negativeRiskBundleSuggestion).filter(Boolean).sort((a,b)=>b.net_edge-a.net_edge).slice(0,20);
+  const candidates=events.flatMap(event=>{
+    const complete=negativeRiskBundleSuggestion(event);
+    return [...(complete?[complete]:[]),...dominanceBundleSuggestions(event)];
+  }).sort((a,b)=>b.net_edge-a.net_edge);
+  const seen=new Set();
+  return candidates.filter(candidate=>{const id=String(candidate.bundle_id||candidate.market_id);if(!id||seen.has(id))return false;seen.add(id);return true;}).slice(0,20);
 }
 async function fetchRewardMakerCandidates(limit=60){
   const params=new URLSearchParams({limit:String(limit),min_hours:"48"});
@@ -1565,7 +1637,7 @@ function compactSuggestionForSync(s){
     signal_strength:s.signal_strength,signal_confidence:s.signal_confidence,signal_type:s.signal_type,
     trade_ready:s.trade_ready,entry_candidate:s.entry_candidate,audited_observation_only:s.audited_observation_only,
     adaptive_promotion:s.adaptive_promotion,watch_only:s.watch_only,jump_risk:s.jump_risk,
-    requires_live:s.requires_live,bundle_id:s.bundle_id,bundle_side:s.bundle_side,bundle_cost_per_unit:s.bundle_cost_per_unit,
+    requires_live:s.requires_live,bundle_id:s.bundle_id,bundle_side:s.bundle_side,bundle_logic:s.bundle_logic,bundle_cost_per_unit:s.bundle_cost_per_unit,
     bundle_payout_per_unit:s.bundle_payout_per_unit,bundle_net_profit_per_unit:s.bundle_net_profit_per_unit,bundle_legs:s.bundle_legs,
     days_to_resolution:s.days_to_resolution,event_key:s.event_key,game_start:s.game_start,hours_to_start:s.hours_to_start,
     pilot_prior:s.pilot_prior,drivers:s.drivers,rationale:s.rationale,
@@ -5156,6 +5228,8 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
   version:SUGGESTION_ENGINE_VERSION,
   analyzeMarket,
   negativeRiskBundleSuggestion,
+  parseDominanceThreshold,
+  dominanceBundleSuggestions,
   buildAdaptiveProfile,
   historicalOpportunityPrior,
   learnedOpportunity,
@@ -5186,6 +5260,7 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
     signalRoundTripCostCents:SIGNAL_ROUND_TRIP_COST*100,independentConfidence:true,eventClusteredCalibration:true,
     onePendingObservationPerMarketSide:true,oldestPendingEvidenceFirst:true,coverageAwareObservationSampling:true,uncertaintyGatedCalibration:true,
     directionalSignalsRequirePromotion:true,liveOnlyCompleteBundles:true,negativeRiskBundleSides:["YES","NO"],negativeRiskEventScanLimit:NEG_RISK_EVENT_SCAN_LIMIT,
+    dominanceBundleLogic:"same-event nested threshold YES/NO pairs with identical normalized terms",
     negativeRiskMinimumNetReturnPct:NEG_RISK_MIN_NET_RETURN*100,
     pairedMakerQuotes:"reward-book-audited-shadow-until-promoted",makerStrategyVersion:MAKER_STRATEGY_VERSION,
     makerShadowHorizonHours:MAKER_SHADOW_HORIZON_HOURS,makerLegacyQuoteExpiryHours:MAKER_QUOTE_EXPIRY_HOURS,makerMinimumLockMarginPct:MAKER_MIN_LOCK_MARGIN*100,
@@ -5512,6 +5587,33 @@ function runEngineSelfTest(){
     {id:"over-a",question:"Over/Under 1.5",outcomes:'["Over","Under"]',outcomePrices:'["0.45","0.55"]',clobTokenIds:'["over-a","under-a"]',bestBid:0.44,bestAsk:0.45,liquidityNum:30000,acceptingOrders:true},
     {id:"over-b",question:"Over/Under 2.5",outcomes:'["Over","Under"]',outcomePrices:'["0.45","0.55"]',clobTokenIds:'["over-b","under-b"]',bestBid:0.44,bestAsk:0.45,liquidityNum:30000,acceptingOrders:true},
   ]})===null;
+  const dominanceEvent={id:"dominance-test",title:"Acme FDV above ___ one day after launch?",slug:"acme-fdv",tags:[{slug:"crypto",label:"Crypto"}],markets:[
+    {id:"dominance-low",question:"Will Acme FDV be above $2B one day after launch?",outcomes:'["Yes","No"]',outcomePrices:'["0.065","0.935"]',clobTokenIds:'["dom-low-yes","dom-low-no"]',bestBid:0.064,bestAsk:0.069,liquidityNum:30000,volumeNum:100000,volume24hr:10000,spread:0.005,acceptingOrders:true},
+    {id:"dominance-high",question:"Will Acme FDV be above $3B one day after launch?",outcomes:'["Yes","No"]',outcomePrices:'["0.09","0.91"]',clobTokenIds:'["dom-high-yes","dom-high-no"]',bestBid:0.085,bestAsk:0.095,liquidityNum:28000,volumeNum:100000,volume24hr:10000,spread:0.01,acceptingOrders:true},
+  ]};
+  const dominanceSuggestion=dominanceBundleSuggestions(dominanceEvent)[0];
+  const belowDominanceSuggestion=dominanceBundleSuggestions({id:"dominance-below",title:"River level below ___ on August 21?",slug:"river-level",markets:[
+    {id:"below-low",question:"Will the river level be below 10 feet on August 21?",outcomes:'["Yes","No"]',outcomePrices:'["0.42","0.58"]',clobTokenIds:'["below-low-yes","below-low-no"]',bestBid:0.41,bestAsk:0.43,liquidityNum:20000,acceptingOrders:true},
+    {id:"below-high",question:"Will the river level be below 20 feet on August 21?",outcomes:'["Yes","No"]',outcomePrices:'["0.38","0.62"]',clobTokenIds:'["below-high-yes","below-high-no"]',bestBid:0.37,bestAsk:0.39,liquidityNum:20000,acceptingOrders:true},
+  ]})[0];
+  const mismatchedDominanceRejected=dominanceBundleSuggestions({id:"dominance-mismatch",title:"Mismatched terms",markets:[
+    Object.assign({},dominanceEvent.markets[0],{id:"mismatch-a",question:"Will Acme FDV be above $2B one day after launch?"}),
+    Object.assign({},dominanceEvent.markets[1],{id:"mismatch-b",question:"Will Acme FDV be above $3B seven days after launch?"}),
+  ]}).length===0;
+  const unprofitableDominanceRejected=dominanceBundleSuggestions({id:"dominance-expensive",title:"Expensive pair",markets:[
+    Object.assign({},dominanceEvent.markets[0],{id:"expensive-a",bestAsk:0.50}),
+    Object.assign({},dominanceEvent.markets[1],{id:"expensive-b",bestBid:0.50}),
+  ]}).length===0;
+  const nonBinaryDominanceRejected=dominanceBundleSuggestions({id:"dominance-labels",title:"Non-binary pair",markets:dominanceEvent.markets.map((row,index)=>Object.assign({},row,{id:`nonbinary-${index}`,outcomes:'["Over","Under"]'}))}).length===0;
+  const dominanceBook=defaultPortfolio(),offlineDominanceSuggestion=prepareCycleSuggestions([dominanceSuggestion],"offline-cache",true)[0];
+  openPositions(dominanceBook,AGENTS.find(a=>a.id==="value"),[dominanceSuggestion],"All",{
+    minConv:0,maxNew:1,maxFrac:0.04,reserve:0.10,targetExposure:0.60,learning:buildAdaptiveProfile(dominanceBook),marketLearning:{samples:0,pending:0,buckets:{}},
+  },new Set(),{});
+  const dominanceOpenedPositions=dominanceBook.positions.length,dominanceUnits=dominanceBook.positions[0]&&dominanceBook.positions[0].shares;
+  markToMarket(dominanceBook,{
+    "dominance-low":market({id:"dominance-low",yes_price:1,no_price:0,closed:true,accepting_orders:false}),
+    "dominance-high":market({id:"dominance-high",yes_price:1,no_price:0,closed:true,accepting_orders:false}),
+  },AGENTS.find(a=>a.id==="value"),{policyExits:true,executeTrades:true});
   const bundleBook=defaultPortfolio();
   const offlineBundleSuggestion=prepareCycleSuggestions([bundleSuggestion],"offline-cache",true)[0];
   openPositions(bundleBook,AGENTS.find(a=>a.id==="value"),[bundleSuggestion],"All",{
@@ -5766,6 +5868,19 @@ function runEngineSelfTest(){
     bundleArbitrage:{
       rejectsNonBinaryMarketLabels:nonBinaryMarketRejected,
       rejectsNonBinaryBundleLabels:nonBinaryBundleRejected,
+      identifiesAboveThresholdDominance:Boolean(dominanceSuggestion&&dominanceSuggestion.bundle_logic==="threshold-dominance"
+        &&dominanceSuggestion.bundle_cost_per_unit===0.994&&dominanceSuggestion.bundle_net_profit_per_unit===0.006
+        &&dominanceSuggestion.bundle_legs[0].side==="YES"&&dominanceSuggestion.bundle_legs[1].side==="NO"),
+      identifiesBelowThresholdDominance:Boolean(belowDominanceSuggestion&&belowDominanceSuggestion.bundle_cost_per_unit===0.99
+        &&belowDominanceSuggestion.bundle_legs[0].market_id==="below-high"&&belowDominanceSuggestion.bundle_legs[1].market_id==="below-low"),
+      rejectsMismatchedDominanceTerms:mismatchedDominanceRejected,
+      rejectsUnprofitableDominancePair:unprofitableDominanceRejected,
+      rejectsNonBinaryDominanceLabels:nonBinaryDominanceRejected,
+      dominanceRequiresLivePrices:Boolean(dominanceSuggestion&&dominanceSuggestion.requires_live),
+      staleDominanceSnapshotCannotOpen:!offlineDominanceSuggestion.trade_ready&&!offlineDominanceSuggestion.entry_candidate&&offlineDominanceSuggestion.watch_only,
+      opensDominanceLegsAtomically:dominanceOpenedPositions===2&&dominanceUnits>0&&dominanceBook.closed.length===2,
+      dominanceWorstCaseSettlesProfitably:dominanceBook.positions.length===0&&dominanceBook.cash>STARTING_BALANCE
+        &&Math.abs(dominanceBook.cash-(STARTING_BALANCE+dominanceUnits*0.006))<=0.03,
       identifiesPositiveCompleteNoBundle:bundleSuggestion&&bundleSuggestion.trade_ready&&bundleSuggestion.bundle_side==="NO"&&bundleSuggestion.bundle_legs.every(leg=>leg.side==="NO")&&bundleSuggestion.bundle_net_profit_per_unit===0.005,
       identifiesPositiveCompleteYesBundle:yesBundleSuggestion&&yesBundleSuggestion.trade_ready&&yesBundleSuggestion.bundle_side==="YES"&&yesBundleSuggestion.bundle_legs.every(leg=>leg.side==="YES")&&yesBundleSuggestion.bundle_net_profit_per_unit===0.035,
       rejectsEconomicallyTinyLargeBundle:tinyReturnBundle===null,

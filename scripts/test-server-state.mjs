@@ -30,13 +30,14 @@ else process.env.NEON_DATABASE_URL = originalNeonUrl;
 const compacted = compactSuggestion({
   market_id: "bundle:1:yes", side: "YES", signal_type: "bundle-arb", signal_confidence: 1,
   entry_candidate: true, adaptive_promotion: false, requires_live: true, bundle_id: "bundle:1:yes",
-  bundle_side: "YES", bundle_cost_per_unit: 0.95, bundle_payout_per_unit: 1,
+  bundle_side: "YES", bundle_logic: "threshold-dominance", bundle_cost_per_unit: 0.95, bundle_payout_per_unit: 1,
   bundle_net_profit_per_unit: 0.05, bundle_legs: [{ market_id: "1", side: "YES" }],
 });
 assert.equal(compacted.signal_type, "bundle-arb");
 assert.equal(compacted.entry_candidate, true);
 assert.equal(compacted.requires_live, true);
 assert.equal(compacted.bundle_side, "YES");
+assert.equal(compacted.bundle_logic, "threshold-dominance");
 assert.equal(compacted.bundle_legs.length, 1);
 
 const compactedState = compactAgentState({

@@ -232,7 +232,7 @@ export function compactSuggestion(s) {
     signal_type: s.signal_type, trade_ready: s.trade_ready, entry_candidate: s.entry_candidate,
     audited_observation_only: s.audited_observation_only, adaptive_promotion: s.adaptive_promotion,
     watch_only: s.watch_only, jump_risk: s.jump_risk, requires_live: s.requires_live,
-    bundle_id: s.bundle_id, bundle_side: s.bundle_side, bundle_cost_per_unit: s.bundle_cost_per_unit,
+    bundle_id: s.bundle_id, bundle_side: s.bundle_side, bundle_logic: s.bundle_logic, bundle_cost_per_unit: s.bundle_cost_per_unit,
     bundle_payout_per_unit: s.bundle_payout_per_unit, bundle_net_profit_per_unit: s.bundle_net_profit_per_unit,
     bundle_legs: s.bundle_legs,
     days_to_resolution: s.days_to_resolution, drivers: s.drivers, rationale: s.rationale,
