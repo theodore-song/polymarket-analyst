@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 59 · agent learning 3 · build 83</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 59 · maker research 3 · agent learning 3 · build 84</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 83 active:</b> Strategy 59 removes two verified return leaks. The current 300-market replay hard-blocks favorite-priced directional trends after they remained net-negative across 6h, 12h, 24h, and 72h windows, and only Strategy 59 closed trades can now alter Strategy 59 position sizing. Older trades remain historical context, not permission to increase risk. Forward observations, agent-specific calibration, and offline reconstruction continue unchanged. This remains paper trading; profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 84 active:</b> Maker capital is retired after 6,048 wait and immediate-hedge rules produced no validated winner. New maker work is zero-capital lock-or-exit research: a one-sided touch is hedged only when the executable complement locks a net profit, otherwise it is graded as an immediate exit. Strategy 59 directional adaptation still uses only current-strategy closed trades. This remains paper trading; profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 83 · Adaptive strategy 59 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 84 · Adaptive strategy 59 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,10 +774,10 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 83;
+const BUILD_VERSION = 84;
 const AGENT_LEARNING_VERSION = 3;
 const SUGGESTION_ENGINE_VERSION = 59;
-const MAKER_STRATEGY_VERSION = 2;
+const MAKER_STRATEGY_VERSION = 3;
 const PREVIOUS_STRATEGY_VERSION = 58;
 const DIRECTIONAL_SIGNAL_POLICY_VERSION = 1;
 const DIRECTIONAL_SIGNAL_COMPATIBLE_STRATEGY_MIN = 51;
@@ -1288,6 +1288,7 @@ const MAKER_OUTCOME_LIMIT=240;
 const MAKER_MIN_COHORT_ATTEMPTS=20;
 const MAKER_MIN_PROMOTION_LOCKS=3;
 const MAKER_TOUCH_FIDELITY_MINUTES=1;
+const MAKER_CAPITAL_BACKTEST_APPROVED=false;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function liquiditySignal(m){const vol=Math.min(1,Math.log10(m.volume+1)/6.0);const liq=Math.min(1,Math.log10(m.liquidity+1)/5.3);return 0.6*vol+0.4*liq;}
 function momentumSignal(m){const da=m.volume_1wk?m.volume_1wk/7:0;if(da<=0)return m.volume_24hr>0?0.3:0;return clamp((m.volume_24hr/da-0.5)/2.0,0,1);}
@@ -2718,8 +2719,9 @@ function summarizeMakerOutcomes(rows){
   const clusters=new Map();
   weighted.forEach(row=>{const cluster=clusters.get(row.eventKey)||{weighted:0,weight:0,evidenceWeight:0,current:false,locked:false,currentLocked:false};
     cluster.weighted+=row.value*row.weight;cluster.weight+=row.weight;cluster.evidenceWeight=Math.max(cluster.evidenceWeight,row.weight);
-    cluster.current=cluster.current||row.current;cluster.locked=cluster.locked||row.status==="locked";
-    cluster.currentLocked=cluster.currentLocked||(row.current&&row.status==="locked");clusters.set(row.eventKey,cluster);});
+    const locked=row.status==="locked"||row.status==="hedged-lock";
+    cluster.current=cluster.current||row.current;cluster.locked=cluster.locked||locked;
+    cluster.currentLocked=cluster.currentLocked||(row.current&&locked);clusters.set(row.eventKey,cluster);});
   const evidence=[...clusters.values()].map(cluster=>({value:cluster.weighted/Math.max(0.01,cluster.weight),weight:cluster.evidenceWeight,
     current:cluster.current,locked:cluster.locked,currentLocked:cluster.currentLocked}));
   const totalWeight=evidence.reduce((sum,row)=>sum+row.weight,0),attempts=weighted.length;
@@ -2727,9 +2729,10 @@ function summarizeMakerOutcomes(rows){
   const variance=totalWeight?evidence.reduce((sum,row)=>sum+row.weight*(row.value-mean)**2,0)/totalWeight:0;
   const margin=evidence.length>1?1.645*Math.sqrt(variance/Math.max(1,totalWeight)):1;
   return {attempts,events:evidence.length,current_events:evidence.filter(row=>row.current).length,effective_attempts:+totalWeight.toFixed(2),
-    locked:weighted.filter(row=>row.status==="locked").length,current_locked:weighted.filter(row=>row.current&&row.status==="locked").length,
+    locked:weighted.filter(row=>row.status==="locked"||row.status==="hedged-lock").length,
+    current_locked:weighted.filter(row=>row.current&&(row.status==="locked"||row.status==="hedged-lock")).length,
     locked_events:evidence.filter(row=>row.locked).length,current_locked_events:evidence.filter(row=>row.currentLocked).length,
-    adverse:weighted.filter(row=>row.status==="single-exit").length,unfilled:weighted.filter(row=>row.status==="unfilled").length,
+    adverse:weighted.filter(row=>row.status==="single-exit"||row.status==="immediate-exit").length,unfilled:weighted.filter(row=>row.status==="unfilled").length,
     pnl:+(rows||[]).filter(row=>!row.shadow_only).reduce((sum,row)=>sum+Number(row.pnl||0),0).toFixed(2),
     shadow_pnl:+(rows||[]).filter(row=>row.shadow_only).reduce((sum,row)=>sum+Number(row.pnl||0),0).toFixed(2),mean:+mean.toFixed(5),
     lower:+(mean-margin).toFixed(5),upper:+(mean+margin).toFixed(5),confidence:+(totalWeight/(totalWeight+8)).toFixed(4)};
@@ -2750,15 +2753,16 @@ function makerCandidateLearning(candidate,profile){
   const category=profile.buckets[`category:${candidate.category}`],spread=profile.buckets[`spread:${makerSpreadBand(candidate.spread)}`];
   const rewardBand=candidate.reward_yield_band||makerRewardBand(candidate),reward=profile.buckets[`reward:${rewardBand}`];
   const matching=[profile.global,category,spread,reward].filter(Boolean),mature=matching.filter(stats=>stats.current_events>=MAKER_MIN_COHORT_ATTEMPTS);
-  const losing=mature.some(stats=>stats.upper<0),promoted=!losing&&category&&spread&&[category,spread].every(stats=>
+  const losing=mature.some(stats=>stats.upper<0),evidencePromoted=!losing&&category&&spread&&[category,spread].every(stats=>
     stats.current_events>=MAKER_MIN_COHORT_ATTEMPTS&&stats.current_locked_events>=MAKER_MIN_PROMOTION_LOCKS&&stats.lower>0)
     &&reward&&reward.current_events>=MAKER_MIN_COHORT_ATTEMPTS&&reward.current_locked_events>=MAKER_MIN_PROMOTION_LOCKS&&reward.lower>0;
+  const promoted=MAKER_CAPITAL_BACKTEST_APPROVED&&evidencePromoted;
   const positive=[category,spread,reward].filter(Boolean).sort((a,b)=>b.lower-a.lower)[0];
   const multiplier=promoted?clamp(1+Math.max(0,positive.lower)*6*positive.confidence,1,1.25):1;
   const units=+(candidate.units*multiplier).toFixed(2),requiredCapital=+(units*candidate.paired_cost).toFixed(2),lockedProfit=+(units*(1-candidate.paired_cost)).toFixed(2);
   const learned=mature.length?mature.reduce((sum,stats)=>sum+stats.mean,0)/mature.length:0;
   return Object.assign({},candidate,{units,required_capital:requiredCapital,locked_profit:lockedProfit,reward_yield_band:rewardBand,
-    maker_learning_multiplier:+multiplier.toFixed(3),maker_learning_state:promoted?"promoted":losing?"shadow-rejected":"shadow-observing",
+    maker_learning_multiplier:+multiplier.toFixed(3),maker_learning_state:promoted?"promoted":losing?"shadow-rejected":evidencePromoted?"shadow-backtest-blocked":"shadow-observing",
     maker_capital_enabled:promoted,maker_expected_return:+learned.toFixed(5),score:+(candidate.score+learned*60+(promoted?positive.lower*100:0)).toFixed(4)});
 }
 function recordMakerOutcome(p,quote,status,pnl,deployedCapital){
@@ -2920,11 +2924,23 @@ function finishShadowMakerQuote(p,quote,fresh){
     return true;
   }
   const entry=Number(side==="YES"?quote.yes_fill_price:quote.no_fill_price),executable=side==="YES"?Number(fresh.best_bid):1-Number(fresh.best_ask);
+  const complementSide=side==="YES"?"NO":"YES",complementAsk=side==="YES"?1-Number(fresh.best_bid):Number(fresh.best_ask);
+  const hedgedCost=entry+complementAsk+SIGNAL_ROUND_TRIP_COST;
+  if(complementAsk>0&&complementAsk<1&&hedgedCost<=1-MAKER_MIN_LOCK_MARGIN){
+    const deployed=Number(quote.units)*(entry+complementAsk),pnl=Number(quote.units)*(1-hedgedCost);
+    quote[`${complementSide.toLowerCase()}_filled_at`]=cycleIso();
+    quote[`${complementSide.toLowerCase()}_fill_price`]=+complementAsk.toFixed(4);
+    quote[`${complementSide.toLowerCase()}_fill_evidence`]="executable-complement-ask";
+    recordMakerOutcome(p,quote,"hedged-lock",pnl,deployed);
+    p.history.push({date:logDay(),action:"SHADOW_HEDGE",question:quote.question,side:"PAIR",
+      detail:`Only the shadow ${side} resting bid touched; buying ${complementSide} at the executable ${pct(complementAsk)} ask would lock ${fmtUSD(pnl)} after modeled cost · portfolio cash unchanged`});
+    return true;
+  }
   if(!(executable>0&&executable<1))return false;
   const deployed=Number(quote.units)*entry,pnl=Number(quote.units)*(executable-entry-SIGNAL_ROUND_TRIP_COST);
-  recordMakerOutcome(p,quote,"single-exit",pnl,deployed);
+  recordMakerOutcome(p,quote,"immediate-exit",pnl,deployed);
   p.history.push({date:logDay(),action:"SHADOW_EXIT",question:quote.question,side,
-    detail:`Only the shadow ${side} bid touched; ${quote.shadow_horizon_hours||MAKER_SHADOW_HORIZON_HOURS}h executable exit grades ${fmtUSD(pnl)} after modeled cost · portfolio cash unchanged`});
+    detail:`Only the shadow ${side} resting bid touched and the complementary ask could not lock a profit; immediate executable exit grades ${fmtUSD(pnl)} after modeled cost · portfolio cash unchanged`});
   return true;
 }
 function unwindMakerInventory(p,quote,fresh){
@@ -2981,6 +2997,10 @@ function manageMakerQuotes(p,marketMap,{executeTrades=false,touchHistory={}}={})
     }
     if(quote.shadow_only){
       if(quote.yes_filled_at&&quote.no_filled_at){completeShadowMakerPair(p,quote);locked++;shadowCompleted++;continue;}
+      if(Boolean(quote.yes_filled_at)!==Boolean(quote.no_filled_at)&&finishShadowMakerQuote(p,quote,fresh)){
+        if((p.maker_outcomes||[]).at(-1)?.status==="hedged-lock")locked++;
+        expired++;shadowCompleted++;continue;
+      }
       if(age>=Number(quote.shadow_horizon_hours||MAKER_SHADOW_HORIZON_HOURS)&&finishShadowMakerQuote(p,quote,fresh)){expired++;shadowCompleted++;continue;}
       keep.push(quote);continue;
     }
@@ -3538,7 +3558,7 @@ async function runDailyCycle(){
           makerShadowCompleted:makerActivity.shadowCompleted,
           makerReserved:staged.reserved,makerProfile:sharedMakerProfile});
         if(staged.staged||makerActivity.fills||makerActivity.locked||makerActivity.expired){
-          p.lastDecision.allocationStatus=`${p.lastDecision.allocationStatus||""} Reward-book learner: ${staged.shadowActive} zero-capital shadow observation${staged.shadowActive===1?"":"s"}, ${staged.capitalActive} evidence-promoted capital quote${staged.capitalActive===1?"":"s"}, ${makerActivity.shadowCompleted||0} shadow outcome${makerActivity.shadowCompleted===1?"":"s"} graded this cycle; displayed reward estimates are never credited as P&L.`.trim();
+          p.lastDecision.allocationStatus=`${p.lastDecision.allocationStatus||""} Maker research: ${staged.shadowActive} zero-capital lock-or-exit observation${staged.shadowActive===1?"":"s"}, ${makerActivity.shadowCompleted||0} outcome${makerActivity.shadowCompleted===1?"":"s"} graded this cycle; capital remains disabled after the chronological holdout failure, and displayed reward estimates are never credited as P&L.`.trim();
         }
       }
       recordSnapshot(p);
@@ -3738,7 +3758,7 @@ function decisionSummary(p){
     calibration=` Walk-forward calibration for ${learningScope}: ${ml.samples||0} net-of-cost checkpoint observations ${countText}, graded at ${SIGNAL_EARLY_RISK_HORIZONS.join("h, ")}h for early loss vetoes and ${SIGNAL_PROMOTION_HORIZONS.join("h and ")}h for promotion (${currentText} under directional signal policy ${ml.policy_version||DIRECTIONAL_SIGNAL_POLICY_VERSION}), ${ml.pending||0} awaiting a future checkpoint${ml.expired_ungraded?`, ${ml.expired_ungraded} expired checkpoints`:""}.${queueAudit} ${ml.promoted_buckets||0} horizon-specific feature cohorts promoted and ${ml.demoted_buckets||0} demoted. Promotion requires positive compatible-policy evidence at both promotion horizons across independent events; one mature negative cohort at any checkpoint can veto risk. Each agent studies a broader strategy-specific research universe before the stricter capital-entry gate is applied, while unlabeled legacy evidence remains readable. Sports pilots and priced bundles stay outside directional calibration. Missed windows expire rather than borrowing a later price. New observations prioritize under-sampled signal/side/category cohorts and independent events before repeats. Correlated outcome markets in one event count as one effective outcome. Historical prior: every directional trend and reversal remains observation-only until its exact recent cohorts independently promote; settlement-jump barriers stay excluded.`;
   }
   const makerStats=d.makerProfile&&d.makerProfile.global;
-  const maker=d.makerQuotes!=null?` Maker learner: ${d.makerShadowActive||0} zero-capital shadow observations and ${d.makerCapitalActive||0} evidence-promoted capital quotes active; ${d.makerFills||0} verified touches and ${d.makerShadowCompleted||0} shadow outcomes completed this cycle, ${fmtUSD(d.makerReserved||0)} capital reserved.${makerStats?` Event-clustered ledger: ${makerStats.attempts} attempts / ${makerStats.events} events, ${makerStats.locked} paired touches, ${makerStats.adverse} adverse single touches, ${makerStats.unfilled} unfilled, ${fmtUSD(makerStats.shadow_pnl)} simulated shadow net and ${fmtUSD(makerStats.pnl)} actual paper net.`:""} Capital promotion requires ${MAKER_MIN_COHORT_ATTEMPTS} current-strategy events with positive confidence bounds in both category and spread cohorts. Rewards remain excluded until externally verified.`:"";
+  const maker=d.makerQuotes!=null?` Maker research: ${d.makerShadowActive||0} zero-capital lock-or-exit observations active; ${d.makerFills||0} verified touches and ${d.makerShadowCompleted||0} outcomes completed this cycle.${makerStats?` Event-clustered ledger: ${makerStats.attempts} attempts / ${makerStats.events} events, ${makerStats.locked} locked pairs, ${makerStats.adverse} immediate adverse exits, ${makerStats.unfilled} unfilled, and ${fmtUSD(makerStats.shadow_pnl)} simulated shadow net.`:""} Capital is disabled because neither the 6,048-rule chronological maker audit nor the reward stress test produced a validated holdout winner. Hypothetical rewards are excluded.`:"";
   const sportsPilot=d.sportsFavoritePilot?` Sports forward learner: ${d.sportsFavoritePilot.state}, ${d.sportsFavoritePilot.active_shadows||0} zero-capital observations active and ${d.sportsFavoritePilot.events} independent closed events, ${d.sportsFavoritePilot.events?`${(d.sportsFavoritePilot.mean*100).toFixed(2)}% mean with ${d.sportsFavoritePilot.lower>=0?"+":""}${(d.sportsFavoritePilot.lower*100).toFixed(2)}% to ${d.sportsFavoritePilot.upper>=0?"+":""}${(d.sportsFavoritePilot.upper*100).toFixed(2)}% 90% interval; `:""}${fmtUSD(d.sportsFavoritePilot.shadow_pnl_per_100||0)} simulated per-$100 net and ${fmtUSD(d.sportsFavoritePilot.pnl)} realized capital P&L. Position cap ${(d.sportsFavoritePilot.position_pct*100).toFixed(2)}%; capital remains zero until ${SPORTS_FAVORITE_PROMOTION_EVENTS} new independent events establish a positive lower bound.`:"";
   return `${d.mode} mode: ${d.reason}${emotion} Limits now: ${d.maxNew} new trade${d.maxNew===1?"":"s"}, max ${(d.maxFrac*100).toFixed(1)}% per position${d.minConv?`, conviction ${d.minConv}+`:""}.${learning}${calibration}${maker}${sportsPilot}${exposure}${allocation}${candidates}${blockers}`;
 }
@@ -4464,7 +4484,7 @@ function renderPositions(positions){
     const positionRules=p.requires_complete_bundle
       ? `<div class="sub">Complete paired hedge: individual stops and gain sales are disabled; the two legs stay intact through settlement.</div>`
       :p.maker_pair_pending
-        ? `<div class="sub">Unmatched maker leg: the complementary resting bid remains live; unresolved inventory exits at an executable bid after ${MAKER_QUOTE_EXPIRY_HOURS}h.</div>`
+        ? `<div class="sub">Legacy unmatched maker leg: capital maker research is retired, so the next live cycle unwinds it at an executable bid.</div>`
         :`<div class="sub">${esc(stopLossLabel(p))}</div><div class="sub">${esc(gainStopLabel(p))}</div>`;
     return `<div class="pos"><div>
       <div class="pq">${title}</div>
@@ -5385,10 +5405,11 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
     focusAndReconnectCatchup:true,liveOnlyCompleteBundles:true,negativeRiskBundleSides:["YES","NO"],negativeRiskEventScanLimit:NEG_RISK_EVENT_SCAN_LIMIT,
     dominanceBundleLogic:"same-event nested threshold or calendar-deadline YES/NO pairs with identical normalized terms",
     negativeRiskMinimumNetReturnPct:NEG_RISK_MIN_NET_RETURN*100,
-    pairedMakerQuotes:"reward-book-audited-shadow-until-promoted",makerStrategyVersion:MAKER_STRATEGY_VERSION,
+    pairedMakerQuotes:"research-only-immediate-lock-or-exit",makerStrategyVersion:MAKER_STRATEGY_VERSION,
     makerShadowHorizonHours:MAKER_SHADOW_HORIZON_HOURS,makerLegacyQuoteExpiryHours:MAKER_QUOTE_EXPIRY_HOURS,makerMinimumLockMarginPct:MAKER_MIN_LOCK_MARGIN*100,
     makerTouchSource:"Polymarket CLOB batch price history",makerOutcomeLimit:MAKER_OUTCOME_LIMIT,makerMinimumCohortAttempts:MAKER_MIN_COHORT_ATTEMPTS,
-    makerMinimumPromotionLocks:MAKER_MIN_PROMOTION_LOCKS,makerMaximumLearningMultiplier:1.25,makerCapitalExplorationPct:0,hypotheticalRewardsCredited:false,
+    makerMinimumPromotionLocks:MAKER_MIN_PROMOTION_LOCKS,makerMaximumLearningMultiplier:1,makerCapitalExplorationPct:0,
+    makerCapitalBacktestApproved:MAKER_CAPITAL_BACKTEST_APPROVED,hypotheticalRewardsCredited:false,
     makerCompetitionSource:"shared public CLOB order-book audit",makerResearchSharedAcrossAgents:true,makerMarketsPartitionedAcrossAgents:true,
     makerHistoryRequestsBatched:true,makerPromotionCohorts:["category","spread","reward-yield"],makerRewardPayoutMinimum:1,
     emotionCanIncreaseSize:false,dualPromotionPeerBoostPct:5,currentStrategyOnlyCapitalAdaptation:true,
@@ -5399,7 +5420,7 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
       verdictEvents:SPORTS_FAVORITE_VERDICT_EVENTS,promotionEvents:SPORTS_FAVORITE_PROMOTION_EVENTS,
       slippageBufferCents:SPORTS_FAVORITE_SLIPPAGE_BUFFER*100,maximumExecutionCostCents:SPORTS_FAVORITE_MAX_EXECUTION_COST*100,
       capitalRequiresForwardPromotion:true,old24HourCapitalRuleRetired:true},
-    historicalPrior:"No directional rule survived the current 300-market 60/20/20 adaptive holdout at both 24h and 72h, and no settlement rule survived validation across 5,000 resolved markets. Favorite-priced trend following was independently net-negative at 6h, 12h, 24h, and 72h and is hard-blocked. The prior sports-capital rule also remains retired. Live-priced complete negative-risk bundles may trade when positive after costs; paired maker quotes and sports favorites remain zero-capital observations until current cohorts independently promote"}),
+    historicalPrior:"No directional rule survived the current 300-market 60/20/20 adaptive holdout at both 24h and 72h, and no settlement rule survived validation across 5,000 resolved markets. Favorite-priced trend following was independently net-negative at 6h, 12h, 24h, and 72h and is hard-blocked. The prior sports-capital rule also remains retired. Live-priced complete negative-risk bundles may trade when positive after costs. Maker research remains zero-capital because 6,048 wait and immediate-hedge rules produced no train, validation, or holdout winner"}),
 });
 function runEngineSelfTest(){
   const market=(overrides={})=>Object.assign({
@@ -5741,6 +5762,10 @@ function runEngineSelfTest(){
   shadowQuote.created_at=hoursAgo(4);shadowQuote.yes_quote_updated_at=shadowQuote.created_at;shadowQuote.no_quote_updated_at=shadowQuote.created_at;
   const shadowTouchTimestamp=Math.floor((Date.now()-30*60000)/1000),shadowCashBefore=shadowBook.cash;
   const shadowFinished=manageMakerQuotes(shadowBook,{"maker-test":touchMarket},{executeTrades:true,touchHistory:{yes:[{t:shadowTouchTimestamp,p:0.395}]}});
+  const shadowHedgeBook=defaultPortfolio();stageMakerQuotes(shadowHedgeBook,[makerMarket]);const shadowHedgeQuote=shadowHedgeBook.maker_quotes[0];
+  shadowHedgeQuote.created_at=hoursAgo(1);shadowHedgeQuote.yes_quote_updated_at=shadowHedgeQuote.created_at;shadowHedgeQuote.no_quote_updated_at=shadowHedgeQuote.created_at;
+  const shadowHedgeCashBefore=shadowHedgeBook.cash,shadowHedgeMarket=market(Object.assign({},makerMarket,{best_bid:0.43,best_ask:0.44,yes_price:0.435,no_price:0.565}));
+  const shadowHedged=manageMakerQuotes(shadowHedgeBook,{"maker-test":shadowHedgeMarket},{executeTrades:true,touchHistory:{yes:[{t:shadowTouchTimestamp,p:0.395}]}});
   const makerDedupeBook=defaultPortfolio(),dedupeQuote=Object.assign({},makerQuote,{id:"dedupe-maker"});
   recordMakerOutcome(makerDedupeBook,dedupeQuote,"unfilled",0,0);recordMakerOutcome(makerDedupeBook,dedupeQuote,"unfilled",0,0);
   const makerCompactionBook=defaultPortfolio();makerCompactionBook.maker_quotes=[Object.assign({},makerQuote)];makerCompactionBook.maker_outcomes=[...profitableMakerBook.maker_outcomes];
@@ -6117,12 +6142,15 @@ function runEngineSelfTest(){
       offlineHistoryCannotInventFill:offlineTouch.fills===0&&offlineTouchBook.positions.length===0&&offlineTouchBook.maker_quotes.length===1,
       repricedQuoteRejectsEarlierTouch:preRepriceIgnored,
       repricedQuoteAcceptsLaterTouch:postRepriceTouch.fills===1&&postRepriceTouch.locked===1&&repriceBook.maker_quotes.length===0,
-      profitableCohortScalesWithinCap:profitableCandidate&&profitableCandidate.maker_learning_state==="promoted"&&profitableCandidate.maker_capital_enabled&&profitableCandidate.units>makerQuote.units&&profitableCandidate.units<=makerQuote.units*1.25,
+      positiveShadowCohortCannotOverrideFailedBacktest:profitableCandidate&&profitableCandidate.maker_learning_state==="shadow-backtest-blocked"
+        &&!profitableCandidate.maker_capital_enabled&&profitableCandidate.units===makerQuote.units,
       promotionRequiresDistinctLockedEvents:buildMakerProfile(profitableMakerBook).global.current_locked_events===24,
       losingCohortRemainsShadowOnly:blockedMakerCandidate&&blockedMakerCandidate.maker_learning_state==="shadow-rejected"&&!blockedMakerCandidate.maker_capital_enabled,
       noRealMoneyExplorationLane:explorationMakerCandidate&&explorationMakerCandidate.maker_learning_state==="shadow-rejected"&&!explorationMakerCandidate.maker_capital_enabled,
       shadowSingleTouchChangesNoCash:shadowFinished.shadowCompleted===1&&shadowBook.cash===shadowCashBefore&&shadowBook.positions.length===0&&shadowBook.maker_quotes.length===0,
-      shadowSingleTouchRecordsAdverseOutcome:shadowBook.maker_outcomes.length===1&&shadowBook.maker_outcomes[0].shadow_only&&shadowBook.maker_outcomes[0].status==="single-exit"&&shadowBook.maker_outcomes[0].pnl<0,
+      shadowSingleTouchExitsImmediately:shadowBook.maker_outcomes.length===1&&shadowBook.maker_outcomes[0].shadow_only&&shadowBook.maker_outcomes[0].status==="immediate-exit"&&shadowBook.maker_outcomes[0].pnl<0,
+      executableComplementCanLockShadowPair:shadowHedged.shadowCompleted===1&&shadowHedged.locked===1&&shadowHedgeBook.cash===shadowHedgeCashBefore
+        &&shadowHedgeBook.positions.length===0&&shadowHedgeBook.maker_quotes.length===0&&shadowHedgeBook.maker_outcomes[0].status==="hedged-lock"&&shadowHedgeBook.maker_outcomes[0].pnl>0,
       outcomesAreDeduplicated:makerDedupeBook.maker_outcomes.length===1,
       makerLearningSurvivesCompaction:compactedMakerBook.maker_quotes.length===1&&compactedMakerBook.maker_outcomes.length===24,
       sharedLedgerCombinesAgentEvidence:sharedMakerFixture.global.current_events===2&&sharedMakerFixture.global.current_locked_events===2,

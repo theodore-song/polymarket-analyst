@@ -105,6 +105,10 @@ function atOrBefore(points, target) {
   return result;
 }
 
+function atOrAfter(points, target) {
+  return points.find((point) => point.t >= target) || null;
+}
+
 function observations(market, yesPoints, noPoints) {
   const rows = [], seen = new Set();
   for (const yes of yesPoints) {
@@ -137,9 +141,31 @@ function simulate(row, rule) {
   const futureYes = row.futureYes.filter((point) => point.t <= horizonEnd), futureNo = row.futureNo.filter((point) => point.t <= horizonEnd);
   const endYes = atOrBefore(futureYes, horizonEnd), endNo = atOrBefore(futureNo, horizonEnd);
   if (!endYes || !endNo || horizonEnd - Math.min(endYes.t, endNo.t) > 2 * HOUR) return null;
-  const yesFill = futureYes.some((point) => point.p <= yesQuote), noFill = futureNo.some((point) => point.p <= noQuote);
+  const yesFillPoint = futureYes.find((point) => point.p <= yesQuote) || null;
+  const noFillPoint = futureNo.find((point) => point.p <= noQuote) || null;
+  const yesFill = Boolean(yesFillPoint), noFill = Boolean(noFillPoint);
   let pnl = 0, status = "unfilled";
-  if (yesFill && noFill) { pnl = 1 - reserved; status = "locked"; }
+  if (rule.mode === "immediate-hedge" && (yesFill || noFill)) {
+    const yesFirst = yesFillPoint && (!noFillPoint || yesFillPoint.t < noFillPoint.t);
+    const noFirst = noFillPoint && (!yesFillPoint || noFillPoint.t < yesFillPoint.t);
+    if (!yesFirst && !noFirst) {
+      pnl = 1 - reserved;
+      status = "locked";
+    } else {
+      const first = yesFirst ? yesFillPoint : noFillPoint;
+      const firstQuote = yesFirst ? yesQuote : noQuote;
+      const otherPoints = yesFirst ? futureNo : futureYes;
+      const other = atOrAfter(otherPoints, first.t);
+      const hedgeCost = other ? firstQuote + other.p + EXIT_COST : Infinity;
+      if (hedgeCost < 1) {
+        pnl = 1 - hedgeCost;
+        status = "hedged-lock";
+      } else {
+        pnl = first.p - firstQuote - EXIT_COST;
+        status = "immediate-exit";
+      }
+    }
+  } else if (yesFill && noFill) { pnl = 1 - reserved; status = "locked"; }
   else if (yesFill) { pnl = endYes.p - yesQuote - EXIT_COST; status = "single-exit"; }
   else if (noFill) { pnl = endNo.p - noQuote - EXIT_COST; status = "single-exit"; }
   return { marketId: row.marketId, eventKey: row.eventKey, observedAt: row.observedAt, pnl,
@@ -160,17 +186,19 @@ function summary(rows) {
   return { attempts: rows.length, markets: new Set(rows.map((row) => row.marketId)).size, events: eventReturns.length,
     pnl: rows.reduce((sum, row) => sum + row.pnl, 0), mean: rows.reduce((sum, row) => sum + row.netReturn, 0) / rows.length,
     eventMean, lower: eventMean - margin, upper: eventMean + margin,
-    lockedRate: rows.filter((row) => row.status === "locked").length / rows.length,
-    adverseRate: rows.filter((row) => row.status === "single-exit").length / rows.length };
+    lockedRate: rows.filter((row) => row.status === "locked" || row.status === "hedged-lock").length / rows.length,
+    adverseRate: rows.filter((row) => row.status === "single-exit" || row.status === "immediate-exit").length / rows.length };
 }
 
 const rules = [];
-for (const horizon of [3, 6, 12, 24]) {
-  for (const gap of [0.005, 0.01, 0.015, 0.02, 0.025, 0.03, 0.04]) {
-    for (const maxPriorRange of [0.02, 0.04, 0.06, 0.08, 0.12, 0.2]) {
-      for (const band of ["all", "mid", "tails"]) {
-        for (const category of ["All", "Politics", "Sports", "Crypto", "Economy", "Other"])
-          rules.push({ id: `h${horizon}_gap${gap}_range${maxPriorRange}_${band}_${category}`, horizon, gap, maxPriorRange, band, category });
+for (const mode of ["wait", "immediate-hedge"]) {
+  for (const horizon of [3, 6, 12, 24]) {
+    for (const gap of [0.005, 0.01, 0.015, 0.02, 0.025, 0.03, 0.04]) {
+      for (const maxPriorRange of [0.02, 0.04, 0.06, 0.08, 0.12, 0.2]) {
+        for (const band of ["all", "mid", "tails"]) {
+          for (const category of ["All", "Politics", "Sports", "Crypto", "Economy", "Other"])
+            rules.push({ id: `${mode}_h${horizon}_gap${gap}_range${maxPriorRange}_${band}_${category}`, mode, horizon, gap, maxPriorRange, band, category });
+        }
       }
     }
   }
@@ -204,9 +232,11 @@ const broadByGap = evaluated.filter((candidate) => candidate.rule.maxPriorRange 
 const report = { generatedAt: new Date().toISOString(), requestedMarkets: MARKET_LIMIT, rewardMarkets: markets.length,
   marketsWithBothHistories: markets.filter((market) => fetched.history[market.tokens[0]]?.length && fetched.history[market.tokens[1]]?.length).length,
   batchFailures: fetched.failures, batchFailureMessages: fetched.failureMessages, observations: rows.length, testedRules: rules.length,
-  methodology: { historyDays: HISTORY_DAYS, quoteHorizonHours: [3, 6, 12, 24], observationSpacingHours: 24, exitCostCents: EXIT_COST * 100,
+  methodology: { historyDays: HISTORY_DAYS, quoteHorizonHours: [3, 6, 12, 24], modes: ["wait", "immediate-hedge"], observationSpacingHours: 24, exitCostCents: EXIT_COST * 100,
     split: "60% train / 20% validation / 20% untouched holdout", clusterUnit: "Polymarket event",
-    fillProxy: "public CLOB token price touched the resting bid after placement", noFillPnl: 0 },
+    fillProxy: "public CLOB token price touched the resting bid after placement",
+    hedgeProxy: "first complementary token history point plus exit cost; production must use a fresh executable ask",
+    noFillPnl: 0 },
   partitionRows: Object.fromEntries(Object.entries(partitions).map(([key, value]) => [key, value.length])),
   trainPassed: evaluated.filter((candidate) => candidate.trainPassed).length, validationSelected: candidates.length,
   holdoutPassed: candidates.filter((candidate) => candidate.passesHoldout).length,
@@ -224,7 +254,7 @@ if (SUMMARY_ONLY) {
     batchFailures: report.batchFailures, observations: report.observations, testedRules: report.testedRules,
     partitionRows: report.partitionRows, trainPassed: report.trainPassed, validationSelected: report.validationSelected,
     holdoutPassed: report.holdoutPassed,
-    broadByGap: broadByGap.map((candidate) => ({ horizon: candidate.rule.horizon, gap: candidate.rule.gap,
+    broadByGap: broadByGap.map((candidate) => ({ mode: candidate.rule.mode, horizon: candidate.rule.horizon, gap: candidate.rule.gap,
       trainLower: +candidate.train.lower.toFixed(5), validationLower: +candidate.validation.lower.toFixed(5),
       holdoutMean: +candidate.holdout.eventMean.toFixed(5), holdoutLower: +candidate.holdout.lower.toFixed(5),
       holdoutLockedRate: +candidate.holdout.lockedRate.toFixed(4), holdoutAdverseRate: +candidate.holdout.adverseRate.toFixed(4) })),

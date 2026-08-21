@@ -151,19 +151,24 @@ passed the chronological path screen at 25% of the present reward estimate, but
 both did so without an adverse historical touch; this prioritizes shadow
 research and does not authorize capital.
 
-Maker research version 2 lets all ten agents split distinct zero-capital shadow
+Maker research version 3 lets all ten agents split distinct zero-capital shadow
 quote pairs selected by the shared reward-book audit. Token histories are fetched
 in batches, so the learner no longer silently ignores quotes after the first ten
-markets. A later live
-cycle must still verify each touch from public CLOB price history or a current
-book cross. A one-hour executable exit grades one-sided touches after a
-conservative half-cent cost, while paired touches and unfilled attempts are also
-retained in one shared cross-agent ledger and clustered by Polymarket event. Capital exposure can only
-resume after at least 20 current-strategy event clusters in the matching
-category, spread, and estimated reward-yield cohorts have positive 90% confidence
-bounds and at least three distinct-event completed pairs, with any mature losing cohort acting as a veto. There is
-no capital-backed exploration lane. Existing paper inventory from prior builds
-is still reconciled honestly. The engine does not credit hypothetical rewards.
+markets. A live cycle must still verify each touch from public CLOB price history
+or a current book cross. After the first one-sided touch, the shadow engine now
+buys the complement only when the current executable ask locks a positive margin
+after modeled cost; otherwise it grades an immediate executable exit. It no
+longer waits with adverse one-sided shadow inventory.
+
+The August 21 expanded audit loaded both token histories for all 500 requested
+markets, formed 7,335 observations, and tested 6,048 wait and immediate-hedge
+rules. Zero passed training, validation, or untouched holdout. The separate
+reward-assisted stress test also found zero passing candidates. Maker capital is
+therefore disabled even if a small live cohort appears positive; those outcomes
+remain research evidence and cannot override the failed independent backtest.
+Existing paper inventory from prior maker versions is still reconciled honestly.
+There is no capital-backed exploration lane, and the engine does not credit
+hypothetical rewards.
 See Polymarket's official [fees](https://docs.polymarket.com/trading/fees),
 [maker rebates](https://docs.polymarket.com/market-makers/maker-rebates), and
 [liquidity rewards](https://docs.polymarket.com/market-makers/liquidity-rewards)
@@ -363,6 +368,13 @@ trades. Older trades remain visible as historical context but cannot promote a
 personal cohort or increase current risk. Forward directional evidence from
 Strategies 51-59 remains compatible because the signal and checkpoint policy
 did not change.
+
+Build 84 retires maker capital after the expanded 500-market audit found zero
+validated winners among 6,048 wait and immediate-hedge rules. New maker work is
+zero-capital lock-or-exit research: after one resting bid touches, the engine
+records a complementary hedge only when the current executable ask locks a net
+profit; otherwise it grades an immediate exit. A positive in-app cohort cannot
+reactivate capital without a separately approved chronological backtest.
 
 Build 77 separates the directional learner's evidence lineage from the global
 strategy release. Code-history verification found the same trend/reversal
