@@ -15,11 +15,14 @@ const OUTPUT_FILE = String(process.env.SHOCK_OUTPUT_FILE || "").trim();
 const SUMMARY_ONLY = process.env.SHOCK_SUMMARY === "1";
 const SUMMARY_CANDIDATES = Math.max(0, Math.min(10, Number(process.env.SHOCK_SUMMARY_CANDIDATES || 10)));
 const HOUR = 3600;
+const STRATEGY4_MINIMUM_RUNWAY_HOURS = 14;
 const HORIZONS = [3, 6, 12, 24];
 const WINDOWS = [1, 3, 6, 24];
 const MIN_MOVES = [0.005, 0.01, 0.02, 0.04, 0.08];
 const CONFIRMATIONS = ["any", "aligned", "opposed", "accelerating"];
 const MAX_VOLS = [0.01, 0.02, 0.04, 1];
+const CATEGORIES = ["All", "Politics", "Sports", "Crypto", "Economy", "Pop Culture", "Other"];
+const PRICE_BANDS = ["All", "longshot", "lower-mid", "center", "upper-mid", "favorite"];
 
 function parseJson(value) {
   if (Array.isArray(value)) return value;
@@ -65,6 +68,21 @@ function categoryOf(raw) {
   return "Other";
 }
 
+function hardSettlementJumpRisk(row) {
+  const text = `${row?.question || ""} ${row?.eventTitle || ""}`.toLowerCase();
+  const numericRange = /\b\d+(?:\.\d+)?\s*(?:%|percent)?\s*(?:-|\u2013|\u2014|to)\s*\d+(?:\.\d+)?\s*(?:%|percent|votes?|points?|seats?|bps|basis points?|tweets?|posts?|goals?)(?![a-z])/;
+  const currencyRange = /[$\u20ac\u00a3]\d+(?:\.\d+)?\s*(?:-|\u2013|\u2014|to)\s*[$\u20ac\u00a3]?\d+(?:\.\d+)?/;
+  const betweenRange = /\bbetween\s+[$\u20ac\u00a3]?\d+(?:\.\d+)?\s*(?:%|percent)?\s+(?:and|to)\s+[$\u20ac\u00a3]?\d+(?:\.\d+)?/;
+  const pathBarrier = /\b(?:reach|hit|touch|dip(?:\s+(?:to|below))?|rise\s+(?:to|above)|fall\s+(?:to|below))\b[^?]{0,45}(?:[$\u20ac\u00a3]\s*)?\d[\d,]*(?:\.\d+)?\s*(?:%|percent|k|m|b|points?|bps|basis points?)?/;
+  return numericRange.test(text) || currencyRange.test(text) || betweenRange.test(text) || pathBarrier.test(text)
+    || /\bexact score\b|\bscore:\s*\d|\bposts? \d+-\d+|\bnumber of (tweets|posts)\b/.test(text);
+}
+
+function contractSafeEligible(row, horizonHours) {
+  return !row.hardSettlementJumpRisk && Number.isFinite(row.endTs)
+    && row.endTs - row.observedAt >= (Number(horizonHours) + 2) * HOUR;
+}
+
 async function fetchMarkets(limit, universe = "active") {
   const markets = [], seen = new Set();
   if (universe === "closed") {
@@ -81,7 +99,9 @@ async function fetchMarkets(limit, universe = "active") {
           && ((outcomes[0] >= 0.99 && outcomes[1] <= 0.01) || (outcomes[1] >= 0.99 && outcomes[0] <= 0.01));
         if (!id || seen.has(id) || !resolved || labels[0] !== "yes" || labels[1] !== "no" || tokens.length !== 2) continue;
         seen.add(id);
+        const endTs = Date.parse(raw.endDate || raw.events?.[0]?.endDate || "") / 1000;
         markets.push({ id, token: tokens[0], category: categoryOf(raw), question: raw.question || "",
+          eventTitle: raw.events?.[0]?.title || "", endTs: Number.isFinite(endTs) ? endTs : null,
           eventKey: String(raw.events?.[0]?.id || raw.events?.[0]?.slug || raw.eventId || id) });
         if (markets.length >= limit) break;
       }
@@ -103,7 +123,9 @@ async function fetchMarkets(limit, universe = "active") {
       if (!id || seen.has(id) || labels[0] !== "yes" || labels[1] !== "no" || tokens.length !== 2) continue;
       if (skipped < ACTIVE_SKIP) { skipped++; continue; }
       seen.add(id);
+      const endTs = Date.parse(raw.endDate || raw.events?.[0]?.endDate || "") / 1000;
       markets.push({ id, token: tokens[0], category: categoryOf(raw), question: raw.question || "",
+        eventTitle: raw.events?.[0]?.title || "", endTs: Number.isFinite(endTs) ? endTs : null,
         eventKey: String(raw.events?.[0]?.id || raw.events?.[0]?.slug || raw.eventId || id) });
       if (markets.length >= limit) break;
     }
@@ -203,7 +225,8 @@ function observations(market, points) {
     for (const horizon of HORIZONS) {
       const future = atOrAfter(points, current.t + horizon * HOUR);
       if (!future || future.t - (current.t + horizon * HOUR) > 2 * HOUR) continue;
-      rows.push({ marketId: market.id, eventKey: market.eventKey, category: market.category, observedAt: current.t,
+      rows.push({ marketId: market.id, eventKey: market.eventKey, category: market.category, question: market.question,
+        endTs: Number(market.endTs), hardSettlementJumpRisk: hardSettlementJumpRisk(market), observedAt: current.t,
         evaluatedAt: future.t, horizon, price: current.p, futurePrice: future.p, ...features });
       captured = true;
     }
@@ -222,6 +245,7 @@ function confirmationPass(row, move, confirmation) {
 
 function simulate(row, rule) {
   if (row.horizon !== rule.horizon || row.volatility > rule.maxVol) return null;
+  if (rule.contractGate === "strategy4" && !contractSafeEligible(row, rule.horizon)) return null;
   if (rule.category !== "All" && row.category !== rule.category) return null;
   const move = row.moves[rule.window];
   if (Math.abs(move) < rule.minMove || !confirmationPass(row, move, rule.confirmation)) return null;
@@ -279,7 +303,7 @@ const partitionByHorizon = Object.fromEntries(Object.entries(partitions).map(([n
   Object.fromEntries(HORIZONS.map((horizon) => [horizon, partitionRows.filter((row) => row.horizon === horizon)]))]));
 const simulationCache = Object.fromEntries(Object.keys(partitions).map((name) => [name, new Map()]));
 function simulatedRows(rule, partition) {
-  const key = rule.baseId || rule.id;
+  const key = `${rule.baseId || rule.id}|${rule.contractGate || "all"}`;
   if (!simulationCache[partition].has(key)) {
     const baseRule = { ...rule, category: "All", band: "All" };
     simulationCache[partition].set(key, (partitionByHorizon[partition][rule.horizon] || []).map((row) => simulate(row, baseRule)).filter(Boolean));
@@ -293,8 +317,8 @@ const trainWinners = baseRules.map((rule) => ({ rule, train: evaluate(rule, "tra
   .filter((candidate) => candidate.train.attempts >= 100 && candidate.train.events >= 20 && candidate.train.lower > 0);
 const refinedRules = [];
 for (const candidate of trainWinners) {
-  for (const category of ["All", "Politics", "Sports", "Crypto", "Economy", "Pop Culture", "Other"])
-    for (const band of ["All", "longshot", "lower-mid", "center", "upper-mid", "favorite"])
+  for (const category of CATEGORIES)
+    for (const band of PRICE_BANDS)
       refinedRules.push({ ...candidate.rule, id: `${candidate.rule.id}_${category}_${band}`, category, band });
 }
 const uniqueRefined = [...new Map(refinedRules.map((rule) => [rule.id, rule])).values()];
@@ -333,6 +357,29 @@ const exactStrategy3 = { rule: exactStrategy3Rule,
   train: compact(evaluate(exactStrategy3Rule, "train")), validation: compact(evaluate(exactStrategy3Rule, "validation")),
   holdout: compact(evaluate(exactStrategy3Rule, "holdout")),
   eventHoldout: compact(summary(eventHoldoutRows.map((row) => simulate(row, exactStrategy3Rule)).filter(Boolean))) };
+const exactStrategy4Rule = { ...exactStrategy3Rule, id: "fade_h12_w3_m0.08_accelerating_v1_contract_safe_v4", contractGate: "strategy4" };
+const exactStrategy4 = { rule: exactStrategy4Rule,
+  train: compact(evaluate(exactStrategy4Rule, "train")), validation: compact(evaluate(exactStrategy4Rule, "validation")),
+  holdout: compact(evaluate(exactStrategy4Rule, "holdout")),
+  eventHoldout: compact(summary(eventHoldoutRows.map((row) => simulate(row, exactStrategy4Rule)).filter(Boolean))) };
+const strategy4Refinements = CATEGORIES.flatMap((category) => PRICE_BANDS.map((band) => {
+  const rule = { ...exactStrategy4Rule, id: `${exactStrategy4Rule.id}_${category}_${band}`, category, band };
+  return { rule, train: compact(evaluate(rule, "train")), validation: compact(evaluate(rule, "validation")),
+    holdout: compact(evaluate(rule, "holdout")),
+    eventHoldout: compact(summary(eventHoldoutRows.map((row) => simulate(row, rule)).filter(Boolean))) };
+}));
+const exactPrimaryWinner24Rule = { ...exactStrategy3Rule, id: "fade_h24_w3_m0.08_accelerating_v1_All_All",
+  baseId: "fade_h24_w3_m0.08_accelerating_v1", horizon: 24 };
+const exactPrimaryWinner24 = { rule: exactPrimaryWinner24Rule,
+  train: compact(evaluate(exactPrimaryWinner24Rule, "train")), validation: compact(evaluate(exactPrimaryWinner24Rule, "validation")),
+  holdout: compact(evaluate(exactPrimaryWinner24Rule, "holdout")),
+  eventHoldout: compact(summary(eventHoldoutRows.map((row) => simulate(row, exactPrimaryWinner24Rule)).filter(Boolean))) };
+const exactContractSafe24Rule = { ...exactPrimaryWinner24Rule,
+  id: "fade_h24_w3_m0.08_accelerating_v1_contract_safe", contractGate: "strategy4" };
+const exactContractSafe24 = { rule: exactContractSafe24Rule,
+  train: compact(evaluate(exactContractSafe24Rule, "train")), validation: compact(evaluate(exactContractSafe24Rule, "validation")),
+  holdout: compact(evaluate(exactContractSafe24Rule, "holdout")),
+  eventHoldout: compact(summary(eventHoldoutRows.map((row) => simulate(row, exactContractSafe24Rule)).filter(Boolean))) };
 const coverageDays = Object.values(fetched.history).map((points) => points.length > 1 ? (points.at(-1).t - points[0].t) / 86400 : 0).sort((a, b) => a - b);
 const medianCoverageDays = coverageDays.length ? coverageDays[Math.floor(coverageDays.length / 2)] : 0;
 const candidateRow = (candidate) => ({ rule: candidate.rule, passesHoldout: candidate.passesHoldout,
@@ -356,8 +403,10 @@ const report = { generatedAt: new Date().toISOString(), requestedMarkets: MARKET
     eventSplit: "25% deterministic event-disjoint holdout reserved before search",
     split: "Remaining events use 60% train / 20% validation / 20% untouched chronological holdout with future-mark purge",
     clusterUnit: "Polymarket event", refinementSource: "Only base rules with a positive train lower bound are refined by category and entry band",
+    strategy4ContractGate: `Reject path barriers and exact numeric ranges; require ${STRATEGY4_MINIMUM_RUNWAY_HOURS} hours to market end at entry`,
     limitation: "Current active-market selection is survivorship biased; any holdout winner still requires resolved-market external validation" },
-  partitions: Object.fromEntries(Object.entries(partitions).map(([key, value]) => [key, value.length])), exactStrategy3,
+  partitions: Object.fromEntries(Object.entries(partitions).map(([key, value]) => [key, value.length])), exactStrategy3, exactStrategy4,
+  strategy4Refinements, exactPrimaryWinner24, exactContractSafe24,
   candidates: holdout.slice(0, 30).map(candidateRow) };
 
 const output = SUMMARY_ONLY ? { generatedAt: report.generatedAt, activeMarketsSkipped: report.activeMarketsSkipped, markets: report.markets,
@@ -369,7 +418,9 @@ const output = SUMMARY_ONLY ? { generatedAt: report.generatedAt, activeMarketsSk
   eventHoldoutPassed: report.eventHoldoutPassed, externalRequestedMarkets: report.externalRequestedMarkets,
   externalMarkets: report.externalMarkets, externalMarketsWithHistory: report.externalMarketsWithHistory,
   externalFetchFailures: report.externalFetchFailures, externalObservations: report.externalObservations,
-  archivePassed: report.archivePassed, partitions: report.partitions, exactStrategy3: report.exactStrategy3,
+  archivePassed: report.archivePassed, partitions: report.partitions, exactStrategy3: report.exactStrategy3, exactStrategy4: report.exactStrategy4,
+  strategy4Refinements: report.strategy4Refinements,
+  exactPrimaryWinner24: report.exactPrimaryWinner24, exactContractSafe24: report.exactContractSafe24,
   candidates: report.candidates.slice(0, SUMMARY_CANDIDATES) } : report;
 const serialized = JSON.stringify(output, null, 2);
 if (OUTPUT_FILE) fs.writeFileSync(OUTPUT_FILE, serialized + "\n");

@@ -20,7 +20,7 @@ market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
 
-Build 94 runs the headless GitHub Actions runtime every 15 minutes, continues
+Build 95 runs the headless GitHub Actions runtime every 15 minutes, continues
 from the previous agent snapshot,
 and runs the next due paper cycle even when no browser is open. It writes a
 sanitized snapshot to the `runtime-state` branch and `/api/state` uses that as a
@@ -50,6 +50,17 @@ Older unsafe shock positions are unwound at an executable bid; older valid
 positions continue to their recorded target and still reserve their underlying
 risk so the new strategy cannot overlap them. Strategy 4 starts a fresh shared
 forward ledger because its eligible contract universe is materially different.
+
+Build 95 removes Strategy 4's initial capital permission after replaying the
+production contract gate over 2,000 primary and 1,000 untouched active markets
+at a two-cent modeled cost. The primary train, validation, chronological, and
+event-holdout lower bounds remained positive, but the untouched chronological
+event mean was negative and both its chronological and event-holdout confidence
+bounds crossed zero. No category or entry-price refinement survived every
+independent partition. Strategy 4 therefore starts shadow-only: 40 positive
+event-deduplicated forward outcomes with a lower bound above 1% can qualify 1%
+paper positions; 80 outcomes with a lower bound above 1.5% can raise size to
+1.5%. Twenty convincingly losing events keep capital disabled.
 
 Build 73 distinguishes a temporary order-book pause from settlement. Exact
 market refreshes still mark paused positions to the latest published price, but
