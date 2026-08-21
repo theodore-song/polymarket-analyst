@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 58 · agent learning 2 · build 81</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 58 · agent learning 2 · build 82</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 81 active:</b> each strategy now studies its own broader research universe before deciding whether a setup has earned capital. Observation eligibility is separate from the stricter entry gate, while sports pilots and priced bundles stay out of directional calibration. Agent reports show legacy, strategy-tagged, and unassigned queue counts so differentiated learning is auditable. Capital still requires independent 24h and 72h net-positive evidence; this remains paper trading and profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 82 active:</b> each strategy studies its own broader research universe before deciding whether a setup has earned capital. Observation eligibility is separate from the stricter entry gate, and unassigned migration records can no longer block a properly tagged replacement observation of the same market. Agent reports show legacy, strategy-tagged, and unassigned queue counts. Capital still requires independent 24h and 72h net-positive evidence; this remains paper trading and profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 81 · Adaptive strategy 58 · Agent learning 2 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 82 · Adaptive strategy 58 · Agent learning 2 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,8 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 81;
+const BUILD_VERSION = 82;
+const AGENT_LEARNING_VERSION = 2;
 const SUGGESTION_ENGINE_VERSION = 58;
 const MAKER_STRATEGY_VERSION = 2;
 const PREVIOUS_STRATEGY_VERSION = 57;
@@ -2028,16 +2029,20 @@ function updateSignalLedger(st,markets,suggestions){
     }
   }
   stillPending.sort((a,b)=>new Date(a.observed_at||0)-new Date(b.observed_at||0));
-  const existing=new Set(stillPending.map(x=>x.key)),pendingPairs=new Set(stillPending.map(x=>`${x.market_id}:${x.side}`));
+  const existing=new Set(stillPending.map(x=>x.key)),pendingPairs=new Set(stillPending
+    .filter(x=>!Object.prototype.hasOwnProperty.call(x||{},"eligible_agent_ids")||(Array.isArray(x.eligible_agent_ids)&&x.eligible_agent_ids.length>0))
+    .map(x=>`${x.market_id}:${x.side}`));
   const bucket=Math.floor(now/(6*3600000));
   const observable=prioritizeSignalObservations((suggestions||[])
     .filter(x=>!x.jump_risk&&["trend","reversal"].includes(x.signal_type)&&Number(x.signal_confidence||0)>=0.56),ledger,stillPending);
   for(const s of observable){
-    const pair=`${s.market_id}:${s.side}`,key=`${pair}:${bucket}`;if(existing.has(key)||pendingPairs.has(pair))continue;
+    const pair=`${s.market_id}:${s.side}`,key=`${pair}:${bucket}:l${AGENT_LEARNING_VERSION}`;if(existing.has(key)||pendingPairs.has(pair))continue;
     if(stillPending.length>=SIGNAL_LEDGER_PENDING_LIMIT)break;
     existing.add(key);pendingPairs.add(pair);stillPending.push({key,market_id:String(s.market_id),event_key:String(s.url||s.event||s.market_id),observed_at:nowIso(),graded_horizons:[],side:s.side,entry_price:Number(s.entry_price),
       signal_type:s.signal_type||"unknown",quality:s.quality||"unknown",category:s.category||"Other",conviction:Number(s.conviction||0),
-      days_to_resolution:s.days_to_resolution,trade_ready_at_observation:Boolean(s.trade_ready),
+      days_to_resolution:s.days_to_resolution,trade_ready_at_observation:Boolean(s.trade_ready),signal_confidence:Number(s.signal_confidence||0),
+      signal_strength:Number(s.signal_strength||0),evidence_score:Number(s.evidence_score||0),evidence_source_count:Number(s.evidence_source_count||0),
+      price_change_1d:Number(s.price_change_1d||0),agent_learning_version:AGENT_LEARNING_VERSION,
       eligible_agent_ids:AGENTS.filter(agent=>agentObservesSuggestion(agent,s)).map(agent=>agent.id),
       signal_policy_version:DIRECTIONAL_SIGNAL_POLICY_VERSION,strategy_version:SUGGESTION_ENGINE_VERSION,build_version:BUILD_VERSION});
   }
@@ -5361,6 +5366,7 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
     signalDueFetchLimit:SIGNAL_LEDGER_DUE_FETCH_LIMIT,survivorshipSafeSignalGrading:true,
     signalRoundTripCostCents:SIGNAL_ROUND_TRIP_COST*100,independentConfidence:true,eventClusteredCalibration:true,
     onePendingObservationPerMarketSide:true,oldestPendingEvidenceFirst:true,coverageAwareObservationSampling:true,uncertaintyGatedCalibration:true,
+    unassignedMigrationRecordsDoNotBlockScopedReplacement:true,agentLearningVersion:AGENT_LEARNING_VERSION,
     directionalSignalsRequirePromotion:true,directionalSignalPolicyVersion:DIRECTIONAL_SIGNAL_POLICY_VERSION,
     directionalSignalCompatibleStrategies:[DIRECTIONAL_SIGNAL_COMPATIBLE_STRATEGY_MIN,DIRECTIONAL_SIGNAL_COMPATIBLE_STRATEGY_MAX],
     focusAndReconnectCatchup:true,liveOnlyCompleteBundles:true,negativeRiskBundleSides:["YES","NO"],negativeRiskEventScanLimit:NEG_RISK_EVENT_SCAN_LIMIT,
@@ -5488,6 +5494,12 @@ function runEngineSelfTest(){
     {market_id:"priced-bundle",side:"NO",entry_price:0.80,signal_type:"bundle-arb",quality:"bundle-arb",signal_confidence:1,trade_ready:true,jump_risk:false},
     {market_id:"sports-pilot",side:"YES",entry_price:0.67,signal_type:"sports-favorite-pilot",quality:"sports-favorite-pilot",signal_confidence:1,trade_ready:true,jump_risk:false},
   ]);
+  const unassignedReplacementState={signal_ledger:{pending:[{key:"unassigned-old",market_id:"scope-replacement",event_key:"scope-replacement-event",
+    observed_at:hoursAgo(1),graded_horizons:[],side:"YES",entry_price:0.42,signal_type:"trend",quality:"watch",category:"Politics",
+    eligible_agent_ids:[],signal_policy_version:DIRECTIONAL_SIGNAL_POLICY_VERSION,strategy_version:SUGGESTION_ENGINE_VERSION}],outcomes:[]}};
+  updateSignalLedger(unassignedReplacementState,[],[{market_id:"scope-replacement",event_key:"scope-replacement-event",side:"YES",entry_price:0.42,
+    signal_type:"trend",quality:"watch",signal_confidence:0.64,signal_strength:0.72,evidence_score:0.52,evidence_source_count:1,
+    price_change_1d:0.02,conviction:74,trade_ready:false,jump_risk:false,category:"Politics",days_to_resolution:45}]);
   const queueLedgerState={signal_ledger:{pending:Array.from({length:SIGNAL_LEDGER_PENDING_LIMIT-1},(_,i)=>({
     key:`old-${i}`,market_id:`old-market-${i}`,observed_at:hoursAgo(12),side:"YES",entry_price:0.42,
   })),outcomes:[]}};
@@ -5911,6 +5923,9 @@ function runEngineSelfTest(){
         &&!agentAcceptsSuggestion(agentById("value"),{side:"YES",entry_price:0.42,signal_type:"trend",quality:"watch",
           signal_confidence:0.62,trade_ready:false,jump_risk:false,category:"Politics",days_to_resolution:45}),
       nonDirectionalSystemsStayOutOfDirectionalLedger:nonDirectionalLedgerState.signal_ledger.pending.length===0,
+      unassignedMigrationRecordDoesNotBlockReplacement:unassignedReplacementState.signal_ledger.pending.length===2
+        &&unassignedReplacementState.signal_ledger.pending.some(item=>item.agent_learning_version===AGENT_LEARNING_VERSION
+          &&Array.isArray(item.eligible_agent_ids)&&item.eligible_agent_ids.length>=5),
       agentCalibrationFiltersOutcomes:momentumScopedProfile.samples===72&&momentumScopedProfile.events===24
         &&momentumScopedProfile.pending===1&&valueScopedProfile.samples===0&&valueScopedProfile.pending===1,
       calibrationReportsQueueComposition:momentumScopedProfile.pending_global===2&&momentumScopedProfile.pending_legacy===0

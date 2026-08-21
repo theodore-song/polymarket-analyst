@@ -346,6 +346,12 @@ directional learner. Each agent report now audits the global pending queue as
 legacy shared, strategy-tagged, unassigned, and tagged-for-this-agent counts so
 learning differences are visible instead of inferred from a single total.
 
+Build 82 fixes the migration edge discovered by the first Build 81 production
+cycle: an explicitly unassigned Build 80 observation remains visible in the
+queue audit but no longer blocks a new strategy-tagged observation for the same
+market side. New records also retain the signal features used to assign their
+research scope, making later audits reproducible.
+
 Build 77 separates the directional learner's evidence lineage from the global
 strategy release. Code-history verification found the same trend/reversal
 generator and 24-hour/72-hour grading policy in Strategy 51 through Strategy
