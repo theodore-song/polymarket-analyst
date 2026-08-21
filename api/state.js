@@ -221,9 +221,9 @@ export function compactAgentState(st) {
 export function compactSuggestion(s) {
   if (!s || typeof s !== "object") return s;
   return {
-    market_id: s.market_id, question: s.question, event: s.event, url: s.url, category: s.category,
+    market_id: s.market_id, question: s.question, event: s.event, event_key: s.event_key, url: s.url, category: s.category,
     clob_yes: s.clob_yes, clob_no: s.clob_no, yes_price: s.yes_price, no_price: s.no_price,
-    fair_value: s.fair_value, edge: s.edge, side: s.side, entry_price: s.entry_price,
+    fair_value: s.fair_value, edge: s.edge, side: s.side, market_price: s.market_price, entry_price: s.entry_price,
     net_edge: s.net_edge, friction: s.friction, chase_penalty: s.chase_penalty,
     evidence_score: s.evidence_score, evidence_source_count: s.evidence_source_count, quality: s.quality,
     conviction: s.conviction, volume: s.volume, volume_24hr: s.volume_24hr, liquidity: s.liquidity,
@@ -235,7 +235,10 @@ export function compactSuggestion(s) {
     bundle_id: s.bundle_id, bundle_side: s.bundle_side, bundle_logic: s.bundle_logic, bundle_cost_per_unit: s.bundle_cost_per_unit,
     bundle_payout_per_unit: s.bundle_payout_per_unit, bundle_net_profit_per_unit: s.bundle_net_profit_per_unit,
     bundle_legs: s.bundle_legs,
-    days_to_resolution: s.days_to_resolution, drivers: s.drivers, rationale: s.rationale,
+    days_to_resolution: s.days_to_resolution, pilot_prior: s.pilot_prior,
+    shock_move_1h: s.shock_move_1h, shock_prior_move_1h: s.shock_prior_move_1h, shock_move_3h: s.shock_move_3h,
+    shock_observed_at: s.shock_observed_at, shock_strategy_version: s.shock_strategy_version,
+    drivers: s.drivers, rationale: s.rationale,
   };
 }
 

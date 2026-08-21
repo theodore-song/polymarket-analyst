@@ -401,6 +401,33 @@ Thirty positive forward events with a lower bound above 1% can raise individual
 size to 1%; twelve convincingly losing events or a 2% strategy loss demote the
 lane to zero capital. Strategy-1 outcomes do not contaminate Strategy-2 evidence.
 
+Build 87 applies a harsher two-cent round-trip stress and replaces Strategy 2
+with the stronger all-price-band rule: fade an accelerating move of at least
+eight percentage points over three hours and exit after twelve hours. With each
+return winsorized to the live learner's -100%/+200% range, its 90%
+event-clustered lower bounds were +4.01% train, +4.55% validation, +3.63%
+chronological holdout, and +1.08% on the sealed event-disjoint holdout, across
+93, 85, 159, and 80 independent events. Entry still requires a live executable
+price between 8% and 92%, no more than one cent of entry friction, and an extra
+0.25-cent slippage buffer at exit. Initial paper positions are 1% of agent
+equity, capped at 5% total per agent; 40 positive forward events can raise size
+to 1.5%, while 20 convincingly losing events or a 3% strategy loss disable the
+lane for that agent. All five aggressive agents may adopt it, but no event may
+be repeated across agents and each agent can open at most two shock positions
+per cycle. The service worker now uses Build 87 cache invalidation and
+network-first refreshes, so an installed offline copy receives new builds when
+it reconnects instead of continuing to serve stale Build 83 assets.
+
+The exact Strategy 3 rule was then frozen and checked without retuning on the
+next 1,000 eligible active markets (246,580 additional observations). Mean
+return remained positive in train, validation, chronological holdout, and the
+event-disjoint holdout. The independent event holdout retained a +0.37% 90%
+lower bound across 61 events; train and chronological-holdout lower bounds were
+slightly inconclusive at -0.17% and -0.89%. This is why Build 87 starts at 1%
+rather than extrapolating the stronger first-universe result into large risk.
+Resolved-market archive history was still unavailable, so the strategy remains
+a demotable paper-trading lane rather than a return guarantee.
+
 Build 77 separates the directional learner's evidence lineage from the global
 strategy release. Code-history verification found the same trend/reversal
 generator and 24-hour/72-hour grading policy in Strategy 51 through Strategy

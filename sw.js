@@ -1,4 +1,4 @@
-const CACHE_NAME = "polymarket-arena-build-83";
+const CACHE_NAME = "polymarket-arena-build-87";
 const APP_SHELL = ["/", "/index.html", "/personal.html", "/cycle-worker.js"];
 
 self.addEventListener("install", event => {
@@ -27,10 +27,10 @@ self.addEventListener("fetch", event => {
   }
 
   if(url.origin === self.location.origin && !url.pathname.startsWith("/api/")) {
-    event.respondWith(caches.match(event.request).then(cached => cached || fetch(event.request).then(response => {
+    event.respondWith(fetch(event.request).then(response => {
       const copy = response.clone();
       caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
       return response;
-    })));
+    }).catch(() => caches.match(event.request)));
   }
 });

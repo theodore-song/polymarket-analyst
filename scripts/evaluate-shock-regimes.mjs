@@ -3,6 +3,7 @@ import fs from "node:fs";
 const GAMMA = "https://gamma-api.polymarket.com";
 const CLOB = "https://clob.polymarket.com";
 const MARKET_LIMIT = Math.max(100, Math.min(2000, Number(process.env.SHOCK_MARKETS || 500)));
+const ACTIVE_SKIP = Math.max(0, Math.min(10000, Number(process.env.SHOCK_ACTIVE_SKIP || 0)));
 const EXTERNAL_MARKET_LIMIT = Math.max(100, Math.min(2000, Number(process.env.SHOCK_EXTERNAL_MARKETS || 1000)));
 const HISTORY_DAYS = Math.max(14, Math.min(30, Number(process.env.SHOCK_HISTORY_DAYS || 30)));
 const CONCURRENCY = Math.max(1, Math.min(8, Number(process.env.SHOCK_CONCURRENCY || 6)));
@@ -89,7 +90,7 @@ async function fetchMarkets(limit, universe = "active") {
     }
     return markets;
   }
-  let cursor = "";
+  let cursor = "", skipped = 0;
   while (markets.length < limit) {
     const params = new URLSearchParams({ active: "true", closed: "false", archived: "false", include_tag: "true",
       limit: "100", order: "volume24hr", ascending: "false" });
@@ -100,6 +101,7 @@ async function fetchMarkets(limit, universe = "active") {
       const labels = parseJson(raw.outcomes).map((value) => String(value).trim().toLowerCase());
       const tokens = parseJson(raw.clobTokenIds).map(String), id = String(raw.id || "");
       if (!id || seen.has(id) || labels[0] !== "yes" || labels[1] !== "no" || tokens.length !== 2) continue;
+      if (skipped < ACTIVE_SKIP) { skipped++; continue; }
       seen.add(id);
       markets.push({ id, token: tokens[0], category: categoryOf(raw), question: raw.question || "",
         eventKey: String(raw.events?.[0]?.id || raw.events?.[0]?.slug || raw.eventId || id) });
@@ -229,7 +231,8 @@ function simulate(row, rule) {
   if (entry < MIN_ENTRY_PRICE || entry > MAX_ENTRY_PRICE) return null;
   const band = priceBand(entry);
   if (rule.band !== "All" && band !== rule.band) return null;
-  const netReturn = exit / entry - 1 - COST / entry;
+  const rawNetReturn = exit / entry - 1 - COST / entry;
+  const netReturn = Math.max(-1, Math.min(2, rawNetReturn));
   return { marketId: row.marketId, eventKey: row.eventKey, observedAt: row.observedAt, evaluatedAt: row.evaluatedAt,
     category: row.category, band, side, entry, exit, netReturn };
 }
@@ -257,10 +260,11 @@ for (const horizon of HORIZONS) for (const window of WINDOWS) for (const minMove
 let markets, fetched;
 if (CACHE_FILE && fs.existsSync(CACHE_FILE)) {
   const cached = JSON.parse(fs.readFileSync(CACHE_FILE, "utf8"));
+  if (Number(cached.activeSkip || 0) !== ACTIVE_SKIP) throw new Error(`Shock cache active-skip mismatch: expected ${ACTIVE_SKIP}`);
   markets = cached.markets || []; fetched = { history: cached.history || {}, failures: Number(cached.failures || 0) };
 } else {
   markets = await fetchMarkets(MARKET_LIMIT); fetched = await fetchHistories(markets);
-  if (CACHE_FILE) fs.writeFileSync(CACHE_FILE, JSON.stringify({ markets, history: fetched.history, failures: fetched.failures }));
+  if (CACHE_FILE) fs.writeFileSync(CACHE_FILE, JSON.stringify({ activeSkip: ACTIVE_SKIP, markets, history: fetched.history, failures: fetched.failures }));
 }
 const rows = markets.flatMap((market) => observations(market, fetched.history[market.token] || []));
 const eventHoldoutRows = rows.filter((row) => stableHash(row.eventKey) % 4 === 0);
@@ -323,13 +327,19 @@ if (finalists.length) {
 }
 
 const compact = (stats) => Object.fromEntries(Object.entries(stats).map(([key, value]) => [key, Number.isFinite(value) ? +value.toFixed(5) : value]));
+const exactStrategy3Rule = { id: "fade_h12_w3_m0.08_accelerating_v1_All_All", baseId: "fade_h12_w3_m0.08_accelerating_v1",
+  horizon: 12, window: 3, minMove: 0.08, direction: "fade", confirmation: "accelerating", maxVol: 1, category: "All", band: "All" };
+const exactStrategy3 = { rule: exactStrategy3Rule,
+  train: compact(evaluate(exactStrategy3Rule, "train")), validation: compact(evaluate(exactStrategy3Rule, "validation")),
+  holdout: compact(evaluate(exactStrategy3Rule, "holdout")),
+  eventHoldout: compact(summary(eventHoldoutRows.map((row) => simulate(row, exactStrategy3Rule)).filter(Boolean))) };
 const coverageDays = Object.values(fetched.history).map((points) => points.length > 1 ? (points.at(-1).t - points[0].t) / 86400 : 0).sort((a, b) => a - b);
 const medianCoverageDays = coverageDays.length ? coverageDays[Math.floor(coverageDays.length / 2)] : 0;
 const candidateRow = (candidate) => ({ rule: candidate.rule, passesHoldout: candidate.passesHoldout,
   passesEventHoldout: Boolean(candidate.passesEventHoldout), passesArchive: Boolean(candidate.passesArchive),
   train: compact(candidate.train), validation: compact(candidate.validation), holdout: compact(candidate.holdout),
   eventHoldout: candidate.eventHoldout ? compact(candidate.eventHoldout) : null, archive: candidate.archive ? compact(candidate.archive) : null });
-const report = { generatedAt: new Date().toISOString(), requestedMarkets: MARKET_LIMIT, markets: markets.length,
+const report = { generatedAt: new Date().toISOString(), requestedMarkets: MARKET_LIMIT, activeMarketsSkipped: ACTIVE_SKIP, markets: markets.length,
   marketsWithHistory: markets.filter((market) => fetched.history[market.token]?.length).length, fetchFailures: fetched.failures,
   medianHistoryCoverageDays: +medianCoverageDays.toFixed(2), maximumHistoryCoverageDays: +(coverageDays.at(-1) || 0).toFixed(2),
   observations: rows.length, testedBaseRules: baseRules.length, trainWinners: trainWinners.length, testedRefinements: uniqueRefined.length,
@@ -342,14 +352,15 @@ const report = { generatedAt: new Date().toISOString(), requestedMarkets: MARKET
   archivePassed: finalists.filter((candidate) => candidate.passesArchive).length,
   methodology: { requestedHistoryDays: HISTORY_DAYS, medianHistoryCoverageDays: +medianCoverageDays.toFixed(2),
     maximumHistoryCoverageDays: +(coverageDays.at(-1) || 0).toFixed(2), observationSpacingHours: 3, horizons: HORIZONS, windows: WINDOWS,
-    costCents: COST * 100, entryPriceRange: [MIN_ENTRY_PRICE, MAX_ENTRY_PRICE], eventSplit: "25% deterministic event-disjoint holdout reserved before search",
+    costCents: COST * 100, entryPriceRange: [MIN_ENTRY_PRICE, MAX_ENTRY_PRICE], returnWinsorization: [-1, 2],
+    eventSplit: "25% deterministic event-disjoint holdout reserved before search",
     split: "Remaining events use 60% train / 20% validation / 20% untouched chronological holdout with future-mark purge",
     clusterUnit: "Polymarket event", refinementSource: "Only base rules with a positive train lower bound are refined by category and entry band",
     limitation: "Current active-market selection is survivorship biased; any holdout winner still requires resolved-market external validation" },
-  partitions: Object.fromEntries(Object.entries(partitions).map(([key, value]) => [key, value.length])),
+  partitions: Object.fromEntries(Object.entries(partitions).map(([key, value]) => [key, value.length])), exactStrategy3,
   candidates: holdout.slice(0, 30).map(candidateRow) };
 
-const output = SUMMARY_ONLY ? { generatedAt: report.generatedAt, markets: report.markets,
+const output = SUMMARY_ONLY ? { generatedAt: report.generatedAt, activeMarketsSkipped: report.activeMarketsSkipped, markets: report.markets,
   marketsWithHistory: report.marketsWithHistory, fetchFailures: report.fetchFailures, observations: report.observations,
   medianHistoryCoverageDays: report.medianHistoryCoverageDays, maximumHistoryCoverageDays: report.maximumHistoryCoverageDays,
   testedBaseRules: report.testedBaseRules, trainWinners: report.trainWinners, testedRefinements: report.testedRefinements,
@@ -358,7 +369,7 @@ const output = SUMMARY_ONLY ? { generatedAt: report.generatedAt, markets: report
   eventHoldoutPassed: report.eventHoldoutPassed, externalRequestedMarkets: report.externalRequestedMarkets,
   externalMarkets: report.externalMarkets, externalMarketsWithHistory: report.externalMarketsWithHistory,
   externalFetchFailures: report.externalFetchFailures, externalObservations: report.externalObservations,
-  archivePassed: report.archivePassed, partitions: report.partitions,
+  archivePassed: report.archivePassed, partitions: report.partitions, exactStrategy3: report.exactStrategy3,
   candidates: report.candidates.slice(0, SUMMARY_CANDIDATES) } : report;
 const serialized = JSON.stringify(output, null, 2);
 if (OUTPUT_FILE) fs.writeFileSync(OUTPUT_FILE, serialized + "\n");

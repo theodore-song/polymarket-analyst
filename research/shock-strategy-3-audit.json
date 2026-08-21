@@ -1,0 +1,1984 @@
+{
+  "generatedAt": "2026-08-21T20:52:07.980Z",
+  "requestedMarkets": 2000,
+  "activeMarketsSkipped": 0,
+  "markets": 2000,
+  "marketsWithHistory": 2000,
+  "fetchFailures": 0,
+  "medianHistoryCoverageDays": 13.55,
+  "maximumHistoryCoverageDays": 29.97,
+  "observations": 534894,
+  "testedBaseRules": 2560,
+  "trainWinners": 31,
+  "testedRefinements": 1302,
+  "validationWinners": 64,
+  "holdoutPassed": 22,
+  "eventHoldoutObservations": 128262,
+  "eventHoldoutEvents": 188,
+  "eventHoldoutPassed": 2,
+  "externalRequestedMarkets": 100,
+  "externalMarkets": 99,
+  "externalMarketsWithHistory": 0,
+  "externalFetchFailures": 0,
+  "externalObservations": 0,
+  "archivePassed": 0,
+  "methodology": {
+    "requestedHistoryDays": 30,
+    "medianHistoryCoverageDays": 13.55,
+    "maximumHistoryCoverageDays": 29.97,
+    "observationSpacingHours": 3,
+    "horizons": [
+      3,
+      6,
+      12,
+      24
+    ],
+    "windows": [
+      1,
+      3,
+      6,
+      24
+    ],
+    "costCents": 2,
+    "entryPriceRange": [
+      0.08,
+      0.92
+    ],
+    "returnWinsorization": [
+      -1,
+      2
+    ],
+    "eventSplit": "25% deterministic event-disjoint holdout reserved before search",
+    "split": "Remaining events use 60% train / 20% validation / 20% untouched chronological holdout with future-mark purge",
+    "clusterUnit": "Polymarket event",
+    "refinementSource": "Only base rules with a positive train lower bound are refined by category and entry band",
+    "limitation": "Current active-market selection is survivorship biased; any holdout winner still requires resolved-market external validation"
+  },
+  "partitions": {
+    "train": 185884,
+    "validation": 114374,
+    "holdout": 88938
+  },
+  "exactStrategy3": {
+    "rule": {
+      "id": "fade_h12_w3_m0.08_accelerating_v1_All_All",
+      "baseId": "fade_h12_w3_m0.08_accelerating_v1",
+      "horizon": 12,
+      "window": 3,
+      "minMove": 0.08,
+      "direction": "fade",
+      "confirmation": "accelerating",
+      "maxVol": 1,
+      "category": "All",
+      "band": "All"
+    },
+    "train": {
+      "attempts": 402,
+      "markets": 152,
+      "events": 93,
+      "mean": 0.08964,
+      "eventMean": 0.0791,
+      "lower": 0.04009,
+      "upper": 0.11811,
+      "winRate": 0.54975
+    },
+    "validation": {
+      "attempts": 267,
+      "markets": 135,
+      "events": 85,
+      "mean": 0.07274,
+      "eventMean": 0.08363,
+      "lower": 0.04546,
+      "upper": 0.12181,
+      "winRate": 0.54307
+    },
+    "holdout": {
+      "attempts": 498,
+      "markets": 237,
+      "events": 159,
+      "mean": 0.06411,
+      "eventMean": 0.08601,
+      "lower": 0.03627,
+      "upper": 0.13576,
+      "winRate": 0.51205
+    },
+    "eventHoldout": {
+      "attempts": 382,
+      "markets": 121,
+      "events": 80,
+      "mean": 0.03844,
+      "eventMean": 0.05874,
+      "lower": 0.01079,
+      "upper": 0.1067,
+      "winRate": 0.51047
+    }
+  },
+  "candidates": [
+    {
+      "rule": {
+        "id": "fade_h24_w1_m0.08_accelerating_v1_Other_All",
+        "baseId": "fade_h24_w1_m0.08_accelerating_v1",
+        "horizon": 24,
+        "window": 1,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "accelerating",
+        "maxVol": 1,
+        "category": "Other",
+        "band": "All"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 203,
+        "markets": 66,
+        "events": 41,
+        "mean": 0.07993,
+        "eventMean": 0.06063,
+        "lower": 0.0147,
+        "upper": 0.10656,
+        "winRate": 0.56158
+      },
+      "validation": {
+        "attempts": 73,
+        "markets": 36,
+        "events": 28,
+        "mean": 0.10231,
+        "eventMean": 0.14564,
+        "lower": 0.05321,
+        "upper": 0.23807,
+        "winRate": 0.60274
+      },
+      "holdout": {
+        "attempts": 103,
+        "markets": 62,
+        "events": 40,
+        "mean": 0.22837,
+        "eventMean": 0.17661,
+        "lower": 0.05285,
+        "upper": 0.30036,
+        "winRate": 0.65049
+      },
+      "eventHoldout": {
+        "attempts": 118,
+        "markets": 42,
+        "events": 26,
+        "mean": 0.12466,
+        "eventMean": 0.05873,
+        "lower": -0.04191,
+        "upper": 0.15936,
+        "winRate": 0.51695
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h12_w1_m0.08_accelerating_v1_All_All",
+        "baseId": "fade_h12_w1_m0.08_accelerating_v1",
+        "horizon": 12,
+        "window": 1,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "accelerating",
+        "maxVol": 1,
+        "category": "All",
+        "band": "All"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 352,
+        "markets": 139,
+        "events": 85,
+        "mean": 0.11623,
+        "eventMean": 0.0854,
+        "lower": 0.04031,
+        "upper": 0.1305,
+        "winRate": 0.5767
+      },
+      "validation": {
+        "attempts": 252,
+        "markets": 134,
+        "events": 82,
+        "mean": 0.07907,
+        "eventMean": 0.09714,
+        "lower": 0.05157,
+        "upper": 0.14271,
+        "winRate": 0.51587
+      },
+      "holdout": {
+        "attempts": 493,
+        "markets": 227,
+        "events": 153,
+        "mean": 0.07988,
+        "eventMean": 0.08925,
+        "lower": 0.04324,
+        "upper": 0.13526,
+        "winRate": 0.52941
+      },
+      "eventHoldout": {
+        "attempts": 347,
+        "markets": 114,
+        "events": 78,
+        "mean": 0.02984,
+        "eventMean": 0.03911,
+        "lower": -0.01169,
+        "upper": 0.08991,
+        "winRate": 0.51873
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h12_w3_m0.08_accelerating_v1_All_All",
+        "baseId": "fade_h12_w3_m0.08_accelerating_v1",
+        "horizon": 12,
+        "window": 3,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "accelerating",
+        "maxVol": 1,
+        "category": "All",
+        "band": "All"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": true,
+      "passesArchive": false,
+      "train": {
+        "attempts": 402,
+        "markets": 152,
+        "events": 93,
+        "mean": 0.08964,
+        "eventMean": 0.0791,
+        "lower": 0.04009,
+        "upper": 0.11811,
+        "winRate": 0.54975
+      },
+      "validation": {
+        "attempts": 267,
+        "markets": 135,
+        "events": 85,
+        "mean": 0.07274,
+        "eventMean": 0.08363,
+        "lower": 0.04546,
+        "upper": 0.12181,
+        "winRate": 0.54307
+      },
+      "holdout": {
+        "attempts": 498,
+        "markets": 237,
+        "events": 159,
+        "mean": 0.06411,
+        "eventMean": 0.08601,
+        "lower": 0.03627,
+        "upper": 0.13576,
+        "winRate": 0.51205
+      },
+      "eventHoldout": {
+        "attempts": 382,
+        "markets": 121,
+        "events": 80,
+        "mean": 0.03844,
+        "eventMean": 0.05874,
+        "lower": 0.01079,
+        "upper": 0.1067,
+        "winRate": 0.51047
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h24_w1_m0.08_any_v1_Other_All",
+        "baseId": "fade_h24_w1_m0.08_any_v1",
+        "horizon": 24,
+        "window": 1,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "any",
+        "maxVol": 1,
+        "category": "Other",
+        "band": "All"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 213,
+        "markets": 67,
+        "events": 41,
+        "mean": 0.06807,
+        "eventMean": 0.04878,
+        "lower": 0.00279,
+        "upper": 0.09477,
+        "winRate": 0.53991
+      },
+      "validation": {
+        "attempts": 79,
+        "markets": 39,
+        "events": 30,
+        "mean": 0.07628,
+        "eventMean": 0.12169,
+        "lower": 0.03325,
+        "upper": 0.21013,
+        "winRate": 0.55696
+      },
+      "holdout": {
+        "attempts": 109,
+        "markets": 62,
+        "events": 40,
+        "mean": 0.20185,
+        "eventMean": 0.15291,
+        "lower": 0.03257,
+        "upper": 0.27326,
+        "winRate": 0.63303
+      },
+      "eventHoldout": {
+        "attempts": 126,
+        "markets": 44,
+        "events": 26,
+        "mean": 0.10382,
+        "eventMean": 0.02781,
+        "lower": -0.07342,
+        "upper": 0.12904,
+        "winRate": 0.50794
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h24_w1_m0.08_aligned_v1_Other_All",
+        "baseId": "fade_h24_w1_m0.08_aligned_v1",
+        "horizon": 24,
+        "window": 1,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "aligned",
+        "maxVol": 1,
+        "category": "Other",
+        "band": "All"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 213,
+        "markets": 67,
+        "events": 41,
+        "mean": 0.06807,
+        "eventMean": 0.04878,
+        "lower": 0.00279,
+        "upper": 0.09477,
+        "winRate": 0.53991
+      },
+      "validation": {
+        "attempts": 79,
+        "markets": 39,
+        "events": 30,
+        "mean": 0.07628,
+        "eventMean": 0.12169,
+        "lower": 0.03325,
+        "upper": 0.21013,
+        "winRate": 0.55696
+      },
+      "holdout": {
+        "attempts": 109,
+        "markets": 62,
+        "events": 40,
+        "mean": 0.20185,
+        "eventMean": 0.15291,
+        "lower": 0.03257,
+        "upper": 0.27326,
+        "winRate": 0.63303
+      },
+      "eventHoldout": {
+        "attempts": 126,
+        "markets": 44,
+        "events": 26,
+        "mean": 0.10382,
+        "eventMean": 0.02781,
+        "lower": -0.07342,
+        "upper": 0.12904,
+        "winRate": 0.50794
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h12_w1_m0.08_any_v1_All_All",
+        "baseId": "fade_h12_w1_m0.08_any_v1",
+        "horizon": 12,
+        "window": 1,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "any",
+        "maxVol": 1,
+        "category": "All",
+        "band": "All"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 373,
+        "markets": 140,
+        "events": 85,
+        "mean": 0.1068,
+        "eventMean": 0.07858,
+        "lower": 0.03456,
+        "upper": 0.12261,
+        "winRate": 0.56032
+      },
+      "validation": {
+        "attempts": 274,
+        "markets": 137,
+        "events": 84,
+        "mean": 0.0699,
+        "eventMean": 0.08078,
+        "lower": 0.03825,
+        "upper": 0.12331,
+        "winRate": 0.5
+      },
+      "holdout": {
+        "attempts": 549,
+        "markets": 232,
+        "events": 157,
+        "mean": 0.07459,
+        "eventMean": 0.07613,
+        "lower": 0.03036,
+        "upper": 0.12189,
+        "winRate": 0.53188
+      },
+      "eventHoldout": {
+        "attempts": 383,
+        "markets": 117,
+        "events": 78,
+        "mean": 0.03617,
+        "eventMean": 0.04209,
+        "lower": -0.0073,
+        "upper": 0.09149,
+        "winRate": 0.51697
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h12_w1_m0.08_aligned_v1_All_All",
+        "baseId": "fade_h12_w1_m0.08_aligned_v1",
+        "horizon": 12,
+        "window": 1,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "aligned",
+        "maxVol": 1,
+        "category": "All",
+        "band": "All"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 373,
+        "markets": 140,
+        "events": 85,
+        "mean": 0.1068,
+        "eventMean": 0.07858,
+        "lower": 0.03456,
+        "upper": 0.12261,
+        "winRate": 0.56032
+      },
+      "validation": {
+        "attempts": 274,
+        "markets": 137,
+        "events": 84,
+        "mean": 0.0699,
+        "eventMean": 0.08078,
+        "lower": 0.03825,
+        "upper": 0.12331,
+        "winRate": 0.5
+      },
+      "holdout": {
+        "attempts": 549,
+        "markets": 232,
+        "events": 157,
+        "mean": 0.07459,
+        "eventMean": 0.07613,
+        "lower": 0.03036,
+        "upper": 0.12189,
+        "winRate": 0.53188
+      },
+      "eventHoldout": {
+        "attempts": 383,
+        "markets": 117,
+        "events": 78,
+        "mean": 0.03617,
+        "eventMean": 0.04209,
+        "lower": -0.0073,
+        "upper": 0.09149,
+        "winRate": 0.51697
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h6_w1_m0.08_accelerating_v1_All_upper-mid",
+        "baseId": "fade_h6_w1_m0.08_accelerating_v1",
+        "horizon": 6,
+        "window": 1,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "accelerating",
+        "maxVol": 1,
+        "category": "All",
+        "band": "upper-mid"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 97,
+        "markets": 68,
+        "events": 46,
+        "mean": 0.06446,
+        "eventMean": 0.07732,
+        "lower": 0.0317,
+        "upper": 0.12295,
+        "winRate": 0.64948
+      },
+      "validation": {
+        "attempts": 84,
+        "markets": 63,
+        "events": 43,
+        "mean": 0.07003,
+        "eventMean": 0.08239,
+        "lower": 0.04655,
+        "upper": 0.11824,
+        "winRate": 0.59524
+      },
+      "holdout": {
+        "attempts": 142,
+        "markets": 119,
+        "events": 96,
+        "mean": 0.04265,
+        "eventMean": 0.06881,
+        "lower": 0.02676,
+        "upper": 0.11085,
+        "winRate": 0.57746
+      },
+      "eventHoldout": {
+        "attempts": 112,
+        "markets": 70,
+        "events": 57,
+        "mean": -0.00451,
+        "eventMean": -0.02749,
+        "lower": -0.0766,
+        "upper": 0.02162,
+        "winRate": 0.5
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h6_w1_m0.08_any_v1_All_upper-mid",
+        "baseId": "fade_h6_w1_m0.08_any_v1",
+        "horizon": 6,
+        "window": 1,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "any",
+        "maxVol": 1,
+        "category": "All",
+        "band": "upper-mid"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 103,
+        "markets": 69,
+        "events": 47,
+        "mean": 0.06139,
+        "eventMean": 0.07201,
+        "lower": 0.02681,
+        "upper": 0.11721,
+        "winRate": 0.62136
+      },
+      "validation": {
+        "attempts": 88,
+        "markets": 64,
+        "events": 44,
+        "mean": 0.06844,
+        "eventMean": 0.07819,
+        "lower": 0.04245,
+        "upper": 0.11394,
+        "winRate": 0.59091
+      },
+      "holdout": {
+        "attempts": 157,
+        "markets": 126,
+        "events": 100,
+        "mean": 0.04665,
+        "eventMean": 0.06698,
+        "lower": 0.02666,
+        "upper": 0.1073,
+        "winRate": 0.58599
+      },
+      "eventHoldout": {
+        "attempts": 125,
+        "markets": 73,
+        "events": 58,
+        "mean": 0.00046,
+        "eventMean": -0.02238,
+        "lower": -0.06992,
+        "upper": 0.02516,
+        "winRate": 0.504
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h6_w1_m0.08_aligned_v1_All_upper-mid",
+        "baseId": "fade_h6_w1_m0.08_aligned_v1",
+        "horizon": 6,
+        "window": 1,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "aligned",
+        "maxVol": 1,
+        "category": "All",
+        "band": "upper-mid"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 103,
+        "markets": 69,
+        "events": 47,
+        "mean": 0.06139,
+        "eventMean": 0.07201,
+        "lower": 0.02681,
+        "upper": 0.11721,
+        "winRate": 0.62136
+      },
+      "validation": {
+        "attempts": 88,
+        "markets": 64,
+        "events": 44,
+        "mean": 0.06844,
+        "eventMean": 0.07819,
+        "lower": 0.04245,
+        "upper": 0.11394,
+        "winRate": 0.59091
+      },
+      "holdout": {
+        "attempts": 157,
+        "markets": 126,
+        "events": 100,
+        "mean": 0.04665,
+        "eventMean": 0.06698,
+        "lower": 0.02666,
+        "upper": 0.1073,
+        "winRate": 0.58599
+      },
+      "eventHoldout": {
+        "attempts": 125,
+        "markets": 73,
+        "events": 58,
+        "mean": 0.00046,
+        "eventMean": -0.02238,
+        "lower": -0.06992,
+        "upper": 0.02516,
+        "winRate": 0.504
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h6_w3_m0.08_accelerating_v1_All_upper-mid",
+        "baseId": "fade_h6_w3_m0.08_accelerating_v1",
+        "horizon": 6,
+        "window": 3,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "accelerating",
+        "maxVol": 1,
+        "category": "All",
+        "band": "upper-mid"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 107,
+        "markets": 72,
+        "events": 49,
+        "mean": 0.06433,
+        "eventMean": 0.06025,
+        "lower": 0.01993,
+        "upper": 0.10057,
+        "winRate": 0.64486
+      },
+      "validation": {
+        "attempts": 73,
+        "markets": 56,
+        "events": 40,
+        "mean": 0.07177,
+        "eventMean": 0.08137,
+        "lower": 0.04591,
+        "upper": 0.11683,
+        "winRate": 0.60274
+      },
+      "holdout": {
+        "attempts": 142,
+        "markets": 116,
+        "events": 95,
+        "mean": 0.04405,
+        "eventMean": 0.06562,
+        "lower": 0.02305,
+        "upper": 0.10819,
+        "winRate": 0.57746
+      },
+      "eventHoldout": {
+        "attempts": 118,
+        "markets": 79,
+        "events": 60,
+        "mean": -0.02273,
+        "eventMean": -0.02516,
+        "lower": -0.06463,
+        "upper": 0.0143,
+        "winRate": 0.48305
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h3_w3_m0.08_accelerating_v1_All_upper-mid",
+        "baseId": "fade_h3_w3_m0.08_accelerating_v1",
+        "horizon": 3,
+        "window": 3,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "accelerating",
+        "maxVol": 1,
+        "category": "All",
+        "band": "upper-mid"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 106,
+        "markets": 71,
+        "events": 49,
+        "mean": 0.05169,
+        "eventMean": 0.05861,
+        "lower": 0.01967,
+        "upper": 0.09756,
+        "winRate": 0.59434
+      },
+      "validation": {
+        "attempts": 74,
+        "markets": 57,
+        "events": 41,
+        "mean": 0.06996,
+        "eventMean": 0.07653,
+        "lower": 0.03907,
+        "upper": 0.114,
+        "winRate": 0.63514
+      },
+      "holdout": {
+        "attempts": 155,
+        "markets": 128,
+        "events": 102,
+        "mean": 0.04988,
+        "eventMean": 0.05554,
+        "lower": 0.0213,
+        "upper": 0.08979,
+        "winRate": 0.57419
+      },
+      "eventHoldout": {
+        "attempts": 121,
+        "markets": 80,
+        "events": 60,
+        "mean": 0.00426,
+        "eventMean": 0.0029,
+        "lower": -0.02908,
+        "upper": 0.03488,
+        "winRate": 0.4876
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h3_w1_m0.08_any_v1_All_upper-mid",
+        "baseId": "fade_h3_w1_m0.08_any_v1",
+        "horizon": 3,
+        "window": 1,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "any",
+        "maxVol": 1,
+        "category": "All",
+        "band": "upper-mid"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 104,
+        "markets": 69,
+        "events": 48,
+        "mean": 0.06864,
+        "eventMean": 0.08294,
+        "lower": 0.04327,
+        "upper": 0.12261,
+        "winRate": 0.60577
+      },
+      "validation": {
+        "attempts": 95,
+        "markets": 69,
+        "events": 47,
+        "mean": 0.0542,
+        "eventMean": 0.06427,
+        "lower": 0.02783,
+        "upper": 0.10072,
+        "winRate": 0.54737
+      },
+      "holdout": {
+        "attempts": 169,
+        "markets": 137,
+        "events": 106,
+        "mean": 0.04156,
+        "eventMean": 0.05112,
+        "lower": 0.01642,
+        "upper": 0.08582,
+        "winRate": 0.56805
+      },
+      "eventHoldout": {
+        "attempts": 128,
+        "markets": 74,
+        "events": 59,
+        "mean": 0.00444,
+        "eventMean": -0.00611,
+        "lower": -0.04626,
+        "upper": 0.03404,
+        "winRate": 0.49219
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h3_w1_m0.08_aligned_v1_All_upper-mid",
+        "baseId": "fade_h3_w1_m0.08_aligned_v1",
+        "horizon": 3,
+        "window": 1,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "aligned",
+        "maxVol": 1,
+        "category": "All",
+        "band": "upper-mid"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 104,
+        "markets": 69,
+        "events": 48,
+        "mean": 0.06864,
+        "eventMean": 0.08294,
+        "lower": 0.04327,
+        "upper": 0.12261,
+        "winRate": 0.60577
+      },
+      "validation": {
+        "attempts": 95,
+        "markets": 69,
+        "events": 47,
+        "mean": 0.0542,
+        "eventMean": 0.06427,
+        "lower": 0.02783,
+        "upper": 0.10072,
+        "winRate": 0.54737
+      },
+      "holdout": {
+        "attempts": 169,
+        "markets": 137,
+        "events": 106,
+        "mean": 0.04156,
+        "eventMean": 0.05112,
+        "lower": 0.01642,
+        "upper": 0.08582,
+        "winRate": 0.56805
+      },
+      "eventHoldout": {
+        "attempts": 128,
+        "markets": 74,
+        "events": 59,
+        "mean": 0.00444,
+        "eventMean": -0.00611,
+        "lower": -0.04626,
+        "upper": 0.03404,
+        "winRate": 0.49219
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h3_w1_m0.08_accelerating_v1_All_upper-mid",
+        "baseId": "fade_h3_w1_m0.08_accelerating_v1",
+        "horizon": 3,
+        "window": 1,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "accelerating",
+        "maxVol": 1,
+        "category": "All",
+        "band": "upper-mid"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 97,
+        "markets": 68,
+        "events": 47,
+        "mean": 0.06751,
+        "eventMean": 0.08315,
+        "lower": 0.04278,
+        "upper": 0.12353,
+        "winRate": 0.60825
+      },
+      "validation": {
+        "attempts": 91,
+        "markets": 68,
+        "events": 46,
+        "mean": 0.05836,
+        "eventMean": 0.06966,
+        "lower": 0.03301,
+        "upper": 0.1063,
+        "winRate": 0.56044
+      },
+      "holdout": {
+        "attempts": 151,
+        "markets": 127,
+        "events": 101,
+        "mean": 0.04209,
+        "eventMean": 0.04947,
+        "lower": 0.01454,
+        "upper": 0.08441,
+        "winRate": 0.56291
+      },
+      "eventHoldout": {
+        "attempts": 114,
+        "markets": 71,
+        "events": 58,
+        "mean": 0.00675,
+        "eventMean": -0.00721,
+        "lower": -0.04895,
+        "upper": 0.03453,
+        "winRate": 0.48246
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h6_w3_m0.08_aligned_v1_All_upper-mid",
+        "baseId": "fade_h6_w3_m0.08_aligned_v1",
+        "horizon": 6,
+        "window": 3,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "aligned",
+        "maxVol": 1,
+        "category": "All",
+        "band": "upper-mid"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 146,
+        "markets": 86,
+        "events": 57,
+        "mean": 0.05423,
+        "eventMean": 0.05201,
+        "lower": 0.01644,
+        "upper": 0.08758,
+        "winRate": 0.57534
+      },
+      "validation": {
+        "attempts": 88,
+        "markets": 63,
+        "events": 45,
+        "mean": 0.06502,
+        "eventMean": 0.07411,
+        "lower": 0.04136,
+        "upper": 0.10685,
+        "winRate": 0.59091
+      },
+      "holdout": {
+        "attempts": 183,
+        "markets": 141,
+        "events": 107,
+        "mean": 0.02482,
+        "eventMean": 0.04598,
+        "lower": 0.01055,
+        "upper": 0.08141,
+        "winRate": 0.53005
+      },
+      "eventHoldout": {
+        "attempts": 148,
+        "markets": 87,
+        "events": 65,
+        "mean": -0.02238,
+        "eventMean": -0.02253,
+        "lower": -0.05876,
+        "upper": 0.0137,
+        "winRate": 0.47973
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h6_w3_m0.08_aligned_v1_All_center",
+        "baseId": "fade_h6_w3_m0.08_aligned_v1",
+        "horizon": 6,
+        "window": 3,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "aligned",
+        "maxVol": 1,
+        "category": "All",
+        "band": "center"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 93,
+        "markets": 61,
+        "events": 40,
+        "mean": 0.05891,
+        "eventMean": 0.06056,
+        "lower": 0.017,
+        "upper": 0.10412,
+        "winRate": 0.51613
+      },
+      "validation": {
+        "attempts": 50,
+        "markets": 38,
+        "events": 30,
+        "mean": 0.0388,
+        "eventMean": 0.0662,
+        "lower": 0.00869,
+        "upper": 0.1237,
+        "winRate": 0.6
+      },
+      "holdout": {
+        "attempts": 109,
+        "markets": 86,
+        "events": 69,
+        "mean": 0.14546,
+        "eventMean": 0.08149,
+        "lower": 0.00956,
+        "upper": 0.15341,
+        "winRate": 0.63303
+      },
+      "eventHoldout": {
+        "attempts": 67,
+        "markets": 54,
+        "events": 48,
+        "mean": -0.00788,
+        "eventMean": -0.00767,
+        "lower": -0.07109,
+        "upper": 0.05575,
+        "winRate": 0.47761
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h24_w3_m0.08_accelerating_v1_All_All",
+        "baseId": "fade_h24_w3_m0.08_accelerating_v1",
+        "horizon": 24,
+        "window": 3,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "accelerating",
+        "maxVol": 1,
+        "category": "All",
+        "band": "All"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": true,
+      "passesArchive": false,
+      "train": {
+        "attempts": 365,
+        "markets": 124,
+        "events": 89,
+        "mean": 0.06717,
+        "eventMean": 0.06409,
+        "lower": 0.02192,
+        "upper": 0.10627,
+        "winRate": 0.53151
+      },
+      "validation": {
+        "attempts": 251,
+        "markets": 133,
+        "events": 83,
+        "mean": 0.07927,
+        "eventMean": 0.11478,
+        "lower": 0.06584,
+        "upper": 0.16373,
+        "winRate": 0.57371
+      },
+      "holdout": {
+        "attempts": 434,
+        "markets": 216,
+        "events": 141,
+        "mean": 0.02371,
+        "eventMean": 0.07156,
+        "lower": 0.00914,
+        "upper": 0.13398,
+        "winRate": 0.49078
+      },
+      "eventHoldout": {
+        "attempts": 354,
+        "markets": 114,
+        "events": 75,
+        "mean": 0.05879,
+        "eventMean": 0.055,
+        "lower": 0.00243,
+        "upper": 0.10756,
+        "winRate": 0.48305
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h3_w1_m0.08_accelerating_v1_All_All",
+        "baseId": "fade_h3_w1_m0.08_accelerating_v1",
+        "horizon": 3,
+        "window": 1,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "accelerating",
+        "maxVol": 1,
+        "category": "All",
+        "band": "All"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 363,
+        "markets": 143,
+        "events": 87,
+        "mean": 0.06262,
+        "eventMean": 0.06109,
+        "lower": 0.02968,
+        "upper": 0.09249,
+        "winRate": 0.49311
+      },
+      "validation": {
+        "attempts": 269,
+        "markets": 142,
+        "events": 87,
+        "mean": 0.05795,
+        "eventMean": 0.06721,
+        "lower": 0.02696,
+        "upper": 0.10746,
+        "winRate": 0.46097
+      },
+      "holdout": {
+        "attempts": 647,
+        "markets": 300,
+        "events": 187,
+        "mean": 0.06757,
+        "eventMean": 0.04768,
+        "lower": 0.00794,
+        "upper": 0.08741,
+        "winRate": 0.53168
+      },
+      "eventHoldout": {
+        "attempts": 384,
+        "markets": 128,
+        "events": 85,
+        "mean": 0.02574,
+        "eventMean": 0.0192,
+        "lower": -0.01583,
+        "upper": 0.05423,
+        "winRate": 0.46875
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h3_w3_m0.08_accelerating_v1_All_All",
+        "baseId": "fade_h3_w3_m0.08_accelerating_v1",
+        "horizon": 3,
+        "window": 3,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "accelerating",
+        "maxVol": 1,
+        "category": "All",
+        "band": "All"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 419,
+        "markets": 156,
+        "events": 95,
+        "mean": 0.02839,
+        "eventMean": 0.03786,
+        "lower": 0.00867,
+        "upper": 0.06705,
+        "winRate": 0.45107
+      },
+      "validation": {
+        "attempts": 288,
+        "markets": 145,
+        "events": 92,
+        "mean": 0.05602,
+        "eventMean": 0.05666,
+        "lower": 0.02433,
+        "upper": 0.08899,
+        "winRate": 0.45139
+      },
+      "holdout": {
+        "attempts": 666,
+        "markets": 316,
+        "events": 193,
+        "mean": 0.05611,
+        "eventMean": 0.04032,
+        "lower": 0.00775,
+        "upper": 0.07289,
+        "winRate": 0.51201
+      },
+      "eventHoldout": {
+        "attempts": 429,
+        "markets": 139,
+        "events": 87,
+        "mean": 0.0093,
+        "eventMean": 0.02121,
+        "lower": -0.01147,
+        "upper": 0.05389,
+        "winRate": 0.43357
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h6_w6_m0.08_accelerating_v1_All_upper-mid",
+        "baseId": "fade_h6_w6_m0.08_accelerating_v1",
+        "horizon": 6,
+        "window": 6,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "accelerating",
+        "maxVol": 1,
+        "category": "All",
+        "band": "upper-mid"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 147,
+        "markets": 90,
+        "events": 60,
+        "mean": 0.04088,
+        "eventMean": 0.04597,
+        "lower": 0.01373,
+        "upper": 0.07821,
+        "winRate": 0.57143
+      },
+      "validation": {
+        "attempts": 94,
+        "markets": 69,
+        "events": 49,
+        "mean": 0.03491,
+        "eventMean": 0.05145,
+        "lower": 0.02183,
+        "upper": 0.08108,
+        "winRate": 0.54255
+      },
+      "holdout": {
+        "attempts": 178,
+        "markets": 141,
+        "events": 107,
+        "mean": 0.02567,
+        "eventMean": 0.03999,
+        "lower": 0.00228,
+        "upper": 0.0777,
+        "winRate": 0.51124
+      },
+      "eventHoldout": {
+        "attempts": 150,
+        "markets": 88,
+        "events": 66,
+        "mean": -0.01714,
+        "eventMean": -0.0135,
+        "lower": -0.048,
+        "upper": 0.021,
+        "winRate": 0.48667
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h24_w1_m0.08_accelerating_v1_All_All",
+        "baseId": "fade_h24_w1_m0.08_accelerating_v1",
+        "horizon": 24,
+        "window": 1,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "accelerating",
+        "maxVol": 1,
+        "category": "All",
+        "band": "All"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 321,
+        "markets": 113,
+        "events": 82,
+        "mean": 0.09846,
+        "eventMean": 0.07929,
+        "lower": 0.03293,
+        "upper": 0.12564,
+        "winRate": 0.56386
+      },
+      "validation": {
+        "attempts": 238,
+        "markets": 131,
+        "events": 79,
+        "mean": 0.09242,
+        "eventMean": 0.12737,
+        "lower": 0.0721,
+        "upper": 0.18263,
+        "winRate": 0.54202
+      },
+      "holdout": {
+        "attempts": 428,
+        "markets": 201,
+        "events": 133,
+        "mean": 0.0232,
+        "eventMean": 0.06384,
+        "lower": 0.00166,
+        "upper": 0.12603,
+        "winRate": 0.50935
+      },
+      "eventHoldout": {
+        "attempts": 325,
+        "markets": 107,
+        "events": 73,
+        "mean": 0.0577,
+        "eventMean": 0.03467,
+        "lower": -0.01715,
+        "upper": 0.08649,
+        "winRate": 0.48615
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h6_w1_m0.08_accelerating_v1_All_All",
+        "baseId": "fade_h6_w1_m0.08_accelerating_v1",
+        "horizon": 6,
+        "window": 1,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "accelerating",
+        "maxVol": 1,
+        "category": "All",
+        "band": "All"
+      },
+      "passesHoldout": false,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 359,
+        "markets": 141,
+        "events": 85,
+        "mean": 0.07882,
+        "eventMean": 0.05039,
+        "lower": 0.01902,
+        "upper": 0.08176,
+        "winRate": 0.52089
+      },
+      "validation": {
+        "attempts": 260,
+        "markets": 137,
+        "events": 84,
+        "mean": 0.0566,
+        "eventMean": 0.06647,
+        "lower": 0.02816,
+        "upper": 0.10477,
+        "winRate": 0.48462
+      },
+      "holdout": {
+        "attempts": 602,
+        "markets": 275,
+        "events": 177,
+        "mean": 0.06172,
+        "eventMean": 0.04534,
+        "lower": 0,
+        "upper": 0.09068,
+        "winRate": 0.5515
+      },
+      "eventHoldout": null,
+      "archive": null
+    },
+    {
+      "rule": {
+        "id": "fade_h12_w3_m0.08_any_v1_All_center",
+        "baseId": "fade_h12_w3_m0.08_any_v1",
+        "horizon": 12,
+        "window": 3,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "any",
+        "maxVol": 1,
+        "category": "All",
+        "band": "center"
+      },
+      "passesHoldout": false,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 143,
+        "markets": 79,
+        "events": 48,
+        "mean": 0.07173,
+        "eventMean": 0.05365,
+        "lower": 0.00586,
+        "upper": 0.10143,
+        "winRate": 0.52448
+      },
+      "validation": {
+        "attempts": 75,
+        "markets": 55,
+        "events": 38,
+        "mean": 0.05385,
+        "eventMean": 0.06379,
+        "lower": 0.00779,
+        "upper": 0.11979,
+        "winRate": 0.6
+      },
+      "holdout": {
+        "attempts": 142,
+        "markets": 97,
+        "events": 77,
+        "mean": 0.11417,
+        "eventMean": 0.068,
+        "lower": -0.00004,
+        "upper": 0.13603,
+        "winRate": 0.5493
+      },
+      "eventHoldout": null,
+      "archive": null
+    },
+    {
+      "rule": {
+        "id": "fade_h6_w3_m0.08_accelerating_v1_All_All",
+        "baseId": "fade_h6_w3_m0.08_accelerating_v1",
+        "horizon": 6,
+        "window": 3,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "accelerating",
+        "maxVol": 1,
+        "category": "All",
+        "band": "All"
+      },
+      "passesHoldout": false,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 412,
+        "markets": 154,
+        "events": 93,
+        "mean": 0.05732,
+        "eventMean": 0.04299,
+        "lower": 0.01421,
+        "upper": 0.07177,
+        "winRate": 0.49515
+      },
+      "validation": {
+        "attempts": 283,
+        "markets": 143,
+        "events": 90,
+        "mean": 0.0499,
+        "eventMean": 0.06254,
+        "lower": 0.03004,
+        "upper": 0.09504,
+        "winRate": 0.46996
+      },
+      "holdout": {
+        "attempts": 620,
+        "markets": 291,
+        "events": 187,
+        "mean": 0.05339,
+        "eventMean": 0.03871,
+        "lower": -0.0009,
+        "upper": 0.07832,
+        "winRate": 0.55
+      },
+      "eventHoldout": null,
+      "archive": null
+    },
+    {
+      "rule": {
+        "id": "fade_h12_w1_m0.08_any_v1_All_upper-mid",
+        "baseId": "fade_h12_w1_m0.08_any_v1",
+        "horizon": 12,
+        "window": 1,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "any",
+        "maxVol": 1,
+        "category": "All",
+        "band": "upper-mid"
+      },
+      "passesHoldout": false,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 98,
+        "markets": 67,
+        "events": 47,
+        "mean": 0.07635,
+        "eventMean": 0.0903,
+        "lower": 0.04058,
+        "upper": 0.14003,
+        "winRate": 0.65306
+      },
+      "validation": {
+        "attempts": 88,
+        "markets": 64,
+        "events": 44,
+        "mean": 0.08933,
+        "eventMean": 0.08435,
+        "lower": 0.04069,
+        "upper": 0.12801,
+        "winRate": 0.61364
+      },
+      "holdout": {
+        "attempts": 131,
+        "markets": 102,
+        "events": 80,
+        "mean": 0.04633,
+        "eventMean": 0.04507,
+        "lower": -0.00204,
+        "upper": 0.09218,
+        "winRate": 0.57252
+      },
+      "eventHoldout": null,
+      "archive": null
+    },
+    {
+      "rule": {
+        "id": "fade_h12_w1_m0.08_aligned_v1_All_upper-mid",
+        "baseId": "fade_h12_w1_m0.08_aligned_v1",
+        "horizon": 12,
+        "window": 1,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "aligned",
+        "maxVol": 1,
+        "category": "All",
+        "band": "upper-mid"
+      },
+      "passesHoldout": false,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 98,
+        "markets": 67,
+        "events": 47,
+        "mean": 0.07635,
+        "eventMean": 0.0903,
+        "lower": 0.04058,
+        "upper": 0.14003,
+        "winRate": 0.65306
+      },
+      "validation": {
+        "attempts": 88,
+        "markets": 64,
+        "events": 44,
+        "mean": 0.08933,
+        "eventMean": 0.08435,
+        "lower": 0.04069,
+        "upper": 0.12801,
+        "winRate": 0.61364
+      },
+      "holdout": {
+        "attempts": 131,
+        "markets": 102,
+        "events": 80,
+        "mean": 0.04633,
+        "eventMean": 0.04507,
+        "lower": -0.00204,
+        "upper": 0.09218,
+        "winRate": 0.57252
+      },
+      "eventHoldout": null,
+      "archive": null
+    },
+    {
+      "rule": {
+        "id": "fade_h3_w1_m0.08_any_v1_All_All",
+        "baseId": "fade_h3_w1_m0.08_any_v1",
+        "horizon": 3,
+        "window": 1,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "any",
+        "maxVol": 1,
+        "category": "All",
+        "band": "All"
+      },
+      "passesHoldout": false,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 387,
+        "markets": 145,
+        "events": 88,
+        "mean": 0.0592,
+        "eventMean": 0.05411,
+        "lower": 0.02321,
+        "upper": 0.08501,
+        "winRate": 0.48837
+      },
+      "validation": {
+        "attempts": 291,
+        "markets": 145,
+        "events": 89,
+        "mean": 0.05047,
+        "eventMean": 0.06048,
+        "lower": 0.0212,
+        "upper": 0.09975,
+        "winRate": 0.45361
+      },
+      "holdout": {
+        "attempts": 712,
+        "markets": 305,
+        "events": 189,
+        "mean": 0.05529,
+        "eventMean": 0.03471,
+        "lower": -0.00486,
+        "upper": 0.07428,
+        "winRate": 0.52247
+      },
+      "eventHoldout": null,
+      "archive": null
+    },
+    {
+      "rule": {
+        "id": "fade_h3_w1_m0.08_aligned_v1_All_All",
+        "baseId": "fade_h3_w1_m0.08_aligned_v1",
+        "horizon": 3,
+        "window": 1,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "aligned",
+        "maxVol": 1,
+        "category": "All",
+        "band": "All"
+      },
+      "passesHoldout": false,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 387,
+        "markets": 145,
+        "events": 88,
+        "mean": 0.0592,
+        "eventMean": 0.05411,
+        "lower": 0.02321,
+        "upper": 0.08501,
+        "winRate": 0.48837
+      },
+      "validation": {
+        "attempts": 291,
+        "markets": 145,
+        "events": 89,
+        "mean": 0.05047,
+        "eventMean": 0.06048,
+        "lower": 0.0212,
+        "upper": 0.09975,
+        "winRate": 0.45361
+      },
+      "holdout": {
+        "attempts": 712,
+        "markets": 305,
+        "events": 189,
+        "mean": 0.05529,
+        "eventMean": 0.03471,
+        "lower": -0.00486,
+        "upper": 0.07428,
+        "winRate": 0.52247
+      },
+      "eventHoldout": null,
+      "archive": null
+    },
+    {
+      "rule": {
+        "id": "fade_h12_w3_m0.08_aligned_v1_All_All",
+        "baseId": "fade_h12_w3_m0.08_aligned_v1",
+        "horizon": 12,
+        "window": 3,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "aligned",
+        "maxVol": 1,
+        "category": "All",
+        "band": "All"
+      },
+      "passesHoldout": false,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 540,
+        "markets": 170,
+        "events": 100,
+        "mean": 0.07055,
+        "eventMean": 0.05691,
+        "lower": 0.02807,
+        "upper": 0.08575,
+        "winRate": 0.52407
+      },
+      "validation": {
+        "attempts": 341,
+        "markets": 157,
+        "events": 99,
+        "mean": 0.06861,
+        "eventMean": 0.06352,
+        "lower": 0.02907,
+        "upper": 0.09797,
+        "winRate": 0.53959
+      },
+      "holdout": {
+        "attempts": 665,
+        "markets": 278,
+        "events": 178,
+        "mean": 0.02635,
+        "eventMean": 0.03823,
+        "lower": -0.00576,
+        "upper": 0.08223,
+        "winRate": 0.48271
+      },
+      "eventHoldout": null,
+      "archive": null
+    }
+  ]
+}

@@ -40,11 +40,29 @@ assert.equal(compacted.bundle_side, "YES");
 assert.equal(compacted.bundle_logic, "threshold-dominance");
 assert.equal(compacted.bundle_legs.length, 1);
 
+const compactedShock = compactSuggestion({
+  market_id: "shock:1", event_key: "event:1", side: "NO", signal_type: "shock-fade-shadow",
+  market_price: 0.18, entry_price: 0.1845, shock_move_1h: 0.06, shock_prior_move_1h: 0.03,
+  shock_move_3h: 0.12, shock_observed_at: "2026-08-21T20:00:00.000Z", shock_strategy_version: 3,
+  pilot_prior: { modeled_cost_cents: 2 }, requires_live: true,
+});
+assert.equal(compactedShock.event_key, "event:1");
+assert.equal(compactedShock.market_price, 0.18);
+assert.equal(compactedShock.shock_move_3h, 0.12);
+assert.equal(compactedShock.shock_strategy_version, 3);
+assert.equal(compactedShock.pilot_prior.modeled_cost_cents, 2);
+
 const compactedState = compactAgentState({
-  agents: {},
+  agents: { reversal: {
+    positions: [], closed: [], history: [], snapshots: [],
+    shock_fade_shadows: [{ event_key: "event:1", shock_strategy_version: 3 }],
+    shock_fade_outcomes: [{ event_key: "event:0", shock_strategy_version: 3, net_return: 0.08 }],
+  } },
   signal_ledger: { pending: [], outcomes: [], expired_ungraded: 7 },
 });
 assert.equal(compactedState.signal_ledger.expired_ungraded, 7);
+assert.equal(compactedState.agents.reversal.shock_fade_shadows[0].shock_strategy_version, 3);
+assert.equal(compactedState.agents.reversal.shock_fade_outcomes[0].net_return, 0.08);
 assert.equal(providerErrorCode(new Error("403 Forbidden")), "authorization_failed");
 assert.equal(providerErrorCode(new Error("Error connecting to database: HTTP status 402")), "provider_payment_required");
 assert.equal(providerErrorCode(new Error("invalid connection string")), "invalid_connection_string");
