@@ -8,6 +8,7 @@
     "evaluate:maker": "node scripts/evaluate-maker.mjs",
     "evaluate:reward-maker": "node scripts/evaluate-reward-assisted-maker.mjs",
     "evaluate:signals": "node scripts/evaluate-signals.mjs",
+    "evaluate:shocks": "node scripts/evaluate-shock-regimes.mjs",
     "evaluate:settlements": "node scripts/evaluate-settlements.mjs",
     "evaluate:settlement-calibration": "node scripts/evaluate-settlement-calibration.mjs",
     "evaluate:sports-favorites": "node scripts/evaluate-sports-favorites.mjs",

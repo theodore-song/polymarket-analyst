@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 59 · maker research 3 · agent learning 3 · build 84</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 59 · shock research 1 · maker research 3 · build 85</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 84 active:</b> Maker capital is retired after 6,048 wait and immediate-hedge rules produced no validated winner. New maker work is zero-capital lock-or-exit research: a one-sided touch is hedged only when the executable complement locks a net profit, otherwise it is graded as an immediate exit. Strategy 59 directional adaptation still uses only current-strategy closed trades. This remains paper trading; profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 85 active:</b> Shock Reversion now watches exact 3-hour, 8%+ moves with aligned last-hour momentum, then tests the opposite side for three hours using executable entry and exit prices. Its first 30 independent events use zero cash; a positive 90% lower confidence bound is required before tightly capped paper positions can begin. Maker capital remains retired. Strategy 59 directional adaptation still uses only current-strategy closed trades. This remains paper trading; profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 84 · Adaptive strategy 59 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 85 · Adaptive strategy 59 · Shock research 1 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 84;
+const BUILD_VERSION = 85;
 const AGENT_LEARNING_VERSION = 3;
 const SUGGESTION_ENGINE_VERSION = 59;
 const MAKER_STRATEGY_VERSION = 3;
@@ -889,11 +889,13 @@ const AGENTS = [
    blurb:"An aggressive event-driven strategy that concentrates on markets with fresh outside context, multiple evidence signals, and enough activity for a fast repricing. It is willing to enter earlier than the core agents when a measurable catalyst and positive post-cost edge agree, while accepting larger swings to capture the move.",
    rank:(s)=>[...s].sort((a,b)=>(Number(b.evidence_source_count||0)*28+Number(b.evidence_score||0)*32+effectiveEntryEdge(b)*170+b.conviction+Math.log10(Number(b.volume_24hr||0)+1)*5)-(Number(a.evidence_source_count||0)*28+Number(a.evidence_score||0)*32+effectiveEntryEdge(a)*170+a.conviction+Math.log10(Number(a.volume_24hr||0)+1)*5)),
    maxNew:7, maxFrac:0.09, minConv:52, kelly:0.46, allocationFrac:0.055, maxPositions:18, maxCategoryPct:0.40, maxCycleDrawdown:8, targetExposure:0.72, drawdownExposure:0.60},
-  {id:"reversal", name:"Trend Endurance", emoji:"⧗", color:"#ff5f91", kind:"strategy", aggressive:true,
-   blurb:"A patient aggressive trend strategy built from the failure of short-horizon reversal trading. It favors confirmed, non-chased trends with at least three weeks to resolve, gives extra rank to Politics or Economy markets, and allows the move time to develop without assuming either contract side is inherently superior.",
-   rank:(s)=>[...s].filter(x=>x.trade_ready&&x.signal_type==="trend"&&Math.abs(Number(x.price_change_1d||0))<=0.04&&Number(x.days_to_resolution||0)>=21)
-     .sort((a,b)=>((["Politics","Economy"].includes(b.category)?8:0)+Number(b.signal_confidence||0)*45+effectiveEntryEdge(b)*180+Number(b.evidence_score||0)*24+b.conviction)
-       -((["Politics","Economy"].includes(a.category)?8:0)+Number(a.signal_confidence||0)*45+effectiveEntryEdge(a)*180+Number(a.evidence_score||0)*24+a.conviction)),
+  {id:"reversal", name:"Shock Reversion", emoji:"⧗", color:"#ff5f91", kind:"strategy", aggressive:true,
+   blurb:"A fast mean-reversion strategy built from a 157,386-observation chronological replay. It watches markets that move at least 8 percentage points in three hours while the final hour still points the same way, then tests the opposite side for exactly three hours. Entries and exits use executable book prices plus modeled slippage, independent events are clustered for confidence, and capital stays at zero until 30 fresh forward events establish a positive lower bound.",
+   rank:(s)=>[...s].filter(x=>(x.signal_type==="shock-fade-pilot"&&x.trade_ready)
+       ||(x.trade_ready&&x.signal_type==="trend"&&Math.abs(Number(x.price_change_1d||0))<=0.04&&Number(x.days_to_resolution||0)>=21))
+     .sort((a,b)=>(Number(b.signal_type==="shock-fade-pilot")-Number(a.signal_type==="shock-fade-pilot"))
+       ||((Number(b.shock_move_3h||0)*120+Number(b.signal_confidence||0)*45+effectiveEntryEdge(b)*180+b.conviction)
+       -(Number(a.shock_move_3h||0)*120+Number(a.signal_confidence||0)*45+effectiveEntryEdge(a)*180+a.conviction))),
    maxNew:6, maxFrac:0.08, minConv:54, kelly:0.42, maxPositions:18, maxCategoryPct:0.40, maxCycleDrawdown:8, targetExposure:0.80, drawdownExposure:0.65},
   {id:"breakout", name:"Breakout Velocity", emoji:"▲", color:"#00d5b5", kind:"strategy", aggressive:true,
    blurb:"A high-tempo breakout strategy that follows confirmed price direction when momentum, fresh volume, tight spreads, and positive modeled edge line up. It builds positions quickly and keeps less idle cash so strong moves can drive the portfolio, knowing failed breakouts will create sharper drawdowns.",
@@ -1278,6 +1280,18 @@ const SPORTS_FAVORITE_SHADOW_LIMIT=20;
 const SPORTS_FAVORITE_OUTCOME_LIMIT=240;
 const SPORTS_FAVORITE_SLIPPAGE_BUFFER=0.0025;
 const SPORTS_FAVORITE_MAX_EXECUTION_COST=0.01;
+const SHOCK_FADE_MIN_MOVE=0.08;
+const SHOCK_FADE_HORIZON_HOURS=3;
+const SHOCK_FADE_GRADE_TOLERANCE_HOURS=2;
+const SHOCK_FADE_PILOT_POSITION_PCT=0.0075;
+const SHOCK_FADE_TOTAL_CAPITAL_PCT=0.02;
+const SHOCK_FADE_VERDICT_EVENTS=12;
+const SHOCK_FADE_PROMOTION_EVENTS=30;
+const SHOCK_FADE_SHADOW_LIMIT=30;
+const SHOCK_FADE_OUTCOME_LIMIT=300;
+const SHOCK_FADE_SLIPPAGE_BUFFER=0.0025;
+const SHOCK_FADE_MAX_EXECUTION_COST=0.01;
+const SHOCK_FADE_HISTORY_CACHE_MS=10*60*1000;
 const MAKER_MAX_QUOTES=6;
 const MAKER_MAX_QUOTE_CAPITAL_PCT=0.02;
 const MAKER_TOTAL_CAPITAL_PCT=0.10;
@@ -1567,7 +1581,7 @@ function generateSuggestions(markets,total=SUGGESTION_TOTAL,perCategory=SUGGESTI
 }
 
 /* ---------- Multi-agent store ---------- */
-function defaultPortfolio(){return {cash:STARTING_BALANCE,starting_balance:STARTING_BALANCE,positions:[],maker_quotes:[],maker_outcomes:[],sports_favorite_shadows:[],sports_favorite_outcomes:[],closed:[],history:[],snapshots:[],stopped:{},lastDecision:null};}
+function defaultPortfolio(){return {cash:STARTING_BALANCE,starting_balance:STARTING_BALANCE,positions:[],maker_quotes:[],maker_outcomes:[],sports_favorite_shadows:[],sports_favorite_outcomes:[],shock_fade_shadows:[],shock_fade_outcomes:[],shock_fade_expired_ungraded:0,closed:[],history:[],snapshots:[],stopped:{},lastDecision:null};}
 function defaultState(){const agents={};AGENTS.forEach(a=>agents[a.id]=defaultPortfolio());return {date:null,last_run:null,last_cycle_hour:null,
   engine_version:BUILD_VERSION,strategy_version:SUGGESTION_ENGINE_VERSION,engine_started_at:nowIso(),build_started_at:nowIso(),agents,signal_ledger:defaultSignalLedger(),seeded:false};}
 function reconcileStateVersions(st){
@@ -1611,6 +1625,9 @@ function loadState(){
     if(!Array.isArray(st.agents[a.id].maker_outcomes))st.agents[a.id].maker_outcomes=[];
     if(!Array.isArray(st.agents[a.id].sports_favorite_shadows))st.agents[a.id].sports_favorite_shadows=[];
     if(!Array.isArray(st.agents[a.id].sports_favorite_outcomes))st.agents[a.id].sports_favorite_outcomes=[];
+    if(!Array.isArray(st.agents[a.id].shock_fade_shadows))st.agents[a.id].shock_fade_shadows=[];
+    if(!Array.isArray(st.agents[a.id].shock_fade_outcomes))st.agents[a.id].shock_fade_outcomes=[];
+    if(!Number.isFinite(Number(st.agents[a.id].shock_fade_expired_ungraded)))st.agents[a.id].shock_fade_expired_ungraded=0;
     if(!("lastDecision" in st.agents[a.id]))st.agents[a.id].lastDecision=null;
   });
   migrated=reconcileStateVersions(st)||migrated;
@@ -1626,6 +1643,8 @@ function compactPortfolioForSync(p,limits=SYNC_LIMITS){
   out.maker_outcomes=Array.isArray(p.maker_outcomes)?p.maker_outcomes.slice(-MAKER_OUTCOME_LIMIT):[];
   out.sports_favorite_shadows=Array.isArray(p.sports_favorite_shadows)?p.sports_favorite_shadows.slice(-SPORTS_FAVORITE_SHADOW_LIMIT):[];
   out.sports_favorite_outcomes=Array.isArray(p.sports_favorite_outcomes)?p.sports_favorite_outcomes.slice(-SPORTS_FAVORITE_OUTCOME_LIMIT):[];
+  out.shock_fade_shadows=Array.isArray(p.shock_fade_shadows)?p.shock_fade_shadows.slice(-SHOCK_FADE_SHADOW_LIMIT):[];
+  out.shock_fade_outcomes=Array.isArray(p.shock_fade_outcomes)?p.shock_fade_outcomes.slice(-SHOCK_FADE_OUTCOME_LIMIT):[];
   out.closed=Array.isArray(p.closed)?p.closed.slice(-limits.closed):[];
   out.history=Array.isArray(p.history)?p.history.slice(-limits.history):[];
   out.snapshots=Array.isArray(p.snapshots)?p.snapshots.slice(-limits.snapshots):[];
@@ -1662,7 +1681,8 @@ function compactSuggestionForSync(s){
     requires_live:s.requires_live,bundle_id:s.bundle_id,bundle_side:s.bundle_side,bundle_logic:s.bundle_logic,bundle_cost_per_unit:s.bundle_cost_per_unit,
     bundle_payout_per_unit:s.bundle_payout_per_unit,bundle_net_profit_per_unit:s.bundle_net_profit_per_unit,bundle_legs:s.bundle_legs,
     days_to_resolution:s.days_to_resolution,event_key:s.event_key,game_start:s.game_start,hours_to_start:s.hours_to_start,
-    pilot_prior:s.pilot_prior,drivers:s.drivers,rationale:s.rationale,
+    pilot_prior:s.pilot_prior,shock_move_1h:s.shock_move_1h,shock_move_3h:s.shock_move_3h,shock_observed_at:s.shock_observed_at,
+    drivers:s.drivers,rationale:s.rationale,
   };
 }
 function compactSuggestionsForSync(payload,limits=SYNC_LIMITS){
@@ -2272,6 +2292,129 @@ function manageSportsFavoriteShadows(p,priceMap,{execute=true}={}){
   p.sports_favorite_outcomes=p.sports_favorite_outcomes.slice(-SPORTS_FAVORITE_OUTCOME_LIMIT);
   return {active:keep.length,completed};
 }
+let SHOCK_FADE_HISTORY_CACHE={captured_at:0,history:{}};
+function historyPointAtOrBefore(points,target,maxLagSeconds=4500){
+  let low=0,high=(points||[]).length-1,found=null;
+  while(low<=high){const mid=(low+high)>>1,point=points[mid];if(Number(point.t)<=target){found=point;low=mid+1;}else high=mid-1;}
+  return found&&target-Number(found.t)<=maxLagSeconds?found:null;
+}
+function shockFadeExecutableEntry(m,side){
+  const midpoint=Number(side==="YES"?m&&m.yes_price:m&&m.no_price);
+  const quoted=side==="YES"?Number(m&&m.best_ask):(Number(m&&m.best_bid)>0?1-Number(m.best_bid):NaN);
+  if(!(midpoint>0&&midpoint<1&&quoted>=midpoint&&quoted<1))return null;
+  const price=clamp(quoted+SHOCK_FADE_SLIPPAGE_BUFFER,0.01,0.99),cost=price-midpoint;
+  return cost<=SHOCK_FADE_MAX_EXECUTION_COST+0.00001?{midpoint,quoted,price,cost}:null;
+}
+function shockFadeExecutableExit(fresh,side){
+  if(!fresh)return null;
+  if(marketIsSettled(fresh))return Number(side==="YES"?fresh.yes_price:fresh.no_price);
+  const quoted=side==="YES"?Number(fresh.best_bid):(Number(fresh.best_ask)>0?1-Number(fresh.best_ask):NaN);
+  return quoted>0&&quoted<1?clamp(quoted-SHOCK_FADE_SLIPPAGE_BUFFER,0.01,0.99):null;
+}
+function shockFadeSuggestion(m,points,observedAt=Date.now()/1000){
+  if(!m||!(m.clob_token_ids||[])[0]||m.closed||m.accepting_orders===false)return null;
+  const now=Number(observedAt),p1=historyPointAtOrBefore(points,now-3600),p3=historyPointAtOrBefore(points,now-SHOCK_FADE_HORIZON_HOURS*3600);
+  const current=Number(m.yes_price);if(!p1||!p3||!(current>0&&current<1))return null;
+  const move1=current-Number(p1.p),move3=current-Number(p3.p);
+  if(Math.abs(move3)<SHOCK_FADE_MIN_MOVE||move1*move3<=0)return null;
+  const side=move3>0?"NO":"YES",execution=shockFadeExecutableEntry(m,side);if(!execution)return null;
+  const eventKey=String(m.event_id||m.event||m.id),conviction=+clamp(72+Math.abs(move3)*75+Math.abs(move1)*35,72,88).toFixed(1);
+  return {market_id:String(m.id),question:m.question,event:m.event||"",event_key:eventKey,url:m.url||"",category:m.category||"Other",tags:m.tags||[],
+    clob_yes:m.clob_token_ids[0],clob_no:m.clob_token_ids[1],yes_price:m.yes_price,no_price:m.no_price,
+    fair_value:+execution.price.toFixed(4),edge:0,net_edge:0,friction:+execution.cost.toFixed(4),chase_penalty:0,
+    evidence_score:0.66,evidence_source_count:1,quality:"shock-fade-shadow",side,market_price:+execution.midpoint.toFixed(4),entry_price:+execution.price.toFixed(4),
+    conviction,volume:m.volume,volume_24hr:m.volume_24hr,liquidity:m.liquidity,spread:m.spread,
+    price_change_1h:+move1.toFixed(4),price_change_1d:m.price_change_1d,price_change_1w:m.price_change_1w,
+    shock_move_1h:+move1.toFixed(4),shock_move_3h:+move3.toFixed(4),shock_observed_at:new Date(now*1000).toISOString(),
+    momentum_strength:+clamp(Math.abs(move3)/0.16,0,1).toFixed(3),signal_strength:0.74,signal_confidence:0.66,signal_type:"shock-fade-shadow",
+    trade_ready:false,entry_candidate:false,audited_observation_only:true,adaptive_promotion:false,watch_only:true,jump_risk:true,requires_live:true,
+    days_to_resolution:m.days_to_resolution,pilot_prior:{observations:157386,chronological_holdout_mean:0.09705,event_holdout_mean:0.03953,
+      event_holdout_lower_90:-0.02187,modeled_cost_cents:0.5,strictly_promoted:false},
+    drivers:["8%+ three-hour shock","last hour aligned","opposite-side three-hour exit","executable ask and bid","event-clustered forward gate"],
+    rationale:`Forward research only: YES moved ${(move3*100).toFixed(2)} points in three hours and ${(move1*100).toFixed(2)} in the aligned final hour. The pilot fades that move with ${side} at modeled ${pct(execution.price)}, ${(execution.cost*100).toFixed(2)} cents above midpoint, and targets an executable exit three hours later. Chronological replay was positive, but its event-disjoint confidence bound crossed zero, so cash remains untouched until 30 independent forward events establish a positive lower bound.`};
+}
+async function fetchShockFadeSuggestions(markets){
+  const eligible=(markets||[]).filter(m=>m&&m.clob_token_ids&&m.clob_token_ids[0]);if(!eligible.length)return [];
+  const now=Date.now();
+  if(now-Number(SHOCK_FADE_HISTORY_CACHE.captured_at||0)>=SHOCK_FADE_HISTORY_CACHE_MS){
+    const history={},tokens=eligible.map(m=>String(m.clob_token_ids[0]));
+    const batches=[];for(let index=0;index<tokens.length;index+=20)batches.push(tokens.slice(index,index+20));
+    const payloads=await mapWithConcurrency(batches,6,async batch=>{
+      try{
+        const response=await fetchWithTimeout(`${CLOB}/batch-prices-history`,{method:"POST",headers:{"content-type":"application/json"},
+          body:JSON.stringify({markets:batch,start_ts:Math.floor(now/1000)-5*3600,end_ts:Math.floor(now/1000),interval:"1m",fidelity:60})},PRICE_REQUEST_TIMEOUT_MS*2);
+        return response.ok?await response.json():null;
+      }catch(e){return null;}
+    });
+    payloads.forEach(payload=>Object.entries(payload&&payload.history||{}).forEach(([token,points])=>{history[String(token)]=(points||[])
+      .map(point=>({t:Number(point.t),p:Number(point.p)})).filter(point=>Number.isFinite(point.t)&&Number.isFinite(point.p)).sort((a,b)=>a.t-b.t);}));
+    SHOCK_FADE_HISTORY_CACHE={captured_at:Object.keys(history).length?now:0,history};
+  }
+  const observedAt=now/1000;
+  return eligible.map(m=>shockFadeSuggestion(m,SHOCK_FADE_HISTORY_CACHE.history[String(m.clob_token_ids[0])]||[],observedAt)).filter(Boolean)
+    .sort((a,b)=>Math.abs(b.shock_move_3h)-Math.abs(a.shock_move_3h));
+}
+function shockFadePilotProfile(p){
+  const grouped=new Map();
+  (p&&p.shock_fade_outcomes||[]).forEach((outcome,index)=>{
+    const key=String(outcome.event_key||outcome.market_id||`shock-${index}`),rows=grouped.get(key)||[];
+    rows.push(clamp(Number(outcome.net_return||0),-1,2));grouped.set(key,rows);
+  });
+  (p&&p.closed||[]).filter(trade=>(trade.signal_type||"")==="shock-fade-pilot").forEach((trade,index)=>{
+    const key=String(trade.event_key||trade.market_id||`shock-capital-${index}`),basis=Math.max(1,Number(trade.original_cost||trade.cost||0)),rows=grouped.get(key)||[];
+    rows.push(clamp(Number(trade.realized_pnl||0)/basis,-1,2));grouped.set(key,rows);
+  });
+  const returns=[...grouped.values()].map(rows=>rows.reduce((sum,value)=>sum+value,0)/rows.length),events=returns.length;
+  const mean=events?returns.reduce((sum,value)=>sum+value,0)/events:0,variance=events>1?returns.reduce((sum,value)=>sum+(value-mean)**2,0)/(events-1):0;
+  const margin=1.645*Math.sqrt(variance/Math.max(1,events)),lower=mean-margin,upper=mean+margin;
+  const pnl=(p&&p.closed||[]).filter(trade=>(trade.signal_type||"")==="shock-fade-pilot").reduce((sum,trade)=>sum+Number(trade.realized_pnl||0),0);
+  const demoted=(events>=SHOCK_FADE_VERDICT_EVENTS&&(mean<=-0.03||upper<=0))||pnl<=-Math.max(1,Number(p&&p.starting_balance||STARTING_BALANCE))*0.02;
+  const promoted=!demoted&&events>=SHOCK_FADE_PROMOTION_EVENTS&&lower>0.005;
+  return {state:demoted?"demoted":(promoted?"promoted":"shadow"),allowed:promoted,promoted,demoted,events,mean:+mean.toFixed(4),lower:+lower.toFixed(4),upper:+upper.toFixed(4),
+    pnl:+pnl.toFixed(2),shadow_pnl_per_100:+(mean*100).toFixed(2),active_shadows:(p&&p.shock_fade_shadows||[]).length,
+    expired_ungraded:Number(p&&p.shock_fade_expired_ungraded||0),position_pct:promoted?SHOCK_FADE_PILOT_POSITION_PCT:0};
+}
+function applyShockFadeForwardPromotion(s,p){
+  if(!s||(s.signal_type||"")!=="shock-fade-shadow")return s;const profile=shockFadePilotProfile(p);if(!profile.promoted)return s;
+  return Object.assign({},s,{quality:"shock-fade-pilot",signal_type:"shock-fade-pilot",trade_ready:true,entry_candidate:true,audited_observation_only:false,
+    adaptive_promotion:true,watch_only:false,rationale:`Forward promotion: ${profile.events} independent events produced a ${(profile.mean*100).toFixed(2)}% mean and ${(profile.lower*100).toFixed(2)}% 90% lower bound after executable costs. Capital begins at 0.75% of equity with a 2% total cap. ${s.rationale||""}`});
+}
+function stageShockFadeShadows(p,suggestions,{execute=true}={}){
+  p.shock_fade_shadows=Array.isArray(p.shock_fade_shadows)?p.shock_fade_shadows:[];p.shock_fade_outcomes=Array.isArray(p.shock_fade_outcomes)?p.shock_fade_outcomes:[];
+  if(!execute)return {active:p.shock_fade_shadows.length,staged:0,candidates:0};
+  const usedEvents=new Set([...p.shock_fade_shadows,...p.shock_fade_outcomes].map(row=>String(row.event_key||row.market_id))),usedMarkets=new Set([...p.shock_fade_shadows,...p.shock_fade_outcomes].map(row=>String(row.market_id)));
+  const candidates=(suggestions||[]).filter(s=>(s.signal_type||"")==="shock-fade-shadow");let staged=0;
+  for(const s of candidates){
+    if(p.shock_fade_shadows.length>=SHOCK_FADE_SHADOW_LIMIT)break;const eventKey=String(s.event_key||s.market_id),marketId=String(s.market_id);
+    if(usedEvents.has(eventKey)||usedMarkets.has(marketId))continue;const openedAt=cycleIso();
+    p.shock_fade_shadows.push({id:`shock-shadow:${marketId}:${Date.now()}:${staged}`,market_id:marketId,event_key:eventKey,question:s.question,event:s.event||"",side:s.side,
+      entry_price:Number(s.entry_price),market_price:Number(s.market_price),current_price:Number(s.market_price),opened_at:openedAt,target_at:new Date(new Date(openedAt).getTime()+SHOCK_FADE_HORIZON_HOURS*3600000).toISOString(),
+      shock_move_1h:s.shock_move_1h,shock_move_3h:s.shock_move_3h,modeled_entry_cost:Number(s.friction||0),url:s.url||""});
+    p.history.push({date:logDay(),action:"SHOCK_SHADOW",question:s.question,side:s.side,detail:`Zero-capital ${SHOCK_FADE_HORIZON_HOURS}h shock fade recorded ${s.side} at modeled ${pct(s.entry_price)} after a ${(Number(s.shock_move_3h)*100).toFixed(2)}-point YES move · cash unchanged`});
+    usedEvents.add(eventKey);usedMarkets.add(marketId);staged++;
+  }
+  return {active:p.shock_fade_shadows.length,staged,candidates:candidates.length};
+}
+function manageShockFadeShadows(p,priceMap,{execute=true}={}){
+  p.shock_fade_shadows=Array.isArray(p.shock_fade_shadows)?p.shock_fade_shadows:[];p.shock_fade_outcomes=Array.isArray(p.shock_fade_outcomes)?p.shock_fade_outcomes:[];
+  if(!execute)return {active:p.shock_fade_shadows.length,completed:0,expired:0};
+  const keep=[];let completed=0,expired=0;
+  for(const row of p.shock_fade_shadows){
+    const age=hoursSince(row.opened_at),fresh=priceMap&&priceMap[String(row.market_id)];
+    if(age<SHOCK_FADE_HORIZON_HOURS){keep.push(row);continue;}
+    const exit=shockFadeExecutableExit(fresh,row.side);
+    if(!(exit>0&&exit<1)){
+      if(age<=SHOCK_FADE_HORIZON_HOURS+SHOCK_FADE_GRADE_TOLERANCE_HOURS){keep.push(row);continue;}
+      p.shock_fade_expired_ungraded=Number(p.shock_fade_expired_ungraded||0)+1;expired++;
+      p.history.push({date:logDay(),action:"SHOCK_EXPIRED",question:row.question,side:row.side,detail:"Three-hour shock observation expired without an executable exit inside the allowed window; no return was invented"});continue;
+    }
+    const entry=Math.max(0.01,Number(row.entry_price||0)),netReturn=clamp(exit/entry-1,-1,2);
+    if(!p.shock_fade_outcomes.some(outcome=>outcome.id===row.id))p.shock_fade_outcomes.push(Object.assign({},row,{closed_at:cycleIso(),exit_price:+exit.toFixed(4),net_return:+netReturn.toFixed(4),pnl_per_100:+(netReturn*100).toFixed(2),horizon_hours:+age.toFixed(2)}));
+    p.history.push({date:logDay(),action:"SHOCK_GRADE",question:row.question,side:row.side,detail:`Three-hour shock fade exited at executable ${pct(exit)} · modeled net return ${(netReturn*100).toFixed(2)}% · cash unchanged`});completed++;
+  }
+  p.shock_fade_shadows=keep;p.shock_fade_outcomes=p.shock_fade_outcomes.slice(-SHOCK_FADE_OUTCOME_LIMIT);
+  return {active:keep.length,completed,expired};
+}
 function stableHash(text){
   let h=2166136261;
   for(let i=0;i<text.length;i++){h^=text.charCodeAt(i);h=Math.imul(h,16777619);}
@@ -2667,6 +2810,16 @@ function markToMarket(p,priceMap,cfg=null,{policyExits=false,executeTrades=true}
     pos.peak_price=+Math.max(Number(pos.peak_price||pos.entry_price||price),price).toFixed(4);
     if(executeTrades)delete pos.price_status;else pos.price_status="cached-mark-only";
     if(!executeTrades){stillOpen.push(pos);continue;}
+    if(pos.signal_type==="shock-fade-pilot"){
+      if(marketIsSettled(fresh)){closePosition(p,pos,"Shock fade market settled before its timed exit","CLOSE");continue;}
+      if(hoursSince(pos.opened_at)<SHOCK_FADE_HORIZON_HOURS){stillOpen.push(pos);continue;}
+      const executableExit=shockFadeExecutableExit(fresh,pos.side);
+      if(executableExit>0&&executableExit<1){
+        pos.current_price=+executableExit.toFixed(4);pos.value=+(pos.shares*executableExit).toFixed(2);pos.unrealized_pnl=+(pos.value-pos.cost).toFixed(2);
+        closePosition(p,pos,`Fixed ${SHOCK_FADE_HORIZON_HOURS}h shock-fade exit at executable book price`,"EXIT");continue;
+      }
+      pos.price_status="awaiting-executable-exit";stillOpen.push(pos);continue;
+    }
     if(pos.signal_type==="maker-pair"&&pos.maker_pair_pending){
       if(marketIsSettled(fresh)){closePosition(p,pos,"Paired maker inventory settled before the second fill","CLOSE");continue;}
       if(marketIsSuspended(fresh))pos.price_status="orders-paused";
@@ -3128,6 +3281,7 @@ function agentAcceptsSuggestion(cfg,s){
   if(quality==="watch")return false;
   if(quality==="bundle-arb")return cfg.id==="value";
   if(quality==="sports-favorite-pilot")return cfg.id==="favorite"&&s.signal_type==="sports-favorite-pilot";
+  if(quality==="shock-fade-pilot")return cfg.id==="reversal"&&s.signal_type==="shock-fade-pilot";
   if(cfg.id==="value")return ["confirmed","liquid-trend"].includes(quality)&&edge>=MIN_SELECTIVE_ENTRY_EDGE
     &&Number(s.entry_price||0)>=0.20&&Number(s.entry_price||0)<=0.80;
   if(cfg.id==="momentum")return ["confirmed","trend","liquid-trend","catalyst"].includes(quality)
@@ -3190,7 +3344,9 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
   const targetExposure=clamp(Number(d.targetExposure??cfg.targetExposure??0.62),0,1);
   const minExposure=0,belowFloor=false;
   const pilotProfile=d.sportsFavoritePilot||sportsFavoritePilotProfile(p);
-  const heldEventKeys=new Set([...(p.positions||[]),...(p.closed||[]).filter(pos=>pos.signal_type==="sports-favorite-pilot")]
+  const shockProfile=shockFadePilotProfile(p);
+  const heldEventKeys=new Set([...(p.positions||[]),...(p.closed||[]).filter(pos=>["sports-favorite-pilot","shock-fade-pilot"].includes(pos.signal_type)),
+    ...(p.sports_favorite_outcomes||[]),...(p.shock_fade_outcomes||[])]
     .map(pos=>String(pos.event_key||"")).filter(Boolean));
   const tradeReadyCount=rankedSugs.filter(s=>s.trade_ready).length;
   const entryCandidateCount=rankedSugs.filter(s=>s.trade_ready||s.entry_candidate).length;
@@ -3205,6 +3361,10 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
   const rejectionCounts={};
   const reject=(reason)=>{rejectionCounts[reason]=(rejectionCounts[reason]||0)+1;return false;};
   const cands=strategyMatches.map(s=>{
+    if(s.signal_type==="shock-fade-pilot")return Object.assign({},s,{peer_conviction:Number(s.conviction||0),peer_boost:0,learning_score:shockProfile.mean,learning_confidence:Math.min(1,shockProfile.events/SHOCK_FADE_PROMOTION_EVENTS),
+      market_learning_score:shockProfile.mean,market_learning_confidence:Math.min(1,shockProfile.events/SHOCK_FADE_PROMOTION_EVENTS),learning_state:shockProfile.state,
+      market_learning_state:shockProfile.state,historical_prior_score:0,historical_prior_confidence:0,historical_prior_features:["forward-shock-fade"],
+      historical_requires_promotion:false,learning_multiplier:1,learning_exploration:false,learning_allowed:shockProfile.allowed});
     const peerAdjusted=peerAdjustedSuggestion(s,peerStats),learning=learnedOpportunity(cfg,p,peerAdjusted,learningProfile,d.marketLearning);
     return Object.assign({},peerAdjusted,{learning_score:learning.score,learning_confidence:learning.confidence,
       market_learning_score:learning.market_score,market_learning_confidence:learning.market_confidence,
@@ -3225,6 +3385,16 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
       const lead=sportsFavoriteLeadHours(s),eventKey=String(s.event_key||s.event||s.market_id||"");
       if(!pilotProfile.allowed)return reject("pilot_learning");
       if(!Number.isFinite(lead)||Math.abs(lead-SPORTS_FAVORITE_TARGET_LEAD_HOURS)>SPORTS_FAVORITE_LEAD_TOLERANCE_HOURS)return reject("timing");
+      if(heldEventKeys.has(eventKey))return reject("event_overlap");
+      if(Number(s.conviction||0)<d.minConv)return reject("confidence");
+      if(hasPosition(p,s.market_id))return reject("already_held");
+      if(hasRecentStop(p,s.market_id))return reject("cooldown");
+      if(focus!=="All"&&focus&&s.category!==focus)return reject("focus");
+      return true;
+    }
+    if(s.signal_type==="shock-fade-pilot"){
+      const eventKey=String(s.event_key||s.event||s.market_id||"");
+      if(!shockProfile.allowed)return reject("shock_learning");
       if(heldEventKeys.has(eventKey))return reject("event_overlap");
       if(Number(s.conviction||0)<d.minConv)return reject("confidence");
       if(hasPosition(p,s.market_id))return reject("already_held");
@@ -3270,6 +3440,7 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
     if(s.signal_type==="sports-favorite-pilot"&&heldEventKeys.has(String(s.event_key||s.event||s.market_id||"")))continue;
     let frac;
     if(s.signal_type==="sports-favorite-pilot"){frac=Math.min(d.maxFrac,Number(pilotProfile.position_pct||0));}
+    else if(s.signal_type==="shock-fade-pilot"){frac=Math.min(d.maxFrac,Number(shockProfile.position_pct||0));}
     else if(cfg.flat){frac=d.maxFrac;}
     else{const base=(s.peer_conviction/100)*Math.min(1,effectiveEntryEdge(s)/EDGE_SCALE);frac=Math.min(d.maxFrac,cfg.kelly*base);}
     if(s.peer_boost<0)frac*=0.82;
@@ -3281,6 +3452,10 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
     if(s.signal_type==="sports-favorite-pilot"){
       const pilotValue=(p.positions||[]).filter(pos=>pos.signal_type==="sports-favorite-pilot").reduce((sum,pos)=>sum+Number(pos.value||0),0);
       stake=Math.min(stake,Math.max(0,eq*SPORTS_FAVORITE_TOTAL_CAPITAL_PCT-pilotValue));
+    }
+    if(s.signal_type==="shock-fade-pilot"){
+      const shockValue=(p.positions||[]).filter(pos=>pos.signal_type==="shock-fade-pilot").reduce((sum,pos)=>sum+Number(pos.value||0),0);
+      stake=Math.min(stake,Math.max(0,eq*SHOCK_FADE_TOTAL_CAPITAL_PCT-shockValue));
     }
     const categoryValue=(p.positions||[]).filter(pos=>(pos.category||"Other")===(s.category||"Other")).reduce((sum,pos)=>sum+Number(pos.value||0),0);
     stake=Math.min(stake,Math.max(0,eq*categoryCap-categoryValue));
@@ -3301,6 +3476,8 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
       build_version:BUILD_VERSION,
       momentum_strength:s.momentum_strength,signal_strength:s.signal_strength,signal_confidence:s.signal_confidence,signal_type:s.signal_type,price_change_1d:s.price_change_1d,price_change_1w:s.price_change_1w,
       days_to_resolution:s.days_to_resolution,jump_risk:Boolean(s.jump_risk),game_start:s.game_start,hours_to_start:s.hours_to_start,pilot_prior:s.pilot_prior,
+      shock_move_1h:s.shock_move_1h,shock_move_3h:s.shock_move_3h,
+      target_exit_at:s.signal_type==="shock-fade-pilot"?new Date(new Date(cycleIso()).getTime()+SHOCK_FADE_HORIZON_HOURS*3600000).toISOString():null,
       learning_score:s.learning_score,learning_confidence:s.learning_confidence,market_learning_score:s.market_learning_score,market_learning_confidence:s.market_learning_confidence,
       learning_state:s.learning_state,market_learning_state:s.market_learning_state,
       historical_prior_score:s.historical_prior_score,historical_prior_confidence:s.historical_prior_confidence,historical_prior_features:s.historical_prior_features,
@@ -3310,9 +3487,11 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
       peak_price:+entry.toFixed(4),gain_stops:{},stop_losses:{}});
     const openDetail=s.signal_type==="sports-favorite-pilot"
       ?`${decision?decision.mode+" mode — ":""}Forward-promoted sports position bought ${shares} ${s.side} '${s.question.slice(0,40)}' @ modeled ${pct(entry)} for ${fmtUSD(cost)} (${pct(Number(s.market_price||entry))} midpoint + ${((entry-Number(s.market_price||entry))*100).toFixed(2)}c executable friction) · one position for event ${s.event_key||s.event||s.market_id} · learner state ${pilotProfile.state} · ${(Number(s.hours_to_start)||0).toFixed(1)}h before start`
+      :s.signal_type==="shock-fade-pilot"
+      ?`${decision?decision.mode+" mode — ":""}Forward-promoted three-hour shock fade bought ${shares} ${s.side} '${s.question.slice(0,40)}' @ executable modeled ${pct(entry)} for ${fmtUSD(cost)} after a ${(Number(s.shock_move_3h||0)*100).toFixed(2)}-point move · learner state ${shockProfile.state} · fixed executable exit target in ${SHOCK_FADE_HORIZON_HOURS}h`
       :`${decision?decision.mode+" mode — ":""}Bought ${shares} ${s.side} '${s.question.slice(0,40)}' @ ${pct(entry)} for ${fmtUSD(cost)} · max binary loss budget ${(riskBudgetPct*100).toFixed(1)}% · signal margin ${((Math.abs(s.net_edge!=null?s.net_edge:s.edge))*100).toFixed(1)}c · learned weight ${Number(s.learning_multiplier||1).toFixed(2)}x (${s.learning_state||"observing"}/${s.market_learning_state||"observing"})${(s.historical_prior_features||[]).length?` · history prior ${(s.historical_prior_features||[]).join("+")}`:""} · evidence ${Math.round((s.evidence_score||0)*100)}${s.peer_note?` (${s.peer_note})`:""}`;
     p.history.push({date:logDay(),action:"OPEN",question:s.question,side:s.side,detail:openDetail});
-    if(s.signal_type==="sports-favorite-pilot")heldEventKeys.add(String(s.event_key||s.event||s.market_id||""));
+    if(["sports-favorite-pilot","shock-fade-pilot"].includes(s.signal_type))heldEventKeys.add(String(s.event_key||s.event||s.market_id||""));
     opened++;openedIds.push(String(s.market_id));
   }
   const eqAfter=equity(p);
@@ -3438,7 +3617,7 @@ async function runDailyCycle(){
       return {suggestions:(loadSuggestions().suggestions||[]).length,skipped:true,hour};
     }
     SNAP_TS=nowIso();
-    let markets=[],analysisMarkets=[],sugs=[],bundleSugs=[],makerAuditCandidates=[],cache=loadMarketCache(),runMode="live",cacheAgeMs=0;
+    let markets=[],analysisMarkets=[],sugs=[],bundleSugs=[],shockSugs=[],makerAuditCandidates=[],cache=loadMarketCache(),runMode="live",cacheAgeMs=0;
     try{
       setStatus("loading the 500 most active eligible markets…",true);
       markets=await fetchMarkets(20,100,count=>setStatus(`loaded ${Math.min(count,ACTIVE_MARKET_FETCH_LIMIT).toLocaleString()} of 500 eligible active markets…`,true),ACTIVE_MARKET_FETCH_LIMIT);
@@ -3451,9 +3630,12 @@ async function runDailyCycle(){
       try{makerAuditCandidates=await fetchRewardMakerCandidates();}catch(e){makerAuditCandidates=[];}
       setStatus("checking real-world context…",true);
       const realWorldSignals=await fetchRealWorldSignals(analysisMarkets);
+      setStatus("scanning exact three-hour shock regimes…",true);
+      try{shockSugs=await fetchShockFadeSuggestions(analysisMarkets);}catch(e){shockSugs=[];}
       setStatus("analyzing expected value…",true);
-      sugs=[...bundleSugs,...generateSuggestions(analysisMarkets,SUGGESTION_TOTAL,SUGGESTION_PER_CATEGORY,realWorldSignals)]
-        .sort((a,b)=>(Number(b.quality==="bundle-arb")-Number(a.quality==="bundle-arb"))||(b.conviction-a.conviction)).slice(0,SUGGESTION_TOTAL);
+      sugs=[...bundleSugs,...shockSugs,...generateSuggestions(analysisMarkets,SUGGESTION_TOTAL,SUGGESTION_PER_CATEGORY,realWorldSignals)]
+        .sort((a,b)=>(Number(b.quality==="bundle-arb")-Number(a.quality==="bundle-arb"))
+          ||(Number(b.quality==="shock-fade-shadow")-Number(a.quality==="shock-fade-shadow"))||(b.conviction-a.conviction)).slice(0,SUGGESTION_TOTAL);
       saveSuggestions(sugs,markets.length,analysisMarkets.length);
     }catch(networkError){
       cache=cache||loadMarketCache();
@@ -3475,6 +3657,7 @@ async function runDailyCycle(){
       (st.agents[a.id].positions||[]).forEach(pos=>{if(pos.market_id)positionIds.add(String(pos.market_id));}));
     AGENTS.forEach(a=>(st.agents[a.id].maker_quotes||[]).forEach(quote=>{if(quote.market_id)positionIds.add(String(quote.market_id));}));
     AGENTS.forEach(a=>(st.agents[a.id].sports_favorite_shadows||[]).forEach(row=>{if(row.market_id)positionIds.add(String(row.market_id));}));
+    AGENTS.forEach(a=>(st.agents[a.id].shock_fade_shadows||[]).forEach(row=>{if(row.market_id)positionIds.add(String(row.market_id));}));
     setStatus("marking positions…",true);
     const priceMap={};
     const cachedById={};
@@ -3507,6 +3690,8 @@ async function runDailyCycle(){
     const executeTrades=runMode==="live"||cachePolicy.exitsAllowed;
     const favoritePortfolio=st.agents.favorite;
     const sportsShadowActivity=manageSportsFavoriteShadows(favoritePortfolio,priceMap,{execute:runMode==="live"&&executeTrades});
+    const shockPortfolio=st.agents.reversal;
+    const shockShadowActivity=manageShockFadeShadows(shockPortfolio,priceMap,{execute:runMode==="live"&&executeTrades});
     setStatus("ten strategy agents trading…",true);
     const preBoard=AGENTS.map(a=>({id:a.id,eq:equity(st.agents[a.id])})).sort((x,y)=>y.eq-x.eq);
     const leaderEq=preBoard[0]?preBoard[0].eq:STARTING_BALANCE;
@@ -3540,6 +3725,7 @@ async function runDailyCycle(){
       claimedMarkets.forEach(id=>occupied.add(id));
       let agentCycleSuggestions=cycleSuggestions.map(s=>prepareSuggestionForAgent(s,cfg,agentMarketLearning));
       if(cfg.id==="favorite")agentCycleSuggestions=agentCycleSuggestions.map(s=>applySportsFavoriteForwardPromotion(s,p));
+      if(cfg.id==="reversal")agentCycleSuggestions=agentCycleSuggestions.map(s=>applyShockFadeForwardPromotion(s,p));
       openPositions(p,cfg,cfg.rank(agentCycleSuggestions),focus,decision,occupied,peerMarketStats(st,cfg.id)).forEach(id=>claimedMarkets.add(id));
       if(cfg.id==="favorite"){
         const shadowStage=stageSportsFavoriteShadows(p,cycleSuggestions,{execute:runMode==="live"&&entriesAllowed});
@@ -3547,6 +3733,14 @@ async function runDailyCycle(){
           sportsShadowCandidates:shadowStage.candidates,sportsShadowCompleted:sportsShadowActivity.completed,
           sportsFavoritePilot:sportsFavoritePilotProfile(p)});
         p.lastDecision.allocationStatus=`${p.lastDecision.allocationStatus||""} Sports forward learner: ${shadowStage.active} zero-capital observation${shadowStage.active===1?"":"s"} active, ${sportsShadowActivity.completed} closed outcome${sportsShadowActivity.completed===1?"":"s"} graded this cycle; no capital is allowed before the forward confidence gate promotes.`.trim();
+      }
+      if(cfg.id==="reversal"){
+        const shockStage=stageShockFadeShadows(p,cycleSuggestions,{execute:runMode==="live"&&entriesAllowed});
+        const shockProfile=shockFadePilotProfile(p);
+        p.lastDecision=Object.assign({},p.lastDecision,{shockShadowActive:shockStage.active,shockShadowStaged:shockStage.staged,
+          shockShadowCandidates:shockStage.candidates,shockShadowCompleted:shockShadowActivity.completed,shockShadowExpired:shockShadowActivity.expired,
+          shockFadePilot:shockProfile});
+        p.lastDecision.allocationStatus=`${p.lastDecision.allocationStatus||""} Shock forward learner: ${shockStage.active} zero-capital observation${shockStage.active===1?"":"s"} active, ${shockShadowActivity.completed} three-hour outcome${shockShadowActivity.completed===1?"":"s"} graded this cycle, ${shockProfile.events}/${SHOCK_FADE_PROMOTION_EVENTS} independent events complete; capital remains zero until the positive confidence gate promotes.`.trim();
       }
       if(runMode==="live"&&entriesAllowed){
         const agentIndex=AGENTS.findIndex(agent=>agent.id===cfg.id),makerActivity=makerActivityByAgent[cfg.id];
@@ -3744,7 +3938,7 @@ function decisionSummary(p){
   const exposure=d.currentExposure!=null&&d.targetExposure!=null?` Exposure ${Math.round(d.currentExposure*100)}%; ceiling ${Math.round(d.targetExposure*100)}%.`:"";
   const allocation=d.allocationStatus?` ${d.allocationStatus}`:"";
   const candidates=d.tradeReadyCount!=null?` Candidate audit: ${d.tradeReadyCount} globally trade-ready, ${d.entryCandidateCount||d.tradeReadyCount||0} technical candidates, ${d.strategyCandidates||0} strategy matches, ${d.eligibleCandidates||0} fully eligible, ${d.opened||0} opened.`:"";
-  const blockerLabels={historical_prior:"history-tested losing setup",learning:"live learned losing regime",pilot_learning:"sports pilot demoted",event_overlap:"same sports event",confidence:"confidence",overlap:"material overlap",already_held:"already held",cooldown:"stop cooldown",focus:"category focus",price:"entry price",edge:"edge",timing:"timing",liquidity:"liquidity",activity:"activity",evidence:"evidence",direction:"direction",portfolio_limit:"portfolio limit"};
+  const blockerLabels={historical_prior:"history-tested losing setup",learning:"live learned losing regime",pilot_learning:"sports pilot demoted",shock_learning:"shock pilot unpromoted",event_overlap:"same event",confidence:"confidence",overlap:"material overlap",already_held:"already held",cooldown:"stop cooldown",focus:"category focus",price:"entry price",edge:"edge",timing:"timing",liquidity:"liquidity",activity:"activity",evidence:"evidence",direction:"direction",portfolio_limit:"portfolio limit"};
   const blockerRows=Object.entries(d.rejectionCounts||{}).filter(([,count])=>count>0).sort((a,b)=>b[1]-a[1]);
   const blockers=blockerRows.length?` Blocks: ${blockerRows.slice(0,4).map(([key,count])=>`${blockerLabels[key]||key} ${count}`).join(", ")}.`:"";
   const learning=d.learning?` Learning: ${d.learning.samples} completed trades retained as historical context, ${(d.learning.global_score*100).toFixed(2)}% all-version shrunk expectancy; ${d.learning.current_samples||0} completed under adaptive strategy ${SUGGESTION_ENGINE_VERSION} with ${((d.learning.current_global_score||0)*100).toFixed(2)}% current-strategy shrunk expectancy. Only current-strategy closed trades can change sizing or personal cohort promotion${d.learning.best?`; historical strongest ${d.learning.best.feature.replace(":"," ")}`:""}${d.learning.worst?`; historical weakest ${d.learning.worst.feature.replace(":"," ")}`:""}.`:"";
@@ -3760,14 +3954,15 @@ function decisionSummary(p){
   const makerStats=d.makerProfile&&d.makerProfile.global;
   const maker=d.makerQuotes!=null?` Maker research: ${d.makerShadowActive||0} zero-capital lock-or-exit observations active; ${d.makerFills||0} verified touches and ${d.makerShadowCompleted||0} outcomes completed this cycle.${makerStats?` Event-clustered ledger: ${makerStats.attempts} attempts / ${makerStats.events} events, ${makerStats.locked} locked pairs, ${makerStats.adverse} immediate adverse exits, ${makerStats.unfilled} unfilled, and ${fmtUSD(makerStats.shadow_pnl)} simulated shadow net.`:""} Capital is disabled because neither the 6,048-rule chronological maker audit nor the reward stress test produced a validated holdout winner. Hypothetical rewards are excluded.`:"";
   const sportsPilot=d.sportsFavoritePilot?` Sports forward learner: ${d.sportsFavoritePilot.state}, ${d.sportsFavoritePilot.active_shadows||0} zero-capital observations active and ${d.sportsFavoritePilot.events} independent closed events, ${d.sportsFavoritePilot.events?`${(d.sportsFavoritePilot.mean*100).toFixed(2)}% mean with ${d.sportsFavoritePilot.lower>=0?"+":""}${(d.sportsFavoritePilot.lower*100).toFixed(2)}% to ${d.sportsFavoritePilot.upper>=0?"+":""}${(d.sportsFavoritePilot.upper*100).toFixed(2)}% 90% interval; `:""}${fmtUSD(d.sportsFavoritePilot.shadow_pnl_per_100||0)} simulated per-$100 net and ${fmtUSD(d.sportsFavoritePilot.pnl)} realized capital P&L. Position cap ${(d.sportsFavoritePilot.position_pct*100).toFixed(2)}%; capital remains zero until ${SPORTS_FAVORITE_PROMOTION_EVENTS} new independent events establish a positive lower bound.`:"";
-  return `${d.mode} mode: ${d.reason}${emotion} Limits now: ${d.maxNew} new trade${d.maxNew===1?"":"s"}, max ${(d.maxFrac*100).toFixed(1)}% per position${d.minConv?`, conviction ${d.minConv}+`:""}.${learning}${calibration}${maker}${sportsPilot}${exposure}${allocation}${candidates}${blockers}`;
+  const shockPilot=d.shockFadePilot?` Shock forward learner: ${d.shockFadePilot.state}, ${d.shockFadePilot.active_shadows||0} exact three-hour observations active and ${d.shockFadePilot.events}/${SHOCK_FADE_PROMOTION_EVENTS} independent events complete. Mean ${(d.shockFadePilot.mean*100).toFixed(2)}%; 90% interval ${(d.shockFadePilot.lower*100).toFixed(2)}% to ${(d.shockFadePilot.upper*100).toFixed(2)}%; ${d.shockFadePilot.expired_ungraded||0} missed windows were discarded. Position cap ${(d.shockFadePilot.position_pct*100).toFixed(2)}%, total cap ${SHOCK_FADE_TOTAL_CAPITAL_PCT*100}%; capital remains zero until the lower bound exceeds 0.50%.`:"";
+  return `${d.mode} mode: ${d.reason}${emotion} Limits now: ${d.maxNew} new trade${d.maxNew===1?"":"s"}, max ${(d.maxFrac*100).toFixed(1)}% per position${d.minConv?`, conviction ${d.minConv}+`:""}.${learning}${calibration}${maker}${sportsPilot}${shockPilot}${exposure}${allocation}${candidates}${blockers}`;
 }
 function renderAgentBrief(cfg,p,st){
   const root=$("agentBrief"); if(!root)return;
   const bw=bestAndWorst(p);
   const risk=cfg.aggressive?"Extreme risk":cfg.maxFrac>=0.055?"Active":cfg.maxFrac<=0.04?"Broad active":"Disciplined";
-  const cadence=cfg.id==="favorite"?"Zero-capital 12h sports observations until 30 forward events promote 1.25% positions":`${cfg.maxNew||0} new trades max per cycle`;
-  const exitRule=cfg.id==="favorite"?"Grade shadow observations only when Polymarket closes the market; after promotion, capital positions retain the 18% stop and profit locks"
+  const cadence=cfg.id==="favorite"?"Zero-capital 12h sports observations until 30 forward events promote 1.25% positions":cfg.id==="reversal"?"Exact 3h shock observations; 30 independent positive events required before 0.75% positions":`${cfg.maxNew||0} new trades max per cycle`;
+  const exitRule=cfg.id==="favorite"?"Grade shadow observations only when Polymarket closes the market; after promotion, capital positions retain the 18% stop and profit locks":cfg.id==="reversal"?"Exit at the executable bid exactly three hours after entry; missed grading windows expire without using a later price"
     :`Exit after a confirmed reversal, a 12h unconfirmed fade after 48h, a trailing-profit retrace, or ${EXIT_STALE_DAYS}d stale while losing; Politics trends get 72h before ordinary signal exits`;
   const thesis=agentPlainBlurb(cfg,st);
   const quoteSummary=(p.maker_quotes||[]).slice(0,3).map(quote=>`${quote.shadow_only?"Shadow":"Capital"} · ${quote.question.slice(0,34)}${quote.question.length>34?"...":""}: YES ${pct(quote.yes_quote)} + NO ${pct(quote.no_quote)}${quote.yes_filled_at||quote.no_filled_at?" (one leg touched)":""}`).join("; ");
@@ -4020,6 +4215,7 @@ function renderPortfolioTab(){
     {ic:"🧪",label:"Adaptive",value:fmtPct(engineBase>0?(eq/engineBase-1)*100:0),cls:signClass(enginePnl)},
     {ic:"📂",label:"Open",value:p.positions.length},
     {ic:"◌",label:"Sports shadow",value:(p.sports_favorite_shadows||[]).length},
+    {ic:"⧗",label:"Shock shadow",value:(p.shock_fade_shadows||[]).length},
     {ic:"⇄",label:"Maker shadow",value:(p.maker_quotes||[]).filter(quote=>quote.shadow_only).length},
     {ic:"Σ",label:"Maker paper net",value:fmtUSD(makerProfile.global.pnl),cls:signClass(makerProfile.global.pnl)},
   ];
@@ -4217,7 +4413,7 @@ function migrateAgentChatIdentity(chats){
     if(message.role!=="agent"||!/Reversal Edge|crowd move that has gone too far|snapbacks begin/.test(String(message.text||"")))return;
     const text=String(message.text||"");
     if(text.includes("Talk to me normally"))history[index]=agentChatSeed("reversal")[0];
-    else history[index]=Object.assign({},message,{text:text.replaceAll("Reversal Edge","Trend Endurance")
+    else history[index]=Object.assign({},message,{text:text.replaceAll("Reversal Edge","Shock Reversion").replaceAll("Trend Endurance","Shock Reversion")
       .replace("I am looking for a crowd move that has gone too far.","I am looking for a confirmed trend with enough time to develop.")
       .replace("The best snapbacks begin where consensus gets stretched.","I want durable direction, not a reflexive snapback bet.")});
     changed=true;
@@ -5380,6 +5576,11 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
   applySportsFavoriteForwardPromotion,
   stageSportsFavoriteShadows,
   manageSportsFavoriteShadows,
+  shockFadeSuggestion,
+  shockFadePilotProfile,
+  applyShockFadeForwardPromotion,
+  stageShockFadeShadows,
+  manageShockFadeShadows,
   marketIsSettled,
   marketIsSuspended,
   historicalPriceFeatures,
@@ -5420,7 +5621,11 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
       verdictEvents:SPORTS_FAVORITE_VERDICT_EVENTS,promotionEvents:SPORTS_FAVORITE_PROMOTION_EVENTS,
       slippageBufferCents:SPORTS_FAVORITE_SLIPPAGE_BUFFER*100,maximumExecutionCostCents:SPORTS_FAVORITE_MAX_EXECUTION_COST*100,
       capitalRequiresForwardPromotion:true,old24HourCapitalRuleRetired:true},
-    historicalPrior:"No directional rule survived the current 300-market 60/20/20 adaptive holdout at both 24h and 72h, and no settlement rule survived validation across 5,000 resolved markets. Favorite-priced trend following was independently net-negative at 6h, 12h, 24h, and 72h and is hard-blocked. The prior sports-capital rule also remains retired. Live-priced complete negative-risk bundles may trade when positive after costs. Maker research remains zero-capital because 6,048 wait and immediate-hedge rules produced no train, validation, or holdout winner"}),
+    shockFadePilot:{minimumMovePct:SHOCK_FADE_MIN_MOVE*100,horizonHours:SHOCK_FADE_HORIZON_HOURS,gradeToleranceHours:SHOCK_FADE_GRADE_TOLERANCE_HOURS,
+      pilotPositionPct:SHOCK_FADE_PILOT_POSITION_PCT*100,totalCapitalPct:SHOCK_FADE_TOTAL_CAPITAL_PCT*100,shadowLimit:SHOCK_FADE_SHADOW_LIMIT,
+      promotionEvents:SHOCK_FADE_PROMOTION_EVENTS,slippageBufferCents:SHOCK_FADE_SLIPPAGE_BUFFER*100,maximumEntryCostCents:SHOCK_FADE_MAX_EXECUTION_COST*100,
+      exactThreeHourHistory:true,alignedFinalHour:true,oppositeSide:true,executableEntryAndExit:true,missedWindowsExpire:true,capitalRequiresForwardPromotion:true},
+    historicalPrior:"No broad directional rule survived the 300-market 60/20/20 adaptive holdout at both 24h and 72h, and no settlement rule survived validation across 5,000 resolved markets. A new exact three-hour shock-fade replay produced positive chronological results across 157,386 observations, but its event-disjoint 90% lower confidence bound crossed zero; it therefore begins as zero-capital forward research. Favorite-priced trend following remains hard-blocked. Live-priced complete negative-risk bundles may trade when positive after costs. Maker capital remains disabled because 6,048 wait and immediate-hedge rules produced no validated winner"}),
 });
 function runEngineSelfTest(){
   const market=(overrides={})=>Object.assign({
@@ -5474,6 +5679,28 @@ function runEngineSelfTest(){
   openPositions(promotedSportsPilotBook,favoriteAgent,favoriteAgent.rank([promotedSportsSuggestion,Object.assign({},promotedSportsSuggestion,{market_id:"sports-pilot-second"})]),"All",promotedSportsPilotDecision,new Set(),{});
   const sportsPilotExit=exitReason({signal_type:"sports-favorite-pilot",entry_price:0.77,current_price:0.72,opened_at:nowIso(),unrealized_pnl:-5,quality:"sports-favorite-pilot"},
     market({category:"Sports",question:"Will Harbor FC win tomorrow?",game_start:sportsPilotStart,days_to_resolution:1}),null,favoriteAgent);
+  const shockNow=Math.floor(Date.now()/1000),shockPoints=[{t:shockNow-3*3600,p:0.50},{t:shockNow-3600,p:0.58}];
+  const shockMarket=market({id:"shock-up",event:"Shock event",event_id:"shock-event",yes_price:0.62,no_price:0.38,best_bid:0.615,best_ask:0.625,spread:0.01});
+  const shockSuggestion=shockFadeSuggestion(shockMarket,shockPoints,shockNow);
+  const opposedShock=shockFadeSuggestion(shockMarket,[{t:shockNow-3*3600,p:0.50},{t:shockNow-3600,p:0.65}],shockNow);
+  const costlyShock=shockFadeSuggestion(market({id:"shock-costly",event_id:"shock-costly-event",yes_price:0.62,no_price:0.38,best_bid:0.605,best_ask:0.635,spread:0.03}),shockPoints,shockNow);
+  const shockSecond=Object.assign({},shockSuggestion,{market_id:"shock-second",question:"Second outcome in the same event"});
+  const shockBook=defaultPortfolio(),shockCash=shockBook.cash,shockAgent=AGENTS.find(agent=>agent.id==="reversal");
+  const shockStage=stageShockFadeShadows(shockBook,[shockSuggestion,shockSecond]);
+  const earlyShockGrade=manageShockFadeShadows(shockBook,{"shock-up":market({id:"shock-up",yes_price:0.56,no_price:0.44,best_bid:0.555,best_ask:0.565})});
+  shockBook.shock_fade_shadows[0].opened_at=new Date(Date.now()-3.5*3600000).toISOString();
+  const completedShockGrade=manageShockFadeShadows(shockBook,{"shock-up":market({id:"shock-up",yes_price:0.55,no_price:0.45,best_bid:0.545,best_ask:0.55})});
+  const offlineShockStageBook=defaultPortfolio(),offlineShockStage=stageShockFadeShadows(offlineShockStageBook,[shockSuggestion],{execute:false});
+  const offlineShockBook=defaultPortfolio();stageShockFadeShadows(offlineShockBook,[shockSuggestion]);
+  const offlineShockGrade=manageShockFadeShadows(offlineShockBook,{"shock-up":market({id:"shock-up",yes_price:0.55,no_price:0.45,best_bid:0.545,best_ask:0.55})},{execute:false});
+  const expiredShockBook=defaultPortfolio();stageShockFadeShadows(expiredShockBook,[shockSuggestion]);expiredShockBook.shock_fade_shadows[0].opened_at=new Date(Date.now()-6*3600000).toISOString();
+  const expiredShockGrade=manageShockFadeShadows(expiredShockBook,{"shock-up":market({id:"shock-up",yes_price:0.55,no_price:0.45,best_bid:0,best_ask:0})});
+  const compactedShockBook=compactPortfolioForSync(Object.assign({},offlineShockBook,{shock_fade_outcomes:[...shockBook.shock_fade_outcomes]}));
+  const promotedShockBook=defaultPortfolio();
+  for(let i=0;i<SHOCK_FADE_PROMOTION_EVENTS;i++)promotedShockBook.shock_fade_outcomes.push({event_key:`winning-shock-event-${i}`,market_id:`winning-shock-${i}`,net_return:0.08,pnl_per_100:8});
+  const promotedShockProfile=shockFadePilotProfile(promotedShockBook),promotedShockSuggestion=applyShockFadeForwardPromotion(shockSuggestion,promotedShockBook);
+  const promotedShockDecision=adaptiveDecision(shockAgent,promotedShockBook,1,AGENTS.length,STARTING_BALANCE,buildSignalCalibration(defaultSignalLedger()));
+  openPositions(promotedShockBook,shockAgent,shockAgent.rank([promotedShockSuggestion]),"All",promotedShockDecision,new Set(),{});
   const targets=window.PMA_ENGINE_DIAGNOSTICS.gainStopTargets(0.82);
   const hoursAgo=h=>new Date(Date.now()-h*3600000).toISOString();
   const conflict={trade_ready:true,side:"NO",net_edge:-0.03,conviction:72};
@@ -6097,6 +6324,25 @@ function runEngineSelfTest(){
         &&promotedSportsPilotBook.positions[0].cost<=STARTING_BALANCE*SPORTS_FAVORITE_PILOT_POSITION_PCT+0.01,
       ordinaryGapExitDoesNotPreemptPilot:sportsPilotExit===null,
     },
+    shockFadePilot:{
+      detectsExactAlignedThreeHourShock:Boolean(shockSuggestion&&shockSuggestion.side==="NO"&&shockSuggestion.shock_move_3h===0.12&&shockSuggestion.shock_move_1h===0.04),
+      usesExecutableOppositeAskPlusSlippage:Boolean(shockSuggestion&&shockSuggestion.market_price===0.38&&shockSuggestion.entry_price===0.3875&&shockSuggestion.friction===0.0075),
+      rejectsOpposedLastHour:opposedShock===null,
+      rejectsMoreThanOneCentFriction:costlyShock===null,
+      startsWatchOnly:Boolean(shockSuggestion&&!shockSuggestion.trade_ready&&shockSuggestion.audited_observation_only&&shockSuggestion.requires_live),
+      onlyShockAgentCanAcceptAfterPromotion:promotedShockSuggestion&&agentAcceptsSuggestion(shockAgent,promotedShockSuggestion)
+        &&!agentAcceptsSuggestion(AGENTS.find(agent=>agent.id==="momentum"),promotedShockSuggestion),
+      stagesOneShadowPerEvent:shockStage.staged===1,
+      shadowNeverChangesCash:shockBook.cash===shockCash&&shockBook.positions.length===0,
+      doesNotGradeBeforeThreeHours:earlyShockGrade.completed===0,
+      gradesAtExecutableExit:completedShockGrade.completed===1&&shockBook.shock_fade_outcomes.length===1&&shockBook.shock_fade_outcomes[0].exit_price===0.4475,
+      offlineCannotStageOrGrade:offlineShockStage.staged===0&&offlineShockStageBook.shock_fade_shadows.length===0
+        &&offlineShockGrade.completed===0&&offlineShockBook.shock_fade_shadows.length===1&&offlineShockBook.shock_fade_outcomes.length===0,
+      missedWindowExpiresWithoutInventedReturn:expiredShockGrade.expired===1&&expiredShockBook.shock_fade_outcomes.length===0&&expiredShockBook.shock_fade_expired_ungraded===1,
+      forwardLedgerSurvivesCompaction:compactedShockBook.shock_fade_shadows.length===1&&compactedShockBook.shock_fade_outcomes.length===1,
+      thirtyPositiveEventsPromote:promotedShockProfile.promoted&&promotedShockProfile.lower>0.005&&promotedShockSuggestion.trade_ready,
+      promotedCapitalIsTightlyCapped:promotedShockBook.positions.length===1&&promotedShockBook.positions[0].cost<=STARTING_BALANCE*SHOCK_FADE_PILOT_POSITION_PCT+0.01,
+    },
     riskBudget:{core:coreRiskBudget,aggressiveGap:aggressiveGapBudget,blocksExactRange:intervalContract.jump_risk&&!intervalContract.trade_ready,
       blocksPathDependentBarrier:pathBarrierContract.jump_risk&&!pathBarrierContract.trade_ready,
       explainsPathDependentBarrier:pathBarrierContract.rationale.includes("jump directly to settlement"),preservesFixedDateLevel:!fixedDateLevelContract.jump_risk,
@@ -6215,7 +6461,7 @@ function runEngineSelfTest(){
       politicsEarlyConflict:exitReason(politicsEarly,fresh,conflict,AGENTS[0]),politicsMatureConflict:exitReason(politicsMature,fresh,conflict,AGENTS[0]),trailing:trailingProfitReason(trailing)},
     backtest:{noLookahead:backtestNoLookahead,features:historicalFeatures},
     overlapRemaining,gapOverlapRemaining,singleGlobalExplorer:explorationOwners.length===1,
-    chatIdentityMigrates:chatMigrationFixture.reversal[0].text.includes("Trend Endurance")&&!chatMigrationFixture.reversal[0].text.includes("Reversal Edge"),
+    chatIdentityMigrates:chatMigrationFixture.reversal[0].text.includes("Shock Reversion")&&!chatMigrationFixture.reversal[0].text.includes("Reversal Edge")&&!chatMigrationFixture.reversal[0].text.includes("Trend Endurance"),
     immaterialRunnerDoesNotBlock,rejectionAccounting,convictionCapacityCoversTarget,rules:window.PMA_ENGINE_DIAGNOSTICS.rules};
 }
 if(new URLSearchParams(location.search).get("engine_test")==="1"){

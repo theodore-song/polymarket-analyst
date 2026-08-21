@@ -376,6 +376,17 @@ records a complementary hedge only when the current executable ask locks a net
 profit; otherwise it grades an immediate exit. A positive in-app cohort cannot
 reactivate capital without a separately approved chronological backtest.
 
+Build 85 adds a forward-only Shock Reversion lane after a 157,386-observation
+hourly replay found a promising but not yet independently conclusive regime.
+The agent detects an 8-point or larger three-hour YES-price move whose final
+hour remains aligned, then observes the opposite side for exactly three hours.
+Entry and exit use executable book prices plus a 0.25-cent slippage buffer.
+The first 30 independent events use zero capital, missed exit windows expire
+without borrowing a later price, and offline snapshots cannot create or grade
+an observation. A positive 90% lower confidence bound above 0.5% is required
+before 0.75%-of-equity paper positions can begin, with all concurrent shock
+positions capped at 2% of equity.
+
 Build 77 separates the directional learner's evidence lineage from the global
 strategy release. Code-history verification found the same trend/reversal
 generator and 24-hour/72-hour grading policy in Strategy 51 through Strategy
