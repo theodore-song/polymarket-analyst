@@ -20,17 +20,22 @@ market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
 
-Build 91 adds a headless GitHub Actions runtime that checks the production site
-at seven minutes past every hour, continues from the previous agent snapshot,
+Build 92 runs the headless GitHub Actions runtime every 15 minutes, continues
+from the previous agent snapshot,
 and runs the next due paper cycle even when no browser is open. It writes a
 sanitized snapshot to the `runtime-state` branch and `/api/state` uses that as a
 read-only fallback while Neon or Vercel Blob is unavailable. The public snapshot
 contains only `pma_agents_v2` and `pma_suggestions_v5`, with suggestions capped at
 300 to keep cross-device loads small. Paper accounts, passwords, email settings,
 investment allocations, chat history, wallet information, and live-money
-settings are explicitly excluded. Manual cycles can still run locally, but the
-next autonomous hourly result is the shared public authority until managed
-storage is restored.
+settings are explicitly excluded. While that fallback is active, ordinary
+phones and computers are display-only and cannot fork the public portfolio with
+their local timer; only the headless runner advances it. The next autonomous
+result is the shared public authority until managed storage is restored. The
+five shock-strategy adopters now learn from one shared,
+event-deduplicated forward ledger. A trade allocated to one agent therefore
+teaches the other four without copying its cash or P&L; shared positive evidence
+can promote bounded size and shared negative evidence disables the lane.
 
 Build 73 distinguishes a temporary order-book pause from settlement. Exact
 market refreshes still mark paused positions to the latest published price, but
