@@ -2,7 +2,7 @@ name: Autonomous paper cycle
 
 on:
   schedule:
-    - cron: "7,22,37,52 * * * *"
+    - cron: "2,7,12,17,22,27,32,37,42,47,52,57 * * * *"
   workflow_dispatch:
   push:
     branches: [main]
@@ -34,7 +34,7 @@ jobs:
       - run: node scripts/run-autonomous-cycle.mjs
         env:
           ARENA_URL: https://polymarket-site-eta.vercel.app
-          EXPECTED_BUILD: "97"
+          EXPECTED_BUILD: "98"
           RUNTIME_BRANCH: runtime-state
           RUNTIME_STATE_PATH: runtime/state.json
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

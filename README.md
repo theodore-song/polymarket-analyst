@@ -20,7 +20,7 @@ market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
 
-Build 97 runs the headless GitHub Actions runtime every 15 minutes, continues
+Build 98 runs the headless GitHub Actions runtime every five minutes, continues
 from the previous agent snapshot,
 and runs the next due paper cycle even when no browser is open. It writes a
 sanitized snapshot to the `runtime-state` branch and `/api/state` uses that as a
@@ -40,6 +40,17 @@ Active shock positions use a second underlying-risk key in addition to the
 Polymarket event key. Related Ethereum or Bitcoin contracts cannot create
 several simultaneous copies of one move, and outcomes from the same underlying
 three-hour shock window count as one learner event.
+
+Each Build 98 cycle also scans the 1,000 most-active Polymarket events for
+complete negative-risk bundles and logically nested threshold or deadline
+pairs. Only a positive worst-case payout margin after 0.5 cents of modeled cost
+per leg can enter the Value Discipline portfolio. The Suggestions view stores
+the event count, number of audited structures, actionable count, and closest
+observed margin so an empty bundle lane is visible evidence rather than an
+ambiguous failure. A full 1,000-event audit on August 21, 2026 found 136
+eligible negative-risk events and 1,431 dominance pairs, but no positive bundle
+after costs; the closest complete bundle was 0.5 cents underwater and the
+closest dominance pair was 0.3 cents underwater.
 
 Build 97 expands the separate current-regime resolution-window NO pilot for
 the five aggressive agents. It accepts only non-sports, fixed-date contracts

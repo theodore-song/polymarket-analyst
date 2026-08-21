@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 97 active:</b> The public paper agents run autonomously every 15 minutes while every user device is closed. Five aggressive agents can take tightly bounded, safe non-Sports 50–55% NO positions in independently passing three-through-six-day settlement windows. Entries use an executable ask plus slippage, one agent owns each event, positions hold to verified settlement, and every exact horizon can demote itself from losing forward evidence. Other unproven directional rules remain observation-only. Phones and computers display the same read-only autonomous state. Profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 98 active:</b> The public paper agents run autonomously every five minutes while every user device is closed. Each cycle scans the 1,000 most-active events for complete negative-risk and same-event dominance bundles, and the shared Suggestions view reports the closest executable margin even when no bundle is profitable after modeled costs. Five aggressive agents can also take tightly bounded, safe non-Sports 50–55% NO positions in independently passing three-through-six-day settlement windows. Other unproven directional rules remain observation-only. Phones and computers display the same read-only autonomous state. Profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 97 · Adaptive strategy 59 · Resolution-window pilot 2 · Validated 3d–6d entries · Executable 50–55% NO pricing · Settlement-only exits · Per-horizon forward demotion · Autonomous runtime 1 · Offline runtime 2 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 98 · Adaptive strategy 59 · Five-minute autonomous scans · 1,000-event bundle audit · Resolution-window pilot 2 · Validated 3d–6d entries · Executable 50–55% NO pricing · Settlement-only exits · Per-horizon forward demotion · Autonomous runtime 1 · Offline runtime 2 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 97;
+const BUILD_VERSION = 98;
 const AGENT_LEARNING_VERSION = 3;
 const SUGGESTION_ENGINE_VERSION = 59;
 const MAKER_STRATEGY_VERSION = 3;
@@ -1107,7 +1107,7 @@ function parseDominanceDeadline(question){
   return {kind:"deadline",direction:"deadline",value:year?year*10000+month*100+day:month*100+day,
     yearMode:year?"explicit-year":"implicit-year",stem};
 }
-function dominanceBundleSuggestions(event){
+function dominanceBundleSuggestions(event,{includeUnprofitable=false}={}){
   if(!event||event.closed||event.active===false)return [];
   const rawLegs=Array.isArray(event.markets)?event.markets:[],eventTags=Array.isArray(event.tags)?event.tags:[];
   const quotes=rawLegs.map(raw=>{
@@ -1140,7 +1140,8 @@ function dominanceBundleSuggestions(event){
         .map(leg=>Object.assign({},leg,{entry_price:+leg.entry_price.toFixed(4),current_price:+Number(leg.current_price).toFixed(4)}));
       if(legs.some(leg=>!leg.market_id||!Number.isFinite(leg.entry_price)||!Number.isFinite(leg.current_price)||leg.entry_price<=0||leg.entry_price>=1))continue;
       const cost=legs.reduce((sum,leg)=>sum+leg.entry_price,0),payout=1,profit=payout-cost,netReturn=profit/cost;
-      if(profit<NEG_RISK_MIN_NET_PROFIT||netReturn<NEG_RISK_MIN_NET_RETURN)continue;
+      const actionable=profit>=NEG_RISK_MIN_NET_PROFIT&&netReturn>=NEG_RISK_MIN_NET_RETURN;
+      if(!actionable&&!includeUnprofitable)continue;
       const bundleLogic=deadline?"deadline-dominance":"threshold-dominance",bundleId=`dominance:${event.id}:${legs[0].market_id}:${legs[1].market_id}`;
       const relation=deadline?`${lower.question} is the earlier deadline and ${higher.question} is the later deadline`
         :`${superset.question} logically contains ${subset.question}`;
@@ -1154,8 +1155,8 @@ function dominanceBundleSuggestions(event){
         evidence_score:1,evidence_source_count:0,quality:"bundle-arb",conviction:+clamp(80+netReturn*1200,80,96).toFixed(1),
         volume:quoteA.volume+quoteB.volume,volume_24hr:quoteA.volume_24hr+quoteB.volume_24hr,liquidity:Math.min(quoteA.liquidity,quoteB.liquidity),
         spread:Math.max(quoteA.spread,quoteB.spread),price_change_1h:0,price_change_1d:0,price_change_1w:0,momentum_strength:0,
-        signal_strength:1,signal_confidence:1,signal_type:"bundle-arb",trade_ready:true,entry_candidate:true,audited_observation_only:false,
-        adaptive_promotion:false,watch_only:false,jump_risk:false,requires_live:true,days_to_resolution:daysUntil(event.endDate),
+        signal_strength:1,signal_confidence:1,signal_type:"bundle-arb",trade_ready:actionable,entry_candidate:actionable,audited_observation_only:!actionable,
+        adaptive_promotion:false,watch_only:!actionable,jump_risk:false,requires_live:true,opportunity_actionable:actionable,days_to_resolution:daysUntil(event.endDate),
         bundle_cost_per_unit:+cost.toFixed(4),bundle_payout_per_unit:payout,bundle_net_profit_per_unit:+profit.toFixed(4),bundle_legs:legs,
         drivers:[deadline?"same-event nested deadlines":"same-event nested thresholds","live executable ask pair","guaranteed minimum one-contract payout","positive margin after estimated costs"],
         rationale:`${deadline?"Deadline":"Threshold"} dominance: ${relation}. ${strategy} costs ${cost.toFixed(3)} per pair against a guaranteed minimum payout of $1.00 when both use the same event terms. The modeled margin is ${profit.toFixed(3)} (${(netReturn*100).toFixed(2)}%) after 0.5c estimated cost per leg. Both live legs must open together and remain paired through settlement.`});
@@ -1163,7 +1164,7 @@ function dominanceBundleSuggestions(event){
   }
   return candidates.sort((a,b)=>b.net_edge-a.net_edge);
 }
-function negativeRiskBundleSuggestion(event){
+function negativeRiskBundleSuggestion(event,{includeUnprofitable=false}={}){
   if(!event||!event.negRisk||event.enableNegRisk===false)return null;
   const rawLegs=Array.isArray(event.markets)?event.markets:[];
   if(rawLegs.length<2||rawLegs.some(m=>m.closed||m.active===false||m.acceptingOrders===false))return null;
@@ -1190,10 +1191,11 @@ function negativeRiskBundleSuggestion(event){
     return {side,legs,cost,payout,profit,netReturn};
   };
   const candidate=[makeCandidate("YES"),makeCandidate("NO")].filter(Boolean)
-    .filter(x=>x.profit>=NEG_RISK_MIN_NET_PROFIT&&x.netReturn>=NEG_RISK_MIN_NET_RETURN)
+    .filter(x=>includeUnprofitable||(x.profit>=NEG_RISK_MIN_NET_PROFIT&&x.netReturn>=NEG_RISK_MIN_NET_RETURN))
     .sort((a,b)=>b.netReturn-a.netReturn)[0];
   if(!candidate)return null;
   const {side,legs,cost,payout,profit,netReturn}=candidate,minLiquidity=Math.min(...legs.map(leg=>leg.liquidity));
+  const actionable=profit>=NEG_RISK_MIN_NET_PROFIT&&netReturn>=NEG_RISK_MIN_NET_RETURN;
   return {market_id:`bundle:${event.id}:${side.toLowerCase()}`,bundle_id:`bundle:${event.id}:${side.toLowerCase()}`,bundle_side:side,
     question:`Complete ${side} bundle: ${event.title||"multi-outcome event"}`,event:event.title||"",
     url:event.slug?`https://polymarket.com/event/${event.slug}`:"",category,tags:eventTags.map(t=>t.label).filter(Boolean).slice(0,4),
@@ -1203,8 +1205,8 @@ function negativeRiskBundleSuggestion(event){
     evidence_score:1,evidence_source_count:0,quality:"bundle-arb",conviction:+clamp(78+netReturn*1200,78,96).toFixed(1),
     volume:rawLegs.reduce((sum,m)=>sum+toNum(m.volumeNum||m.volume),0),volume_24hr:rawLegs.reduce((sum,m)=>sum+toNum(m.volume24hr),0),liquidity:minLiquidity,
     spread:Math.max(...rawLegs.map(m=>toNum(m.spread))),price_change_1h:0,price_change_1d:0,price_change_1w:0,momentum_strength:0,
-    signal_strength:1,signal_confidence:1,signal_type:"bundle-arb",trade_ready:true,entry_candidate:true,audited_observation_only:false,
-    adaptive_promotion:false,watch_only:false,jump_risk:false,requires_live:true,days_to_resolution:daysUntil(event.endDate),
+    signal_strength:1,signal_confidence:1,signal_type:"bundle-arb",trade_ready:actionable,entry_candidate:actionable,audited_observation_only:!actionable,
+    adaptive_promotion:false,watch_only:!actionable,jump_risk:false,requires_live:true,opportunity_actionable:actionable,days_to_resolution:daysUntil(event.endDate),
     bundle_cost_per_unit:+cost.toFixed(4),bundle_payout_per_unit:payout,bundle_net_profit_per_unit:+profit.toFixed(4),bundle_legs:legs,
     drivers:["complete negative-risk event","executable bid/ask gap","positive margin after estimated costs"],
     rationale:`Complete bundle: buy every ${side} leg together for ${cost.toFixed(3)} per bundle unit against a ${payout.toFixed(2)} worst-case payout. The modeled margin is ${profit.toFixed(3)} (${(netReturn*100).toFixed(2)}%) after ${(SIGNAL_ROUND_TRIP_COST*100).toFixed(1)}c estimated cost per leg. This requires live prices and must stay intact until settlement.`};
@@ -1218,12 +1220,19 @@ async function fetchNegativeRiskBundles(limit=NEG_RISK_EVENT_SCAN_LIMIT){
     const page=await response.json();if(!Array.isArray(page)||!page.length)break;
     events.push(...page);if(page.length<size)break;
   }
-  const candidates=events.flatMap(event=>{
-    const complete=negativeRiskBundleSuggestion(event);
-    return [...(complete?[complete]:[]),...dominanceBundleSuggestions(event)];
+  const audited=events.flatMap(event=>{
+    const complete=negativeRiskBundleSuggestion(event,{includeUnprofitable:true});
+    return [...(complete?[complete]:[]),...dominanceBundleSuggestions(event,{includeUnprofitable:true})];
   }).sort((a,b)=>b.net_edge-a.net_edge);
+  const candidates=audited.filter(candidate=>candidate.opportunity_actionable);
   const seen=new Set();
-  return candidates.filter(candidate=>{const id=String(candidate.bundle_id||candidate.market_id);if(!id||seen.has(id))return false;seen.add(id);return true;}).slice(0,20);
+  const unique=candidates.filter(candidate=>{const id=String(candidate.bundle_id||candidate.market_id);if(!id||seen.has(id))return false;seen.add(id);return true;});
+  const closest=audited[0]||null;
+  return {candidates:unique.slice(0,20),audit:{status:"ok",scanned_at:nowIso(),event_scan_limit:limit,events_scanned:events.length,
+    evaluated_structures:audited.length,actionable_bundles:unique.length,
+    closest_margin_cents:closest?+(Number(closest.bundle_net_profit_per_unit)*100).toFixed(2):null,
+    closest_return_pct:closest?+(Number(closest.net_edge)*100).toFixed(3):null,
+    closest_title:closest?closest.question:null,closest_url:closest?closest.url:null}};
 }
 async function fetchRewardMakerCandidates(limit=60){
   const params=new URLSearchParams({limit:String(limit),min_hours:"48"});
@@ -1269,7 +1278,7 @@ const SUGGESTION_PER_CATEGORY=180;
 const VISIBLE_SUGGESTIONS=900;
 const REAL_WORLD_SIGNAL_LIMIT=120;
 const SIGNAL_ROUND_TRIP_COST=0.005;
-const NEG_RISK_EVENT_SCAN_LIMIT=500;
+const NEG_RISK_EVENT_SCAN_LIMIT=1000;
 const NEG_RISK_MIN_LIQUIDITY=1000;
 const NEG_RISK_MIN_NET_PROFIT=0.003;
 const NEG_RISK_MIN_NET_RETURN=0.0015;
@@ -1780,7 +1789,7 @@ function compactSyncItems(items,limits=SYNC_LIMITS){
 }
 function saveState(st){localStorage.setItem(AGENTS_KEY,JSON.stringify(compactAgentStateForSync(st)));}
 function loadSuggestions(){try{const s=localStorage.getItem(SUG_KEY);return s?JSON.parse(s):{date:null,suggestions:[]};}catch(e){return {date:null,suggestions:[]};}}
-function saveSuggestions(sugs,marketCount=0,analyzedCount=null){const p={date:todayStr(),generated_at:nowIso(),engine_version:BUILD_VERSION,strategy_version:SUGGESTION_ENGINE_VERSION,market_count:marketCount,analyzed_count:analyzedCount==null?marketCount:analyzedCount,analysis_limit:MARKET_ANALYSIS_LIMIT,suggestion_cap:SUGGESTION_TOTAL,suggestions:sugs};const compact=compactSuggestionsForSync(p);localStorage.setItem(SUG_KEY,JSON.stringify(compact));return compact;}
+function saveSuggestions(sugs,marketCount=0,analyzedCount=null,opportunityAudit=null){const p={date:todayStr(),generated_at:nowIso(),engine_version:BUILD_VERSION,strategy_version:SUGGESTION_ENGINE_VERSION,market_count:marketCount,analyzed_count:analyzedCount==null?marketCount:analyzedCount,analysis_limit:MARKET_ANALYSIS_LIMIT,suggestion_cap:SUGGESTION_TOTAL,opportunity_audit:opportunityAudit,suggestions:sugs};const compact=compactSuggestionsForSync(p);localStorage.setItem(SUG_KEY,JSON.stringify(compact));return compact;}
 function compactCachedMarket(m){
   return {id:m.id,question:m.question,event:m.event,event_id:m.event_id,url:m.url,category:m.category,tags:m.tags,
     clob_token_ids:m.clob_token_ids,yes_price:m.yes_price,no_price:m.no_price,volume:m.volume,
@@ -3891,7 +3900,7 @@ async function runDailyCycle(){
       return {suggestions:(loadSuggestions().suggestions||[]).length,skipped:true,hour};
     }
     SNAP_TS=nowIso();
-    let markets=[],analysisMarkets=[],sugs=[],bundleSugs=[],shockSugs=[],makerAuditCandidates=[],cache=loadMarketCache(),runMode="live",cacheAgeMs=0;
+    let markets=[],analysisMarkets=[],sugs=[],bundleSugs=[],shockSugs=[],makerAuditCandidates=[],bundleAudit=null,cache=loadMarketCache(),runMode="live",cacheAgeMs=0;
     try{
       setStatus("loading the 500 most active eligible markets…",true);
       markets=await fetchMarkets(20,100,count=>setStatus(`loaded ${Math.min(count,ACTIVE_MARKET_FETCH_LIMIT).toLocaleString()} of 500 eligible active markets…`,true),ACTIVE_MARKET_FETCH_LIMIT);
@@ -3899,7 +3908,8 @@ async function runDailyCycle(){
       if(!analysisMarkets.length)throw new Error("No active markets returned");
       setStatus(`analyzing ${analysisMarkets.length.toLocaleString()} most-active markets…`,true);
       setStatus("checking complete live-priced event bundles…",true);
-      try{bundleSugs=await fetchNegativeRiskBundles();}catch(e){bundleSugs=[];}
+      try{const bundleScan=await fetchNegativeRiskBundles();bundleSugs=bundleScan.candidates;bundleAudit=bundleScan.audit;}
+      catch(e){bundleSugs=[];bundleAudit={status:"unavailable",scanned_at:nowIso(),event_scan_limit:NEG_RISK_EVENT_SCAN_LIMIT,events_scanned:0,evaluated_structures:0,actionable_bundles:0,error:String(e&&e.message||e)};}
       setStatus("measuring reward-book competition…",true);
       try{makerAuditCandidates=await fetchRewardMakerCandidates();}catch(e){makerAuditCandidates=[];}
       setStatus("checking real-world context…",true);
@@ -3911,7 +3921,7 @@ async function runDailyCycle(){
         .sort((a,b)=>(Number(b.quality==="bundle-arb")-Number(a.quality==="bundle-arb"))
           ||(Number(b.quality==="resolution-week-no-pilot")-Number(a.quality==="resolution-week-no-pilot"))
           ||(Number(b.quality==="shock-fade-shadow")-Number(a.quality==="shock-fade-shadow"))||(b.conviction-a.conviction)).slice(0,SUGGESTION_TOTAL);
-      saveSuggestions(sugs,markets.length,analysisMarkets.length);
+      saveSuggestions(sugs,markets.length,analysisMarkets.length,bundleAudit);
     }catch(networkError){
       cache=cache||loadMarketCache();
       const stored=loadSuggestions();
@@ -4460,8 +4470,12 @@ function renderSuggestions(){
   const evAvg=all.length?Math.round(all.reduce((s,x)=>s+Number(x.evidence_score||0),0)/all.length*100):0;
   const scanned=Number(data.market_count||0).toLocaleString();
   const analyzed=Number(data.analyzed_count||data.market_count||0).toLocaleString();
+  const audit=data.opportunity_audit||null;
+  const auditText=audit&&audit.status==="ok"
+    ?` Bundle scanner checked ${Number(audit.events_scanned||0).toLocaleString()} events and ${Number(audit.evaluated_structures||0).toLocaleString()} complete/dominance structures; ${Number(audit.actionable_bundles||0)} cleared costs.${audit.closest_margin_cents!=null?` Closest margin: ${Number(audit.closest_margin_cents)>=0?"+":""}${Number(audit.closest_margin_cents).toFixed(2)}c per bundle.`:""}`
+    :(audit?" Bundle scanner was unavailable during this cycle; the site did not treat cached bundle prices as executable.":"");
   $("focusNote").textContent=focus==="All"
-    ? `Loaded the ${scanned} most active markets, analyzed ${analyzed}, and kept ${all.length} ideas (${buyCount} TRADE READY, ${watchCount} WATCH). Showing ${filtered.length}; directional signals remain WATCH until their own event-clustered cohorts earn positive promotion. Complete negative-risk bundles are trade ready only when live executable prices leave a positive worst-case margin after estimated costs. Cash is retained when neither condition is met. Avg evidence ${evAvg}.`
+    ? `Loaded the ${scanned} most active markets, analyzed ${analyzed}, and kept ${all.length} ideas (${buyCount} TRADE READY, ${watchCount} WATCH). Showing ${filtered.length}; directional signals remain WATCH until their own event-clustered cohorts earn positive promotion. Complete negative-risk bundles are trade ready only when live executable prices leave a positive worst-case margin after estimated costs. Cash is retained when neither condition is met. Avg evidence ${evAvg}.${auditText}`
     : `Loaded the ${scanned} most active markets and analyzed ${analyzed}. Showing ${filtered.length} of ${pool.length} ${focus} ideas; directional entries require adaptive promotion and complete bundles require live positive executable margin.`;
   if(!filtered.length){root.innerHTML=`<div class="empty" style="grid-column:1/-1">No ${esc(focus)} suggestions in this live batch.</div>`;return;}
   root.innerHTML=filtered.map(s=>{
@@ -5911,6 +5925,7 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
     directionalSignalsRequirePromotion:true,directionalSignalPolicyVersion:DIRECTIONAL_SIGNAL_POLICY_VERSION,
     directionalSignalCompatibleStrategies:[DIRECTIONAL_SIGNAL_COMPATIBLE_STRATEGY_MIN,DIRECTIONAL_SIGNAL_COMPATIBLE_STRATEGY_MAX],
     focusAndReconnectCatchup:true,liveOnlyCompleteBundles:true,negativeRiskBundleSides:["YES","NO"],negativeRiskEventScanLimit:NEG_RISK_EVENT_SCAN_LIMIT,
+    autonomousScanMinutes:5,bundleOpportunityTelemetry:true,
     dominanceBundleLogic:"same-event nested threshold or calendar-deadline YES/NO pairs with identical normalized terms",
     negativeRiskMinimumNetReturnPct:NEG_RISK_MIN_NET_RETURN*100,
     pairedMakerQuotes:"research-only-immediate-lock-or-exit",makerStrategyVersion:MAKER_STRATEGY_VERSION,
@@ -6486,10 +6501,12 @@ function runEngineSelfTest(){
     Object.assign({},dominanceEvent.markets[0],{id:"mismatch-a",question:"Will Acme FDV be above $2B one day after launch?"}),
     Object.assign({},dominanceEvent.markets[1],{id:"mismatch-b",question:"Will Acme FDV be above $3B seven days after launch?"}),
   ]}).length===0;
-  const unprofitableDominanceRejected=dominanceBundleSuggestions({id:"dominance-expensive",title:"Expensive pair",markets:[
+  const expensiveDominanceEvent={id:"dominance-expensive",title:"Expensive pair",markets:[
     Object.assign({},dominanceEvent.markets[0],{id:"expensive-a",bestAsk:0.50}),
-    Object.assign({},dominanceEvent.markets[1],{id:"expensive-b",bestBid:0.50}),
-  ]}).length===0;
+    Object.assign({},dominanceEvent.markets[1],{id:"expensive-b",bestBid:0.50,bestAsk:0.55}),
+  ]};
+  const unprofitableDominanceRejected=dominanceBundleSuggestions(expensiveDominanceEvent).length===0;
+  const unprofitableDominanceAudited=dominanceBundleSuggestions(expensiveDominanceEvent,{includeUnprofitable:true})[0];
   const nonBinaryDominanceRejected=dominanceBundleSuggestions({id:"dominance-labels",title:"Non-binary pair",markets:dominanceEvent.markets.map((row,index)=>Object.assign({},row,{id:`nonbinary-${index}`,outcomes:'["Over","Under"]'}))}).length===0;
   const deadlineEvent={id:"deadline-test",title:"Acme launch deadline",slug:"acme-launch-deadline",tags:[{slug:"business",label:"Business"}],markets:[
     {id:"deadline-early",question:"Will Acme launch by September 30, 2026?",outcomes:'["Yes","No"]',outcomePrices:'["0.595","0.405"]',clobTokenIds:'["deadline-early-yes","deadline-early-no"]',bestBid:0.60,bestAsk:0.61,liquidityNum:30000,volumeNum:100000,volume24hr:10000,spread:0.01,acceptingOrders:true},
@@ -6948,6 +6965,8 @@ function runEngineSelfTest(){
         &&belowDominanceSuggestion.bundle_legs[0].market_id==="below-high"&&belowDominanceSuggestion.bundle_legs[1].market_id==="below-low"),
       rejectsMismatchedDominanceTerms:mismatchedDominanceRejected,
       rejectsUnprofitableDominancePair:unprofitableDominanceRejected,
+      retainsUnprofitablePairForTelemetry:Boolean(unprofitableDominanceAudited&&!unprofitableDominanceAudited.trade_ready
+        &&unprofitableDominanceAudited.watch_only&&unprofitableDominanceAudited.bundle_net_profit_per_unit<0),
       rejectsNonBinaryDominanceLabels:nonBinaryDominanceRejected,
       identifiesDeadlineDominance:Boolean(deadlineSuggestion&&deadlineSuggestion.bundle_logic==="deadline-dominance"
         &&deadlineSuggestion.bundle_cost_per_unit===0.96&&deadlineSuggestion.bundle_net_profit_per_unit===0.04
@@ -7014,7 +7033,7 @@ initProviderConfig();
 refreshTradeEmailStatus();
 $("runBtn").addEventListener("click",async()=>{
   const btn=$("runBtn");btn.disabled=true;btn.textContent="Running…";
-  try{const r=await runDailyCycle();const b=board(),mode=r.offline?(r.executeTrades?"Offline":"Mark-only"):"Live";toast(r.readOnly?"The autonomous shared runner owns this portfolio; refreshed results arrive every 15 minutes.":r.busy?`Cycle already running · ${b[0].c.emoji} ${b[0].c.name} leads`:r.skipped?`Already ran this minute · ${b[0].c.emoji} ${b[0].c.name} leads`:`${mode} cycle done${r.pendingSync?" · sync queued":""} · ${r.suggestions} ideas · ${b[0].c.emoji} ${b[0].c.name} leads`);renderAll();}
+  try{const r=await runDailyCycle();const b=board(),mode=r.offline?(r.executeTrades?"Offline":"Mark-only"):"Live";toast(r.readOnly?"The autonomous shared runner owns this portfolio; refreshed results arrive every five minutes.":r.busy?`Cycle already running · ${b[0].c.emoji} ${b[0].c.name} leads`:r.skipped?`Already ran this minute · ${b[0].c.emoji} ${b[0].c.name} leads`:`${mode} cycle done${r.pendingSync?" · sync queued":""} · ${r.suggestions} ideas · ${b[0].c.emoji} ${b[0].c.name} leads`);renderAll();}
   catch(e){toast("Run failed: "+e.message);setStatus("error",false);}
   btn.disabled=autonomousRuntimeControlsCycle();btn.textContent=btn.disabled?"Auto cycle":"Run cycle";
 });
@@ -7177,7 +7196,7 @@ if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw.js").catc
   renderAll();
   const btn=$("runBtn");
   if(autonomousRuntimeControlsCycle()){
-    btn.disabled=true;btn.textContent="Auto cycle";setStatus("autonomous shared state · refreshes every 15 min",false);return;
+    btn.disabled=true;btn.textContent="Auto cycle";setStatus("autonomous shared state · refreshes every 5 min",false);return;
   }else if(!st.seeded){
     btn.disabled=true;btn.textContent="Starting…";
     try{
