@@ -24,7 +24,7 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-export function validateRuntimeSnapshot(snapshot, expectedBuild = 0) {
+export function validateRuntimeSnapshot(snapshot, expectedBuild = 0, { allowIncomplete = false } = {}) {
   if (!snapshot || typeof snapshot !== "object" || !snapshot.items || typeof snapshot.items !== "object") {
     throw new Error("Autonomous export is not a state snapshot");
   }
@@ -47,7 +47,12 @@ export function validateRuntimeSnapshot(snapshot, expectedBuild = 0) {
   if (expectedBuild && Number(snapshot.build_version) !== Number(expectedBuild)) {
     throw new Error(`Expected Build ${expectedBuild}, received Build ${snapshot.build_version}`);
   }
-  if ((suggestions.suggestions || []).length > 300) throw new Error("Runtime suggestion snapshot exceeds the 300-item public limit");
+  const suggestionCount = (suggestions.suggestions || []).length;
+  if (suggestionCount > 300) throw new Error("Runtime suggestion snapshot exceeds the 300-item public limit");
+  if (!allowIncomplete && suggestionCount === 0) throw new Error("Runtime cycle produced no live suggestions");
+  if (!allowIncomplete && Object.values(agents.agents).some(agent => !agent?.lastDecision)) {
+    throw new Error("Runtime cycle did not produce a decision for every agent");
+  }
   const bytes = Buffer.byteLength(JSON.stringify(snapshot));
   if (bytes > MAX_STATE_BYTES) throw new Error(`Runtime snapshot is ${bytes} bytes; limit is ${MAX_STATE_BYTES}`);
   return { snapshot, bytes, agents, suggestions };
@@ -123,10 +128,10 @@ async function main() {
   const branch = process.env.RUNTIME_BRANCH || "runtime-state";
   const pathname = process.env.RUNTIME_STATE_PATH || "runtime/state.json";
   const arenaUrl = (process.env.ARENA_URL || "https://polymarket-site-eta.vercel.app").replace(/\/$/, "");
-  const expectedBuild = Number(required("EXPECTED_BUILD", "88"));
+  const expectedBuild = Number(required("EXPECTED_BUILD", "89"));
   await ensureRuntimeBranch(repository, branch);
   const prior = await readRuntimeFile(repository, branch, pathname);
-  if (prior.snapshot) validateRuntimeSnapshot(prior.snapshot);
+  if (prior.snapshot) validateRuntimeSnapshot(prior.snapshot, 0, { allowIncomplete: true });
 
   const browser = await chromium.launch({ headless: true });
   try {
