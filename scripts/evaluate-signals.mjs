@@ -1,6 +1,7 @@
 const GAMMA = "https://gamma-api.polymarket.com";
 const CLOB = "https://clob.polymarket.com";
 const MARKET_LIMIT = Math.max(10, Math.min(500, Number(process.env.EVAL_MARKETS || 80)));
+const ACTIVE_SKIP = Math.max(0, Math.min(5000, Number(process.env.EVAL_SKIP || 0)));
 const CONCURRENCY = Math.max(1, Math.min(12, Number(process.env.EVAL_CONCURRENCY || 6)));
 const HORIZONS = [...new Set(String(process.env.EVAL_HORIZONS || "6,12,24,72").split(",")
   .map(Number).filter((value) => Number.isFinite(value) && value >= 1 && value <= 168))].sort((a, b) => a - b);
@@ -258,9 +259,10 @@ function chronologicalEvaluation(rows) {
     thirds: thirdRules, robustRules };
 }
 
-async function fetchActiveMarkets(limit) {
+async function fetchActiveMarkets(limit, skip = 0) {
   const markets = [], seen = new Set(), pageSize = 100;
-  for (let offset = 0; markets.length < limit && offset < limit * 4; offset += pageSize) {
+  let eligibleSkipped = 0;
+  for (let offset = 0; markets.length < limit && offset < (limit + skip) * 4; offset += pageSize) {
     const params = new URLSearchParams({ active: "true", closed: "false", archived: "false", include_tag: "true",
       limit: String(pageSize), offset: String(offset), order: "volume24hr", ascending: "false" });
     const page = await fetchJson(`${GAMMA}/markets?${params}`);
@@ -268,6 +270,7 @@ async function fetchActiveMarkets(limit) {
     for (const market of page) {
       const id = String(market.id || ""), labels = parseJson(market.outcomes).map((outcome) => String(outcome).trim().toLowerCase());
       if (!id || seen.has(id) || labels[0] !== "yes" || labels[1] !== "no") continue;
+      if (eligibleSkipped < skip) { seen.add(id); eligibleSkipped++; continue; }
       seen.add(id); markets.push(market);
       if (markets.length >= limit) break;
     }
@@ -276,7 +279,7 @@ async function fetchActiveMarkets(limit) {
   return markets.slice(0, limit);
 }
 
-const rawMarkets = await fetchActiveMarkets(MARKET_LIMIT);
+const rawMarkets = await fetchActiveMarkets(MARKET_LIMIT, ACTIVE_SKIP);
 const markets = rawMarkets.map((raw) => ({ id: String(raw.id), question: raw.question || "", category: categoryOf(raw),
   binaryLabels: parseJson(raw.outcomes).map((outcome) => String(outcome).trim().toLowerCase()),
   eventKey: String(raw.events?.[0]?.id || raw.events?.[0]?.slug || raw.eventId || raw.id),
@@ -293,7 +296,7 @@ const outcomes = successful.flatMap((result) => result.outcomes);
 const primaryHorizon = HORIZONS.includes(12) ? 12 : HORIZONS[0];
 const primaryOutcomes = outcomes.filter((row) => row.horizonHours === primaryHorizon);
 const report = {
-  generatedAt: new Date().toISOString(), marketLimit: MARKET_LIMIT, marketsWithHistory: successful.length,
+  generatedAt: new Date().toISOString(), marketLimit: MARKET_LIMIT, activeMarketsSkipped: ACTIVE_SKIP, marketsWithHistory: successful.length,
   methodology: { horizonHours: HORIZONS, primaryHorizon, observationBucketHours: 6, historyInterval: "1m", fidelityMinutes: 60,
     estimatedRoundTripCostCents: COST_CENTS, clusterUnit: "event",
     note: "Current active-market selection and current category tags are a survivorship-biased proxy; signal inputs and future marks are time-ordered without lookahead. Confidence intervals cluster correlated markets by Polymarket event." },
@@ -316,7 +319,8 @@ const compactRules = (rules = {}) => Object.fromEntries(Object.entries(rules)
     minimumSegmentMean: result.minimumSegmentMean, maximumSegmentMean: result.maximumSegmentMean,
     pooled: compactStats(result.pooled) }]));
 const summary = {
-  generatedAt: report.generatedAt, marketLimit: report.marketLimit, marketsWithHistory: report.marketsWithHistory,
+  generatedAt: report.generatedAt, marketLimit: report.marketLimit, activeMarketsSkipped: report.activeMarketsSkipped,
+  marketsWithHistory: report.marketsWithHistory,
   primaryHorizon: report.methodology.primaryHorizon, failures: report.failures,
   overall: compactStats(report.overall),
   byType: Object.fromEntries(Object.entries(report.byType).map(([key, value]) => [key, compactStats(value)])),

@@ -1,0 +1,71 @@
+{
+  "generated_at": "2026-08-21T22:50:27.912Z",
+  "strategy": "resolution-window-no-50-55",
+  "selection": {
+    "markets_requested": 3000,
+    "markets_with_history": 2916,
+    "order": "closedTime descending",
+    "horizon_days_tested": [1, 3, 7, 14, 30, 90],
+    "horizon_days_enabled": [3, 7],
+    "modeled_round_trip_cost_cents": 1,
+    "history_fidelity_minutes": 1440,
+    "cluster_unit": "Polymarket event"
+  },
+  "rules": {
+    "side": "NO",
+    "midpoint_min_inclusive": 0.5,
+    "midpoint_max_exclusive": 0.55,
+    "3_day": {
+      "observations": 632,
+      "events": 158,
+      "event_mean_return": 0.3324127082,
+      "event_lower_90": 0.2551784721,
+      "win_rate": 0.8022151899,
+      "train_events": 102,
+      "train_event_lower_90": 0.1932371274,
+      "holdout_events": 58,
+      "holdout_event_lower_90": 0.2726926035,
+      "chronological_thirds_event_lower_90": [0.1536229561, 0.1670007024, 0.2405597789]
+    },
+    "7_day": {
+      "observations": 512,
+      "events": 114,
+      "event_mean_return": 0.3820780403,
+      "event_lower_90": 0.3124946179,
+      "win_rate": 0.818359375,
+      "train_events": 79,
+      "train_event_lower_90": 0.305848167,
+      "holdout_events": 35,
+      "holdout_event_lower_90": 0.2376613258,
+      "chronological_thirds_event_lower_90": [0.348483419, 0.1301313899, 0.3106913741]
+    }
+  },
+  "rejected_neighboring_rule": {
+    "name": "resolution-week-no-55-90",
+    "events": 37,
+    "event_mean_return": -0.0119488579,
+    "event_lower_90": -0.1573098631,
+    "reason": "The exact neighboring band failed pooled, train, holdout, and chronological-segment robustness."
+  },
+  "production_constraints": {
+    "fixed_date_only": true,
+    "sports_excluded": true,
+    "minimum_total_volume_usd": 15000,
+    "minimum_live_liquidity_usd": 1400,
+    "maximum_spread": 0.03,
+    "entry": "executable NO ask plus 0.25 cents slippage",
+    "maximum_entry_friction_cents": 1,
+    "resolution_windows_days": [[2.5, 3.5], [6.5, 7.5]],
+    "initial_position_pct": 0.5,
+    "total_cap_pct": 3,
+    "one_owner_per_event": true,
+    "exit": "verified market settlement only"
+  },
+  "limitations": [
+    "The resolved archive cannot reconstruct contemporaneous historical liquidity or order-book depth.",
+    "Recent closed-market selection can reflect a temporary question-construction regime.",
+    "Published midpoint history is not a fill guarantee; production therefore applies current executable pricing and liquidity gates.",
+    "This audit authorizes only bounded paper trading and does not guarantee future profit."
+  ],
+  "reproduce": "SETTLEMENT_MARKETS=3000 SETTLEMENT_HORIZONS=1,3,7,14,30,90 SETTLEMENT_COST_CENTS=1 SETTLEMENT_ORDER=closedTime SETTLEMENT_ASCENDING=false SETTLEMENT_TARGET_ONLY=1 SETTLEMENT_TARGET_RULES=buy_no_50_55 node scripts/evaluate-settlements.mjs"
+}

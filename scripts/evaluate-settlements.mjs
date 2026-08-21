@@ -175,6 +175,13 @@ const RULES = [
   { name: "buy_underdog", test: (row) => !row.favorite },
   { name: "buy_yes", test: (row) => row.side === "YES" },
   { name: "buy_no", test: (row) => row.side === "NO" },
+  { name: "buy_no_favorite", test: (row) => row.side === "NO" && row.favorite },
+  { name: "buy_no_55_90", test: (row) => row.side === "NO" && row.entry >= 0.55 && row.entry < 0.90 },
+  { name: "buy_no_50_55", test: (row) => row.side === "NO" && row.entry >= 0.50 && row.entry < 0.55 },
+  { name: "buy_no_60_90", test: (row) => row.side === "NO" && row.entry >= 0.60 && row.entry < 0.90 },
+  { name: "buy_no_90_95", test: (row) => row.side === "NO" && row.entry >= 0.90 && row.entry < 0.95 },
+  { name: "buy_no_95_99", test: (row) => row.side === "NO" && row.entry >= 0.95 && row.entry < 0.99 },
+  { name: "buy_no_90_99", test: (row) => row.side === "NO" && row.entry >= 0.90 && row.entry < 0.99 },
   { name: "follow_trend", test: (row) => row.trend },
   { name: "follow_trend_yes", test: (row) => row.trend && row.side === "YES" },
   { name: "follow_trend_no", test: (row) => row.trend && row.side === "NO" },
@@ -248,6 +255,14 @@ const compactRules = (rules = {}) => Object.fromEntries(Object.entries(rules)
   .filter(([, result]) => result.enoughData && (result.allPositive || result.allNegative))
   .map(([name, result]) => [name, { direction: result.allPositive ? "positive" : "negative",
     pooled: compactStats(result.pooled), train: compactStats(result.train), test: compactStats(result.test) }]));
+const TARGET_RULE_NAMES = String(process.env.SETTLEMENT_TARGET_RULES || "buy_no_favorite,buy_no_50_55,buy_no_55_90,buy_no_60_90,buy_no_90_95,buy_no_95_99,buy_no_90_99")
+  .split(",").map((name) => name.trim()).filter(Boolean);
+const targetRuleStats = (chronological, names = TARGET_RULE_NAMES) => Object.fromEntries(names.map((name) => {
+  const result = chronological.robustRules[name] || {};
+  return [name, { enoughData: Boolean(result.enoughData), allPositive: Boolean(result.allPositive), allNegative: Boolean(result.allNegative),
+    pooled: compactStats(result.pooled), train: compactStats(result.train), test: compactStats(result.test),
+    segments: (result.segments || []).map(compactStats) }];
+}));
 const summary = {
   generatedAt: report.generatedAt, requestedMarkets: report.requestedMarkets, resolvedMarkets: report.resolvedMarkets,
   marketsWithHistory: report.marketsWithHistory, failures: report.failures,
@@ -263,7 +278,12 @@ const summary = {
     noTest: compactStats(value.chronological.test.buy_no),
     trend: compactStats(value.chronological.train.follow_trend),
     trendTest: compactStats(value.chronological.test.follow_trend),
+    targetRules: targetRuleStats(value.chronological),
     robustRules: compactRules(value.chronological.robustRules),
   }])),
 };
-console.log(JSON.stringify(compact ? summary : report, null, 2));
+const targetOnly = process.env.SETTLEMENT_TARGET_ONLY === "1";
+const targetSummary = { generatedAt: summary.generatedAt, requestedMarkets: summary.requestedMarkets,
+  resolvedMarkets: summary.resolvedMarkets, marketsWithHistory: summary.marketsWithHistory, failures: summary.failures,
+  horizons: Object.fromEntries(Object.entries(summary.horizons).map(([days, value]) => [days, { observations: value.observations, targetRules: value.targetRules }])) };
+console.log(JSON.stringify(targetOnly ? targetSummary : (compact ? summary : report), null, 2));

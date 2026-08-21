@@ -20,7 +20,7 @@ market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
 
-Build 95 runs the headless GitHub Actions runtime every 15 minutes, continues
+Build 96 runs the headless GitHub Actions runtime every 15 minutes, continues
 from the previous agent snapshot,
 and runs the next due paper cycle even when no browser is open. It writes a
 sanitized snapshot to the `runtime-state` branch and `/api/state` uses that as a
@@ -40,6 +40,31 @@ Active shock positions use a second underlying-risk key in addition to the
 Polymarket event key. Related Ethereum or Bitcoin contracts cannot create
 several simultaneous copies of one move, and outcomes from the same underlying
 three-hour shock window count as one learner event.
+
+Build 96 adds a separate current-regime resolution-window NO pilot for
+the five aggressive agents. It accepts only non-sports, fixed-date contracts
+inside validated 2.5-3.5 day or 6.5-7.5 day windows, with the NO midpoint from 50%-55%, at least $15,000 total
+volume, $1,400 liquidity, and no more than a three-cent spread. The entry uses
+the executable NO ask plus 0.25 cents of slippage and rejects more than one cent
+of entry friction. Initial positions are 0.5% of equity, one new position per
+agent per cycle, one owner per event across the arena, and no more than 3% of an
+agent's equity in the lane. These positions hold through interim volatility and
+close only after Polymarket marks the market closed; offline snapshots cannot
+invent settlement. Twenty losing independent forward events or a 1% aggregate
+pilot loss disables the lane for every adopter, and ten convincingly losing
+events disable only their exact holding horizon. Forty events with a positive
+lower confidence bound above 1% can raise position size to 1%.
+
+The frozen recent audit used 2,916 resolved markets and a one-cent cost. At
+three days, the exact 50%-55% NO rule covered 158 event clusters with a 33.24%
+event mean and 25.52% lower 90% bound; train and holdout lower bounds were
+19.32% and 27.27%. At seven days, 114 event clusters produced a 38.21% event
+mean and 31.25% lower bound; train and holdout lower bounds were 30.58% and
+23.77%. The one, fourteen, thirty, and ninety-day windows failed or lacked
+enough data and remain disabled. Contemporaneous historical liquidity cannot
+be reconstructed, so production adds live spread and liquidity gates and
+remains a bounded, automatically demoted paper pilot rather than a claim of
+durable or guaranteed profit.
 
 Build 94 also closes the contract-safety hole exposed by the first Strategy 3
 paper positions. Shock Strategy 4 keeps the same audited accelerating
