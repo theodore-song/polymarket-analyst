@@ -20,7 +20,7 @@ market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
 
-Build 99 runs the headless GitHub Actions runtime every five minutes, continues
+Build 100 runs the headless GitHub Actions runtime every five minutes, continues
 from the previous agent snapshot,
 and runs the next due paper cycle even when no browser is open. It writes a
 sanitized snapshot to the `runtime-state` branch and `/api/state` uses that as a
@@ -41,7 +41,7 @@ Polymarket event key. Related Ethereum or Bitcoin contracts cannot create
 several simultaneous copies of one move, and outcomes from the same underlying
 three-hour shock window count as one learner event.
 
-Each Build 99 cycle also scans the 1,000 most-active Polymarket events for
+Each Build 100 cycle also scans the 1,000 most-active Polymarket events for
 complete negative-risk bundles and logically nested threshold or deadline
 pairs. Only a positive worst-case payout margin after 0.5 cents of modeled cost
 per leg can enter the Value Discipline portfolio. The Suggestions view stores
@@ -52,32 +52,27 @@ eligible negative-risk events and 1,431 dominance pairs, but no positive bundle
 after costs; the closest complete bundle was 0.5 cents underwater and the
 closest dominance pair was 0.3 cents underwater.
 
-Build 97 expands the separate current-regime resolution-window NO pilot for
-the five aggressive agents. It accepts only non-sports, fixed-date contracts
-inside validated 2.5-3.5, 3.5-4.5, 4.5-5.5, or 5.5-6.5 day windows, with the NO midpoint from 50%-55%, at least $15,000 total
-volume, $1,400 liquidity, and no more than a three-cent spread. The entry uses
-the executable NO ask plus 0.25 cents of slippage and rejects more than one cent
-of entry friction. Initial positions are 0.5% of equity, one new position per
-agent per cycle, one owner per event across the arena, and no more than 3% of an
-agent's equity in the lane. These positions hold through interim volatility and
-close only after Polymarket marks the market closed; offline snapshots cannot
-invent settlement. Twenty losing independent forward events or a 1% aggregate
-pilot loss disables the lane for every adopter, and ten convincingly losing
-events disable only their exact holding horizon. Forty events with a positive
-lower confidence bound above 1% can raise position size to 1%.
+Build 100 retires the old 3-6 day resolution-window capital permission. Its
+audit clustered confidence by event but still averaged several correlated
+contracts inside each event, while production could choose only one. The
+corrected replay chooses the highest-volume eligible contract per event and
+rule. In the recent 3,000-market discovery sample, only the safe non-Sports
+50%-55% NO rule four days before settlement survived every chronological gate:
+145 events, a 38.42% mean, and a 26.12% lower 90% bound after one cent of cost.
+The next disjoint 3,000-market block did not confirm it: the safe cohort's
+holdout lower bound was -4.73%, and two chronological-third lower bounds were
+negative. No 3-6 day rule is therefore approved for capital.
 
-The corrected production-matched audit used 2,954 of 3,000 recent resolved
-markets and a one-cent cost. It excludes Sports and the same path-dependent
-barrier and range contracts rejected by production. At three, four, five, and
-six days, the exact 50%-55% NO rule covered 121, 144, 104, and 86 independent
-event clusters. Event mean returns were 24.52%, 38.15%, 36.86%, and 43.94%,
-with lower 90% bounds of 15.78%, 31.40%, 29.39%, and 37.67%. Every retained
-horizon had positive train, holdout, and chronological-segment lower bounds.
-Two days failed holdout. Seven and ten days lost a segment confidence test;
-other longer windows were not retained. Contemporaneous historical liquidity
-cannot be reconstructed, so production adds live spread and liquidity gates
-and remains a bounded, automatically demoted paper pilot rather than a claim
-of durable or guaranteed profit.
+The remaining four-day candidate is a zero-capital forward learner. It accepts
+only fixed-date, non-Sports contracts with a 50%-55% NO midpoint, at least
+$15,000 total volume, $1,400 liquidity, and no more than a three-cent spread.
+The modeled entry uses the executable NO ask plus 0.25 cents of slippage and
+rejects more than one cent of friction. One observation is recorded per event
+and graded only after Polymarket marks the market closed; offline snapshots
+cannot invent settlement. Forty independent settled observations with a lower
+90% confidence bound above 1% are required before 0.5%-of-equity paper
+positions can begin. Existing positions from the retired version still follow
+their precommitted settlement-only exit.
 
 Build 94 also closes the contract-safety hole exposed by the first Strategy 3
 paper positions. Shock Strategy 4 keeps the same audited accelerating

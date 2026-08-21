@@ -9,7 +9,7 @@ const runner = fs.readFileSync(new URL("./run-autonomous-cycle.mjs", import.meta
 const resolutionAudit = JSON.parse(fs.readFileSync(new URL("../research/resolution-week-no-audit.json", import.meta.url), "utf8"));
 const build = Number(index.match(/const BUILD_VERSION = (\d+);/)?.[1]);
 
-assert.equal(build, 99);
+assert.equal(build, 100);
 assert.deepEqual([...ALLOWED_RUNTIME_KEYS].sort(), ["pma_agents_v2", "pma_suggestions_v5"]);
 assert.match(index, /function collectPublicRuntimeItems\(\)/);
 assert.match(index, /const PUBLIC_RUNTIME_KEYS=Object\.freeze\(\[AGENTS_KEY,SUG_KEY\]\)/);
@@ -26,21 +26,18 @@ assert.match(api, /Buffer\.from\(file\.content/);
 assert.match(api, /searchParams\.set\("runtime", `\$\{Date\.now\(\)\}/);
 assert.match(workflow, /cron: "2,7,12,17,22,27,32,37,42,47,52,57 \* \* \* \*"/);
 assert.match(workflow, /contents: write/);
-assert.match(workflow, /EXPECTED_BUILD: "99"/);
+assert.match(workflow, /EXPECTED_BUILD: "100"/);
 assert.match(index, /saveSuggestions\(sugs,markets\.length,analysisMarkets\.length,bundleAudit\)/);
 assert.match(index, /const NEG_RISK_EVENT_SCAN_LIMIT=1000;/);
 assert.match(index, /bundleOpportunityTelemetry:true/);
 assert.match(runner, /MAX_STATE_BYTES = 900_000/);
-assert.equal(resolutionAudit.strategy, "resolution-window-no-50-55-safe-non-sports-v2");
-assert.deepEqual(resolutionAudit.selection.horizon_days_enabled, [3, 4, 5, 6]);
-for (const days of resolutionAudit.selection.horizon_days_enabled) {
-  const rule = resolutionAudit.rules[`${days}_day`];
-  assert.ok(rule.train_event_lower_90 > 0);
-  assert.ok(rule.holdout_event_lower_90 > 0);
-  assert.ok(rule.chronological_thirds_event_lower_90.every((value) => value > 0));
-}
-assert.match(resolutionAudit.rejected_windows["2_day"], /holdout/i);
-assert.match(resolutionAudit.rejected_windows["7_day"], /negative/i);
+assert.equal(resolutionAudit.strategy, "resolution-window-no-50-55-forward-shadow-v3");
+assert.deepEqual(resolutionAudit.selection.horizon_days_enabled, []);
+assert.deepEqual(resolutionAudit.selection.horizon_days_observed, [4]);
+assert.equal(resolutionAudit.disjoint_holdout.passed_strict_gate, false);
+assert.ok(resolutionAudit.disjoint_holdout.holdout_event_lower_90 < 0);
+assert.equal(resolutionAudit.production_constraints.capital_enabled, false);
+assert.equal(resolutionAudit.production_constraints.promotion_events, 40);
 
 const agentIds = ["value", "momentum", "favorite", "longshot", "diversifier", "catalyst", "reversal", "breakout", "tailalpha", "conviction"];
 const agents = Object.fromEntries(agentIds.map(id => [id, { cash: 10000, positions: [], lastDecision: { mode: "test" } }]));

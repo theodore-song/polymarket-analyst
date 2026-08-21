@@ -1,10 +1,12 @@
 const GAMMA = "https://gamma-api.polymarket.com";
 const CLOB = "https://clob.polymarket.com";
 const MARKET_LIMIT = Math.max(20, Math.min(3000, Number(process.env.SETTLEMENT_MARKETS || 200)));
+const MARKET_SKIP = Math.max(0, Math.min(10000, Number(process.env.SETTLEMENT_SKIP || 0)));
 const CONCURRENCY = Math.max(1, Math.min(12, Number(process.env.SETTLEMENT_CONCURRENCY || 6)));
 const HORIZON_DAYS = [...new Set(String(process.env.SETTLEMENT_HORIZONS || "1,3,7,14,30,90").split(",")
   .map(Number).filter((value) => Number.isFinite(value) && value >= 1 && value <= 365))].sort((a, b) => a - b);
 const COST_CENTS = Math.max(0, Math.min(5, Number(process.env.SETTLEMENT_COST_CENTS || 0.5)));
+const FINE_GRID = String(process.env.SETTLEMENT_FINE_GRID || "false").toLowerCase() === "true";
 const SELECTION_ORDER = ["volumeNum", "closedTime", "createdAt", "id"].includes(process.env.SETTLEMENT_ORDER)
   ? process.env.SETTLEMENT_ORDER : "volumeNum";
 const SELECTION_ASCENDING = String(process.env.SETTLEMENT_ASCENDING || "false").toLowerCase() === "true";
@@ -100,10 +102,11 @@ function confirmedTrendAt(points, target, current) {
     moderate: Math.abs(dayMove) <= 0.03 && Math.abs(weekMove) <= 0.10 };
 }
 
-async function fetchResolvedMarkets(limit) {
+async function fetchResolvedMarkets(limit, skip = 0) {
   const raw = [], seen = new Set(), pageSize = 100;
+  const targetCount = limit + skip;
   let cursor = "";
-  while (raw.length < limit) {
+  while (raw.length < targetCount) {
     const params = new URLSearchParams({ closed: "true", order: SELECTION_ORDER, ascending: String(SELECTION_ASCENDING),
       limit: String(pageSize) });
     if (cursor) params.set("after_cursor", cursor);
@@ -120,12 +123,12 @@ async function fetchResolvedMarkets(limit) {
         eventId: String(market.events?.[0]?.id || id),
         tokenId: String(tokens[0]), finalYes: outcomes[0] >= 0.99 ? 1 : 0, closedAt,
         safeContract: !hardSettlementJumpRisk(market), volume: Number(market.volumeNum || market.volume || 0) });
-      if (raw.length >= limit) break;
+      if (raw.length >= targetCount) break;
     }
     if (page.length < pageSize || !payload.next_cursor || payload.next_cursor === cursor) break;
     cursor = payload.next_cursor;
   }
-  return raw;
+  return raw.slice(skip, skip + limit);
 }
 
 function evaluateMarket(market, points) {
@@ -140,7 +143,7 @@ function evaluateMarket(market, points) {
       const entry = side === "YES" ? yesEntry : noEntry, final = side === winningSide ? 1 : 0;
       const netReturn = final / entry - 1 - (COST_CENTS / 100) / entry;
       rows.push({ marketId: market.id, eventId: market.eventId, question: market.question, category: market.category,
-        safeContract: market.safeContract, closedAt: market.closedAt,
+        safeContract: market.safeContract, closedAt: market.closedAt, volume: market.volume,
         horizonDays, side, favorite: side === favoriteSide, winner: side === winningSide,
         trend: Boolean(trend && trend.side === side), trendSide: trend?.side || null,
         dayMove: trend?.dayMove || 0, weekMove: trend?.weekMove || 0,
@@ -188,6 +191,26 @@ const SAFE_PRICE_BANDS = Object.freeze([
   { label: "95_97", min: 0.95, max: 0.97 },
 ]);
 
+const FINE_PRICE_BANDS = Object.freeze(Array.from({ length: 18 }, (_, index) => {
+  const min = 0.05 + index * 0.05, max = min + 0.05;
+  return { label: `${Math.round(min * 100)}_${Math.round(max * 100)}`, min, max };
+}));
+const FINE_CATEGORIES = Object.freeze(["Politics", "Crypto", "Economy", "Pop Culture", "Other"]);
+const FINE_RULES = FINE_GRID ? FINE_PRICE_BANDS.flatMap((band) => [
+  { name: `grid_safe_yes_${band.label}`, test: (row) => row.side === "YES" && row.entry >= band.min && row.entry < band.max
+    && row.category !== "Sports" && row.safeContract },
+  { name: `grid_safe_no_${band.label}`, test: (row) => row.side === "NO" && row.entry >= band.min && row.entry < band.max
+    && row.category !== "Sports" && row.safeContract },
+  { name: `grid_safe_favorite_${band.label}`, test: (row) => row.favorite && row.entry >= band.min && row.entry < band.max
+    && row.category !== "Sports" && row.safeContract },
+  ...FINE_CATEGORIES.flatMap((category) => [
+    { name: `grid_safe_yes_${band.label}_${category.toLowerCase().replace(/\s+/g, "_")}`,
+      test: (row) => row.side === "YES" && row.entry >= band.min && row.entry < band.max && row.category === category && row.safeContract },
+    { name: `grid_safe_no_${band.label}_${category.toLowerCase().replace(/\s+/g, "_")}`,
+      test: (row) => row.side === "NO" && row.entry >= band.min && row.entry < band.max && row.category === category && row.safeContract },
+  ]),
+]) : [];
+
 const RULES = [
   { name: "buy_favorite", test: (row) => row.favorite },
   { name: "buy_heavy_favorite", test: (row) => row.favorite && row.entry >= 0.78 },
@@ -228,10 +251,24 @@ const RULES = [
       test: (row) => row.side === "NO" && row.entry >= 0.50 && row.entry < 0.55 && row.category === category },
     { name: `follow_trend_${category.toLowerCase().replace(/\s+/g, "_")}`, test: (row) => row.trend && row.category === category },
   ]),
+  ...FINE_RULES,
 ];
 
+function selectEventDecisions(rows, rule) {
+  const selected = new Map();
+  for (const row of rows) {
+    if (!rule.test(row)) continue;
+    const current = selected.get(row.eventId);
+    if (!current || row.volume > current.volume
+      || (row.volume === current.volume && row.marketId.localeCompare(current.marketId) < 0)) {
+      selected.set(row.eventId, row);
+    }
+  }
+  return [...selected.values()];
+}
+
 function evaluateRules(rows) {
-  return Object.fromEntries(RULES.map((rule) => [rule.name, summarize(rows.filter(rule.test))]));
+  return Object.fromEntries(RULES.map((rule) => [rule.name, summarize(selectEventDecisions(rows, rule))]));
 }
 
 function chronologicalEvaluation(rows) {
@@ -250,16 +287,16 @@ function chronologicalEvaluation(rows) {
       && trainRules[rule.name].count >= 30 && trainRules[rule.name].events >= 10
       && testRules[rule.name].count >= 15 && testRules[rule.name].events >= 5;
     const allPositive = enoughData && all.eventLower90 > 0 && trainRules[rule.name].eventLower90 > 0
-      && testRules[rule.name].eventLower90 > 0 && segments.every((segment) => segment.mean > 0 && segment.eventMean > 0);
+      && testRules[rule.name].eventLower90 > 0 && segments.every((segment) => segment.eventLower90 > 0);
     const allNegative = enoughData && all.eventUpper90 < 0 && trainRules[rule.name].eventUpper90 < 0
-      && testRules[rule.name].eventUpper90 < 0 && segments.every((segment) => segment.mean < 0 && segment.eventMean < 0);
+      && testRules[rule.name].eventUpper90 < 0 && segments.every((segment) => segment.eventUpper90 < 0);
     return [rule.name, { enoughData, allPositive, allNegative, pooled: all, train: trainRules[rule.name], test: testRules[rule.name], segments }];
   }));
   return { splitTime: splitTime ? new Date(splitTime * 1000).toISOString() : null, trainCount: train.length,
     testCount: test.length, train: trainRules, test: testRules, thirds: thirdRules, robustRules };
 }
 
-const markets = await fetchResolvedMarkets(MARKET_LIMIT);
+const markets = await fetchResolvedMarkets(MARKET_LIMIT, MARKET_SKIP);
 const histories = await mapLimit(markets, CONCURRENCY, async (market) => {
   const data = await fetchJson(`${CLOB}/prices-history?market=${encodeURIComponent(market.tokenId)}&interval=max&fidelity=1440`);
   const points = (data.history || []).map((point) => ({ t: Number(point.t), p: Number(point.p) }))
@@ -273,9 +310,12 @@ const report = {
   marketsWithHistory: successful.length, failures: histories.filter((result) => result?.error).length,
   methodology: { horizonDays: HORIZON_DAYS, estimatedRoundTripCostCents: COST_CENTS,
     historyFidelityMinutes: 1440,
+    fineGrid:FINE_GRID,
+    testedRules:RULES.length,
     marketSelection: `${SELECTION_ORDER} ${SELECTION_ASCENDING ? "ascending" : "descending"}`,
-    clusterUnit: "event",
-    note: "Each rule uses only daily prices available at or before the decision horizon and a subsequently published binary settlement. Trend replays require aligned one-day and one-week direction under the production move bounds. Confidence bounds cluster related markets by event. Markets are selected by resolved volume, so results still carry historical-selection and execution-model limitations." },
+    marketSelectionOffset: MARKET_SKIP,
+    clusterUnit: "one highest-volume eligible contract per event and rule",
+    note: "Each rule uses only daily prices available at or before the decision horizon and a subsequently published binary settlement. Trend replays require aligned one-day and one-week direction under the production move bounds. Each rule makes at most one capital decision per event, choosing the highest-volume eligible contract with a stable market-ID tie-breaker. Strict robust rules require positive or negative event-level 90% bounds in pooled data, chronological train, chronological holdout, and every chronological third. Markets are selected by resolved volume, so results still carry historical-selection and execution-model limitations." },
   horizons: Object.fromEntries(HORIZON_DAYS.map((horizon) => {
     const horizonRows = rows.filter((row) => row.horizonDays === horizon);
     return [horizon, { observations: horizonRows.length / 2, chronological: chronologicalEvaluation(horizonRows) }];
@@ -288,7 +328,8 @@ const compactStats = (stats = {}) => ({ count: stats.count || 0, events: stats.e
 const compactRules = (rules = {}) => Object.fromEntries(Object.entries(rules)
   .filter(([, result]) => result.enoughData && (result.allPositive || result.allNegative))
   .map(([name, result]) => [name, { direction: result.allPositive ? "positive" : "negative",
-    pooled: compactStats(result.pooled), train: compactStats(result.train), test: compactStats(result.test) }]));
+    pooled: compactStats(result.pooled), train: compactStats(result.train), test: compactStats(result.test),
+    segments: (result.segments || []).map(compactStats) }]));
 const TARGET_RULE_NAMES = String(process.env.SETTLEMENT_TARGET_RULES || "buy_no_favorite,buy_no_50_55,buy_no_55_90,buy_no_60_90,buy_no_90_95,buy_no_95_99,buy_no_90_99")
   .split(",").map((name) => name.trim()).filter(Boolean);
 const targetRuleStats = (chronological, names = TARGET_RULE_NAMES) => Object.fromEntries(names.map((name) => {
@@ -320,4 +361,11 @@ const targetOnly = process.env.SETTLEMENT_TARGET_ONLY === "1";
 const targetSummary = { generatedAt: summary.generatedAt, requestedMarkets: summary.requestedMarkets,
   resolvedMarkets: summary.resolvedMarkets, marketsWithHistory: summary.marketsWithHistory, failures: summary.failures,
   horizons: Object.fromEntries(Object.entries(summary.horizons).map(([days, value]) => [days, { observations: value.observations, targetRules: value.targetRules }])) };
-console.log(JSON.stringify(targetOnly ? targetSummary : (compact ? summary : report), null, 2));
+const survivorsOnly = process.env.SETTLEMENT_SURVIVORS_ONLY === "1";
+const survivorsSummary = { generatedAt: report.generatedAt, requestedMarkets: report.requestedMarkets,
+  resolvedMarkets: report.resolvedMarkets, marketsWithHistory: report.marketsWithHistory, failures: report.failures,
+  methodology: report.methodology,
+  horizons: Object.fromEntries(Object.entries(summary.horizons).map(([days, value]) => [days, {
+    observations: value.observations, robustRules: value.robustRules,
+  }])) };
+console.log(JSON.stringify(survivorsOnly ? survivorsSummary : (targetOnly ? targetSummary : (compact ? summary : report)), null, 2));
