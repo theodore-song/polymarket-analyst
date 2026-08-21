@@ -318,6 +318,17 @@ legs atomically when a positive gap appears. Mixed explicit/implicit years,
 invalid dates, changed wording, non-Yes/No labels, stale quotes, and
 non-positive margins are rejected.
 
+Build 79 splits the forward directional learner by agent strategy. Every new
+observation stores the agent IDs whose actual acceptance rules matched that
+candidate. Graded outcomes retain the scope, and each agent builds an
+event-clustered calibration from only its eligible opportunity universe. A
+positive Momentum Chaser cohort can therefore promote for Momentum Chaser
+without enabling the same trade for Value Hunter or the other agents; a losing
+cohort can also veto one strategy without freezing all ten. The Suggestions tab
+lists the agents that earned an aggregate promotion. Explicit empty scopes do
+not leak to any agent, legacy unlabeled outcomes remain readable for migration,
+and eligibility metadata survives local/offline and cloud-state compaction.
+
 Build 77 separates the directional learner's evidence lineage from the global
 strategy release. Code-history verification found the same trend/reversal
 generator and 24-hour/72-hour grading policy in Strategy 51 through Strategy
