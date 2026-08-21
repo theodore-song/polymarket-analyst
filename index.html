@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 58 · signal policy 1 · build 77</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 58 · signal policy 1 · build 78</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 77 active:</b> directional evidence now follows its own signal-policy version, so unrelated sports, maker, and bundle releases no longer erase compatible trend/reversal learning. Code-history verification found the same forward directional generator and 24h/72h grading policy in Strategy 51–58, so those outcomes can promote profitable cohorts or veto losing ones immediately; Strategy 50 and older remain historical. Returning to the app or reconnecting also triggers an immediate catch-up scan. Bundle entries still require current executable prices and a positive margin after costs. This remains paper trading; profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 78 active:</b> Value Hunter now checks same-event calendar deadlines as well as numeric thresholds and explicit negative-risk events. For identical questions with an earlier and later deadline, NO-earlier plus YES-later guarantees at least one payout; both live legs open only when current executable prices leave a positive margin after costs. The latest 500-event audit found 198 valid deadline pairs but none currently profitable, so the scanner waits instead of forcing a loss. Directional Strategy 51–58 evidence still survives unrelated releases. This remains paper trading; profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 77 · Adaptive strategy 58 · Signal policy 1 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 78 · Adaptive strategy 58 · Signal policy 1 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 77;
+const BUILD_VERSION = 78;
 const SUGGESTION_ENGINE_VERSION = 58;
 const MAKER_STRATEGY_VERSION = 2;
 const PREVIOUS_STRATEGY_VERSION = 57;
@@ -1075,6 +1075,8 @@ const DOMINANCE_THRESHOLD_PATTERNS=Object.freeze([
   {direction:"above",regex:/(\b(?:above|over|at least|higher than|greater than)\s*(?:[$€£]\s*)?)([0-9]+(?:,[0-9]{3})*(?:\.[0-9]+)?)\s*(k|m|b|%|bps)?\b/i},
   {direction:"below",regex:/(\b(?:below|(?<!\/)under|at most|lower than|less than)\s*(?:[$€£]\s*)?)([0-9]+(?:,[0-9]{3})*(?:\.[0-9]+)?)\s*(k|m|b|%|bps)?\b/i},
 ]);
+const DOMINANCE_MONTHS=Object.freeze({january:1,february:2,march:3,april:4,may:5,june:6,july:7,august:8,september:9,october:10,november:11,december:12});
+const DOMINANCE_DEADLINE_PATTERN=/\b((?:on\s+or\s+)?(?:by|before)\s+(?:the\s+)?)(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(\d{4}))?\b/i;
 function parseDominanceThreshold(question){
   const text=String(question||"").trim();
   for(const pattern of DOMINANCE_THRESHOLD_PATTERNS){
@@ -1084,56 +1086,71 @@ function parseDominanceThreshold(question){
     if(!Number.isFinite(value))continue;
     const valueStart=match.index+match[1].length,valueEnd=valueStart+match[2].length;
     const stem=`${text.slice(0,valueStart)}{threshold}${text.slice(valueEnd)}`.toLowerCase().replace(/\s+/g," ").trim();
-    return {direction:pattern.direction,value,stem};
+    return {kind:"threshold",direction:pattern.direction,value,stem};
   }
   return null;
+}
+function parseDominanceDeadline(question){
+  const text=String(question||"").trim(),match=DOMINANCE_DEADLINE_PATTERN.exec(text);if(!match)return null;
+  const month=DOMINANCE_MONTHS[String(match[2]).toLowerCase()],day=Number(match[3]),year=match[4]?Number(match[4]):null;
+  if(!month||!Number.isInteger(day)||day<1||day>new Date(Date.UTC(year||2024,month,0)).getUTCDate())return null;
+  const dateStart=match.index+match[1].length,dateEnd=match.index+match[0].length;
+  const stem=`${text.slice(0,dateStart)}{deadline}${text.slice(dateEnd)}`.toLowerCase().replace(/\s+/g," ").trim();
+  return {kind:"deadline",direction:"deadline",value:year?year*10000+month*100+day:month*100+day,
+    yearMode:year?"explicit-year":"implicit-year",stem};
 }
 function dominanceBundleSuggestions(event){
   if(!event||event.closed||event.active===false)return [];
   const rawLegs=Array.isArray(event.markets)?event.markets:[],eventTags=Array.isArray(event.tags)?event.tags:[];
   const quotes=rawLegs.map(raw=>{
-    const threshold=parseDominanceThreshold(raw.question),outcomes=parseJsonField(raw.outcomes).map(outcome=>String(outcome||"").trim().toLowerCase());
+    const contract=parseDominanceThreshold(raw.question)||parseDominanceDeadline(raw.question);
+    const outcomes=parseJsonField(raw.outcomes).map(outcome=>String(outcome||"").trim().toLowerCase());
     const prices=parseJsonField(raw.outcomePrices).map(toNum),tokens=parseJsonField(raw.clobTokenIds).map(String);
     const yesBid=toNum(raw.bestBid,NaN),yesAsk=toNum(raw.bestAsk,NaN),liquidity=toNum(raw.liquidityNum||raw.liquidity);
-    if(!threshold||outcomes.length!==2||outcomes[0]!=="yes"||outcomes[1]!=="no"||prices.length!==2||tokens.length!==2
+    if(!contract||outcomes.length!==2||outcomes[0]!=="yes"||outcomes[1]!=="no"||prices.length!==2||tokens.length!==2
       ||!tokens[0]||!tokens[1]||!Number.isFinite(yesBid)||!Number.isFinite(yesAsk)||yesBid<0||yesAsk>1||yesAsk<yesBid
       ||liquidity<NEG_RISK_MIN_LIQUIDITY||raw.closed||raw.active===false||raw.acceptingOrders===false)return null;
-    return Object.assign({},threshold,{market_id:String(raw.id||""),question:String(raw.question||"").trim(),yes_bid:yesBid,yes_ask:yesAsk,
+    return Object.assign({},contract,{market_id:String(raw.id||""),question:String(raw.question||"").trim(),yes_bid:yesBid,yes_ask:yesAsk,
       yes_mid:prices[0],no_mid:prices[1],yes_token:tokens[0],no_token:tokens[1],liquidity,
       volume:toNum(raw.volumeNum||raw.volume),volume_24hr:toNum(raw.volume24hr),spread:toNum(raw.spread),
       url:event.slug?`https://polymarket.com/event/${event.slug}`:""});
   }).filter(Boolean);
   const grouped=new Map();
-  quotes.forEach(quote=>{const key=`${quote.direction}|${quote.stem}`,rows=grouped.get(key)||[];rows.push(quote);grouped.set(key,rows);});
+  quotes.forEach(quote=>{const key=`${quote.kind}|${quote.direction}|${quote.yearMode||""}|${quote.stem}`,rows=grouped.get(key)||[];rows.push(quote);grouped.set(key,rows);});
   const candidates=[];
   for(const rows of grouped.values()){
     if(rows.length<2||new Set(rows.map(row=>row.value)).size!==rows.length)continue;
     const ordered=[...rows].sort((a,b)=>a.value-b.value);
     for(let left=0;left<ordered.length-1;left++)for(let right=left+1;right<ordered.length;right++){
-      const lower=ordered[left],higher=ordered[right],superset=lower.direction==="above"?lower:higher,subset=lower.direction==="above"?higher:lower;
-      const legs=[
-        {market_id:superset.market_id,question:superset.question,side:"YES",token_id:superset.yes_token,
-          entry_price:superset.yes_ask+SIGNAL_ROUND_TRIP_COST,current_price:superset.yes_mid,liquidity:superset.liquidity,url:superset.url},
-        {market_id:subset.market_id,question:subset.question,side:"NO",token_id:subset.no_token,
-          entry_price:1-subset.yes_bid+SIGNAL_ROUND_TRIP_COST,current_price:subset.no_mid,liquidity:subset.liquidity,url:subset.url},
-      ].map(leg=>Object.assign({},leg,{entry_price:+leg.entry_price.toFixed(4),current_price:+Number(leg.current_price).toFixed(4)}));
+      const lower=ordered[left],higher=ordered[right],deadline=lower.kind==="deadline";
+      const superset=deadline?null:(lower.direction==="above"?lower:higher),subset=deadline?null:(lower.direction==="above"?higher:lower);
+      const pair=deadline?[{quote:lower,side:"NO"},{quote:higher,side:"YES"}]:[{quote:superset,side:"YES"},{quote:subset,side:"NO"}];
+      const legs=pair.map(({quote,side})=>({market_id:quote.market_id,question:quote.question,side,
+        token_id:side==="YES"?quote.yes_token:quote.no_token,
+        entry_price:(side==="YES"?quote.yes_ask:1-quote.yes_bid)+SIGNAL_ROUND_TRIP_COST,
+        current_price:side==="YES"?quote.yes_mid:quote.no_mid,liquidity:quote.liquidity,url:quote.url}))
+        .map(leg=>Object.assign({},leg,{entry_price:+leg.entry_price.toFixed(4),current_price:+Number(leg.current_price).toFixed(4)}));
       if(legs.some(leg=>!leg.market_id||!Number.isFinite(leg.entry_price)||!Number.isFinite(leg.current_price)||leg.entry_price<=0||leg.entry_price>=1))continue;
       const cost=legs.reduce((sum,leg)=>sum+leg.entry_price,0),payout=1,profit=payout-cost,netReturn=profit/cost;
       if(profit<NEG_RISK_MIN_NET_PROFIT||netReturn<NEG_RISK_MIN_NET_RETURN)continue;
-      const bundleId=`dominance:${event.id}:${superset.market_id}:${subset.market_id}`;
-      candidates.push({market_id:bundleId,bundle_id:bundleId,bundle_side:"MIXED",bundle_logic:"threshold-dominance",
-        question:`Dominance pair: ${event.title||superset.stem.replace("{threshold}","___")}`,event:event.title||"",url:superset.url,
+      const bundleLogic=deadline?"deadline-dominance":"threshold-dominance",bundleId=`dominance:${event.id}:${legs[0].market_id}:${legs[1].market_id}`;
+      const relation=deadline?`${lower.question} is the earlier deadline and ${higher.question} is the later deadline`
+        :`${superset.question} logically contains ${subset.question}`;
+      const strategy=deadline?"Buying NO on the earlier deadline and YES on the later deadline":"Buying YES on the superset and NO on the subset";
+      const quoteA=pair[0].quote,quoteB=pair[1].quote;
+      candidates.push({market_id:bundleId,bundle_id:bundleId,bundle_side:"MIXED",bundle_logic:bundleLogic,
+        question:`Dominance pair: ${event.title||(deadline?lower.stem.replace("{deadline}","___"):superset.stem.replace("{threshold}","___"))}`,event:event.title||"",url:legs[0].url,
         category:classifyCategory(eventTags),tags:eventTags.map(tag=>tag.label).filter(Boolean).slice(0,4),side:"MIXED",
         entry_price:+(cost/2).toFixed(4),yes_price:+(cost/2).toFixed(4),no_price:+(cost/2).toFixed(4),fair_value:+(payout/2).toFixed(4),
         edge:+netReturn.toFixed(4),net_edge:+netReturn.toFixed(4),friction:+(SIGNAL_ROUND_TRIP_COST*2).toFixed(4),chase_penalty:0,
         evidence_score:1,evidence_source_count:0,quality:"bundle-arb",conviction:+clamp(80+netReturn*1200,80,96).toFixed(1),
-        volume:superset.volume+subset.volume,volume_24hr:superset.volume_24hr+subset.volume_24hr,liquidity:Math.min(superset.liquidity,subset.liquidity),
-        spread:Math.max(superset.spread,subset.spread),price_change_1h:0,price_change_1d:0,price_change_1w:0,momentum_strength:0,
+        volume:quoteA.volume+quoteB.volume,volume_24hr:quoteA.volume_24hr+quoteB.volume_24hr,liquidity:Math.min(quoteA.liquidity,quoteB.liquidity),
+        spread:Math.max(quoteA.spread,quoteB.spread),price_change_1h:0,price_change_1d:0,price_change_1w:0,momentum_strength:0,
         signal_strength:1,signal_confidence:1,signal_type:"bundle-arb",trade_ready:true,entry_candidate:true,audited_observation_only:false,
         adaptive_promotion:false,watch_only:false,jump_risk:false,requires_live:true,days_to_resolution:daysUntil(event.endDate),
         bundle_cost_per_unit:+cost.toFixed(4),bundle_payout_per_unit:payout,bundle_net_profit_per_unit:+profit.toFixed(4),bundle_legs:legs,
-        drivers:["same-event nested thresholds","live executable ask pair","guaranteed minimum one-contract payout","positive margin after estimated costs"],
-        rationale:`Threshold dominance: ${superset.question} logically contains ${subset.question}. Buying YES on the superset and NO on the subset costs ${cost.toFixed(3)} per pair against a guaranteed minimum payout of $1.00 when both use the same event terms. The modeled margin is ${profit.toFixed(3)} (${(netReturn*100).toFixed(2)}%) after 0.5c estimated cost per leg. Both live legs must open together and remain paired through settlement.`});
+        drivers:[deadline?"same-event nested deadlines":"same-event nested thresholds","live executable ask pair","guaranteed minimum one-contract payout","positive margin after estimated costs"],
+        rationale:`${deadline?"Deadline":"Threshold"} dominance: ${relation}. ${strategy} costs ${cost.toFixed(3)} per pair against a guaranteed minimum payout of $1.00 when both use the same event terms. The modeled margin is ${profit.toFixed(3)} (${(netReturn*100).toFixed(2)}%) after 0.5c estimated cost per leg. Both live legs must open together and remain paired through settlement.`});
     }
   }
   return candidates.sort((a,b)=>b.net_edge-a.net_edge);
@@ -5242,6 +5259,7 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
   analyzeMarket,
   negativeRiskBundleSuggestion,
   parseDominanceThreshold,
+  parseDominanceDeadline,
   dominanceBundleSuggestions,
   buildAdaptiveProfile,
   historicalOpportunityPrior,
@@ -5275,7 +5293,7 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
     directionalSignalsRequirePromotion:true,directionalSignalPolicyVersion:DIRECTIONAL_SIGNAL_POLICY_VERSION,
     directionalSignalCompatibleStrategies:[DIRECTIONAL_SIGNAL_COMPATIBLE_STRATEGY_MIN,DIRECTIONAL_SIGNAL_COMPATIBLE_STRATEGY_MAX],
     focusAndReconnectCatchup:true,liveOnlyCompleteBundles:true,negativeRiskBundleSides:["YES","NO"],negativeRiskEventScanLimit:NEG_RISK_EVENT_SCAN_LIMIT,
-    dominanceBundleLogic:"same-event nested threshold YES/NO pairs with identical normalized terms",
+    dominanceBundleLogic:"same-event nested threshold or calendar-deadline YES/NO pairs with identical normalized terms",
     negativeRiskMinimumNetReturnPct:NEG_RISK_MIN_NET_RETURN*100,
     pairedMakerQuotes:"reward-book-audited-shadow-until-promoted",makerStrategyVersion:MAKER_STRATEGY_VERSION,
     makerShadowHorizonHours:MAKER_SHADOW_HORIZON_HOURS,makerLegacyQuoteExpiryHours:MAKER_QUOTE_EXPIRY_HOURS,makerMinimumLockMarginPct:MAKER_MIN_LOCK_MARGIN*100,
@@ -5623,6 +5641,24 @@ function runEngineSelfTest(){
     Object.assign({},dominanceEvent.markets[1],{id:"expensive-b",bestBid:0.50}),
   ]}).length===0;
   const nonBinaryDominanceRejected=dominanceBundleSuggestions({id:"dominance-labels",title:"Non-binary pair",markets:dominanceEvent.markets.map((row,index)=>Object.assign({},row,{id:`nonbinary-${index}`,outcomes:'["Over","Under"]'}))}).length===0;
+  const deadlineEvent={id:"deadline-test",title:"Acme launch deadline",slug:"acme-launch-deadline",tags:[{slug:"business",label:"Business"}],markets:[
+    {id:"deadline-early",question:"Will Acme launch by September 30, 2026?",outcomes:'["Yes","No"]',outcomePrices:'["0.595","0.405"]',clobTokenIds:'["deadline-early-yes","deadline-early-no"]',bestBid:0.60,bestAsk:0.61,liquidityNum:30000,volumeNum:100000,volume24hr:10000,spread:0.01,acceptingOrders:true},
+    {id:"deadline-late",question:"Will Acme launch by December 31, 2026?",outcomes:'["Yes","No"]',outcomePrices:'["0.545","0.455"]',clobTokenIds:'["deadline-late-yes","deadline-late-no"]',bestBid:0.54,bestAsk:0.55,liquidityNum:28000,volumeNum:100000,volume24hr:10000,spread:0.01,acceptingOrders:true},
+  ]};
+  const deadlineSuggestion=dominanceBundleSuggestions(deadlineEvent)[0];
+  const mismatchedDeadlineRejected=dominanceBundleSuggestions({id:"deadline-mismatch",title:"Mismatched deadline terms",markets:[
+    Object.assign({},deadlineEvent.markets[0],{id:"deadline-mismatch-a",question:"Will Acme launch by September 30, 2026?"}),
+    Object.assign({},deadlineEvent.markets[1],{id:"deadline-mismatch-b",question:"Will Beta launch by December 31, 2026?"}),
+  ]}).length===0;
+  const mixedDeadlineYearRejected=dominanceBundleSuggestions({id:"deadline-year-mismatch",title:"Mixed deadline years",markets:[
+    Object.assign({},deadlineEvent.markets[0],{id:"deadline-year-a",question:"Will Acme launch by September 30?"}),
+    Object.assign({},deadlineEvent.markets[1],{id:"deadline-year-b",question:"Will Acme launch by December 31, 2026?"}),
+  ]}).length===0;
+  const unprofitableDeadlineRejected=dominanceBundleSuggestions({id:"deadline-expensive",title:"Expensive deadline pair",markets:[
+    Object.assign({},deadlineEvent.markets[0],{id:"deadline-expensive-a",bestBid:0.50}),
+    Object.assign({},deadlineEvent.markets[1],{id:"deadline-expensive-b",bestAsk:0.50}),
+  ]}).length===0;
+  const invalidDeadlineRejected=parseDominanceDeadline("Will Acme launch by February 30, 2026?")===null;
   const dominanceBook=defaultPortfolio(),offlineDominanceSuggestion=prepareCycleSuggestions([dominanceSuggestion],"offline-cache",true)[0];
   openPositions(dominanceBook,AGENTS.find(a=>a.id==="value"),[dominanceSuggestion],"All",{
     minConv:0,maxNew:1,maxFrac:0.04,reserve:0.10,targetExposure:0.60,learning:buildAdaptiveProfile(dominanceBook),marketLearning:{samples:0,pending:0,buckets:{}},
@@ -5632,6 +5668,28 @@ function runEngineSelfTest(){
     "dominance-low":market({id:"dominance-low",yes_price:1,no_price:0,closed:true,accepting_orders:false}),
     "dominance-high":market({id:"dominance-high",yes_price:1,no_price:0,closed:true,accepting_orders:false}),
   },AGENTS.find(a=>a.id==="value"),{policyExits:true,executeTrades:true});
+  const deadlineBook=defaultPortfolio(),offlineDeadlineSuggestion=prepareCycleSuggestions([deadlineSuggestion],"offline-cache",true)[0];
+  openPositions(deadlineBook,AGENTS.find(a=>a.id==="value"),[deadlineSuggestion],"All",{
+    minConv:0,maxNew:1,maxFrac:0.04,reserve:0.10,targetExposure:0.60,learning:buildAdaptiveProfile(deadlineBook),marketLearning:{samples:0,pending:0,buckets:{}},
+  },new Set(),{});
+  const deadlineOpenedPositions=deadlineBook.positions.length,deadlineUnits=deadlineBook.positions[0]&&deadlineBook.positions[0].shares;
+  markToMarket(deadlineBook,{
+    "deadline-early":market({id:"deadline-early",yes_price:0,no_price:1,closed:true,accepting_orders:false}),
+    "deadline-late":market({id:"deadline-late",yes_price:0,no_price:1,closed:true,accepting_orders:false}),
+  },AGENTS.find(a=>a.id==="value"),{policyExits:true,executeTrades:true});
+  const settleDeadlineCase=(earlyYes,lateYes)=>{
+    const book=defaultPortfolio();
+    openPositions(book,AGENTS.find(a=>a.id==="value"),[deadlineSuggestion],"All",{
+      minConv:0,maxNew:1,maxFrac:0.04,reserve:0.10,targetExposure:0.60,learning:buildAdaptiveProfile(book),marketLearning:{samples:0,pending:0,buckets:{}},
+    },new Set(),{});
+    const units=book.positions[0]&&book.positions[0].shares;
+    markToMarket(book,{
+      "deadline-early":market({id:"deadline-early",yes_price:earlyYes,no_price:1-earlyYes,closed:true,accepting_orders:false}),
+      "deadline-late":market({id:"deadline-late",yes_price:lateYes,no_price:1-lateYes,closed:true,accepting_orders:false}),
+    },AGENTS.find(a=>a.id==="value"),{policyExits:true,executeTrades:true});
+    return {book,units};
+  };
+  const deadlineEarlyCase=settleDeadlineCase(1,1),deadlineBetweenCase=settleDeadlineCase(0,1);
   const bundleBook=defaultPortfolio();
   const offlineBundleSuggestion=prepareCycleSuggestions([bundleSuggestion],"offline-cache",true)[0];
   openPositions(bundleBook,AGENTS.find(a=>a.id==="value"),[bundleSuggestion],"All",{
@@ -5897,6 +5955,23 @@ function runEngineSelfTest(){
       rejectsMismatchedDominanceTerms:mismatchedDominanceRejected,
       rejectsUnprofitableDominancePair:unprofitableDominanceRejected,
       rejectsNonBinaryDominanceLabels:nonBinaryDominanceRejected,
+      identifiesDeadlineDominance:Boolean(deadlineSuggestion&&deadlineSuggestion.bundle_logic==="deadline-dominance"
+        &&deadlineSuggestion.bundle_cost_per_unit===0.96&&deadlineSuggestion.bundle_net_profit_per_unit===0.04
+        &&deadlineSuggestion.bundle_legs[0].market_id==="deadline-early"&&deadlineSuggestion.bundle_legs[0].side==="NO"
+        &&deadlineSuggestion.bundle_legs[1].market_id==="deadline-late"&&deadlineSuggestion.bundle_legs[1].side==="YES"),
+      rejectsMismatchedDeadlineTerms:mismatchedDeadlineRejected,
+      rejectsMixedExplicitAndImplicitDeadlineYears:mixedDeadlineYearRejected,
+      rejectsInvalidCalendarDeadline:invalidDeadlineRejected,
+      rejectsUnprofitableDeadlinePair:unprofitableDeadlineRejected,
+      deadlineRequiresLivePrices:Boolean(deadlineSuggestion&&deadlineSuggestion.requires_live),
+      staleDeadlineSnapshotCannotOpen:!offlineDeadlineSuggestion.trade_ready&&!offlineDeadlineSuggestion.entry_candidate&&offlineDeadlineSuggestion.watch_only,
+      opensDeadlineLegsAtomically:deadlineOpenedPositions===2&&deadlineUnits>0&&deadlineBook.closed.length===2,
+      deadlineWorstCaseSettlesProfitably:deadlineBook.positions.length===0&&deadlineBook.cash>STARTING_BALANCE
+        &&Math.abs(deadlineBook.cash-(STARTING_BALANCE+deadlineUnits*0.04))<=0.03,
+      deadlineEarlyOutcomePaysMinimum:deadlineEarlyCase.book.positions.length===0
+        &&Math.abs(deadlineEarlyCase.book.cash-(STARTING_BALANCE+deadlineEarlyCase.units*0.04))<=0.03,
+      deadlineBetweenDatesPaysBoth:deadlineBetweenCase.book.positions.length===0
+        &&Math.abs(deadlineBetweenCase.book.cash-(STARTING_BALANCE+deadlineBetweenCase.units*1.04))<=0.03,
       dominanceRequiresLivePrices:Boolean(dominanceSuggestion&&dominanceSuggestion.requires_live),
       staleDominanceSnapshotCannotOpen:!offlineDominanceSuggestion.trade_ready&&!offlineDominanceSuggestion.entry_candidate&&offlineDominanceSuggestion.watch_only,
       opensDominanceLegsAtomically:dominanceOpenedPositions===2&&dominanceUnits>0&&dominanceBook.closed.length===2,

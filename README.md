@@ -307,6 +307,17 @@ non-Yes/No labels, inadequate liquidity, and non-positive margins are rejected.
 An earlier parser had mistaken Over/Under labels for Yes/No; the label-aware
 scanner and live engine retain a regression test for that failure mode.
 
+Build 78 expands the same-event dominance audit to explicit calendar deadlines.
+For otherwise identical questions, buying NO on the earlier deadline and YES on
+the later deadline guarantees at least one winning contract whether the event
+happens early, happens between the dates, or never happens by the later date.
+The August 21 audit found 198 valid deadline pairs among the 500 most-active
+events and no pair with a positive executable margin after the half-cent-per-leg
+allowance. The live scanner still monitors them every cycle and can open both
+legs atomically when a positive gap appears. Mixed explicit/implicit years,
+invalid dates, changed wording, non-Yes/No labels, stale quotes, and
+non-positive margins are rejected.
+
 Build 77 separates the directional learner's evidence lineage from the global
 strategy release. Code-history verification found the same trend/reversal
 generator and 24-hour/72-hour grading policy in Strategy 51 through Strategy
