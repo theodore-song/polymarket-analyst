@@ -307,6 +307,17 @@ non-Yes/No labels, inadequate liquidity, and non-positive margins are rejected.
 An earlier parser had mistaken Over/Under labels for Yes/No; the label-aware
 scanner and live engine retain a regression test for that failure mode.
 
+Build 76 separates the directional learner's evidence lineage from the global
+strategy release. Strategy 56 through Strategy 58 use the same trend/reversal
+signal policy, so their forward, net-of-cost checkpoint observations remain
+compatible even when an unrelated sports, maker, or bundle subsystem ships.
+Older signal policies remain down-weighted and cannot satisfy the current-policy
+promotion gate. This avoids repeatedly emptying a valid evidence set while
+preserving the requirement for positive 24-hour and 72-hour results across
+independent events. The app also requests an immediate catch-up cycle whenever
+it regains focus, becomes visible, or reconnects; background browser timers can
+still be suspended by the operating system when the app is closed.
+
 The expanded event-clustered run loaded history for 498 of the 500 highest-volume
 resolved markets with no fetch failures. No side, price band, category, trend,
 or 1-90 day holding rule passed the required train/test confidence checks. In
