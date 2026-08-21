@@ -111,7 +111,7 @@ async function readGithubRuntimeState() {
   const timeout = setTimeout(() => controller.abort(), 8000);
   try {
     const url = new URL(GITHUB_RUNTIME_STATE_URL);
-    url.searchParams.set("minute", String(Math.floor(Date.now() / 60000)));
+    url.searchParams.set("runtime", `${Date.now()}-${Math.random().toString(36).slice(2)}`);
     const response = await fetch(url, {
       cache: "no-store",
       headers: { Accept: "application/json", "Cache-Control": "no-cache" },

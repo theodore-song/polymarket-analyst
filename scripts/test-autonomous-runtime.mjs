@@ -8,7 +8,7 @@ const workflow = fs.readFileSync(new URL("../.github/workflows/autonomous-cycle.
 const runner = fs.readFileSync(new URL("./run-autonomous-cycle.mjs", import.meta.url), "utf8");
 const build = Number(index.match(/const BUILD_VERSION = (\d+);/)?.[1]);
 
-assert.equal(build, 89);
+assert.equal(build, 90);
 assert.deepEqual([...ALLOWED_RUNTIME_KEYS].sort(), ["pma_agents_v2", "pma_suggestions_v5"]);
 assert.match(index, /function collectPublicRuntimeItems\(\)/);
 assert.match(index, /const PUBLIC_RUNTIME_KEYS=Object\.freeze\(\[AGENTS_KEY,SUG_KEY\]\)/);
@@ -17,9 +17,10 @@ assert.match(index, /window\.PMA_AUTOMATION=Object\.freeze/);
 assert.match(index, /if\(CLOUD_STATE_HEALTH\.read_only\)return false/);
 assert.match(api, /runtime-state\/runtime\/state\.json/);
 assert.match(api, /sanitizeGithubRuntimeState/);
+assert.match(api, /url\.searchParams\.set\("runtime", `\$\{Date\.now\(\)\}/);
 assert.match(workflow, /cron: "7 \* \* \* \*"/);
 assert.match(workflow, /contents: write/);
-assert.match(workflow, /EXPECTED_BUILD: "89"/);
+assert.match(workflow, /EXPECTED_BUILD: "90"/);
 assert.match(runner, /MAX_STATE_BYTES = 900_000/);
 
 const agentIds = ["value", "momentum", "favorite", "longshot", "diversifier", "catalyst", "reversal", "breakout", "tailalpha", "conviction"];
