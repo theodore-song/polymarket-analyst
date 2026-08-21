@@ -387,6 +387,20 @@ an observation. A positive 90% lower confidence bound above 0.5% is required
 before 0.75%-of-equity paper positions can begin, with all concurrent shock
 positions capped at 2% of equity.
 
+Build 86 replaces that inconclusive three-hour exit with a narrower rule that
+survived a corrected 2,000-market audit. Across 534,894 hourly observations,
+the exact accelerating three-hour shock / 8–25% opposite-side longshot / 24-hour
+exit rule retained positive 90% lower bounds in train, validation, chronological
+holdout, and a sealed event-disjoint holdout at one-cent modeled cost. The four
+partitions contained 69, 70, 104, and 56 independent events respectively. It
+did not survive a two-cent stress test, so live candidate construction requires
+entry friction of at most half a cent and grades the future exit at the actual
+executable bid with another 0.25-cent slippage buffer. Backtest-approved paper
+positions begin at 0.5% of equity and total shock exposure is capped at 3%.
+Thirty positive forward events with a lower bound above 1% can raise individual
+size to 1%; twelve convincingly losing events or a 2% strategy loss demote the
+lane to zero capital. Strategy-1 outcomes do not contaminate Strategy-2 evidence.
+
 Build 77 separates the directional learner's evidence lineage from the global
 strategy release. Code-history verification found the same trend/reversal
 generator and 24-hour/72-hour grading policy in Strategy 51 through Strategy

@@ -1,11 +1,18 @@
+import fs from "node:fs";
+
 const GAMMA = "https://gamma-api.polymarket.com";
 const CLOB = "https://clob.polymarket.com";
-const MARKET_LIMIT = Math.max(100, Math.min(500, Number(process.env.SHOCK_MARKETS || 500)));
+const MARKET_LIMIT = Math.max(100, Math.min(2000, Number(process.env.SHOCK_MARKETS || 500)));
 const EXTERNAL_MARKET_LIMIT = Math.max(100, Math.min(2000, Number(process.env.SHOCK_EXTERNAL_MARKETS || 1000)));
 const HISTORY_DAYS = Math.max(14, Math.min(30, Number(process.env.SHOCK_HISTORY_DAYS || 30)));
 const CONCURRENCY = Math.max(1, Math.min(8, Number(process.env.SHOCK_CONCURRENCY || 6)));
 const COST = Math.max(0, Math.min(0.05, Number(process.env.SHOCK_COST_CENTS || 0.5) / 100));
+const MIN_ENTRY_PRICE = Math.max(0.02, Math.min(0.40, Number(process.env.SHOCK_MIN_ENTRY_PRICE || 0.08)));
+const MAX_ENTRY_PRICE = Math.max(0.60, Math.min(0.98, Number(process.env.SHOCK_MAX_ENTRY_PRICE || 0.92)));
+const CACHE_FILE = String(process.env.SHOCK_CACHE_FILE || "").trim();
+const OUTPUT_FILE = String(process.env.SHOCK_OUTPUT_FILE || "").trim();
 const SUMMARY_ONLY = process.env.SHOCK_SUMMARY === "1";
+const SUMMARY_CANDIDATES = Math.max(0, Math.min(10, Number(process.env.SHOCK_SUMMARY_CANDIDATES || 10)));
 const HOUR = 3600;
 const HORIZONS = [3, 6, 12, 24];
 const WINDOWS = [1, 3, 6, 24];
@@ -82,10 +89,12 @@ async function fetchMarkets(limit, universe = "active") {
     }
     return markets;
   }
-  for (let offset = 0; markets.length < limit && offset < limit * 5; offset += 100) {
+  let cursor = "";
+  while (markets.length < limit) {
     const params = new URLSearchParams({ active: "true", closed: "false", archived: "false", include_tag: "true",
-      limit: "100", offset: String(offset), order: "volume24hr", ascending: "false" });
-    const page = await fetchJson(`${GAMMA}/markets?${params}`);
+      limit: "100", order: "volume24hr", ascending: "false" });
+    if (cursor) params.set("after_cursor", cursor);
+    const payload = await fetchJson(`${GAMMA}/markets/keyset?${params}`), page = payload?.markets;
     if (!Array.isArray(page) || !page.length) break;
     for (const raw of page) {
       const labels = parseJson(raw.outcomes).map((value) => String(value).trim().toLowerCase());
@@ -96,7 +105,8 @@ async function fetchMarkets(limit, universe = "active") {
         eventKey: String(raw.events?.[0]?.id || raw.events?.[0]?.slug || raw.eventId || id) });
       if (markets.length >= limit) break;
     }
-    if (page.length < 100) break;
+    if (page.length < 100 || !payload.next_cursor || payload.next_cursor === cursor) break;
+    cursor = payload.next_cursor;
   }
   return markets;
 }
@@ -107,18 +117,28 @@ function chunks(items, size) {
   return output;
 }
 
-async function fetchHistories(markets) {
-  const responses = await mapLimit(chunks(markets, 20), CONCURRENCY, async (chunk) => fetchJson(`${CLOB}/batch-prices-history`, {
+async function fetchHistories(markets, { lookbackDays = HISTORY_DAYS } = {}) {
+  const now = Math.floor(Date.now() / 1000);
+  const windows = [];
+  if (lookbackDays == null) windows.push(null);
+  else for (let end = now; end > now - lookbackDays * 86400; end -= 15 * 86400)
+    windows.push({ start: Math.max(now - lookbackDays * 86400, end - 15 * 86400), end });
+  const jobs = windows.flatMap((window) => chunks(markets, 20).map((chunk) => ({ window, chunk })));
+  const responses = await mapLimit(jobs, CONCURRENCY, async ({ window, chunk }) => fetchJson(`${CLOB}/batch-prices-history`, {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ markets: chunk.map((market) => market.token), interval: "1m", fidelity: 60 })
+    body: JSON.stringify({ markets: chunk.map((market) => market.token), fidelity: 60,
+      ...(window == null ? { interval: "max" } : { start_ts: window.start, end_ts: window.end }) })
   }));
   const history = {};
   responses.forEach((response) => {
     if (!response?.history) return;
     Object.entries(response.history).forEach(([token, points]) => {
-      history[token] = (points || []).map((point) => ({ t: Number(point.t), p: Number(point.p) }))
-        .filter((point) => Number.isFinite(point.t) && Number.isFinite(point.p)).sort((a, b) => a.t - b.t);
+      history[token] = [...(history[token] || []), ...(points || []).map((point) => ({ t: Number(point.t), p: Number(point.p) }))
+        .filter((point) => Number.isFinite(point.t) && Number.isFinite(point.p))];
     });
+  });
+  Object.entries(history).forEach(([token, points]) => {
+    history[token] = [...new Map(points.sort((a, b) => a.t - b.t).map((point) => [point.t, point])).values()];
   });
   return { history, failures: responses.filter((response) => response?.error).length };
 }
@@ -206,7 +226,7 @@ function simulate(row, rule) {
   const followedSide = Math.sign(move) > 0 ? "YES" : "NO";
   const side = rule.direction === "continue" ? followedSide : followedSide === "YES" ? "NO" : "YES";
   const entry = side === "YES" ? row.price : 1 - row.price, exit = side === "YES" ? row.futurePrice : 1 - row.futurePrice;
-  if (entry <= 0.02 || entry >= 0.98) return null;
+  if (entry < MIN_ENTRY_PRICE || entry > MAX_ENTRY_PRICE) return null;
   const band = priceBand(entry);
   if (rule.band !== "All" && band !== rule.band) return null;
   const netReturn = exit / entry - 1 - COST / entry;
@@ -230,10 +250,18 @@ function summary(rows) {
 const baseRules = [];
 for (const horizon of HORIZONS) for (const window of WINDOWS) for (const minMove of MIN_MOVES)
   for (const direction of ["continue", "fade"]) for (const confirmation of CONFIRMATIONS) for (const maxVol of MAX_VOLS)
-    baseRules.push({ id: `${direction}_h${horizon}_w${window}_m${minMove}_${confirmation}_v${maxVol}`, horizon, window, minMove,
+    baseRules.push({ id: `${direction}_h${horizon}_w${window}_m${minMove}_${confirmation}_v${maxVol}`,
+      baseId: `${direction}_h${horizon}_w${window}_m${minMove}_${confirmation}_v${maxVol}`, horizon, window, minMove,
       direction, confirmation, maxVol, category: "All", band: "All" });
 
-const markets = await fetchMarkets(MARKET_LIMIT), fetched = await fetchHistories(markets);
+let markets, fetched;
+if (CACHE_FILE && fs.existsSync(CACHE_FILE)) {
+  const cached = JSON.parse(fs.readFileSync(CACHE_FILE, "utf8"));
+  markets = cached.markets || []; fetched = { history: cached.history || {}, failures: Number(cached.failures || 0) };
+} else {
+  markets = await fetchMarkets(MARKET_LIMIT); fetched = await fetchHistories(markets);
+  if (CACHE_FILE) fs.writeFileSync(CACHE_FILE, JSON.stringify({ markets, history: fetched.history, failures: fetched.failures }));
+}
 const rows = markets.flatMap((market) => observations(market, fetched.history[market.token] || []));
 const eventHoldoutRows = rows.filter((row) => stableHash(row.eventKey) % 4 === 0);
 const developmentRows = rows.filter((row) => stableHash(row.eventKey) % 4 !== 0);
@@ -243,7 +271,19 @@ const partitions = { train: developmentRows.filter((row) => row.observedAt < tra
   validation: developmentRows.filter((row) => row.observedAt >= trainCut && row.evaluatedAt < validationCut),
   holdout: developmentRows.filter((row) => row.observedAt >= validationCut) };
 
-function evaluate(rule, partition) { return summary(partitions[partition].map((row) => simulate(row, rule)).filter(Boolean)); }
+const partitionByHorizon = Object.fromEntries(Object.entries(partitions).map(([name, partitionRows]) => [name,
+  Object.fromEntries(HORIZONS.map((horizon) => [horizon, partitionRows.filter((row) => row.horizon === horizon)]))]));
+const simulationCache = Object.fromEntries(Object.keys(partitions).map((name) => [name, new Map()]));
+function simulatedRows(rule, partition) {
+  const key = rule.baseId || rule.id;
+  if (!simulationCache[partition].has(key)) {
+    const baseRule = { ...rule, category: "All", band: "All" };
+    simulationCache[partition].set(key, (partitionByHorizon[partition][rule.horizon] || []).map((row) => simulate(row, baseRule)).filter(Boolean));
+  }
+  return simulationCache[partition].get(key).filter((row) => (rule.category === "All" || row.category === rule.category)
+    && (rule.band === "All" || row.band === rule.band));
+}
+function evaluate(rule, partition) { return summary(simulatedRows(rule, partition)); }
 
 const trainWinners = baseRules.map((rule) => ({ rule, train: evaluate(rule, "train") }))
   .filter((candidate) => candidate.train.attempts >= 100 && candidate.train.events >= 20 && candidate.train.lower > 0);
@@ -271,7 +311,7 @@ let external = { markets: [], histories: {}, failures: 0, rows: [] };
 if (finalists.length) {
   const activeEvents = new Set(markets.map((market) => market.eventKey));
   external.markets = (await fetchMarkets(EXTERNAL_MARKET_LIMIT, "closed")).filter((market) => !activeEvents.has(market.eventKey));
-  const externalFetched = await fetchHistories(external.markets);
+  const externalFetched = await fetchHistories(external.markets, { lookbackDays: null });
   external.histories = externalFetched.history;
   external.failures = externalFetched.failures;
   external.rows = external.markets.flatMap((market) => observations(market, external.histories[market.token] || []));
@@ -283,12 +323,15 @@ if (finalists.length) {
 }
 
 const compact = (stats) => Object.fromEntries(Object.entries(stats).map(([key, value]) => [key, Number.isFinite(value) ? +value.toFixed(5) : value]));
+const coverageDays = Object.values(fetched.history).map((points) => points.length > 1 ? (points.at(-1).t - points[0].t) / 86400 : 0).sort((a, b) => a - b);
+const medianCoverageDays = coverageDays.length ? coverageDays[Math.floor(coverageDays.length / 2)] : 0;
 const candidateRow = (candidate) => ({ rule: candidate.rule, passesHoldout: candidate.passesHoldout,
   passesEventHoldout: Boolean(candidate.passesEventHoldout), passesArchive: Boolean(candidate.passesArchive),
   train: compact(candidate.train), validation: compact(candidate.validation), holdout: compact(candidate.holdout),
   eventHoldout: candidate.eventHoldout ? compact(candidate.eventHoldout) : null, archive: candidate.archive ? compact(candidate.archive) : null });
 const report = { generatedAt: new Date().toISOString(), requestedMarkets: MARKET_LIMIT, markets: markets.length,
   marketsWithHistory: markets.filter((market) => fetched.history[market.token]?.length).length, fetchFailures: fetched.failures,
+  medianHistoryCoverageDays: +medianCoverageDays.toFixed(2), maximumHistoryCoverageDays: +(coverageDays.at(-1) || 0).toFixed(2),
   observations: rows.length, testedBaseRules: baseRules.length, trainWinners: trainWinners.length, testedRefinements: uniqueRefined.length,
   validationWinners: validationWinners.length, holdoutPassed: holdout.filter((candidate) => candidate.passesHoldout).length,
   eventHoldoutObservations: eventHoldoutRows.length, eventHoldoutEvents: new Set(eventHoldoutRows.map((row) => row.eventKey)).size,
@@ -297,16 +340,18 @@ const report = { generatedAt: new Date().toISOString(), requestedMarkets: MARKET
   externalMarketsWithHistory: external.markets.filter((market) => external.histories[market.token]?.length).length,
   externalFetchFailures: external.failures, externalObservations: external.rows.length,
   archivePassed: finalists.filter((candidate) => candidate.passesArchive).length,
-  methodology: { historyDays: HISTORY_DAYS, observationSpacingHours: 3, horizons: HORIZONS, windows: WINDOWS,
-    costCents: COST * 100, eventSplit: "25% deterministic event-disjoint holdout reserved before search",
+  methodology: { requestedHistoryDays: HISTORY_DAYS, medianHistoryCoverageDays: +medianCoverageDays.toFixed(2),
+    maximumHistoryCoverageDays: +(coverageDays.at(-1) || 0).toFixed(2), observationSpacingHours: 3, horizons: HORIZONS, windows: WINDOWS,
+    costCents: COST * 100, entryPriceRange: [MIN_ENTRY_PRICE, MAX_ENTRY_PRICE], eventSplit: "25% deterministic event-disjoint holdout reserved before search",
     split: "Remaining events use 60% train / 20% validation / 20% untouched chronological holdout with future-mark purge",
     clusterUnit: "Polymarket event", refinementSource: "Only base rules with a positive train lower bound are refined by category and entry band",
     limitation: "Current active-market selection is survivorship biased; any holdout winner still requires resolved-market external validation" },
   partitions: Object.fromEntries(Object.entries(partitions).map(([key, value]) => [key, value.length])),
   candidates: holdout.slice(0, 30).map(candidateRow) };
 
-if (SUMMARY_ONLY) console.log(JSON.stringify({ generatedAt: report.generatedAt, markets: report.markets,
+const output = SUMMARY_ONLY ? { generatedAt: report.generatedAt, markets: report.markets,
   marketsWithHistory: report.marketsWithHistory, fetchFailures: report.fetchFailures, observations: report.observations,
+  medianHistoryCoverageDays: report.medianHistoryCoverageDays, maximumHistoryCoverageDays: report.maximumHistoryCoverageDays,
   testedBaseRules: report.testedBaseRules, trainWinners: report.trainWinners, testedRefinements: report.testedRefinements,
   validationWinners: report.validationWinners, holdoutPassed: report.holdoutPassed,
   eventHoldoutObservations: report.eventHoldoutObservations, eventHoldoutEvents: report.eventHoldoutEvents,
@@ -314,5 +359,7 @@ if (SUMMARY_ONLY) console.log(JSON.stringify({ generatedAt: report.generatedAt, 
   externalMarkets: report.externalMarkets, externalMarketsWithHistory: report.externalMarketsWithHistory,
   externalFetchFailures: report.externalFetchFailures, externalObservations: report.externalObservations,
   archivePassed: report.archivePassed, partitions: report.partitions,
-  candidates: report.candidates.slice(0, 10) }, null, 2));
-else console.log(JSON.stringify(report, null, 2));
+  candidates: report.candidates.slice(0, SUMMARY_CANDIDATES) } : report;
+const serialized = JSON.stringify(output, null, 2);
+if (OUTPUT_FILE) fs.writeFileSync(OUTPUT_FILE, serialized + "\n");
+else console.log(serialized);

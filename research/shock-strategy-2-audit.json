@@ -1,0 +1,2069 @@
+{
+  "generatedAt": "2026-08-21T20:28:40.492Z",
+  "requestedMarkets": 2000,
+  "markets": 2000,
+  "marketsWithHistory": 2000,
+  "fetchFailures": 0,
+  "medianHistoryCoverageDays": 13.55,
+  "maximumHistoryCoverageDays": 29.97,
+  "observations": 534894,
+  "testedBaseRules": 2560,
+  "trainWinners": 119,
+  "testedRefinements": 4998,
+  "validationWinners": 323,
+  "holdoutPassed": 151,
+  "eventHoldoutObservations": 128262,
+  "eventHoldoutEvents": 188,
+  "eventHoldoutPassed": 71,
+  "externalRequestedMarkets": 100,
+  "externalMarkets": 99,
+  "externalMarketsWithHistory": 0,
+  "externalFetchFailures": 0,
+  "externalObservations": 0,
+  "archivePassed": 0,
+  "methodology": {
+    "requestedHistoryDays": 30,
+    "medianHistoryCoverageDays": 13.55,
+    "maximumHistoryCoverageDays": 29.97,
+    "observationSpacingHours": 3,
+    "horizons": [
+      3,
+      6,
+      12,
+      24
+    ],
+    "windows": [
+      1,
+      3,
+      6,
+      24
+    ],
+    "costCents": 1,
+    "entryPriceRange": [
+      0.08,
+      0.92
+    ],
+    "eventSplit": "25% deterministic event-disjoint holdout reserved before search",
+    "split": "Remaining events use 60% train / 20% validation / 20% untouched chronological holdout with future-mark purge",
+    "clusterUnit": "Polymarket event",
+    "refinementSource": "Only base rules with a positive train lower bound are refined by category and entry band",
+    "limitation": "Current active-market selection is survivorship biased; any holdout winner still requires resolved-market external validation"
+  },
+  "partitions": {
+    "train": 185884,
+    "validation": 114374,
+    "holdout": 88938
+  },
+  "candidates": [
+    {
+      "rule": {
+        "id": "fade_h24_w3_m0.04_accelerating_v1_All_longshot",
+        "baseId": "fade_h24_w3_m0.04_accelerating_v1",
+        "horizon": 24,
+        "window": 3,
+        "minMove": 0.04,
+        "direction": "fade",
+        "confirmation": "accelerating",
+        "maxVol": 1,
+        "category": "All",
+        "band": "longshot"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": true,
+      "passesArchive": false,
+      "train": {
+        "attempts": 173,
+        "markets": 98,
+        "events": 69,
+        "mean": 0.17256,
+        "eventMean": 0.17172,
+        "lower": 0.06377,
+        "upper": 0.27967,
+        "winRate": 0.48555
+      },
+      "validation": {
+        "attempts": 131,
+        "markets": 98,
+        "events": 70,
+        "mean": 0.10838,
+        "eventMean": 0.10645,
+        "lower": 0.02261,
+        "upper": 0.1903,
+        "winRate": 0.47328
+      },
+      "holdout": {
+        "attempts": 191,
+        "markets": 135,
+        "events": 104,
+        "mean": 0.36455,
+        "eventMean": 0.42311,
+        "lower": 0.21504,
+        "upper": 0.63119,
+        "winRate": 0.51832
+      },
+      "eventHoldout": {
+        "attempts": 188,
+        "markets": 88,
+        "events": 56,
+        "mean": 0.20122,
+        "eventMean": 0.15622,
+        "lower": 0.02636,
+        "upper": 0.28609,
+        "winRate": 0.51596
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h24_w1_m0.04_accelerating_v1_All_longshot",
+        "baseId": "fade_h24_w1_m0.04_accelerating_v1",
+        "horizon": 24,
+        "window": 1,
+        "minMove": 0.04,
+        "direction": "fade",
+        "confirmation": "accelerating",
+        "maxVol": 1,
+        "category": "All",
+        "band": "longshot"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 149,
+        "markets": 83,
+        "events": 61,
+        "mean": 0.21993,
+        "eventMean": 0.18405,
+        "lower": 0.06878,
+        "upper": 0.29933,
+        "winRate": 0.51007
+      },
+      "validation": {
+        "attempts": 111,
+        "markets": 93,
+        "events": 63,
+        "mean": 0.13149,
+        "eventMean": 0.13139,
+        "lower": 0.03056,
+        "upper": 0.23221,
+        "winRate": 0.44144
+      },
+      "holdout": {
+        "attempts": 177,
+        "markets": 127,
+        "events": 98,
+        "mean": 0.43694,
+        "eventMean": 0.40882,
+        "lower": 0.20297,
+        "upper": 0.61468,
+        "winRate": 0.56497
+      },
+      "eventHoldout": {
+        "attempts": 149,
+        "markets": 75,
+        "events": 51,
+        "mean": 0.15836,
+        "eventMean": 0.07278,
+        "lower": -0.01708,
+        "upper": 0.16264,
+        "winRate": 0.48993
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h24_w1_m0.04_any_v1_All_longshot",
+        "baseId": "fade_h24_w1_m0.04_any_v1",
+        "horizon": 24,
+        "window": 1,
+        "minMove": 0.04,
+        "direction": "fade",
+        "confirmation": "any",
+        "maxVol": 1,
+        "category": "All",
+        "band": "longshot"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": true,
+      "passesArchive": false,
+      "train": {
+        "attempts": 163,
+        "markets": 86,
+        "events": 63,
+        "mean": 0.24362,
+        "eventMean": 0.2142,
+        "lower": 0.08516,
+        "upper": 0.34323,
+        "winRate": 0.52147
+      },
+      "validation": {
+        "attempts": 117,
+        "markets": 96,
+        "events": 66,
+        "mean": 0.11588,
+        "eventMean": 0.1189,
+        "lower": 0.02196,
+        "upper": 0.21584,
+        "winRate": 0.42735
+      },
+      "holdout": {
+        "attempts": 198,
+        "markets": 133,
+        "events": 102,
+        "mean": 0.37267,
+        "eventMean": 0.37084,
+        "lower": 0.17455,
+        "upper": 0.56713,
+        "winRate": 0.53535
+      },
+      "eventHoldout": {
+        "attempts": 163,
+        "markets": 76,
+        "events": 51,
+        "mean": 0.16506,
+        "eventMean": 0.09555,
+        "lower": 0.0041,
+        "upper": 0.18701,
+        "winRate": 0.48466
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h24_w1_m0.04_aligned_v1_All_longshot",
+        "baseId": "fade_h24_w1_m0.04_aligned_v1",
+        "horizon": 24,
+        "window": 1,
+        "minMove": 0.04,
+        "direction": "fade",
+        "confirmation": "aligned",
+        "maxVol": 1,
+        "category": "All",
+        "band": "longshot"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": true,
+      "passesArchive": false,
+      "train": {
+        "attempts": 163,
+        "markets": 86,
+        "events": 63,
+        "mean": 0.24362,
+        "eventMean": 0.2142,
+        "lower": 0.08516,
+        "upper": 0.34323,
+        "winRate": 0.52147
+      },
+      "validation": {
+        "attempts": 117,
+        "markets": 96,
+        "events": 66,
+        "mean": 0.11588,
+        "eventMean": 0.1189,
+        "lower": 0.02196,
+        "upper": 0.21584,
+        "winRate": 0.42735
+      },
+      "holdout": {
+        "attempts": 198,
+        "markets": 133,
+        "events": 102,
+        "mean": 0.37267,
+        "eventMean": 0.37084,
+        "lower": 0.17455,
+        "upper": 0.56713,
+        "winRate": 0.53535
+      },
+      "eventHoldout": {
+        "attempts": 163,
+        "markets": 76,
+        "events": 51,
+        "mean": 0.16506,
+        "eventMean": 0.09555,
+        "lower": 0.0041,
+        "upper": 0.18701,
+        "winRate": 0.48466
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h24_w3_m0.04_aligned_v1_All_longshot",
+        "baseId": "fade_h24_w3_m0.04_aligned_v1",
+        "horizon": 24,
+        "window": 3,
+        "minMove": 0.04,
+        "direction": "fade",
+        "confirmation": "aligned",
+        "maxVol": 1,
+        "category": "All",
+        "band": "longshot"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": true,
+      "passesArchive": false,
+      "train": {
+        "attempts": 235,
+        "markets": 110,
+        "events": 76,
+        "mean": 0.13748,
+        "eventMean": 0.1422,
+        "lower": 0.04364,
+        "upper": 0.24076,
+        "winRate": 0.48936
+      },
+      "validation": {
+        "attempts": 162,
+        "markets": 110,
+        "events": 79,
+        "mean": 0.09424,
+        "eventMean": 0.07866,
+        "lower": 0.00205,
+        "upper": 0.15527,
+        "winRate": 0.46914
+      },
+      "holdout": {
+        "attempts": 246,
+        "markets": 162,
+        "events": 117,
+        "mean": 0.23272,
+        "eventMean": 0.34165,
+        "lower": 0.15455,
+        "upper": 0.52874,
+        "winRate": 0.46748
+      },
+      "eventHoldout": {
+        "attempts": 238,
+        "markets": 95,
+        "events": 59,
+        "mean": 0.19978,
+        "eventMean": 0.16801,
+        "lower": 0.04719,
+        "upper": 0.28884,
+        "winRate": 0.5084
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h24_w6_m0.04_accelerating_v1_All_longshot",
+        "baseId": "fade_h24_w6_m0.04_accelerating_v1",
+        "horizon": 24,
+        "window": 6,
+        "minMove": 0.04,
+        "direction": "fade",
+        "confirmation": "accelerating",
+        "maxVol": 1,
+        "category": "All",
+        "band": "longshot"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": true,
+      "passesArchive": false,
+      "train": {
+        "attempts": 218,
+        "markets": 110,
+        "events": 78,
+        "mean": 0.18728,
+        "eventMean": 0.11042,
+        "lower": 0.0413,
+        "upper": 0.17954,
+        "winRate": 0.52752
+      },
+      "validation": {
+        "attempts": 172,
+        "markets": 115,
+        "events": 82,
+        "mean": 0.09761,
+        "eventMean": 0.10961,
+        "lower": 0.03341,
+        "upper": 0.18581,
+        "winRate": 0.48256
+      },
+      "holdout": {
+        "attempts": 211,
+        "markets": 133,
+        "events": 102,
+        "mean": 0.26119,
+        "eventMean": 0.34626,
+        "lower": 0.15105,
+        "upper": 0.54147,
+        "winRate": 0.48815
+      },
+      "eventHoldout": {
+        "attempts": 225,
+        "markets": 97,
+        "events": 60,
+        "mean": 0.17949,
+        "eventMean": 0.21807,
+        "lower": 0.10502,
+        "upper": 0.33112,
+        "winRate": 0.49333
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h24_w6_m0.08_accelerating_v1_All_longshot",
+        "baseId": "fade_h24_w6_m0.08_accelerating_v1",
+        "horizon": 24,
+        "window": 6,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "accelerating",
+        "maxVol": 1,
+        "category": "All",
+        "band": "longshot"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": true,
+      "passesArchive": false,
+      "train": {
+        "attempts": 95,
+        "markets": 55,
+        "events": 38,
+        "mean": 0.32795,
+        "eventMean": 0.20944,
+        "lower": 0.08116,
+        "upper": 0.33772,
+        "winRate": 0.55789
+      },
+      "validation": {
+        "attempts": 90,
+        "markets": 72,
+        "events": 46,
+        "mean": 0.1826,
+        "eventMean": 0.17165,
+        "lower": 0.05477,
+        "upper": 0.28852,
+        "winRate": 0.5
+      },
+      "holdout": {
+        "attempts": 118,
+        "markets": 88,
+        "events": 76,
+        "mean": 0.33402,
+        "eventMean": 0.44355,
+        "lower": 0.12905,
+        "upper": 0.75806,
+        "winRate": 0.49153
+      },
+      "eventHoldout": {
+        "attempts": 101,
+        "markets": 55,
+        "events": 38,
+        "mean": 0.30042,
+        "eventMean": 0.1919,
+        "lower": 0.01344,
+        "upper": 0.37036,
+        "winRate": 0.56436
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h24_w6_m0.08_aligned_v1_Economy_All",
+        "baseId": "fade_h24_w6_m0.08_aligned_v1",
+        "horizon": 24,
+        "window": 6,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "aligned",
+        "maxVol": 1,
+        "category": "Economy",
+        "band": "All"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 102,
+        "markets": 25,
+        "events": 20,
+        "mean": 0.08419,
+        "eventMean": 0.10951,
+        "lower": 0.02966,
+        "upper": 0.18935,
+        "winRate": 0.64706
+      },
+      "validation": {
+        "attempts": 45,
+        "markets": 16,
+        "events": 13,
+        "mean": 0.04219,
+        "eventMean": 0.06458,
+        "lower": 0.00897,
+        "upper": 0.12018,
+        "winRate": 0.64444
+      },
+      "holdout": {
+        "attempts": 36,
+        "markets": 14,
+        "events": 10,
+        "mean": 0.37685,
+        "eventMean": 0.49411,
+        "lower": 0.1098,
+        "upper": 0.87841,
+        "winRate": 0.66667
+      },
+      "eventHoldout": {
+        "attempts": 46,
+        "markets": 7,
+        "events": 5,
+        "mean": 0.07848,
+        "eventMean": 0.10051,
+        "lower": 0.02085,
+        "upper": 0.18018,
+        "winRate": 0.54348
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h24_w6_m0.04_accelerating_v1_Other_longshot",
+        "baseId": "fade_h24_w6_m0.04_accelerating_v1",
+        "horizon": 24,
+        "window": 6,
+        "minMove": 0.04,
+        "direction": "fade",
+        "confirmation": "accelerating",
+        "maxVol": 1,
+        "category": "Other",
+        "band": "longshot"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 127,
+        "markets": 60,
+        "events": 39,
+        "mean": 0.24812,
+        "eventMean": 0.1408,
+        "lower": 0.03126,
+        "upper": 0.25035,
+        "winRate": 0.51969
+      },
+      "validation": {
+        "attempts": 74,
+        "markets": 44,
+        "events": 33,
+        "mean": 0.10521,
+        "eventMean": 0.16425,
+        "lower": 0.03021,
+        "upper": 0.29829,
+        "winRate": 0.52703
+      },
+      "holdout": {
+        "attempts": 86,
+        "markets": 57,
+        "events": 46,
+        "mean": 0.39772,
+        "eventMean": 0.45671,
+        "lower": 0.10816,
+        "upper": 0.80527,
+        "winRate": 0.51163
+      },
+      "eventHoldout": {
+        "attempts": 112,
+        "markets": 46,
+        "events": 27,
+        "mean": 0.08528,
+        "eventMean": 0.04779,
+        "lower": -0.08658,
+        "upper": 0.18215,
+        "winRate": 0.44643
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h24_w6_m0.08_any_v1_Other_longshot",
+        "baseId": "fade_h24_w6_m0.08_any_v1",
+        "horizon": 24,
+        "window": 6,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "any",
+        "maxVol": 1,
+        "category": "Other",
+        "band": "longshot"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": true,
+      "passesArchive": false,
+      "train": {
+        "attempts": 152,
+        "markets": 50,
+        "events": 28,
+        "mean": 0.29648,
+        "eventMean": 0.17744,
+        "lower": 0.02851,
+        "upper": 0.32637,
+        "winRate": 0.53289
+      },
+      "validation": {
+        "attempts": 62,
+        "markets": 28,
+        "events": 22,
+        "mean": 0.25972,
+        "eventMean": 0.15969,
+        "lower": 0.03337,
+        "upper": 0.286,
+        "winRate": 0.62903
+      },
+      "holdout": {
+        "attempts": 76,
+        "markets": 38,
+        "events": 35,
+        "mean": 0.408,
+        "eventMean": 0.68708,
+        "lower": 0.10327,
+        "upper": 1.27089,
+        "winRate": 0.52632
+      },
+      "eventHoldout": {
+        "attempts": 84,
+        "markets": 36,
+        "events": 22,
+        "mean": 0.27266,
+        "eventMean": 0.23116,
+        "lower": 0.00844,
+        "upper": 0.45387,
+        "winRate": 0.53571
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h24_w6_m0.04_any_v1_All_longshot",
+        "baseId": "fade_h24_w6_m0.04_any_v1",
+        "horizon": 24,
+        "window": 6,
+        "minMove": 0.04,
+        "direction": "fade",
+        "confirmation": "any",
+        "maxVol": 1,
+        "category": "All",
+        "band": "longshot"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": true,
+      "passesArchive": false,
+      "train": {
+        "attempts": 549,
+        "markets": 152,
+        "events": 105,
+        "mean": 0.13663,
+        "eventMean": 0.09794,
+        "lower": 0.03747,
+        "upper": 0.15841,
+        "winRate": 0.50273
+      },
+      "validation": {
+        "attempts": 413,
+        "markets": 152,
+        "events": 102,
+        "mean": 0.07773,
+        "eventMean": 0.06103,
+        "lower": 0.01,
+        "upper": 0.11206,
+        "winRate": 0.44552
+      },
+      "holdout": {
+        "attempts": 490,
+        "markets": 196,
+        "events": 137,
+        "mean": 0.12119,
+        "eventMean": 0.21379,
+        "lower": 0.09492,
+        "upper": 0.33265,
+        "winRate": 0.41837
+      },
+      "eventHoldout": {
+        "attempts": 553,
+        "markets": 128,
+        "events": 77,
+        "mean": 0.1244,
+        "eventMean": 0.12026,
+        "lower": 0.03475,
+        "upper": 0.20578,
+        "winRate": 0.46293
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h24_w6_m0.08_any_v1_All_longshot",
+        "baseId": "fade_h24_w6_m0.08_any_v1",
+        "horizon": 24,
+        "window": 6,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "any",
+        "maxVol": 1,
+        "category": "All",
+        "band": "longshot"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": true,
+      "passesArchive": false,
+      "train": {
+        "attempts": 241,
+        "markets": 87,
+        "events": 60,
+        "mean": 0.23061,
+        "eventMean": 0.11392,
+        "lower": 0.0134,
+        "upper": 0.21444,
+        "winRate": 0.51867
+      },
+      "validation": {
+        "attempts": 197,
+        "markets": 99,
+        "events": 63,
+        "mean": 0.15238,
+        "eventMean": 0.11952,
+        "lower": 0.04338,
+        "upper": 0.19566,
+        "winRate": 0.45178
+      },
+      "holdout": {
+        "attempts": 255,
+        "markets": 127,
+        "events": 97,
+        "mean": 0.12419,
+        "eventMean": 0.33412,
+        "lower": 0.09217,
+        "upper": 0.57607,
+        "winRate": 0.41961
+      },
+      "eventHoldout": {
+        "attempts": 228,
+        "markets": 85,
+        "events": 55,
+        "mean": 0.22168,
+        "eventMean": 0.17182,
+        "lower": 0.04721,
+        "upper": 0.29643,
+        "winRate": 0.52632
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h24_w6_m0.04_aligned_v1_All_longshot",
+        "baseId": "fade_h24_w6_m0.04_aligned_v1",
+        "horizon": 24,
+        "window": 6,
+        "minMove": 0.04,
+        "direction": "fade",
+        "confirmation": "aligned",
+        "maxVol": 1,
+        "category": "All",
+        "band": "longshot"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": true,
+      "passesArchive": false,
+      "train": {
+        "attempts": 300,
+        "markets": 120,
+        "events": 85,
+        "mean": 0.16378,
+        "eventMean": 0.1346,
+        "lower": 0.06404,
+        "upper": 0.20516,
+        "winRate": 0.53333
+      },
+      "validation": {
+        "attempts": 209,
+        "markets": 127,
+        "events": 89,
+        "mean": 0.09859,
+        "eventMean": 0.08716,
+        "lower": 0.01375,
+        "upper": 0.16058,
+        "winRate": 0.49282
+      },
+      "holdout": {
+        "attempts": 292,
+        "markets": 163,
+        "events": 114,
+        "mean": 0.13903,
+        "eventMean": 0.25889,
+        "lower": 0.09177,
+        "upper": 0.42601,
+        "winRate": 0.44863
+      },
+      "eventHoldout": {
+        "attempts": 290,
+        "markets": 102,
+        "events": 65,
+        "mean": 0.15128,
+        "eventMean": 0.17516,
+        "lower": 0.07222,
+        "upper": 0.2781,
+        "winRate": 0.48276
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h24_w6_m0.08_aligned_v1_Other_longshot",
+        "baseId": "fade_h24_w6_m0.08_aligned_v1",
+        "horizon": 24,
+        "window": 6,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "aligned",
+        "maxVol": 1,
+        "category": "Other",
+        "band": "longshot"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 83,
+        "markets": 42,
+        "events": 25,
+        "mean": 0.3321,
+        "eventMean": 0.24075,
+        "lower": 0.06904,
+        "upper": 0.41247,
+        "winRate": 0.55422
+      },
+      "validation": {
+        "attempts": 39,
+        "markets": 27,
+        "events": 22,
+        "mean": 0.25168,
+        "eventMean": 0.21211,
+        "lower": 0.03221,
+        "upper": 0.392,
+        "winRate": 0.64103
+      },
+      "holdout": {
+        "attempts": 56,
+        "markets": 36,
+        "events": 33,
+        "mean": 0.49659,
+        "eventMean": 0.70927,
+        "lower": 0.08836,
+        "upper": 1.33018,
+        "winRate": 0.48214
+      },
+      "eventHoldout": {
+        "attempts": 48,
+        "markets": 29,
+        "events": 18,
+        "mean": 0.28734,
+        "eventMean": 0.13099,
+        "lower": -0.07739,
+        "upper": 0.33937,
+        "winRate": 0.54167
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h24_w1_m0.08_accelerating_v1_Other_All",
+        "baseId": "fade_h24_w1_m0.08_accelerating_v1",
+        "horizon": 24,
+        "window": 1,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "accelerating",
+        "maxVol": 1,
+        "category": "Other",
+        "band": "All"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 203,
+        "markets": 66,
+        "events": 41,
+        "mean": 0.1287,
+        "eventMean": 0.09809,
+        "lower": 0.05055,
+        "upper": 0.14564,
+        "winRate": 0.57635
+      },
+      "validation": {
+        "attempts": 73,
+        "markets": 36,
+        "events": 28,
+        "mean": 0.13022,
+        "eventMean": 0.17056,
+        "lower": 0.0778,
+        "upper": 0.26331,
+        "winRate": 0.64384
+      },
+      "holdout": {
+        "attempts": 103,
+        "markets": 62,
+        "events": 40,
+        "mean": 0.28316,
+        "eventMean": 0.24651,
+        "lower": 0.08775,
+        "upper": 0.40527,
+        "winRate": 0.6699
+      },
+      "eventHoldout": {
+        "attempts": 118,
+        "markets": 42,
+        "events": 26,
+        "mean": 0.16642,
+        "eventMean": 0.09127,
+        "lower": -0.01228,
+        "upper": 0.19482,
+        "winRate": 0.57627
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h12_w3_m0.04_accelerating_v1_All_longshot",
+        "baseId": "fade_h12_w3_m0.04_accelerating_v1",
+        "horizon": 12,
+        "window": 3,
+        "minMove": 0.04,
+        "direction": "fade",
+        "confirmation": "accelerating",
+        "maxVol": 1,
+        "category": "All",
+        "band": "longshot"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 186,
+        "markets": 103,
+        "events": 73,
+        "mean": 0.1636,
+        "eventMean": 0.14138,
+        "lower": 0.07795,
+        "upper": 0.20481,
+        "winRate": 0.52151
+      },
+      "validation": {
+        "attempts": 137,
+        "markets": 101,
+        "events": 73,
+        "mean": 0.10652,
+        "eventMean": 0.09583,
+        "lower": 0.00002,
+        "upper": 0.19164,
+        "winRate": 0.42336
+      },
+      "holdout": {
+        "attempts": 233,
+        "markets": 160,
+        "events": 123,
+        "mean": 0.19428,
+        "eventMean": 0.19978,
+        "lower": 0.08624,
+        "upper": 0.31332,
+        "winRate": 0.49785
+      },
+      "eventHoldout": {
+        "attempts": 200,
+        "markets": 95,
+        "events": 59,
+        "mean": 0.10896,
+        "eventMean": 0.10951,
+        "lower": -0.00122,
+        "upper": 0.22024,
+        "winRate": 0.535
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h24_w6_m0.08_aligned_v1_All_longshot",
+        "baseId": "fade_h24_w6_m0.08_aligned_v1",
+        "horizon": 24,
+        "window": 6,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "aligned",
+        "maxVol": 1,
+        "category": "All",
+        "band": "longshot"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": true,
+      "passesArchive": false,
+      "train": {
+        "attempts": 131,
+        "markets": 66,
+        "events": 46,
+        "mean": 0.27702,
+        "eventMean": 0.1995,
+        "lower": 0.07881,
+        "upper": 0.3202,
+        "winRate": 0.58015
+      },
+      "validation": {
+        "attempts": 106,
+        "markets": 80,
+        "events": 53,
+        "mean": 0.16887,
+        "eventMean": 0.14414,
+        "lower": 0.03913,
+        "upper": 0.24914,
+        "winRate": 0.50943
+      },
+      "holdout": {
+        "attempts": 160,
+        "markets": 106,
+        "events": 83,
+        "mean": 0.15693,
+        "eventMean": 0.3706,
+        "lower": 0.08137,
+        "upper": 0.65983,
+        "winRate": 0.4375
+      },
+      "eventHoldout": {
+        "attempts": 131,
+        "markets": 62,
+        "events": 42,
+        "mean": 0.2531,
+        "eventMean": 0.17669,
+        "lower": 0.02836,
+        "upper": 0.32501,
+        "winRate": 0.55725
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h24_w6_m0.08_any_v1_Economy_All",
+        "baseId": "fade_h24_w6_m0.08_any_v1",
+        "horizon": 24,
+        "window": 6,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "any",
+        "maxVol": 1,
+        "category": "Economy",
+        "band": "All"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 161,
+        "markets": 26,
+        "events": 20,
+        "mean": 0.0521,
+        "eventMean": 0.08194,
+        "lower": 0.00953,
+        "upper": 0.15435,
+        "winRate": 0.5528
+      },
+      "validation": {
+        "attempts": 75,
+        "markets": 19,
+        "events": 15,
+        "mean": 0.05554,
+        "eventMean": 0.07035,
+        "lower": 0.02761,
+        "upper": 0.11309,
+        "winRate": 0.62667
+      },
+      "holdout": {
+        "attempts": 66,
+        "markets": 16,
+        "events": 12,
+        "mean": 0.29361,
+        "eventMean": 0.24701,
+        "lower": 0.07712,
+        "upper": 0.4169,
+        "winRate": 0.59091
+      },
+      "eventHoldout": {
+        "attempts": 78,
+        "markets": 8,
+        "events": 6,
+        "mean": 0.07984,
+        "eventMean": 0.11517,
+        "lower": 0.05348,
+        "upper": 0.17685,
+        "winRate": 0.5641
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h12_w1_m0.08_accelerating_v1_All_All",
+        "baseId": "fade_h12_w1_m0.08_accelerating_v1",
+        "horizon": 12,
+        "window": 1,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "accelerating",
+        "maxVol": 1,
+        "category": "All",
+        "band": "All"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": true,
+      "passesArchive": false,
+      "train": {
+        "attempts": 352,
+        "markets": 139,
+        "events": 85,
+        "mean": 0.15183,
+        "eventMean": 0.11545,
+        "lower": 0.06881,
+        "upper": 0.1621,
+        "winRate": 0.62216
+      },
+      "validation": {
+        "attempts": 252,
+        "markets": 134,
+        "events": 82,
+        "mean": 0.12067,
+        "eventMean": 0.1345,
+        "lower": 0.08564,
+        "upper": 0.18336,
+        "winRate": 0.55952
+      },
+      "holdout": {
+        "attempts": 493,
+        "markets": 227,
+        "events": 153,
+        "mean": 0.11787,
+        "eventMean": 0.12319,
+        "lower": 0.07557,
+        "upper": 0.17081,
+        "winRate": 0.56998
+      },
+      "eventHoldout": {
+        "attempts": 347,
+        "markets": 114,
+        "events": 78,
+        "mean": 0.06525,
+        "eventMean": 0.06745,
+        "lower": 0.01572,
+        "upper": 0.11917,
+        "winRate": 0.57061
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h12_w3_m0.08_accelerating_v1_All_All",
+        "baseId": "fade_h12_w3_m0.08_accelerating_v1",
+        "horizon": 12,
+        "window": 3,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "accelerating",
+        "maxVol": 1,
+        "category": "All",
+        "band": "All"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": true,
+      "passesArchive": false,
+      "train": {
+        "attempts": 402,
+        "markets": 152,
+        "events": 93,
+        "mean": 0.12201,
+        "eventMean": 0.1099,
+        "lower": 0.07004,
+        "upper": 0.14976,
+        "winRate": 0.59204
+      },
+      "validation": {
+        "attempts": 267,
+        "markets": 135,
+        "events": 85,
+        "mean": 0.11573,
+        "eventMean": 0.12308,
+        "lower": 0.0811,
+        "upper": 0.16506,
+        "winRate": 0.58427
+      },
+      "holdout": {
+        "attempts": 498,
+        "markets": 237,
+        "events": 159,
+        "mean": 0.1142,
+        "eventMean": 0.16083,
+        "lower": 0.07457,
+        "upper": 0.24709,
+        "winRate": 0.55422
+      },
+      "eventHoldout": {
+        "attempts": 382,
+        "markets": 121,
+        "events": 80,
+        "mean": 0.07863,
+        "eventMean": 0.08932,
+        "lower": 0.03971,
+        "upper": 0.13893,
+        "winRate": 0.58115
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h24_w1_m0.04_accelerating_v1_Other_longshot",
+        "baseId": "fade_h24_w1_m0.04_accelerating_v1",
+        "horizon": 24,
+        "window": 1,
+        "minMove": 0.04,
+        "direction": "fade",
+        "confirmation": "accelerating",
+        "maxVol": 1,
+        "category": "Other",
+        "band": "longshot"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 82,
+        "markets": 46,
+        "events": 29,
+        "mean": 0.29349,
+        "eventMean": 0.22754,
+        "lower": 0.0201,
+        "upper": 0.43498,
+        "winRate": 0.5
+      },
+      "validation": {
+        "attempts": 43,
+        "markets": 33,
+        "events": 24,
+        "mean": 0.16842,
+        "eventMean": 0.19839,
+        "lower": 0.01271,
+        "upper": 0.38406,
+        "winRate": 0.48837
+      },
+      "holdout": {
+        "attempts": 75,
+        "markets": 50,
+        "events": 44,
+        "mean": 0.50598,
+        "eventMean": 0.44466,
+        "lower": 0.07104,
+        "upper": 0.81828,
+        "winRate": 0.56
+      },
+      "eventHoldout": {
+        "attempts": 66,
+        "markets": 34,
+        "events": 22,
+        "mean": 0.13027,
+        "eventMean": -0.03036,
+        "lower": -0.13404,
+        "upper": 0.07331,
+        "winRate": 0.45455
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h24_w1_m0.08_any_v1_Other_All",
+        "baseId": "fade_h24_w1_m0.08_any_v1",
+        "horizon": 24,
+        "window": 1,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "any",
+        "maxVol": 1,
+        "category": "Other",
+        "band": "All"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 213,
+        "markets": 67,
+        "events": 41,
+        "mean": 0.1158,
+        "eventMean": 0.0842,
+        "lower": 0.03794,
+        "upper": 0.13046,
+        "winRate": 0.55869
+      },
+      "validation": {
+        "attempts": 79,
+        "markets": 39,
+        "events": 30,
+        "mean": 0.10368,
+        "eventMean": 0.14621,
+        "lower": 0.0574,
+        "upper": 0.23501,
+        "winRate": 0.59494
+      },
+      "holdout": {
+        "attempts": 109,
+        "markets": 62,
+        "events": 40,
+        "mean": 0.25494,
+        "eventMean": 0.22278,
+        "lower": 0.06667,
+        "upper": 0.37889,
+        "winRate": 0.65138
+      },
+      "eventHoldout": {
+        "attempts": 126,
+        "markets": 44,
+        "events": 26,
+        "mean": 0.14494,
+        "eventMean": 0.06172,
+        "lower": -0.04263,
+        "upper": 0.16607,
+        "winRate": 0.56349
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h24_w1_m0.08_aligned_v1_Other_All",
+        "baseId": "fade_h24_w1_m0.08_aligned_v1",
+        "horizon": 24,
+        "window": 1,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "aligned",
+        "maxVol": 1,
+        "category": "Other",
+        "band": "All"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 213,
+        "markets": 67,
+        "events": 41,
+        "mean": 0.1158,
+        "eventMean": 0.0842,
+        "lower": 0.03794,
+        "upper": 0.13046,
+        "winRate": 0.55869
+      },
+      "validation": {
+        "attempts": 79,
+        "markets": 39,
+        "events": 30,
+        "mean": 0.10368,
+        "eventMean": 0.14621,
+        "lower": 0.0574,
+        "upper": 0.23501,
+        "winRate": 0.59494
+      },
+      "holdout": {
+        "attempts": 109,
+        "markets": 62,
+        "events": 40,
+        "mean": 0.25494,
+        "eventMean": 0.22278,
+        "lower": 0.06667,
+        "upper": 0.37889,
+        "winRate": 0.65138
+      },
+      "eventHoldout": {
+        "attempts": 126,
+        "markets": 44,
+        "events": 26,
+        "mean": 0.14494,
+        "eventMean": 0.06172,
+        "lower": -0.04263,
+        "upper": 0.16607,
+        "winRate": 0.56349
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h24_w3_m0.08_any_v1_Economy_All",
+        "baseId": "fade_h24_w3_m0.08_any_v1",
+        "horizon": 24,
+        "window": 3,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "any",
+        "maxVol": 1,
+        "category": "Economy",
+        "band": "All"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 107,
+        "markets": 25,
+        "events": 19,
+        "mean": 0.08838,
+        "eventMean": 0.10942,
+        "lower": 0.03868,
+        "upper": 0.18016,
+        "winRate": 0.58879
+      },
+      "validation": {
+        "attempts": 37,
+        "markets": 17,
+        "events": 13,
+        "mean": 0.07301,
+        "eventMean": 0.07039,
+        "lower": 0.01869,
+        "upper": 0.1221,
+        "winRate": 0.67568
+      },
+      "holdout": {
+        "attempts": 48,
+        "markets": 15,
+        "events": 11,
+        "mean": 0.32054,
+        "eventMean": 0.2385,
+        "lower": 0.0637,
+        "upper": 0.4133,
+        "winRate": 0.625
+      },
+      "eventHoldout": {
+        "attempts": 44,
+        "markets": 8,
+        "events": 6,
+        "mean": 0.09054,
+        "eventMean": 0.08482,
+        "lower": 0.03587,
+        "upper": 0.13378,
+        "winRate": 0.63636
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h12_w3_m0.08_aligned_v1_All_longshot",
+        "baseId": "fade_h12_w3_m0.08_aligned_v1",
+        "horizon": 12,
+        "window": 3,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "aligned",
+        "maxVol": 1,
+        "category": "All",
+        "band": "longshot"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": true,
+      "passesArchive": false,
+      "train": {
+        "attempts": 107,
+        "markets": 65,
+        "events": 45,
+        "mean": 0.23173,
+        "eventMean": 0.19168,
+        "lower": 0.08637,
+        "upper": 0.29699,
+        "winRate": 0.53271
+      },
+      "validation": {
+        "attempts": 86,
+        "markets": 72,
+        "events": 49,
+        "mean": 0.16074,
+        "eventMean": 0.15213,
+        "lower": 0.00671,
+        "upper": 0.29755,
+        "winRate": 0.40698
+      },
+      "holdout": {
+        "attempts": 145,
+        "markets": 106,
+        "events": 87,
+        "mean": 0.22132,
+        "eventMean": 0.24258,
+        "lower": 0.06331,
+        "upper": 0.42186,
+        "winRate": 0.50345
+      },
+      "eventHoldout": {
+        "attempts": 103,
+        "markets": 60,
+        "events": 41,
+        "mean": 0.3005,
+        "eventMean": 0.25221,
+        "lower": 0.07426,
+        "upper": 0.43016,
+        "winRate": 0.63107
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h12_w1_m0.08_any_v1_All_All",
+        "baseId": "fade_h12_w1_m0.08_any_v1",
+        "horizon": 12,
+        "window": 1,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "any",
+        "maxVol": 1,
+        "category": "All",
+        "band": "All"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": true,
+      "passesArchive": false,
+      "train": {
+        "attempts": 373,
+        "markets": 140,
+        "events": 85,
+        "mean": 0.14206,
+        "eventMean": 0.10824,
+        "lower": 0.06312,
+        "upper": 0.15336,
+        "winRate": 0.6059
+      },
+      "validation": {
+        "attempts": 274,
+        "markets": 137,
+        "events": 84,
+        "mean": 0.11071,
+        "eventMean": 0.11839,
+        "lower": 0.07242,
+        "upper": 0.16435,
+        "winRate": 0.5438
+      },
+      "holdout": {
+        "attempts": 549,
+        "markets": 232,
+        "events": 157,
+        "mean": 0.11144,
+        "eventMean": 0.11011,
+        "lower": 0.06286,
+        "upper": 0.15735,
+        "winRate": 0.57195
+      },
+      "eventHoldout": {
+        "attempts": 383,
+        "markets": 117,
+        "events": 78,
+        "mean": 0.07451,
+        "eventMean": 0.0723,
+        "lower": 0.02198,
+        "upper": 0.12263,
+        "winRate": 0.56658
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h12_w1_m0.08_aligned_v1_All_All",
+        "baseId": "fade_h12_w1_m0.08_aligned_v1",
+        "horizon": 12,
+        "window": 1,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "aligned",
+        "maxVol": 1,
+        "category": "All",
+        "band": "All"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": true,
+      "passesArchive": false,
+      "train": {
+        "attempts": 373,
+        "markets": 140,
+        "events": 85,
+        "mean": 0.14206,
+        "eventMean": 0.10824,
+        "lower": 0.06312,
+        "upper": 0.15336,
+        "winRate": 0.6059
+      },
+      "validation": {
+        "attempts": 274,
+        "markets": 137,
+        "events": 84,
+        "mean": 0.11071,
+        "eventMean": 0.11839,
+        "lower": 0.07242,
+        "upper": 0.16435,
+        "winRate": 0.5438
+      },
+      "holdout": {
+        "attempts": 549,
+        "markets": 232,
+        "events": 157,
+        "mean": 0.11144,
+        "eventMean": 0.11011,
+        "lower": 0.06286,
+        "upper": 0.15735,
+        "winRate": 0.57195
+      },
+      "eventHoldout": {
+        "attempts": 383,
+        "markets": 117,
+        "events": 78,
+        "mean": 0.07451,
+        "eventMean": 0.0723,
+        "lower": 0.02198,
+        "upper": 0.12263,
+        "winRate": 0.56658
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h12_w1_m0.04_accelerating_v1_Sports_All",
+        "baseId": "fade_h12_w1_m0.04_accelerating_v1",
+        "horizon": 12,
+        "window": 1,
+        "minMove": 0.04,
+        "direction": "fade",
+        "confirmation": "accelerating",
+        "maxVol": 1,
+        "category": "Sports",
+        "band": "All"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": true,
+      "passesArchive": false,
+      "train": {
+        "attempts": 130,
+        "markets": 46,
+        "events": 19,
+        "mean": 0.13105,
+        "eventMean": 0.10176,
+        "lower": 0.03912,
+        "upper": 0.16441,
+        "winRate": 0.60769
+      },
+      "validation": {
+        "attempts": 230,
+        "markets": 84,
+        "events": 40,
+        "mean": 0.06616,
+        "eventMean": 0.0474,
+        "lower": 0.00258,
+        "upper": 0.09222,
+        "winRate": 0.46087
+      },
+      "holdout": {
+        "attempts": 125,
+        "markets": 60,
+        "events": 43,
+        "mean": 0.13722,
+        "eventMean": 0.12876,
+        "lower": 0.05874,
+        "upper": 0.19878,
+        "winRate": 0.616
+      },
+      "eventHoldout": {
+        "attempts": 184,
+        "markets": 35,
+        "events": 26,
+        "mean": 0.074,
+        "eventMean": 0.06797,
+        "lower": 0.03642,
+        "upper": 0.09952,
+        "winRate": 0.61413
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h24_w6_m0.04_any_v1_Other_longshot",
+        "baseId": "fade_h24_w6_m0.04_any_v1",
+        "horizon": 24,
+        "window": 6,
+        "minMove": 0.04,
+        "direction": "fade",
+        "confirmation": "any",
+        "maxVol": 1,
+        "category": "Other",
+        "band": "longshot"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": false,
+      "passesArchive": false,
+      "train": {
+        "attempts": 305,
+        "markets": 79,
+        "events": 50,
+        "mean": 0.16694,
+        "eventMean": 0.14537,
+        "lower": 0.04513,
+        "upper": 0.24562,
+        "winRate": 0.48525
+      },
+      "validation": {
+        "attempts": 194,
+        "markets": 56,
+        "events": 40,
+        "mean": 0.09765,
+        "eventMean": 0.09219,
+        "lower": 0.00484,
+        "upper": 0.17955,
+        "winRate": 0.51546
+      },
+      "holdout": {
+        "attempts": 186,
+        "markets": 73,
+        "events": 57,
+        "mean": 0.19633,
+        "eventMean": 0.2589,
+        "lower": 0.0576,
+        "upper": 0.4602,
+        "winRate": 0.43548
+      },
+      "eventHoldout": {
+        "attempts": 260,
+        "markets": 58,
+        "events": 34,
+        "mean": 0.08584,
+        "eventMean": 0.05746,
+        "lower": -0.09362,
+        "upper": 0.20853,
+        "winRate": 0.48846
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    },
+    {
+      "rule": {
+        "id": "fade_h12_w3_m0.08_any_v1_All_longshot",
+        "baseId": "fade_h12_w3_m0.08_any_v1",
+        "horizon": 12,
+        "window": 3,
+        "minMove": 0.08,
+        "direction": "fade",
+        "confirmation": "any",
+        "maxVol": 1,
+        "category": "All",
+        "band": "longshot"
+      },
+      "passesHoldout": true,
+      "passesEventHoldout": true,
+      "passesArchive": false,
+      "train": {
+        "attempts": 153,
+        "markets": 77,
+        "events": 54,
+        "mean": 0.23434,
+        "eventMean": 0.1611,
+        "lower": 0.07722,
+        "upper": 0.24499,
+        "winRate": 0.50327
+      },
+      "validation": {
+        "attempts": 123,
+        "markets": 84,
+        "events": 56,
+        "mean": 0.13767,
+        "eventMean": 0.12674,
+        "lower": 0.03777,
+        "upper": 0.2157,
+        "winRate": 0.4065
+      },
+      "holdout": {
+        "attempts": 197,
+        "markets": 132,
+        "events": 103,
+        "mean": 0.16379,
+        "eventMean": 0.21225,
+        "lower": 0.05714,
+        "upper": 0.36736,
+        "winRate": 0.47208
+      },
+      "eventHoldout": {
+        "attempts": 148,
+        "markets": 77,
+        "events": 50,
+        "mean": 0.23544,
+        "eventMean": 0.19195,
+        "lower": 0.05634,
+        "upper": 0.32755,
+        "winRate": 0.53378
+      },
+      "archive": {
+        "attempts": 0,
+        "markets": 0,
+        "events": 0,
+        "mean": 0,
+        "eventMean": 0,
+        "lower": 0,
+        "upper": 0,
+        "winRate": 0
+      }
+    }
+  ]
+}
