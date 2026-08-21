@@ -6,6 +6,8 @@ const STATE_VERSION_PREFIX = process.env.PMA_STATE_VERSION_PREFIX || "shared/sta
 const DATABASE_STATE_KEY = process.env.PMA_DATABASE_STATE_KEY || "polymarket-arena";
 const GITHUB_RUNTIME_STATE_URL = process.env.PMA_GITHUB_RUNTIME_STATE_URL
   || "https://raw.githubusercontent.com/theodore-song/polymarket-analyst/runtime-state/runtime/state.json";
+const GITHUB_RUNTIME_CONTENTS_URL = process.env.PMA_GITHUB_RUNTIME_CONTENTS_URL
+  || "https://api.github.com/repos/theodore-song/polymarket-analyst/contents/runtime/state.json?ref=runtime-state";
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
 const PAPER_KEY = "pma_paper_accounts_v1";
@@ -106,20 +108,39 @@ async function readJsonBlob() {
 }
 
 async function readGithubRuntimeState() {
-  if (!GITHUB_RUNTIME_STATE_URL) return null;
+  if (!GITHUB_RUNTIME_CONTENTS_URL && !GITHUB_RUNTIME_STATE_URL) return null;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
   try {
-    const url = new URL(GITHUB_RUNTIME_STATE_URL);
-    url.searchParams.set("runtime", `${Date.now()}-${Math.random().toString(36).slice(2)}`);
-    const response = await fetch(url, {
+    if (GITHUB_RUNTIME_CONTENTS_URL) {
+      const contentsUrl = new URL(GITHUB_RUNTIME_CONTENTS_URL);
+      contentsUrl.searchParams.set("runtime", `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+      const contentsResponse = await fetch(contentsUrl, {
+        cache: "no-store",
+        headers: { Accept: "application/vnd.github+json", "Cache-Control": "no-cache", "User-Agent": "polymarket-arena-state" },
+        signal: controller.signal,
+      });
+      if (contentsResponse.ok) {
+        const file = await contentsResponse.json();
+        if (!file || typeof file.content !== "string") throw new Error("GitHub runtime contents response is missing file data");
+        const decoded = Buffer.from(file.content.replace(/\s/g, ""), "base64").toString("utf8");
+        return sanitizeGithubRuntimeState(JSON.parse(decoded));
+      }
+      if (contentsResponse.status !== 403 && contentsResponse.status !== 429 && contentsResponse.status !== 404) {
+        throw new Error(`GitHub runtime contents returned HTTP ${contentsResponse.status}`);
+      }
+    }
+    if (!GITHUB_RUNTIME_STATE_URL) return null;
+    const rawUrl = new URL(GITHUB_RUNTIME_STATE_URL);
+    rawUrl.searchParams.set("runtime", `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    const rawResponse = await fetch(rawUrl, {
       cache: "no-store",
       headers: { Accept: "application/json", "Cache-Control": "no-cache" },
       signal: controller.signal,
     });
-    if (response.status === 404) return null;
-    if (!response.ok) throw new Error(`GitHub runtime state returned HTTP ${response.status}`);
-    return sanitizeGithubRuntimeState(await response.json());
+    if (rawResponse.status === 404) return null;
+    if (!rawResponse.ok) throw new Error(`GitHub runtime state returned HTTP ${rawResponse.status}`);
+    return sanitizeGithubRuntimeState(await rawResponse.json());
   } finally {
     clearTimeout(timeout);
   }
