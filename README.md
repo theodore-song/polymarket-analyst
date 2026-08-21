@@ -329,6 +329,14 @@ lists the agents that earned an aggregate promotion. Explicit empty scopes do
 not leak to any agent, legacy unlabeled outcomes remain readable for migration,
 and eligibility metadata survives local/offline and cloud-state compaction.
 
+Build 80 expands the pending forward-research queue from 300 to 600 records and
+the retained graded history from 500 to 1,000 outcomes. This keeps the 300
+legacy observations through their remaining checkpoints while opening capacity
+for strategy-scoped observations immediately. The larger history retains enough
+independent events for per-agent 6-hour risk vetoes and 24-hour/72-hour
+promotion confidence checks without relaxing execution, cost, or evidence
+requirements.
+
 Build 77 separates the directional learner's evidence lineage from the global
 strategy release. Code-history verification found the same trend/reversal
 generator and 24-hour/72-hour grading policy in Strategy 51 through Strategy

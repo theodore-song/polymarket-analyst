@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 58 · agent learning 1 · build 79</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 58 · agent learning 1 · build 80</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 79 active:</b> every forward directional observation now records which agent strategies would actually consider it. Each agent receives its own event-clustered calibration, can promote a profitable cohort without promoting its peers, and can independently veto a losing cohort. Suggestions show the agents that earned each promotion, while old unlabeled evidence remains readable and scoped evidence survives offline storage and synchronization. Value Hunter continues scanning live threshold, deadline, and complete negative-risk bundles. This remains paper trading; profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 80 active:</b> every forward directional observation records which agent strategies would actually consider it, and the research queue now holds 600 observations instead of 300. This preserves the 300 maturing legacy records while immediately making room for strategy-scoped evidence, so differentiated adaptation starts now rather than after a three-day queue rotation. Each agent can promote a profitable cohort or veto a losing one independently; the 1,000-outcome history preserves enough event diversity for confidence checks. Value Hunter continues scanning live threshold, deadline, and complete negative-risk bundles. This remains paper trading; profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 79 · Adaptive strategy 58 · Agent learning 1 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 80 · Adaptive strategy 58 · Agent learning 1 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 79;
+const BUILD_VERSION = 80;
 const SUGGESTION_ENGINE_VERSION = 58;
 const MAKER_STRATEGY_VERSION = 2;
 const PREVIOUS_STRATEGY_VERSION = 57;
@@ -932,8 +932,8 @@ const SIGNAL_PROMOTION_HORIZONS = Object.freeze([24,72]);
 const SIGNAL_EVAL_HORIZONS = Object.freeze([...SIGNAL_EARLY_RISK_HORIZONS,...SIGNAL_PROMOTION_HORIZONS]);
 const SIGNAL_EVAL_TOLERANCE_HOURS = 6;
 const SIGNAL_EVAL_HOURS = SIGNAL_EVAL_HORIZONS[0];
-const SIGNAL_LEDGER_PENDING_LIMIT = 300;
-const SIGNAL_LEDGER_OUTCOME_LIMIT = 500;
+const SIGNAL_LEDGER_PENDING_LIMIT = 600;
+const SIGNAL_LEDGER_OUTCOME_LIMIT = 1000;
 const SIGNAL_LEDGER_RETRY_HOURS = SIGNAL_EVAL_HORIZONS[SIGNAL_EVAL_HORIZONS.length-1]+SIGNAL_EVAL_TOLERANCE_HOURS;
 const SIGNAL_LEDGER_DUE_FETCH_LIMIT = 80;
 const currentCycleHour = () => {const p=partsInLocalTime();return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}|s${SUGGESTION_ENGINE_VERSION}`;};
@@ -5321,6 +5321,7 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
     staleCacheIsMarkOnly:true,strategyEvidenceSurvivesBuilds:true,signalEvaluationHours:SIGNAL_EVAL_HOURS,signalEvaluationHorizons:SIGNAL_EVAL_HORIZONS,
     signalEarlyRiskHorizons:SIGNAL_EARLY_RISK_HORIZONS,signalPromotionHorizons:SIGNAL_PROMOTION_HORIZONS,
     signalEvaluationToleranceHours:SIGNAL_EVAL_TOLERANCE_HOURS,signalRetryHours:SIGNAL_LEDGER_RETRY_HOURS,
+    signalPendingLimit:SIGNAL_LEDGER_PENDING_LIMIT,signalOutcomeLimit:SIGNAL_LEDGER_OUTCOME_LIMIT,
     signalDueFetchLimit:SIGNAL_LEDGER_DUE_FETCH_LIMIT,survivorshipSafeSignalGrading:true,
     signalRoundTripCostCents:SIGNAL_ROUND_TRIP_COST*100,independentConfidence:true,eventClusteredCalibration:true,
     onePendingObservationPerMarketSide:true,oldestPendingEvidenceFirst:true,coverageAwareObservationSampling:true,uncertaintyGatedCalibration:true,
