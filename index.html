@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 58 · agent learning 2 · build 82</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 59 · agent learning 3 · build 83</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 82 active:</b> each strategy studies its own broader research universe before deciding whether a setup has earned capital. Observation eligibility is separate from the stricter entry gate, and unassigned migration records can no longer block a properly tagged replacement observation of the same market. Agent reports show legacy, strategy-tagged, and unassigned queue counts. Capital still requires independent 24h and 72h net-positive evidence; this remains paper trading and profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 83 active:</b> Strategy 59 removes two verified return leaks. The current 300-market replay hard-blocks favorite-priced directional trends after they remained net-negative across 6h, 12h, 24h, and 72h windows, and only Strategy 59 closed trades can now alter Strategy 59 position sizing. Older trades remain historical context, not permission to increase risk. Forward observations, agent-specific calibration, and offline reconstruction continue unchanged. This remains paper trading; profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 82 · Adaptive strategy 58 · Agent learning 2 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 83 · Adaptive strategy 59 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,14 +774,14 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 82;
-const AGENT_LEARNING_VERSION = 2;
-const SUGGESTION_ENGINE_VERSION = 58;
+const BUILD_VERSION = 83;
+const AGENT_LEARNING_VERSION = 3;
+const SUGGESTION_ENGINE_VERSION = 59;
 const MAKER_STRATEGY_VERSION = 2;
-const PREVIOUS_STRATEGY_VERSION = 57;
+const PREVIOUS_STRATEGY_VERSION = 58;
 const DIRECTIONAL_SIGNAL_POLICY_VERSION = 1;
 const DIRECTIONAL_SIGNAL_COMPATIBLE_STRATEGY_MIN = 51;
-const DIRECTIONAL_SIGNAL_COMPATIBLE_STRATEGY_MAX = 58;
+const DIRECTIONAL_SIGNAL_COMPATIBLE_STRATEGY_MAX = 59;
 const LEGACY_BUILD_STRATEGY_LINEAGE = Object.freeze({40:40,41:40});
 function normalizedStrategyVersion(value){
   const version=Number(value||0);
@@ -2145,7 +2145,7 @@ function tradeReturnForLearning(trade,closed){
   return clamp(pnl/basis,-1,2);
 }
 function buildAdaptiveProfile(p){
-  const buckets={},observations=[],currentClosedObservations=[],currentClosedReturns=[];
+  const buckets={},currentBuckets={},observations=[],currentClosedObservations=[],currentClosedReturns=[];
   const add=(trade,closed)=>{
     const version=normalizedStrategyVersion(trade.strategy_version);if(version<34)return;
     const age=Math.max(0,Date.now()-new Date(trade.closed_at||trade.opened_at||0).getTime());
@@ -2159,11 +2159,17 @@ function buildAdaptiveProfile(p){
     learningFeatures(trade).forEach(key=>{
       const b=buckets[key]||(buckets[key]={weight:0,sum:0,sumSq:0,wins:0,count:0});
       b.weight+=weight;b.sum+=ret*weight;b.sumSq+=ret*ret*weight;b.wins+=(ret>0?weight:0);b.count++;
+      if(version===SUGGESTION_ENGINE_VERSION){
+        const current=currentBuckets[key]||(currentBuckets[key]={weight:0,currentWeight:0,sum:0,sumSq:0,wins:0,count:0});
+        current.weight+=weight;current.currentWeight+=weight;current.sum+=ret*weight;current.sumSq+=ret*ret*weight;
+        current.wins+=(ret>0?weight:0);current.count++;
+      }
     });
   };
   (p.closed||[]).forEach(t=>add(t,true));
   (p.positions||[]).filter(t=>daysHeld(t)>=1).forEach(t=>add(t,false));
   const learned=Object.fromEntries(Object.entries(buckets).map(([k,b])=>[k,summarizeLearningBucket(b,6)]));
+  const currentLearned=Object.fromEntries(Object.entries(currentBuckets).map(([k,b])=>[k,summarizeLearningBucket(b,6)]));
   const totalWeight=observations.reduce((s,x)=>s+x.weight,0),totalSum=observations.reduce((s,x)=>s+x.ret*x.weight,0);
   const globalScore=totalSum/(totalWeight+10);
   const currentClosedWeight=currentClosedObservations.reduce((s,x)=>s+x.weight,0);
@@ -2171,7 +2177,7 @@ function buildAdaptiveProfile(p){
   const ranked=Object.entries(learned).filter(([k,v])=>!k.startsWith("side:")&&v.weight>=1)
     .sort((a,b)=>b[1].score-a[1].score);
   return {version:SUGGESTION_ENGINE_VERSION,samples:(p.closed||[]).filter(t=>normalizedStrategyVersion(t.strategy_version)>=34).length,
-    effective_samples:+totalWeight.toFixed(2),global_score:+globalScore.toFixed(4),buckets:learned,
+    effective_samples:+totalWeight.toFixed(2),global_score:+globalScore.toFixed(4),buckets:learned,current_buckets:currentLearned,
     current_samples:currentClosedReturns.length,current_effective_samples:+currentClosedWeight.toFixed(2),
     current_global_score:+(currentClosedSum/(currentClosedWeight+4)).toFixed(4),
     worst_return:currentClosedReturns.length?+Math.min(...currentClosedReturns).toFixed(4):0,
@@ -2276,10 +2282,15 @@ function stableExploration(agentId,marketId){
   const owner=AGENTS[stableHash(`owner:${id}`)%AGENTS.length];
   return Boolean(owner&&owner.id===agentId);
 }
+const DIRECTIONAL_REPLAY_AUDIT=Object.freeze({generated_at:"2026-08-21T19:28:05Z",markets:300,events:68,cost_cents:0.5,
+  favorite_trend:Object.freeze({hard_blocked:true,horizons_hours:[6,12,24,72],minimum_observations:1276,
+    net_means:[-0.00724,-0.00767,-0.00714,-0.01411],upper_90:[-0.00529,-0.00646,-0.00451,-0.00888]})});
 function historicalOpportunityPrior(s){
   const rows=[],resolutionDays=Number(s.days_to_resolution),hasResolution=s.days_to_resolution!=null&&s.days_to_resolution!==""&&Number.isFinite(resolutionDays);
   if((s.signal_type||"")==="trend")rows.push({feature:"broad-trend",score:-0.0123,samples:3239,blocked:true,requiresPromotion:true,
     requiredPromotionFeatures:["signal:trend",`side:${s.side||"unknown"}`,`category:${s.category||"Other"}`]});
+  if((s.signal_type||"")==="trend"&&["favorite","heavy-favorite"].includes(entryBand(s.entry_price)))rows.push({feature:"favorite-trend-replay",score:-0.0071,
+    samples:DIRECTIONAL_REPLAY_AUDIT.favorite_trend.minimum_observations,blocked:true,hardBlocked:true});
   if((s.signal_type||"")==="reversal")rows.push({feature:"reversal",score:-0.0369,samples:207,blocked:true,requiresPromotion:true,
     requiredPromotionFeatures:["signal:reversal","quality:reversal"]});
   if((s.side||"")==="NO"&&hasResolution&&resolutionDays<=21)rows.push({feature:"short-no",score:-0.3733,samples:64,blocked:true,requiresPromotion:true,
@@ -2338,7 +2349,8 @@ function learnedOpportunity(cfg,p,s,profile=null,calibration=null){
       historical_features:["sports-favorite-3000-market-replay"],historical_requires_promotion:false,historical_proof_met:true,
       multiplier:1,exploration:false,allowed:pilot.allowed,blocked_by:pilot.allowed?null:"pilot-settlement",features:["signal:sports-favorite-pilot"]};
   }
-  const model=profile||buildAdaptiveProfile(p),features=learningFeatures(s),rows=features.map(k=>model.buckets[k]).filter(Boolean);
+  const model=profile||buildAdaptiveProfile(p),features=learningFeatures(s);
+  const rows=features.map(k=>(model.current_buckets||{})[k]).filter(Boolean);
   const independentWeight=rows.length?Math.max(...rows.map(r=>Number(r.weight||0))):0;
   const score=rows.length?rows.reduce((sum,r)=>sum+r.score,0)/rows.length:0;
   const confidence=independentWeight/(independentWeight+12),exploration=stableExploration(cfg.id,s.market_id);
@@ -2397,9 +2409,9 @@ function adaptiveDecision(cfg,p,rank,total,leaderEq,marketLearning=null){
     targetExposure=Math.min(targetExposure,cfg.drawdownExposure??(aggressive?0.55:0.40));
     reason="down more than 18%, so it can add only one small, strongly confirmed position. It will not revenge trade.";
   }
-  if(profile.effective_samples>=4){
-    if(profile.global_score>0.015){maxFrac*=1.08;reason+=" Its own recent trade evidence is positive, so proven setups receive a small bounded size increase.";}
-    else if(profile.global_score<-0.015){maxFrac*=0.88;reason+=" Its own recent trade evidence is negative, so weak regimes are down-weighted while a 15% exploration allowance remains.";}
+  if(profile.current_effective_samples>=4){
+    if(profile.current_global_score>0.015){maxFrac*=1.08;reason+=" Its current-strategy closed-trade evidence is positive, so independently promoted setups receive a small bounded size increase.";}
+    else if(profile.current_global_score<-0.015){maxFrac*=0.88;reason+=" Its current-strategy closed-trade evidence is negative, so weak regimes are down-weighted while research continues without risking extra capital.";}
   }
   if(profile.current_effective_samples>=1.5&&(profile.current_global_score<-0.04||profile.worst_return<=-0.30)){
     mode="Loss Regime Containment";minConv+=2;maxNew=Math.min(maxNew,1);maxFrac*=0.72;
@@ -3715,7 +3727,7 @@ function decisionSummary(p){
   const blockerLabels={historical_prior:"history-tested losing setup",learning:"live learned losing regime",pilot_learning:"sports pilot demoted",event_overlap:"same sports event",confidence:"confidence",overlap:"material overlap",already_held:"already held",cooldown:"stop cooldown",focus:"category focus",price:"entry price",edge:"edge",timing:"timing",liquidity:"liquidity",activity:"activity",evidence:"evidence",direction:"direction",portfolio_limit:"portfolio limit"};
   const blockerRows=Object.entries(d.rejectionCounts||{}).filter(([,count])=>count>0).sort((a,b)=>b[1]-a[1]);
   const blockers=blockerRows.length?` Blocks: ${blockerRows.slice(0,4).map(([key,count])=>`${blockerLabels[key]||key} ${count}`).join(", ")}.`:"";
-  const learning=d.learning?` Learning: ${d.learning.samples} completed trades retained with older strategies down-weighted, ${(d.learning.global_score*100).toFixed(2)}% shrunk expectancy; ${d.learning.current_samples||0} completed under adaptive strategy ${SUGGESTION_ENGINE_VERSION}${d.learning.best?`; strongest ${d.learning.best.feature.replace(":"," ")}`:""}${d.learning.worst?`; weakest ${d.learning.worst.feature.replace(":"," ")}`:""}.`:"";
+  const learning=d.learning?` Learning: ${d.learning.samples} completed trades retained as historical context, ${(d.learning.global_score*100).toFixed(2)}% all-version shrunk expectancy; ${d.learning.current_samples||0} completed under adaptive strategy ${SUGGESTION_ENGINE_VERSION} with ${((d.learning.current_global_score||0)*100).toFixed(2)}% current-strategy shrunk expectancy. Only current-strategy closed trades can change sizing or personal cohort promotion${d.learning.best?`; historical strongest ${d.learning.best.feature.replace(":"," ")}`:""}${d.learning.worst?`; historical weakest ${d.learning.worst.feature.replace(":"," ")}`:""}.`:"";
   let calibration="";
   if(d.marketLearning){
     const ml=d.marketLearning,hasCounts=Number.isFinite(ml.events)&&Number.isFinite(ml.markets),hasCurrentCounts=Number.isFinite(ml.current_events);
@@ -5335,6 +5347,7 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
   buildAdaptiveProfile,
   buildSignalCalibration,
   agentObservesSuggestion,
+  directionalReplayAudit:DIRECTIONAL_REPLAY_AUDIT,
   prepareSuggestionForAgent,
   applyAgentSpecificPromotions,
   historicalOpportunityPrior,
@@ -5378,14 +5391,15 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
     makerMinimumPromotionLocks:MAKER_MIN_PROMOTION_LOCKS,makerMaximumLearningMultiplier:1.25,makerCapitalExplorationPct:0,hypotheticalRewardsCredited:false,
     makerCompetitionSource:"shared public CLOB order-book audit",makerResearchSharedAcrossAgents:true,makerMarketsPartitionedAcrossAgents:true,
     makerHistoryRequestsBatched:true,makerPromotionCohorts:["category","spread","reward-yield"],makerRewardPayoutMinimum:1,
-    emotionCanIncreaseSize:false,dualPromotionPeerBoostPct:5,
+    emotionCanIncreaseSize:false,dualPromotionPeerBoostPct:5,currentStrategyOnlyCapitalAdaptation:true,
+    favoriteTrendReplayHardBlock:true,
     sportsFavoritePilot:{entryBand:[SPORTS_FAVORITE_MIN_ENTRY,SPORTS_FAVORITE_MAX_ENTRY],targetLeadHours:SPORTS_FAVORITE_TARGET_LEAD_HOURS,
       leadToleranceHours:SPORTS_FAVORITE_LEAD_TOLERANCE_HOURS,pilotPositionPct:SPORTS_FAVORITE_PILOT_POSITION_PCT*100,
       totalCapitalPct:SPORTS_FAVORITE_TOTAL_CAPITAL_PCT*100,shadowLimit:SPORTS_FAVORITE_SHADOW_LIMIT,
       verdictEvents:SPORTS_FAVORITE_VERDICT_EVENTS,promotionEvents:SPORTS_FAVORITE_PROMOTION_EVENTS,
       slippageBufferCents:SPORTS_FAVORITE_SLIPPAGE_BUFFER*100,maximumExecutionCostCents:SPORTS_FAVORITE_MAX_EXECUTION_COST*100,
       capitalRequiresForwardPromotion:true,old24HourCapitalRuleRetired:true},
-    historicalPrior:"All broad directional and corrected settlement-calibration rules failed clean validation and remain observation-only. The fresh 3,000-market replay rejected the Strategy 57 24-hour sports-capital rule: -11.98% train and -4.04% untouched holdout means after modeled cost. Favorite Backer now records a zero-capital 12-hour, 60%-75% forward cohort and requires 30 new independent closed events with a positive lower confidence bound before any capital. Live-priced complete negative-risk bundles may trade; paired maker quotes remain zero-capital observations until current cohorts independently promote"}),
+    historicalPrior:"No directional rule survived the current 300-market 60/20/20 adaptive holdout at both 24h and 72h, and no settlement rule survived validation across 5,000 resolved markets. Favorite-priced trend following was independently net-negative at 6h, 12h, 24h, and 72h and is hard-blocked. The prior sports-capital rule also remains retired. Live-priced complete negative-risk bundles may trade when positive after costs; paired maker quotes and sports favorites remain zero-capital observations until current cohorts independently promote"}),
 });
 function runEngineSelfTest(){
   const market=(overrides={})=>Object.assign({
@@ -5454,6 +5468,18 @@ function runEngineSelfTest(){
   for(let i=0;i<8;i++)learner.closed.push({strategy_version:34,signal_type:"reversal",quality:"reversal",category:"Sports",side:"NO",entry_price:0.42,original_cost:100,
     realized_pnl:-20,opened_at:hoursAgo(72+i),closed_at:closedAt});
   const learningProfile=buildAdaptiveProfile(learner);
+  const legacyOnlyOpportunity=learnedOpportunity(AGENTS[0],learner,{market_id:"legacy-only-personal",signal_type:"catalyst",quality:"confirmed",
+    category:"Politics",side:"YES",entry_price:0.42,days_to_resolution:45},learningProfile,{samples:0,pending:0,buckets:{}});
+  const legacyPositiveDecision=adaptiveDecision(AGENTS[0],learner,1,AGENTS.length,STARTING_BALANCE,buildSignalCalibration(defaultSignalLedger()));
+  const currentPositiveLearner=defaultPortfolio();
+  for(let i=0;i<8;i++)currentPositiveLearner.closed.push({strategy_version:SUGGESTION_ENGINE_VERSION,signal_type:"catalyst",quality:"confirmed",
+    category:"Politics",side:"YES",entry_price:0.42,days_to_resolution:45,original_cost:100,realized_pnl:20,opened_at:hoursAgo(72+i),closed_at:closedAt});
+  const currentPositiveProfile=buildAdaptiveProfile(currentPositiveLearner);
+  const offlineCurrentState=defaultState();offlineCurrentState.agents.value=currentPositiveLearner;
+  const offlineCurrentProfile=buildAdaptiveProfile(compactAgentStateForSync(offlineCurrentState).agents.value);
+  const currentPositiveOpportunity=learnedOpportunity(AGENTS[0],currentPositiveLearner,{market_id:"current-positive-personal",signal_type:"catalyst",
+    quality:"confirmed",category:"Politics",side:"YES",entry_price:0.42,days_to_resolution:45},currentPositiveProfile,{samples:0,pending:0,buckets:{}});
+  const currentPositiveDecision=adaptiveDecision(AGENTS[0],currentPositiveLearner,1,AGENTS.length,STARTING_BALANCE,buildSignalCalibration(defaultSignalLedger()));
   const calibrationLedger=defaultSignalLedger();
   for(let i=0;i<16;i++)SIGNAL_EVAL_HORIZONS.forEach(horizon=>calibrationLedger.outcomes.push({market_id:`trend-market-${i}`,event_key:`trend-event-${i}`,signal_type:"trend",quality:"confirmed",category:"Politics",side:"YES",entry_price:0.42,target_horizon_hours:horizon,strategy_version:SUGGESTION_ENGINE_VERSION,return:0.12,evaluated_at:closedAt}));
   for(let i=0;i<16;i++)SIGNAL_EVAL_HORIZONS.forEach(horizon=>calibrationLedger.outcomes.push({market_id:`reversal-market-${i}`,event_key:`reversal-event-${i}`,signal_type:"reversal",quality:"reversal",category:"Sports",side:"NO",entry_price:0.42,target_horizon_hours:horizon,strategy_version:SUGGESTION_ENGINE_VERSION,return:-0.12,evaluated_at:closedAt}));
@@ -5545,6 +5571,10 @@ function runEngineSelfTest(){
   const stablePositiveProfile=calibrationFromReturns(Array(24).fill(0.12));
   const stablePositiveCalibration=calibratedOpportunity(calibrationCandidate,stablePositiveProfile);
   const promotedTrendSuggestion=applyAdaptiveMarketPromotion(Object.assign({},trend,{entry_candidate:true}),stablePositiveProfile);
+  const favoriteTrendCandidate=Object.assign({},trend,{market_id:"favorite-trend-replay-block",entry_candidate:true,entry_price:0.62,
+    category:"Politics",side:"YES",signal_type:"trend",quality:"confirmed"});
+  const blockedFavoriteTrendPromotion=applyAdaptiveMarketPromotion(favoriteTrendCandidate,stablePositiveProfile);
+  const blockedFavoriteTrendOpportunity=learnedOpportunity(AGENTS[0],defaultPortfolio(),favoriteTrendCandidate,null,stablePositiveProfile);
   const scopedLedger={pending:[
     {key:"momentum-pending",market_id:"momentum-pending",eligible_agent_ids:["momentum"]},
     {key:"value-pending",market_id:"value-pending",eligible_agent_ids:["value"]},
@@ -5578,7 +5608,7 @@ function runEngineSelfTest(){
     target_horizon_hours:24,strategy_version:SUGGESTION_ENGINE_VERSION,eligible_agent_ids:[],return:0.10,evaluated_at:closedAt})]};
   const stableNegativeCalibration=calibratedOpportunity(calibrationCandidate,calibrationFromReturns(Array(24).fill(-0.12)));
   const noisyCalibration=calibratedOpportunity(calibrationCandidate,calibrationFromReturns(Array.from({length:24},(_,i)=>i%2?0.12:-0.12)));
-  const promotedShortNoCandidate={market_id:"short-no-promoted",signal_type:"trend",quality:"confirmed",category:"Politics",side:"NO",entry_price:0.58,days_to_resolution:14};
+  const promotedShortNoCandidate={market_id:"short-no-promoted",signal_type:"trend",quality:"confirmed",category:"Politics",side:"NO",entry_price:0.42,days_to_resolution:14};
   const promotedShortNo=learnedOpportunity(AGENTS[0],defaultPortfolio(),promotedShortNoCandidate,null,calibrationFromReturns(Array(24).fill(0.12),promotedShortNoCandidate));
   const promotedReversalCandidate={market_id:"reversal-promoted",signal_type:"reversal",quality:"reversal",category:"Politics",side:"NO",entry_price:0.58,days_to_resolution:45};
   const promotedReversalCalibration=calibrationFromReturns(Array(24).fill(0.12),promotedReversalCandidate);
@@ -5907,6 +5937,15 @@ function runEngineSelfTest(){
     highEntryTargets:targets,targetsReachable:targets.every(x=>x>0.82&&x<1),
     adaptation:{samples:learningProfile.samples,trendMultiplier:learnedTrend.multiplier,reversalMultiplier:learnedReversal.multiplier,learnsDirection:learnedTrend.multiplier>learnedReversal.multiplier,
       calibrationSamples:calibrationProfile.samples,trendMarketScore:learnedTrend.market_score,reversalMarketScore:learnedReversal.market_score,
+      legacyTradesCannotPromotePersonalCohort:legacyOnlyOpportunity.personal_state==="observing"
+        &&Object.keys(learningProfile.current_buckets||{}).length===0,
+      currentTradesCanPromotePersonalCohort:currentPositiveOpportunity.personal_state==="promoted"
+        &&currentPositiveProfile.current_samples===8&&Object.keys(currentPositiveProfile.current_buckets||{}).length>=5,
+      currentCapitalLearningSurvivesOfflineCompaction:offlineCurrentProfile.current_samples===currentPositiveProfile.current_samples
+        &&offlineCurrentProfile.current_buckets["signal:catalyst"].score===currentPositiveProfile.current_buckets["signal:catalyst"].score,
+      legacyTradesCannotIncreaseCurrentSizing:legacyPositiveDecision.maxFrac===0.045,
+      currentProfitsCanIncreaseBoundedSizing:currentPositiveDecision.maxFrac>legacyPositiveDecision.maxFrac
+        &&currentPositiveDecision.maxFrac<=0.06,
       calibrationReportsIndependentCounts:calibrationDecisionFixture.marketLearning.samples===96
         &&calibrationDecisionFixture.marketLearning.markets===32&&calibrationDecisionFixture.marketLearning.events===32
         &&calibrationDecisionFixture.marketLearning.current_samples===96&&calibrationDecisionFixture.marketLearning.current_events===32,
@@ -5916,6 +5955,8 @@ function runEngineSelfTest(){
         &&!oldCountReport.includes("across 0 event clusters"),
       broadTrendStartsObservationOnly:!trend.trade_ready&&trend.entry_candidate&&trend.audited_observation_only,
       recentProofCanUnlockTrend:promotedTrendSuggestion.trade_ready&&promotedTrendSuggestion.adaptive_promotion,
+      replayLosingFavoriteTrendCannotPromote:!blockedFavoriteTrendPromotion.trade_ready
+        &&!blockedFavoriteTrendOpportunity.allowed&&blockedFavoriteTrendOpportunity.blocked_by==="historical",
       observationsRecordStrategyEligibility:Array.isArray(observationLedgerState.signal_ledger.pending[0].eligible_agent_ids)
         &&observationLedgerState.signal_ledger.pending[0].eligible_agent_ids.join(",")==="value,longshot,diversifier,reversal,tailalpha",
       researchEligibilityIsBroaderThanCapitalEntry:agentObservesSuggestion(agentById("value"),{side:"YES",entry_price:0.42,signal_type:"trend",quality:"watch",

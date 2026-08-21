@@ -352,10 +352,22 @@ queue audit but no longer blocks a new strategy-tagged observation for the same
 market side. New records also retain the signal features used to assign their
 research scope, making later audits reproducible.
 
+Build 83 advances to Strategy 59 after a fresh return audit. A 300-market,
+3,713-observation adaptive replay found no rule with a positive event-clustered
+lower bound in train, validation, and untouched holdout at both 24 and 72 hours;
+a separate 5,000-resolved-market settlement replay also produced no validated
+holdout winner. Favorite-priced trend following was consistently net-negative
+after cost across 6, 12, 24, and 72 hours, so that cohort is now hard-blocked.
+Personal adaptation and position-size changes now use only closed Strategy 59
+trades. Older trades remain visible as historical context but cannot promote a
+personal cohort or increase current risk. Forward directional evidence from
+Strategies 51-59 remains compatible because the signal and checkpoint policy
+did not change.
+
 Build 77 separates the directional learner's evidence lineage from the global
 strategy release. Code-history verification found the same trend/reversal
 generator and 24-hour/72-hour grading policy in Strategy 51 through Strategy
-58, so their forward, net-of-cost checkpoint observations remain compatible
+59, so their forward, net-of-cost checkpoint observations remain compatible
 even when an unrelated sports, maker, or bundle subsystem ships.
 Older signal policies remain down-weighted and cannot satisfy the current-policy
 promotion gate. This avoids repeatedly emptying a valid evidence set while
