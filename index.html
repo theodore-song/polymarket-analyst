@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 59 · shock strategy 3 · offline runtime 2 · build 87</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 59 · shock strategy 3 · autonomous runtime 1 · build 88</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 87 active:</b> The five aggressive agents can adopt a two-cent-stressed shock strategy: fade an accelerating 8%+ three-hour move and exit after 12 hours at an executable price. The exact rule retained positive event-clustered confidence bounds in train, validation, chronological holdout, and sealed event holdout across 417 partition-events. Entries begin at 1% of paper equity, are distributed across agents without repeating an event, and can promote or demote from each agent's forward results. Offline installs now replace stale cached builds correctly. Profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 88 active:</b> The public paper agents now have an hourly autonomous runner that continues when every user device is closed. A sanitized agent-only snapshot is written to a separate GitHub runtime branch and becomes the shared read-only fallback while Neon and Blob are unavailable. Personal accounts, emails, passwords, allocations, and live-money settings never enter that snapshot. The five aggressive agents retain Strategy 3's two-cent-stressed 12-hour shock fades, event deduplication, and forward demotion. Profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 87 · Adaptive strategy 59 · Shock strategy 3 · Offline runtime 2 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 88 · Adaptive strategy 59 · Shock strategy 3 · Autonomous runtime 1 · Offline runtime 2 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 87;
+const BUILD_VERSION = 88;
 const AGENT_LEARNING_VERSION = 3;
 const SUGGESTION_ENGINE_VERSION = 59;
 const MAKER_STRATEGY_VERSION = 3;
@@ -804,7 +804,9 @@ const PERSONAL_MODE = new URLSearchParams(location.search).get("personal") === "
 const PERSONAL_USER_ID = "local-readiness-user";
 const CATEGORIES = ["All","Politics","Sports","Crypto","Economy","Pop Culture","Other"];
 const SYNC_KEYS=[AGENTS_KEY,SUG_KEY,FOCUS_KEY,VIEW_KEY,PF_SORT_KEY,CHART_RANGE_KEY,INVEST_KEY,PAPER_KEY,LIVE_KEY,EMAIL_ALERT_KEY];
+const PUBLIC_RUNTIME_KEYS=Object.freeze([AGENTS_KEY,SUG_KEY]);
 const SYNC_LIMITS={closed:80,history:160,snapshots:240,suggestions:900,paperHistory:120,paperSnapshots:120,audit:120};
+const PUBLIC_RUNTIME_LIMITS=Object.freeze({...SYNC_LIMITS,suggestions:300});
 const CAT_COLORS = {Politics:"#fb7185",Sports:"#34d399",Crypto:"#fbbf24",Economy:"#7c8cff",
   "Pop Culture":"#c77dff",Other:"#94a1bb",All:"#7c8cff"};
 const CLOB = "https://clob.polymarket.com";
@@ -1767,6 +1769,27 @@ function prepareCycleSuggestions(suggestions,runMode,entriesAllowed){
   });
 }
 function collectSyncItems(){const items={};SYNC_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!=null)items[k]=v;});return compactSyncItems(items);}
+function collectPublicRuntimeItems(){
+  const st=compactAgentStateForSync(loadState(),PUBLIC_RUNTIME_LIMITS);
+  st.pending_sync=false;
+  st.runtime_managed=true;
+  const suggestions=compactSuggestionsForSync(loadSuggestions(),PUBLIC_RUNTIME_LIMITS);
+  return {[AGENTS_KEY]:JSON.stringify(st),[SUG_KEY]:JSON.stringify(suggestions)};
+}
+function buildPublicRuntimeSnapshot(){
+  const st=loadState();
+  return {schema_version:1,build_version:BUILD_VERSION,strategy_version:SUGGESTION_ENGINE_VERSION,
+    generated_at:nowIso(),updated_at:nowIso(),last_cycle_hour:st.last_cycle_hour||null,
+    source:"github-actions",read_only:true,items:collectPublicRuntimeItems(),
+    summary:{agents:AGENTS.map(cfg=>{const p=st.agents[cfg.id],eq=equity(p);return {id:cfg.id,equity:+eq.toFixed(2),
+      return_pct:+((eq/STARTING_BALANCE-1)*100).toFixed(3),cash:+Number(p.cash||0).toFixed(2),positions:(p.positions||[]).length};})}};
+}
+function applyPublicRuntimeSnapshot(snapshot){
+  if(!snapshot||typeof snapshot!=="object"||!snapshot.items||typeof snapshot.items!=="object")return false;
+  const items={};PUBLIC_RUNTIME_KEYS.forEach(key=>{if(typeof snapshot.items[key]==="string")items[key]=snapshot.items[key];});
+  if(!stateFromSyncItems(items))return false;
+  return applySyncItems(items);
+}
 function applySyncItems(items){
   if(!items||typeof items!=="object")return false;
   const compact=compactSyncItems(items);
@@ -1781,7 +1804,7 @@ function stateFromSyncItems(items){
   try{return items&&items[AGENTS_KEY]?JSON.parse(items[AGENTS_KEY]):null;}
   catch(e){return null;}
 }
-let CLOUD_STATE_HEALTH={ok:null,degraded:false,providers:null,error:null};
+let CLOUD_STATE_HEALTH={ok:null,degraded:false,read_only:false,source:null,providers:null,error:null};
 window.PMA_CLOUD_STATE_HEALTH=CLOUD_STATE_HEALTH;
 function rememberCloudHealth(next){
   CLOUD_STATE_HEALTH={...CLOUD_STATE_HEALTH,...next};
@@ -1789,6 +1812,7 @@ function rememberCloudHealth(next){
   return CLOUD_STATE_HEALTH;
 }
 function localOnlyStatus(base,providerOverride=null){
+  if(CLOUD_STATE_HEALTH.read_only&&CLOUD_STATE_HEALTH.source==="github-actions")return `${base} · autonomous shared state`;
   const providers=providerOverride||CLOUD_STATE_HEALTH.providers||{};
   const dbStatus=providers.database&&providers.database.status;
   const blobStatus=providers.blob&&providers.blob.status;
@@ -1798,6 +1822,7 @@ function localOnlyStatus(base,providerOverride=null){
 }
 window.PMA_CLOUD_STATUS_LABEL=localOnlyStatus;
 async function pushCloudState(force=false){
+  if(CLOUD_STATE_HEALTH.read_only)return false;
   try{
     const r=await fetchWithTimeout("/api/state",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({items:collectSyncItems(),force})},NETWORK_REQUEST_TIMEOUT_MS);
     if(r.status===409){
@@ -1810,10 +1835,10 @@ async function pushCloudState(force=false){
     }
     const d=await r.json().catch(()=>null);
     if(!r.ok){
-      rememberCloudHealth({ok:false,degraded:true,providers:d&&d.providers||null,error:d&&d.error||"Cloud sync unavailable"});
+      rememberCloudHealth({ok:false,degraded:true,read_only:Boolean(d&&d.read_only),source:d&&d.source||null,providers:d&&d.providers||null,error:d&&d.error||"Cloud sync unavailable"});
       return false;
     }
-    rememberCloudHealth({ok:true,degraded:false,providers:null,error:null});
+    rememberCloudHealth({ok:true,degraded:false,read_only:false,source:"managed-storage",providers:null,error:null});
     return true;
   }catch(e){rememberCloudHealth({ok:false,degraded:true,error:"Cloud sync unavailable"});return false;}
 }
@@ -1822,11 +1847,11 @@ async function pullCloudState(){
     const r=await fetchWithTimeout("/api/state",{cache:"no-store"},NETWORK_REQUEST_TIMEOUT_MS);
     if(!r.ok){
       const d=await r.json().catch(()=>null);
-      rememberCloudHealth({ok:false,degraded:true,providers:d&&d.providers||null,error:d&&d.error||"Cloud sync unavailable"});
-      return {ok:false,state:null,degraded:true,providers:d&&d.providers||null,error:d&&d.error};
+      rememberCloudHealth({ok:false,degraded:true,read_only:Boolean(d&&d.read_only),source:d&&d.source||null,providers:d&&d.providers||null,error:d&&d.error||"Cloud sync unavailable"});
+      return {ok:false,state:null,degraded:true,read_only:Boolean(d&&d.read_only),source:d&&d.source||null,providers:d&&d.providers||null,error:d&&d.error};
     }
     const d=await r.json();
-    const result={ok:true,state:(d&&d.state)||null,degraded:Boolean(d&&d.degraded),error:d&&d.error,providers:d&&d.providers||null};
+    const result={ok:true,state:(d&&d.state)||null,degraded:Boolean(d&&d.degraded),read_only:Boolean(d&&d.read_only),source:d&&d.source||null,error:d&&d.error,providers:d&&d.providers||null};
     rememberCloudHealth(result);
     return result;
   }catch(e){}
@@ -1835,20 +1860,20 @@ async function pullCloudState(){
 }
 async function loadAuthoritativeCloudState(){
   const cloud=await pullCloudState();
-  if(!cloud.ok)return {ok:false,loaded:false,degraded:true};
+  if(!cloud.ok)return {ok:false,loaded:false,degraded:true,read_only:Boolean(cloud.read_only),source:cloud.source||null};
   const cloudState=cloud.state;
   if(cloudState&&cloudState.items&&stateFromSyncItems(cloudState.items)){
     applySyncItems(cloudState.items);
-    return {ok:true,loaded:true,degraded:Boolean(cloud.degraded),providers:cloud.providers||null};
+    return {ok:true,loaded:true,degraded:Boolean(cloud.degraded),read_only:Boolean(cloud.read_only),source:cloud.source||null,providers:cloud.providers||null};
   }
-  return {ok:true,loaded:false,degraded:Boolean(cloud.degraded),providers:cloud.providers||null};
+  return {ok:true,loaded:false,degraded:Boolean(cloud.degraded),read_only:Boolean(cloud.read_only),source:cloud.source||null,providers:cloud.providers||null};
 }
 async function refreshFromCloudAndRender(silent=true){
   const cloud=await loadAuthoritativeCloudState();
   if(cloud.loaded){
     renderAll();
-    setStatus("cloud synced",false);
-    if(!silent)toast("Shared cloud state refreshed.");
+    setStatus(cloud.read_only?"autonomous shared state loaded":"cloud synced",false);
+    if(!silent)toast(cloud.read_only?"Autonomous agent state refreshed.":"Shared cloud state refreshed.");
   }else if(cloud.degraded){
     setStatus(localOnlyStatus("cloud storage paused"),false);
     if(!silent)toast("Cloud storage is unavailable. This device is using its local backup.");
@@ -5631,6 +5656,8 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
   applyShockFadeForwardPromotion,
   stageShockFadeShadows,
   manageShockFadeShadows,
+  autonomousRuntime:Object.freeze({version:1,publicKeys:[...PUBLIC_RUNTIME_KEYS],suggestionLimit:PUBLIC_RUNTIME_LIMITS.suggestions,
+    excludedKeys:[PAPER_KEY,EMAIL_ALERT_KEY,INVEST_KEY,LIVE_KEY,CHAT_KEY,PAID_AGENT_CHAT_KEY]}),
   marketIsSettled,
   marketIsSuspended,
   historicalPriceFeatures,
@@ -6268,7 +6295,11 @@ function runEngineSelfTest(){
     marketLearning:{samples:152,current_samples:127,pending:300,buckets:{}}}});
   const freshCountReport=decisionSummary({lastDecision:{mode:"Test",reason:"test",maxNew:1,maxFrac:0.03,
     marketLearning:calibrationDecisionRecord(calibrationProfile)}});
+  const runtimeSnapshot=buildPublicRuntimeSnapshot(),runtimeKeys=Object.keys(runtimeSnapshot.items).sort();
   return {buildVersion:BUILD_VERSION,version:SUGGESTION_ENGINE_VERSION,
+    autonomousRuntime:{exactPublicKeys:runtimeKeys.join(",")===[AGENTS_KEY,SUG_KEY].sort().join(","),
+      excludesPrivateKeys:[PAPER_KEY,EMAIL_ALERT_KEY,INVEST_KEY,LIVE_KEY,CHAT_KEY,PAID_AGENT_CHAT_KEY].every(key=>!runtimeKeys.includes(key)),
+      suggestionLimit:PUBLIC_RUNTIME_LIMITS.suggestions},
     trend:{ready:trend.trade_ready,quality:trend.quality,side:trend.side,margin:trend.net_edge},
     auditedTrendCategories:{sportsObservationOnly:!sportsTrend.trade_ready&&sportsTrend.signal_type==="trend",cryptoObservationOnly:!cryptoTrend.trade_ready&&cryptoTrend.signal_type==="trend"},
     noSignal:{ready:noSignal.trade_ready,quality:noSignal.quality,signal:noSignal.signal_type,margin:noSignal.net_edge},
@@ -6571,6 +6602,13 @@ function runEngineSelfTest(){
     chatIdentityMigrates:chatMigrationFixture.reversal[0].text.includes("Shock Reversion")&&!chatMigrationFixture.reversal[0].text.includes("Reversal Edge")&&!chatMigrationFixture.reversal[0].text.includes("Trend Endurance"),
     immaterialRunnerDoesNotBlock,rejectionAccounting,convictionCapacityCoversTarget,rules:window.PMA_ENGINE_DIAGNOSTICS.rules};
 }
+window.PMA_AUTOMATION=Object.freeze({
+  status:()=>{const st=loadState();return {build:BUILD_VERSION,strategy:SUGGESTION_ENGINE_VERSION,running:CYCLE_RUNNING,
+    seeded:Boolean(st.seeded),last_cycle_hour:st.last_cycle_hour||null,suggestion_count:(loadSuggestions().suggestions||[]).length};},
+  runCycle:async()=>{const result=await runDailyCycle();renderAll();return result;},
+  exportShared:()=>buildPublicRuntimeSnapshot(),
+  importShared:(snapshot)=>{const applied=applyPublicRuntimeSnapshot(snapshot);if(applied)renderAll();return applied;},
+});
 if(new URLSearchParams(location.search).get("engine_test")==="1"){
   const output=document.createElement("output");output.id="engineSelfTest";output.hidden=true;output.textContent=JSON.stringify(runEngineSelfTest());document.body.appendChild(output);
 }
@@ -6735,8 +6773,8 @@ if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw.js").catc
   const cloud=await loadAuthoritativeCloudState();
   let st=loadState();
   if(cloud.loaded){
-    toast("Cloud state loaded for this device.");
-  }else if(cloud.ok&&!cloud.degraded&&st.seeded){
+    toast(cloud.read_only?"Autonomous agent state loaded for this device.":"Cloud state loaded for this device.");
+  }else if(cloud.ok&&!cloud.degraded&&!cloud.read_only&&st.seeded){
     pushCloudState();
   }else if(cloud.degraded||!cloud.ok){
     setStatus(localOnlyStatus("offline-ready"),false);

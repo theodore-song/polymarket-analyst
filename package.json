@@ -14,12 +14,16 @@
     "evaluate:sports-favorites": "node scripts/evaluate-sports-favorites.mjs",
     "test:server-state": "node scripts/test-server-state.mjs",
     "test:shock-audit": "node scripts/test-shock-audit.mjs",
-    "test:offline-runtime": "node scripts/test-offline-runtime.mjs"
+    "test:offline-runtime": "node scripts/test-offline-runtime.mjs",
+    "test:autonomous-runtime": "node scripts/test-autonomous-runtime.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
     "@vercel/blob": "2.5.0",
     "nodemailer": "^9.0.3",
     "svix": "^1.96.1"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.1"
   }
 }

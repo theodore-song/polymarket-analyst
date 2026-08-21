@@ -1,0 +1,40 @@
+name: Autonomous paper cycle
+
+on:
+  schedule:
+    - cron: "7 * * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - index.html
+      - api/state.js
+      - scripts/run-autonomous-cycle.mjs
+      - .github/workflows/autonomous-cycle.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: autonomous-paper-cycle
+  cancel-in-progress: false
+
+jobs:
+  cycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/run-autonomous-cycle.mjs
+        env:
+          ARENA_URL: https://polymarket-site-eta.vercel.app
+          EXPECTED_BUILD: "88"
+          RUNTIME_BRANCH: runtime-state
+          RUNTIME_STATE_PATH: runtime/state.json
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

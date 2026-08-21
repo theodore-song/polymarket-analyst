@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { databaseConnectionDiagnostics, databaseUrl, databaseUrls, normalizeDatabaseUrl } from "../lib/db.js";
-import { compactAgentState, compactSuggestion, providerErrorCode } from "../api/state.js";
+import { compactAgentState, compactSuggestion, providerErrorCode, sanitizeGithubRuntimeState } from "../api/state.js";
 
 assert.equal(normalizeDatabaseUrl("psql 'postgresql://user:pass@example.test/db?sslmode=require'"),
   "postgresql://user:pass@example.test/db?sslmode=require");
@@ -63,6 +63,27 @@ const compactedState = compactAgentState({
 assert.equal(compactedState.signal_ledger.expired_ungraded, 7);
 assert.equal(compactedState.agents.reversal.shock_fade_shadows[0].shock_strategy_version, 3);
 assert.equal(compactedState.agents.reversal.shock_fade_outcomes[0].net_return, 0.08);
+
+const publicAgents = Object.fromEntries([
+  "value", "momentum", "favorite", "longshot", "diversifier", "catalyst", "reversal", "breakout", "tailalpha", "conviction",
+].map(id => [id, { cash: 10000, positions: [], closed: [], history: [], snapshots: [] }]));
+const sanitizedRuntime = sanitizeGithubRuntimeState({
+  schema_version: 1,
+  build_version: 88,
+  generated_at: "2026-08-21T20:00:00.000Z",
+  items: {
+    pma_agents_v2: JSON.stringify({ seeded: true, last_cycle_hour: "2026-08-21T20|v59", agents: publicAgents }),
+    pma_suggestions_v5: JSON.stringify({ suggestions: [] }),
+    pma_paper_accounts_v1: JSON.stringify({ password: "must-not-survive" }),
+    pma_trade_email_alerts_v1: JSON.stringify({ email: "private@example.com" }),
+    pma_live_readiness_v1: JSON.stringify({ wallet: "private" }),
+  },
+});
+assert.deepEqual(Object.keys(sanitizedRuntime.items).sort(), ["pma_agents_v2", "pma_suggestions_v5"]);
+assert.equal(sanitizedRuntime.read_only, true);
+assert.equal(sanitizedRuntime.source, "github-actions");
+assert.equal(sanitizedRuntime.build_version, 88);
+assert.throws(() => sanitizeGithubRuntimeState({ items: { pma_suggestions_v5: "{}" } }), /missing agent portfolios/);
 assert.equal(providerErrorCode(new Error("403 Forbidden")), "authorization_failed");
 assert.equal(providerErrorCode(new Error("Error connecting to database: HTTP status 402")), "provider_payment_required");
 assert.equal(providerErrorCode(new Error("invalid connection string")), "invalid_connection_string");

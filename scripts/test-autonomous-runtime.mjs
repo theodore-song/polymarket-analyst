@@ -1,0 +1,41 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import { ALLOWED_RUNTIME_KEYS, validateRuntimeSnapshot } from "./run-autonomous-cycle.mjs";
+
+const index = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
+const api = fs.readFileSync(new URL("../api/state.js", import.meta.url), "utf8");
+const workflow = fs.readFileSync(new URL("../.github/workflows/autonomous-cycle.yml", import.meta.url), "utf8");
+const runner = fs.readFileSync(new URL("./run-autonomous-cycle.mjs", import.meta.url), "utf8");
+const build = Number(index.match(/const BUILD_VERSION = (\d+);/)?.[1]);
+
+assert.equal(build, 88);
+assert.deepEqual([...ALLOWED_RUNTIME_KEYS].sort(), ["pma_agents_v2", "pma_suggestions_v5"]);
+assert.match(index, /function collectPublicRuntimeItems\(\)/);
+assert.match(index, /const PUBLIC_RUNTIME_KEYS=Object\.freeze\(\[AGENTS_KEY,SUG_KEY\]\)/);
+assert.match(index, /suggestions:300/);
+assert.match(index, /window\.PMA_AUTOMATION=Object\.freeze/);
+assert.match(index, /if\(CLOUD_STATE_HEALTH\.read_only\)return false/);
+assert.match(api, /runtime-state\/runtime\/state\.json/);
+assert.match(api, /sanitizeGithubRuntimeState/);
+assert.match(workflow, /cron: "7 \* \* \* \*"/);
+assert.match(workflow, /contents: write/);
+assert.match(workflow, /EXPECTED_BUILD: "88"/);
+assert.match(runner, /MAX_STATE_BYTES = 900_000/);
+
+const agentIds = ["value", "momentum", "favorite", "longshot", "diversifier", "catalyst", "reversal", "breakout", "tailalpha", "conviction"];
+const agents = Object.fromEntries(agentIds.map(id => [id, { cash: 10000, positions: [] }]));
+const snapshot = {
+  schema_version: 1,
+  build_version: build,
+  generated_at: new Date().toISOString(),
+  last_cycle_hour: "2026-08-21T20|v59",
+  items: {
+    pma_agents_v2: JSON.stringify({ seeded: true, last_cycle_hour: "2026-08-21T20|v59", agents }),
+    pma_suggestions_v5: JSON.stringify({ suggestions: [] }),
+  },
+};
+assert.equal(validateRuntimeSnapshot(snapshot, build).agents.seeded, true);
+assert.throws(() => validateRuntimeSnapshot({ ...snapshot, items: { ...snapshot.items, pma_paper_accounts_v1: "{}" } }, build), /unexpected keys/);
+assert.throws(() => validateRuntimeSnapshot({ ...snapshot, build_version: build - 1 }, build), /Expected Build/);
+
+console.log(`autonomous runtime verified for Build ${build}`);

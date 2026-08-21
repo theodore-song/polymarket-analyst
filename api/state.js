@@ -4,6 +4,8 @@ import { databaseConnectionDiagnostics, hasDatabase, readSharedAppState, writeSh
 const STATE_PATH = process.env.PMA_STATE_PATH || "shared/state.json";
 const STATE_VERSION_PREFIX = process.env.PMA_STATE_VERSION_PREFIX || "shared/state-versions/";
 const DATABASE_STATE_KEY = process.env.PMA_DATABASE_STATE_KEY || "polymarket-arena";
+const GITHUB_RUNTIME_STATE_URL = process.env.PMA_GITHUB_RUNTIME_STATE_URL
+  || "https://raw.githubusercontent.com/theodore-song/polymarket-analyst/runtime-state/runtime/state.json";
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
 const PAPER_KEY = "pma_paper_accounts_v1";
@@ -11,6 +13,7 @@ const LIVE_KEY = "pma_live_readiness_v1";
 const AGENT_IDS = ["value", "momentum", "favorite", "longshot", "diversifier", "catalyst", "reversal", "breakout", "tailalpha", "conviction"];
 const LIMITS = { closed: 80, history: 160, snapshots: 240, suggestions: 900, paperHistory: 120, paperSnapshots: 120, audit: 120 };
 const SIGNAL_LEDGER_LIMITS = { pending: 300, outcomes: 500 };
+const RUNTIME_ALLOWED_KEYS = new Set([AGENTS_KEY, SUG_KEY]);
 
 function withBlobAuth(options = {}) {
   const token = process.env.BLOB_READ_WRITE_TOKEN;
@@ -80,17 +83,46 @@ async function readJsonBlob() {
     if (!primaryError) primaryError = err;
   }
 
-  if (primaryError && !databaseAvailable) {
+  let githubError = null;
+  try {
+    const runtime = await readGithubRuntimeState();
+    if (runtime) return runtime;
+  } catch (err) {
+    githubError = err;
+  }
+
+  if ((primaryError || githubError) && !databaseAvailable) {
     const error = new Error("Shared state providers are unavailable");
     error.providers = {
       database: hasDatabase()
         ? { ...providerErrorMetadata(databaseError), ...databaseConnectionDiagnostics() }
         : { status: "not_configured", candidates: 0, urls: [] },
       blob: providerErrorMetadata(primaryError),
+      github_runtime: providerErrorMetadata(githubError),
     };
     throw error;
   }
   return null;
+}
+
+async function readGithubRuntimeState() {
+  if (!GITHUB_RUNTIME_STATE_URL) return null;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const url = new URL(GITHUB_RUNTIME_STATE_URL);
+    url.searchParams.set("minute", String(Math.floor(Date.now() / 60000)));
+    const response = await fetch(url, {
+      cache: "no-store",
+      headers: { Accept: "application/json", "Cache-Control": "no-cache" },
+      signal: controller.signal,
+    });
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error(`GitHub runtime state returned HTTP ${response.status}`);
+    return sanitizeGithubRuntimeState(await response.json());
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function persistState(state) {
@@ -275,6 +307,33 @@ function compactItems(items) {
   return out;
 }
 
+export function sanitizeGithubRuntimeState(payload) {
+  if (!payload || typeof payload !== "object" || !payload.items || typeof payload.items !== "object") {
+    throw new Error("Invalid GitHub runtime state");
+  }
+  const items = {};
+  for (const key of RUNTIME_ALLOWED_KEYS) {
+    if (typeof payload.items[key] === "string") items[key] = payload.items[key];
+  }
+  const agents = agentStateFromItems(items);
+  if (!agents || !agents.agents) throw new Error("GitHub runtime state is missing agent portfolios");
+  const suggestions = suggestionStateFromItems(items);
+  items[AGENTS_KEY] = JSON.stringify(compactAgentState(agents));
+  if (suggestions) items[SUG_KEY] = JSON.stringify(compactSuggestions(suggestions));
+  return {
+    version: 1,
+    schema_version: Number(payload.schema_version || 1),
+    build_version: Number(payload.build_version || agents.engine_version || 0),
+    strategy_version: Number(payload.strategy_version || agents.strategy_version || 0),
+    generated_at: payload.generated_at || payload.updated_at || null,
+    updated_at: payload.updated_at || payload.generated_at || null,
+    last_cycle_hour: payload.last_cycle_hour || agents.last_cycle_hour || null,
+    source: "github-actions",
+    read_only: true,
+    items,
+  };
+}
+
 function conflictResponse(res, error, current) {
   return res.status(409).json({ ok: false, error, state: current });
 }
@@ -282,15 +341,17 @@ function conflictResponse(res, error, current) {
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   try {
-    if (!hasDatabase() && !process.env.BLOB_READ_WRITE_TOKEN && !process.env.VERCEL_OIDC_TOKEN) {
-      return res.status(503).json({ ok: false, error: "Cloud state is not configured" });
-    }
-
     if (req.method === "GET") {
       try {
         const state = await readJsonBlob();
         if (state && state.items) state.items = compactItems(state.items);
-        return res.status(200).json({ ok: true, state, degraded: false });
+        return res.status(200).json({
+          ok: true,
+          state,
+          degraded: false,
+          read_only: Boolean(state && state.read_only),
+          source: state && state.source || "managed-storage",
+        });
       } catch (err) {
         // A storage outage must not prevent the installed app from using its local paper state.
         return res.status(200).json({
@@ -304,6 +365,15 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "POST") {
+      if (!hasDatabase() && !process.env.BLOB_READ_WRITE_TOKEN && !process.env.VERCEL_OIDC_TOKEN) {
+        return res.status(503).json({
+          ok: false,
+          degraded: true,
+          read_only: true,
+          source: "github-actions",
+          error: "Managed cloud state is not configured; autonomous shared state is read-only",
+        });
+      }
       const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
       if (!body || typeof body !== "object" || !body.items || typeof body.items !== "object") {
         return res.status(400).json({ ok: false, error: "Invalid state payload" });
