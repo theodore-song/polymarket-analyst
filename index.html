@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 62 · verified-capacity bundles · build 117</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 62 · verified-capacity bundles · build 118</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 117 active:</b> The public paper agents target five-minute slots with one serialized, self-chained GitHub Actions successor after every successful cycle and cron as recovery. The server preserves oldest-first pending evidence, exact fee schedules, agent promotion scopes, and bundle execution diagnostics from the already-bounded runtime snapshot, so cloud restarts and offline cycles do not silently lose learning context. Each fresh cloud browser reconstructs a bounded offline cache from the shared suggestions and open positions, allowing 90-minute cached entries and 24-hour mark-only continuity without persisting private account data; live-depth bundles still require a live connection. Each live cycle scans the 500 most-active eligible markets and 1,000 most-active events. Complete bundles are repriced across every ask level to the largest equal-leg quantity that remains profitable, depth-covered, fee-verified, and below $400, then portfolio sizing applies the agent's tighter cash and 4% caps. Strategy 62 also keeps the bounded sports-contest NO exploration lane under forward promotion or suspension. Intact guaranteed bundles are conservatively held at cost in portfolio accounting, while modeled profit remains unbooked until settlement. Phones and computers display the same read-only autonomous state. Profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 118 active:</b> The public paper agents target five-minute slots with one serialized, self-chained GitHub Actions successor after every successful cycle and cron as recovery. The server preserves oldest-first pending evidence, exact fee schedules, agent promotion scopes, and bundle execution diagnostics from the already-bounded runtime snapshot, so cloud restarts and offline cycles do not silently lose learning context. Each fresh cloud browser reconstructs a bounded offline cache from the shared suggestions and open positions, allowing 90-minute cached entries and 24-hour mark-only continuity without persisting private account data; live-depth bundles still require a live connection. Each live cycle scans the 500 most-active eligible markets and 1,000 most-active events. Complete bundles are repriced across every ask level to the largest equal-leg quantity that remains profitable, depth-covered, fee-verified, and below $400, then portfolio sizing applies the agent's tighter cash and 4% caps. Strategy 62 also keeps the bounded sports-contest NO exploration lane under forward promotion or suspension. Intact guaranteed bundles are conservatively held at cost in portfolio accounting, while modeled profit remains unbooked until settlement. Phones and computers display the same read-only autonomous state. Profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 117 · Adaptive strategy 62 · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Verified-capacity complete bundles · Conservative intact-bundle accounting · Contest-deduplicated sports exploration · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 118 · Adaptive strategy 62 · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Verified-capacity complete bundles · Conservative intact-bundle accounting · Contest-deduplicated sports exploration · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 117;
+const BUILD_VERSION = 118;
 const AGENT_LEARNING_VERSION = 3;
 const SUGGESTION_ENGINE_VERSION = 62;
 const MAKER_STRATEGY_VERSION = 3;
@@ -809,7 +809,7 @@ const CATEGORIES = ["All","Politics","Sports","Crypto","Economy","Pop Culture","
 const SYNC_KEYS=[AGENTS_KEY,SUG_KEY,FOCUS_KEY,VIEW_KEY,PF_SORT_KEY,CHART_RANGE_KEY,INVEST_KEY,PAPER_KEY,LIVE_KEY,EMAIL_ALERT_KEY];
 const PUBLIC_RUNTIME_KEYS=Object.freeze([AGENTS_KEY,SUG_KEY]);
 const SYNC_LIMITS={closed:80,history:160,snapshots:240,suggestions:900,paperHistory:120,paperSnapshots:120,audit:120};
-const PUBLIC_RUNTIME_LIMITS=Object.freeze({...SYNC_LIMITS,suggestions:300});
+const PUBLIC_RUNTIME_LIMITS=Object.freeze({...SYNC_LIMITS,history:80,suggestions:300});
 const CAT_COLORS = {Politics:"#fb7185",Sports:"#34d399",Crypto:"#fbbf24",Economy:"#7c8cff",
   "Pop Culture":"#c77dff",Other:"#94a1bb",All:"#7c8cff"};
 const CLOB = "https://clob.polymarket.com";
@@ -944,6 +944,7 @@ const SIGNAL_EVAL_HOURS = SIGNAL_EVAL_HORIZONS[0];
 const SIGNAL_LEDGER_PENDING_LIMIT = 600;
 const SIGNAL_LEDGER_OUTCOME_LIMIT = 1000;
 const PUBLIC_RUNTIME_SNAPSHOT_BUDGET_BYTES = 875000;
+const PUBLIC_SIGNAL_OUTCOME_RESERVE = 96;
 const SIGNAL_LEDGER_RETRY_HOURS = SIGNAL_EVAL_HORIZONS[SIGNAL_EVAL_HORIZONS.length-1]+SIGNAL_EVAL_TOLERANCE_HOURS;
 const SIGNAL_LEDGER_DUE_FETCH_LIMIT = 80;
 const currentCycleHour = () => {const p=partsInLocalTime();return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}|s${SUGGESTION_ENGINE_VERSION}`;};
@@ -1945,6 +1946,13 @@ function compactDecisionForPublic(decision){
   }
   return out;
 }
+function compactMakerOutcomeForPublic(row){
+  if(!row||typeof row!=="object")return row;
+  return {quote_id:row.quote_id,market_id:row.market_id,event_key:row.event_key,category:row.category,
+    spread:row.spread,spread_band:row.spread_band,reward_yield_band:row.reward_yield_band,status:row.status,
+    pnl:row.pnl,shadow_only:row.shadow_only,deployed_capital:row.deployed_capital,reserved_capital:row.reserved_capital,
+    completed_at:row.completed_at,strategy_version:row.strategy_version,maker_strategy_version:row.maker_strategy_version};
+}
 function compactSuggestionForSync(s){
   if(!s||typeof s!=="object")return s;
   return {
@@ -2102,7 +2110,10 @@ function collectSyncItems(){const items={};SYNC_KEYS.forEach(k=>{const v=localSt
 function collectPublicRuntimeItems(){
   const st=compactAgentStateForSync(loadState(),PUBLIC_RUNTIME_LIMITS);
   st.signal_ledger=compactPublicSignalLedger(st.signal_ledger);
-  AGENTS.forEach(agent=>{if(st.agents&&st.agents[agent.id])st.agents[agent.id].lastDecision=compactDecisionForPublic(st.agents[agent.id].lastDecision);});
+  AGENTS.forEach(agent=>{if(st.agents&&st.agents[agent.id]){
+    st.agents[agent.id].lastDecision=compactDecisionForPublic(st.agents[agent.id].lastDecision);
+    st.agents[agent.id].maker_outcomes=(st.agents[agent.id].maker_outcomes||[]).map(compactMakerOutcomeForPublic);
+  }});
   st.pending_sync=false;
   st.runtime_managed=true;
   const suggestions=compactPublicSuggestionsForSync(loadSuggestions());
@@ -2116,22 +2127,31 @@ function fitPublicRuntimeSnapshot(snapshot){
   snapshot.summary.signal_ledger={pending_retained:pending.length,pending_total:pending.length,
     outcomes_retained:outcomes.length,outcomes_total:outcomes.length,byte_budget:PUBLIC_RUNTIME_SNAPSHOT_BUDGET_BYTES};
   if(runtimeSnapshotByteLength(snapshot)<=PUBLIC_RUNTIME_SNAPSHOT_BUDGET_BYTES)return snapshot;
-  ledger.outcomes=[];
-  snapshot.items[AGENTS_KEY]=JSON.stringify(st);
-  if(runtimeSnapshotByteLength(snapshot)>PUBLIC_RUNTIME_SNAPSHOT_BUDGET_BYTES&&pending.length){
-    let low=0,high=pending.length;
+  const writeState=()=>{snapshot.items[AGENTS_KEY]=JSON.stringify(st);return runtimeSnapshotByteLength(snapshot)<=PUBLIC_RUNTIME_SNAPSHOT_BUDGET_BYTES;};
+  const reservedCount=Math.min(PUBLIC_SIGNAL_OUTCOME_RESERVE,outcomes.length);
+  ledger.pending=[];ledger.outcomes=reservedCount?outcomes.slice(-reservedCount):[];
+  if(!writeState()&&reservedCount){
+    let low=0,high=reservedCount;
     while(low<high){
-      const mid=Math.ceil((low+high)/2);ledger.pending=pending.slice(0,mid);snapshot.items[AGENTS_KEY]=JSON.stringify(st);
-      if(runtimeSnapshotByteLength(snapshot)<=PUBLIC_RUNTIME_SNAPSHOT_BUDGET_BYTES)low=mid;else high=mid-1;
+      const mid=Math.ceil((low+high)/2);ledger.outcomes=mid?outcomes.slice(-mid):[];
+      if(writeState())low=mid;else high=mid-1;
     }
-    ledger.pending=pending.slice(0,low);
+    ledger.outcomes=low?outcomes.slice(-low):[];writeState();
   }
-  let low=0,high=outcomes.length;
+  let low=0,high=pending.length;
   while(low<high){
-    const mid=Math.ceil((low+high)/2);ledger.outcomes=outcomes.slice(-mid);snapshot.items[AGENTS_KEY]=JSON.stringify(st);
-    if(runtimeSnapshotByteLength(snapshot)<=PUBLIC_RUNTIME_SNAPSHOT_BUDGET_BYTES)low=mid;else high=mid-1;
+    const mid=Math.ceil((low+high)/2);ledger.pending=pending.slice(0,mid);
+    if(writeState())low=mid;else high=mid-1;
   }
-  ledger.outcomes=low?outcomes.slice(-low):[];snapshot.items[AGENTS_KEY]=JSON.stringify(st);
+  ledger.pending=pending.slice(0,low);writeState();
+  if(low===pending.length&&ledger.outcomes.length<outcomes.length){
+    let outcomeLow=ledger.outcomes.length,outcomeHigh=outcomes.length;
+    while(outcomeLow<outcomeHigh){
+      const mid=Math.ceil((outcomeLow+outcomeHigh)/2);ledger.outcomes=outcomes.slice(-mid);
+      if(writeState())outcomeLow=mid;else outcomeHigh=mid-1;
+    }
+    ledger.outcomes=outcomeLow?outcomes.slice(-outcomeLow):[];writeState();
+  }
   snapshot.summary.signal_ledger.pending_retained=ledger.pending.length;
   snapshot.summary.signal_ledger.outcomes_retained=ledger.outcomes.length;
   return snapshot;
@@ -6932,6 +6952,8 @@ function runEngineSelfTest(){
   recordMakerOutcome(makerDedupeBook,dedupeQuote,"unfilled",0,0);recordMakerOutcome(makerDedupeBook,dedupeQuote,"unfilled",0,0);
   const makerCompactionBook=defaultPortfolio();makerCompactionBook.maker_quotes=[Object.assign({},makerQuote)];makerCompactionBook.maker_outcomes=[...profitableMakerBook.maker_outcomes];
   const compactedMakerBook=compactPortfolioForSync(makerCompactionBook);
+  const publicCompactedMakerBook=Object.assign({},compactedMakerBook,{maker_outcomes:compactedMakerBook.maker_outcomes.map(compactMakerOutcomeForPublic)});
+  const makerProfileBeforePublicCompaction=buildMakerProfile(compactedMakerBook),makerProfileAfterPublicCompaction=buildMakerProfile(publicCompactedMakerBook);
   const sharedMakerState=defaultState();sharedMakerState.agents.value.maker_outcomes=[profitableMakerBook.maker_outcomes[0]];
   sharedMakerState.agents.momentum.maker_outcomes=[profitableMakerBook.maker_outcomes[1]];
   const sharedMakerFixture=buildSharedMakerProfile(sharedMakerState);
@@ -7495,6 +7517,7 @@ function runEngineSelfTest(){
         &&shadowHedgeBook.positions.length===0&&shadowHedgeBook.maker_quotes.length===0&&shadowHedgeBook.maker_outcomes[0].status==="hedged-lock"&&shadowHedgeBook.maker_outcomes[0].pnl>0,
       outcomesAreDeduplicated:makerDedupeBook.maker_outcomes.length===1,
       makerLearningSurvivesCompaction:compactedMakerBook.maker_quotes.length===1&&compactedMakerBook.maker_outcomes.length===24,
+      publicMakerCompactionPreservesCalibration:JSON.stringify(makerProfileAfterPublicCompaction)===JSON.stringify(makerProfileBeforePublicCompaction),
       sharedLedgerCombinesAgentEvidence:sharedMakerFixture.global.current_events===2&&sharedMakerFixture.global.current_locked_events===2,
       agentsReceiveDisjointShadowMarkets:distributedA.size===2&&distributedB.size===2&&[...distributedA].every(id=>!distributedB.has(id)),
       noHypotheticalRewardCredited:makerStage.staged===1&&Math.abs(makerBook.cash-(10000+makerExpectedProfit))<=0.02,
