@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 60 · depth-verified bundles · build 101</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 60 · depth-capped bundles · build 102</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 101 active:</b> The public paper agents run autonomously every five minutes while every user device is closed. Each cycle scans the 1,000 most-active events for complete negative-risk and same-event dominance bundles, then checks the closest 60 against live CLOB depth for at least a $50 equal-unit order. A bundle can enter only when every leg has enough asks and Polymarket's fee endpoint agrees with the market-specific fee curve applied at each fill; top-of-book gaps alone cannot trigger a trade. The corrected four-day resolution candidate remains a zero-capital learner until 40 independent settlements clear its confidence gate. Phones and computers display the same read-only autonomous state. Profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 102 active:</b> The public paper agents run autonomously every five minutes while every user device is closed. Each cycle scans the 1,000 most-active events for complete negative-risk and same-event dominance bundles, then checks the closest 60 against live CLOB depth for at least a $50 equal-unit order. A bundle can enter only when every leg has enough asks and Polymarket's fee endpoint agrees with the market-specific fee curve applied at each fill; its opened size is capped to the quantity actually depth-tested. Top-of-book gaps alone cannot trigger a trade. The corrected four-day resolution candidate remains a zero-capital learner until 40 independent settlements clear its confidence gate. Phones and computers display the same read-only autonomous state. Profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 101 · Adaptive strategy 60 · Five-minute autonomous scans · Live depth and fee-verified bundle audit · Corrected one-decision-per-event settlement audit · 4-day NO forward learner · Zero capital before 40 independent positive outcomes · Autonomous runtime 1 · Offline runtime 2 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 102 · Adaptive strategy 60 · Five-minute autonomous scans · Live depth, fee, and size-verified bundle audit · Corrected one-decision-per-event settlement audit · 4-day NO forward learner · Zero capital before 40 independent positive outcomes · Autonomous runtime 1 · Offline runtime 2 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 101;
+const BUILD_VERSION = 102;
 const AGENT_LEARNING_VERSION = 3;
 const SUGGESTION_ENGINE_VERSION = 60;
 const MAKER_STRATEGY_VERSION = 3;
@@ -3733,10 +3733,10 @@ function rankSuggestionsForAgent(cfg,suggestions){
   return [...adaptive,...ranked];
 }
 function openNegativeRiskBundle(p,cfg,s,stake,decision){
-  const legs=Array.isArray(s.bundle_legs)?s.bundle_legs:[],unitCost=Number(s.bundle_cost_per_unit);
+  const legs=Array.isArray(s.bundle_legs)?s.bundle_legs:[],unitCost=Number(s.bundle_cost_per_unit),verifiedUnits=Number(s.execution_units);
   if(legs.length<2||!s.depth_verified||!s.fees_verified||s.verification_status!=="executable"
-    ||!(unitCost>0)||!(Number(s.bundle_net_profit_per_unit)>0))return null;
-  const units=+(Math.max(0,stake)/unitCost).toFixed(2);if(units<=0)return null;
+    ||!(verifiedUnits>0)||!(unitCost>0)||!(Number(s.bundle_net_profit_per_unit)>0))return null;
+  const units=+Math.min(verifiedUnits,Math.max(0,stake)/unitCost).toFixed(2);if(units<=0)return null;
   const bundleSide=s.bundle_side||s.side||"NO";
   const openedAt=cycleIso(),positions=legs.map(leg=>{
     const entry=Number(leg.entry_price),current=Number(leg.current_price),cost=+(units*entry).toFixed(2),side=leg.side||bundleSide;
@@ -6740,10 +6740,12 @@ function runEngineSelfTest(){
   ]}).length===0;
   const invalidDeadlineRejected=parseDominanceDeadline("Will Acme launch by February 30, 2026?")===null;
   [bundleSuggestion,yesBundleSuggestion,dominanceSuggestion,deadlineSuggestion].filter(Boolean).forEach(suggestion=>Object.assign(suggestion,{
-    depth_verified:true,fees_verified:true,fee_model:"verified-zero-fee",execution_model:"fixture-vwap",verification_status:"executable",
+    depth_verified:true,fees_verified:true,fee_model:"verified-zero-fee",execution_model:"fixture-vwap",verification_status:"executable",execution_units:1000,
   }));
   const unverifiedBundleBook=defaultPortfolio(),unverifiedBundleOpen=openNegativeRiskBundle(unverifiedBundleBook,AGENTS.find(a=>a.id==="value"),
     Object.assign({},bundleSuggestion,{depth_verified:false,verification_status:"top-of-book-estimate"}),100,null);
+  const depthCappedBundleBook=defaultPortfolio(),depthCappedBundle=Object.assign({},bundleSuggestion,{execution_units:50});
+  openNegativeRiskBundle(depthCappedBundleBook,AGENTS.find(a=>a.id==="value"),depthCappedBundle,400,null);
   const dominanceBook=defaultPortfolio(),offlineDominanceSuggestion=prepareCycleSuggestions([dominanceSuggestion],"offline-cache",true)[0];
   openPositions(dominanceBook,AGENTS.find(a=>a.id==="value"),[dominanceSuggestion],"All",{
     minConv:0,maxNew:1,maxFrac:0.04,reserve:0.10,targetExposure:0.60,learning:buildAdaptiveProfile(dominanceBook),marketLearning:{samples:0,pending:0,buckets:{}},
@@ -7182,6 +7184,8 @@ function runEngineSelfTest(){
       appliesPublishedFeeCurve:bundleFeePerShare({rate:0.07,exponent:1,takerOnly:true},0.5)===0.0175,
       depthVwapConsumesMultipleAskLevels:depthVwapFixture===0.396,
       blocksUnverifiedBundleEntry:unverifiedBundleOpen===null&&unverifiedBundleBook.positions.length===0&&unverifiedBundleBook.cash===STARTING_BALANCE,
+      capsOpenedUnitsToVerifiedDepth:depthCappedBundleBook.positions.length===3
+        &&depthCappedBundleBook.positions.every(position=>position.shares===50),
       rejectsNonBinaryMarketLabels:nonBinaryMarketRejected,
       rejectsNonBinaryBundleLabels:nonBinaryBundleRejected,
       identifiesAboveThresholdDominance:Boolean(dominanceSuggestion&&dominanceSuggestion.bundle_logic==="threshold-dominance"

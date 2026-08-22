@@ -20,7 +20,7 @@ market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
 
-Build 101 runs the headless GitHub Actions runtime every five minutes, continues
+Build 102 runs the headless GitHub Actions runtime every five minutes, continues
 from the previous agent snapshot,
 and runs the next due paper cycle even when no browser is open. It writes a
 sanitized snapshot to the `runtime-state` branch and `/api/state` uses that as a
@@ -41,14 +41,15 @@ Polymarket event key. Related Ethereum or Bitcoin contracts cannot create
 several simultaneous copies of one move, and outcomes from the same underlying
 three-hour shock window count as one learner event.
 
-Each Build 101 cycle also scans the 1,000 most-active Polymarket events for
+Each Build 102 cycle also scans the 1,000 most-active Polymarket events for
 complete negative-risk bundles and logically nested threshold or deadline
 pairs. Gamma's market-specific fee flag replaces the old blanket 0.5-cent fee
 reserve for markets declared fee-free. The closest 60 structures are then
 repriced from batched CLOB asks at the equal-unit size needed for at least a $50
 paper order. The scanner applies each market's Gamma fee schedule at every
 consumed ask level and checks the CLOB fee-rate endpoint for a matching enabled
-or fee-free state. A bundle can enter Value Discipline only when that fee check
+or fee-free state. Any opened position is capped to the exact equal-unit size
+that passed this depth test. A bundle can enter Value Discipline only when that fee check
 passes and the resulting worst-case payout clears both the three-tenths-cent
 profit floor and the 0.15% return floor. Top-of-book gaps, missing books,
 incomplete fee schedules, and unavailable fee verification remain audit-only.
@@ -56,7 +57,7 @@ The Suggestions view stores scan, depth, fee, actionable, and closest
 executable-margin counts so an empty lane is evidence rather than an ambiguous
 failure.
 
-Build 101 retains Build 100's retirement of the old 3-6 day resolution-window
+Build 102 retains Build 100's retirement of the old 3-6 day resolution-window
 capital permission. That audit clustered confidence by event but still averaged
 several correlated contracts inside each event, while production could choose
 only one. The corrected replay chooses the highest-volume eligible contract per event and
