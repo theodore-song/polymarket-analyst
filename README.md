@@ -71,11 +71,14 @@ YES and NO amounts directly back into collateral, so a verified binary complemen
 is merged and realized in the same paper cycle instead of waiting for resolution.
 The official negative-risk adapter also converts a complete set of NO tokens into
 `n - 1` units of collateral, less the event's `negRiskFeeBips`. Strategy 65 treats
-that as a separate immediate path: every leg must expose one consistent
-`negRiskMarketID` and conversion fee, all asks and CLOB fee schedules must verify,
-and the post-conversion proceeds must remain profitable. Missing or inconsistent
-adapter metadata cannot produce paper P&L. Complete YES sets and logical dominance
-pairs are not convertible and continue to use settlement or verified live-bid exits.
+that as a separate immediate path. The scanner reserves 20 of its 80 depth checks
+for complete-NO candidates, then reads `getFeeBips` and `getQuestionCount` from the
+official Polygon adapter for only those candidates. Every leg must expose one
+consistent `negRiskMarketID`, the event leg count must equal the on-chain question
+count, all asks and CLOB fee schedules must verify, and the post-conversion proceeds
+must remain profitable. Missing or inconsistent adapter data cannot produce paper
+P&L. Complete YES sets and logical dominance pairs are not convertible and continue
+to use settlement or verified live-bid exits.
 Gasless CTF operations include merge transactions; see
 [Positions & Tokens](https://docs.polymarket.com/concepts/positions-tokens) and
 [Gasless Transactions](https://docs.polymarket.com/trading/gasless).

@@ -1210,10 +1210,10 @@ function dominanceBundleSuggestions(event,{includeUnprofitable=false}={}){
   }
   return candidates.sort(compareBundleOpportunities);
 }
-function negativeRiskBundleSuggestion(event,{includeUnprofitable=false}={}){
-  if(!event||!event.negRisk||event.enableNegRisk===false)return null;
+function negativeRiskBundleSuggestions(event,{includeUnprofitable=false,conversionTerms=null}={}){
+  if(!event||!event.negRisk||event.enableNegRisk===false)return [];
   const rawLegs=Array.isArray(event.markets)?event.markets:[];
-  if(rawLegs.length<2||rawLegs.some(m=>m.closed||m.active===false||m.acceptingOrders===false))return null;
+  if(rawLegs.length<2||rawLegs.some(m=>m.closed||m.active===false||m.acceptingOrders===false))return [];
   const eventTags=Array.isArray(event.tags)?event.tags:[],category=classifyCategory(eventTags);
   const quotes=rawLegs.map(raw=>{
     const outcomes=parseJsonField(raw.outcomes).map(outcome=>String(outcome||"").trim().toLowerCase());
@@ -1225,16 +1225,22 @@ function negativeRiskBundleSuggestion(event,{includeUnprofitable=false}={}){
   });
   if(quotes.some(leg=>!leg.binary_labels||!leg.market_id||!leg.yes_token||!leg.no_token||!Number.isFinite(leg.yes_bid)||!Number.isFinite(leg.yes_ask)
     ||leg.yes_bid<0||leg.yes_ask>1||leg.yes_ask<leg.yes_bid||!Number.isFinite(leg.yes_mid)||!Number.isFinite(leg.no_mid)
-    ||leg.liquidity<NEG_RISK_MIN_LIQUIDITY))return null;
+    ||leg.liquidity<NEG_RISK_MIN_LIQUIDITY))return [];
   const conversionIds=[event.negRiskMarketID,...rawLegs.map(raw=>raw.negRiskMarketID)].filter(value=>String(value||"").trim()).map(String);
   const conversionFees=[event.negRiskFeeBips,...rawLegs.map(raw=>raw.negRiskFeeBips)].filter(value=>value!==null&&value!==undefined&&value!=="").map(Number);
   const conversionMarketId=conversionIds.length&&new Set(conversionIds).size===1?conversionIds[0]:null;
-  const conversionFeeBips=conversionFees.length&&conversionFees.every(value=>Number.isFinite(value)&&value>=0&&value<=10000)
+  const metadataFeeBips=conversionFees.length&&conversionFees.every(value=>Number.isFinite(value)&&value>=0&&value<=10000)
     &&new Set(conversionFees.map(value=>value.toFixed(8))).size===1?conversionFees[0]:null;
-  const conversionTermsVerified=Boolean(conversionMarketId&&conversionFeeBips!==null);
+  const onchainTerms=conversionMarketId&&conversionTerms&&typeof conversionTerms.get==="function"?conversionTerms.get(conversionMarketId):null;
+  const onchainFeeBips=Number(onchainTerms&&onchainTerms.fee_bips),onchainQuestionCount=Number(onchainTerms&&onchainTerms.question_count);
+  const conversionTermsVerified=Boolean(conversionMarketId&&onchainTerms&&onchainTerms.status==="verified-onchain"
+    &&Number.isInteger(onchainQuestionCount)&&onchainQuestionCount===quotes.length
+    &&Number.isFinite(onchainFeeBips)&&onchainFeeBips>=0&&onchainFeeBips<=10000
+    &&(metadataFeeBips===null||Math.abs(metadataFeeBips-onchainFeeBips)<=1e-9));
+  const conversionFeeBips=conversionTermsVerified?onchainFeeBips:null;
   const makeCandidate=(side)=>{
     const yesSide=side==="YES",settlementPayout=yesSide?1:quotes.length-1;
-    const immediateConvert=!yesSide&&conversionTermsVerified;
+    const conversionCandidate=!yesSide&&Boolean(conversionMarketId),immediateConvert=conversionCandidate&&conversionTermsVerified;
     const payout=immediateConvert?settlementPayout*(1-conversionFeeBips/10000):settlementPayout;
     const legs=quotes.map(leg=>{
       const topAsk=yesSide?leg.yes_ask:1-leg.yes_bid,feeReserve=bundleFeeReserve(leg.raw_market,topAsk),entry=topAsk+feeReserve,current=yesSide?leg.yes_mid:leg.no_mid;
@@ -1244,38 +1250,43 @@ function negativeRiskBundleSuggestion(event,{includeUnprofitable=false}={}){
     });
     if(legs.some(leg=>!Number.isFinite(leg.entry_price)||!Number.isFinite(leg.current_price)||leg.entry_price<=0||leg.entry_price>=1))return null;
     const cost=legs.reduce((sum,leg)=>sum+leg.entry_price,0),profit=payout-cost,netReturn=cost>0?profit/cost:0;
-    return {side,legs,cost,payout,settlementPayout,profit,netReturn,immediateConvert};
+    return {side,legs,cost,payout,settlementPayout,profit,netReturn,conversionCandidate,immediateConvert};
   };
-  const candidate=[makeCandidate("YES"),makeCandidate("NO")].filter(Boolean)
+  const candidates=[makeCandidate("YES"),makeCandidate("NO")].filter(Boolean)
     .filter(x=>includeUnprofitable||(x.profit>=NEG_RISK_MIN_NET_PROFIT&&x.netReturn>=NEG_RISK_MIN_NET_RETURN))
     .sort((a,b)=>{
       const days=Math.max(1,Number(daysUntil(event.endDate))||365);
       return (b.netReturn/(b.immediateConvert?1:days))-(a.netReturn/(a.immediateConvert?1:days))||b.netReturn-a.netReturn;
-    })[0];
-  if(!candidate)return null;
-  const {side,legs,cost,payout,settlementPayout,profit,netReturn,immediateConvert}=candidate,minLiquidity=Math.min(...legs.map(leg=>leg.liquidity));
-  const actionable=profit>=NEG_RISK_MIN_NET_PROFIT&&netReturn>=NEG_RISK_MIN_NET_RETURN;
-  return {market_id:`bundle:${event.id}:${side.toLowerCase()}`,bundle_id:`bundle:${event.id}:${side.toLowerCase()}`,bundle_event_id:String(event.id||""),bundle_side:side,
-    question:`Complete ${side} bundle: ${event.title||"multi-outcome event"}`,event:event.title||"",
-    url:event.slug?`https://polymarket.com/event/${event.slug}`:"",category,tags:eventTags.map(t=>t.label).filter(Boolean).slice(0,4),
-    side,entry_price:+(cost/legs.length).toFixed(4),yes_price:side==="YES"?+(cost/legs.length).toFixed(4):+(1-cost/legs.length).toFixed(4),
-    no_price:side==="NO"?+(cost/legs.length).toFixed(4):+(1-cost/legs.length).toFixed(4),fair_value:+(payout/legs.length).toFixed(4),
-    edge:+netReturn.toFixed(4),net_edge:+netReturn.toFixed(4),friction:+legs.reduce((sum,leg)=>sum+leg.fee_reserve,0).toFixed(4),chase_penalty:0,
-    evidence_score:1,evidence_source_count:0,quality:"bundle-arb",conviction:+clamp(78+netReturn*1200,78,96).toFixed(1),
-    volume:rawLegs.reduce((sum,m)=>sum+toNum(m.volumeNum||m.volume),0),volume_24hr:rawLegs.reduce((sum,m)=>sum+toNum(m.volume24hr),0),liquidity:minLiquidity,
-    spread:Math.max(...rawLegs.map(m=>toNum(m.spread))),price_change_1h:0,price_change_1d:0,price_change_1w:0,momentum_strength:0,
-    signal_strength:1,signal_confidence:1,signal_type:"bundle-arb",trade_ready:actionable,entry_candidate:actionable,audited_observation_only:!actionable,
-    adaptive_promotion:false,watch_only:!actionable,jump_risk:false,requires_live:true,opportunity_actionable:actionable,days_to_resolution:daysUntil(event.endDate),
-    bundle_logic:`neg-risk-complete-${side.toLowerCase()}`,bundle_immediate_convert:immediateConvert,
-    neg_risk_market_id:immediateConvert?conversionMarketId:null,neg_risk_fee_bips:immediateConvert?conversionFeeBips:null,
-    bundle_cost_per_unit:+cost.toFixed(4),bundle_payout_per_unit:+payout.toFixed(8),bundle_settlement_payout_per_unit:settlementPayout,
-    bundle_net_profit_per_unit:+profit.toFixed(4),bundle_legs:legs,
-    depth_verified:false,fees_verified:false,execution_model:"top-of-book-estimate",
-    drivers:["complete negative-risk event",immediateConvert?"exact adapter conversion payout":"guaranteed settlement payout","executable bid/ask gap","positive margin after estimated costs"],
-    rationale:immediateConvert
-      ?`Complete NO conversion: buy every NO leg together for ${cost.toFixed(3)} per bundle unit, then atomically convert them through Polymarket's negative-risk adapter for ${payout.toFixed(4)} collateral after the exact ${conversionFeeBips.toFixed(2)} bps event conversion fee. The preliminary immediate margin is ${profit.toFixed(3)} (${(netReturn*100).toFixed(2)}%); every live ask, CLOB fee schedule, event market ID, and conversion fee must still verify before entry.`
-      :`Complete bundle: buy every ${side} leg together for ${cost.toFixed(3)} per bundle unit against a ${payout.toFixed(2)} worst-case settlement payout. The preliminary margin is ${profit.toFixed(3)} (${(netReturn*100).toFixed(2)}%); a live depth and market-specific fee check is required before entry. This must stay intact until settlement.`};
+    });
+  return candidates.map(candidate=>{
+    const {side,legs,cost,payout,settlementPayout,profit,netReturn,conversionCandidate,immediateConvert}=candidate,minLiquidity=Math.min(...legs.map(leg=>leg.liquidity));
+    const actionable=profit>=NEG_RISK_MIN_NET_PROFIT&&netReturn>=NEG_RISK_MIN_NET_RETURN;
+    return {market_id:`bundle:${event.id}:${side.toLowerCase()}`,bundle_id:`bundle:${event.id}:${side.toLowerCase()}`,bundle_event_id:String(event.id||""),bundle_side:side,
+      question:`Complete ${side} bundle: ${event.title||"multi-outcome event"}`,event:event.title||"",
+      url:event.slug?`https://polymarket.com/event/${event.slug}`:"",category,tags:eventTags.map(t=>t.label).filter(Boolean).slice(0,4),
+      side,entry_price:+(cost/legs.length).toFixed(4),yes_price:side==="YES"?+(cost/legs.length).toFixed(4):+(1-cost/legs.length).toFixed(4),
+      no_price:side==="NO"?+(cost/legs.length).toFixed(4):+(1-cost/legs.length).toFixed(4),fair_value:+(payout/legs.length).toFixed(4),
+      edge:+netReturn.toFixed(4),net_edge:+netReturn.toFixed(4),friction:+legs.reduce((sum,leg)=>sum+leg.fee_reserve,0).toFixed(4),chase_penalty:0,
+      evidence_score:1,evidence_source_count:0,quality:"bundle-arb",conviction:+clamp(78+netReturn*1200,78,96).toFixed(1),
+      volume:rawLegs.reduce((sum,m)=>sum+toNum(m.volumeNum||m.volume),0),volume_24hr:rawLegs.reduce((sum,m)=>sum+toNum(m.volume24hr),0),liquidity:minLiquidity,
+      spread:Math.max(...rawLegs.map(m=>toNum(m.spread))),price_change_1h:0,price_change_1d:0,price_change_1w:0,momentum_strength:0,
+      signal_strength:1,signal_confidence:1,signal_type:"bundle-arb",trade_ready:actionable,entry_candidate:actionable,audited_observation_only:!actionable,
+      adaptive_promotion:false,watch_only:!actionable,jump_risk:false,requires_live:true,opportunity_actionable:actionable,days_to_resolution:daysUntil(event.endDate),
+      bundle_logic:`neg-risk-complete-${side.toLowerCase()}`,bundle_conversion_candidate:conversionCandidate,
+      bundle_conversion_terms_verified:immediateConvert,bundle_immediate_convert:immediateConvert,
+      neg_risk_market_id:conversionCandidate?conversionMarketId:null,neg_risk_fee_bips:immediateConvert?conversionFeeBips:null,
+      neg_risk_metadata_fee_bips:conversionCandidate?metadataFeeBips:null,neg_risk_question_count:immediateConvert?onchainQuestionCount:null,
+      conversion_verification_status:immediateConvert?"verified-onchain":(conversionCandidate?"onchain-terms-pending":null),
+      bundle_cost_per_unit:+cost.toFixed(4),bundle_payout_per_unit:+payout.toFixed(8),bundle_settlement_payout_per_unit:settlementPayout,
+      bundle_net_profit_per_unit:+profit.toFixed(4),bundle_legs:legs,
+      depth_verified:false,fees_verified:false,execution_model:"top-of-book-estimate",
+      drivers:["complete negative-risk event",immediateConvert?"exact adapter conversion payout":(conversionCandidate?"on-chain conversion terms pending":"guaranteed settlement payout"),"executable bid/ask gap","positive margin after estimated costs"],
+      rationale:immediateConvert
+        ?`Complete NO conversion: buy every NO leg together for ${cost.toFixed(3)} per bundle unit, then atomically convert them through Polymarket's negative-risk adapter for ${payout.toFixed(4)} collateral after the exact ${conversionFeeBips.toFixed(2)} bps event conversion fee. The preliminary immediate margin is ${profit.toFixed(3)} (${(netReturn*100).toFixed(2)}%); every live ask, CLOB fee schedule, event market ID, and conversion fee must still verify before entry.`
+        :`Complete bundle: buy every ${side} leg together for ${cost.toFixed(3)} per bundle unit against a ${payout.toFixed(2)} worst-case settlement payout. The preliminary margin is ${profit.toFixed(3)} (${(netReturn*100).toFixed(2)}%). ${conversionCandidate?"The adapter fee and full on-chain question count must verify before this can be treated as an immediate conversion.":"A live depth and market-specific fee check is required before entry; this must stay intact until settlement."}`};
+  });
 }
+function negativeRiskBundleSuggestion(event,options={}){return negativeRiskBundleSuggestions(event,options)[0]||null;}
 function binaryComplementBundleSuggestions(event,{includeUnprofitable=false}={}){
   if(!event)return [];
   const eventTags=Array.isArray(event.tags)?event.tags:[],category=classifyCategory(eventTags),eventId=String(event.id||event.slug||"");
@@ -1426,10 +1437,11 @@ function prioritizeIndependentBundles(candidates,limit=Infinity){
 }
 function bundleVerificationShortlist(candidates){
   const ranked=(candidates||[]).slice().sort(compareBundleOpportunities);
-  const general=prioritizeIndependentBundles(ranked.filter(candidate=>candidate.bundle_logic!=="binary-complement"),
-    BUNDLE_DEPTH_CANDIDATE_LIMIT-BINARY_COMPLEMENT_DEPTH_RESERVE);
+  const conversion=prioritizeIndependentBundles(ranked.filter(candidate=>candidate.bundle_conversion_candidate),NEG_RISK_CONVERSION_DEPTH_RESERVE);
   const binary=prioritizeIndependentBundles(ranked.filter(candidate=>candidate.bundle_logic==="binary-complement"),BINARY_COMPLEMENT_DEPTH_RESERVE);
-  const selected=[...general,...binary],selectedIds=new Set(selected.map(candidate=>String(candidate.bundle_id||candidate.market_id||"")));
+  const general=prioritizeIndependentBundles(ranked.filter(candidate=>candidate.bundle_logic!=="binary-complement"&&!candidate.bundle_conversion_candidate),
+    BUNDLE_DEPTH_CANDIDATE_LIMIT-BINARY_COMPLEMENT_DEPTH_RESERVE-NEG_RISK_CONVERSION_DEPTH_RESERVE);
+  const selected=[...conversion,...general,...binary],selectedIds=new Set(selected.map(candidate=>String(candidate.bundle_id||candidate.market_id||"")));
   const remaining=prioritizeIndependentBundles(ranked.filter(candidate=>!selectedIds.has(String(candidate.bundle_id||candidate.market_id||""))),
     BUNDLE_DEPTH_CANDIDATE_LIMIT-selected.length);
   return [...selected,...remaining];
@@ -1491,8 +1503,65 @@ async function fetchBundleFeeSchedules(conditionIds){
   });
   await Promise.all(workers);return results;
 }
+function validNegativeRiskMarketId(value){return /^0x[0-9a-f]{64}$/i.test(String(value||""));}
+async function fetchNegativeRiskConversionTerms(marketIds){
+  const unique=[...new Set((marketIds||[]).map(String).filter(validNegativeRiskMarketId))],terms=new Map();
+  if(!unique.length)return terms;
+  const requests=[],requestMeta=new Map();let requestId=1;
+  unique.forEach(marketId=>{
+    [[NEG_RISK_FEE_BIPS_SELECTOR,"fee_bips"],[NEG_RISK_QUESTION_COUNT_SELECTOR,"question_count"]].forEach(([selector,field])=>{
+      const id=requestId++;requestMeta.set(id,{marketId,field});requests.push({jsonrpc:"2.0",id,method:"eth_call",
+        params:[{to:NEG_RISK_ADAPTER_ADDRESS,data:`${selector}${marketId.slice(2)}`},"latest"]});
+    });
+  });
+  try{
+    const partial=new Map();
+    for(let offset=0;offset<requests.length;offset+=NEG_RISK_RPC_BATCH_CALL_LIMIT){
+      const batch=requests.slice(offset,offset+NEG_RISK_RPC_BATCH_CALL_LIMIT);
+      const response=await fetchWithTimeout(NEG_RISK_POLYGON_RPC,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(batch)});
+      if(!response.ok)continue;
+      const payload=await response.json();
+      (Array.isArray(payload)?payload:[payload]).forEach(row=>{
+        const meta=requestMeta.get(Number(row&&row.id));if(!meta||typeof row.result!=="string"||!/^0x[0-9a-f]+$/i.test(row.result))return;
+        let value;try{value=Number(BigInt(row.result));}catch(e){return;}
+        if(!Number.isSafeInteger(value)||value<0)return;
+        const current=partial.get(meta.marketId)||{};current[meta.field]=value;partial.set(meta.marketId,current);
+      });
+    }
+    unique.forEach(marketId=>{
+      const current=partial.get(marketId);if(!current)return;
+      const fee=Number(current.fee_bips),count=Number(current.question_count);
+      if(Number.isInteger(fee)&&fee>=0&&fee<=10000&&Number.isInteger(count)&&count>=2&&count<=255){
+        terms.set(marketId,{status:"verified-onchain",fee_bips:fee,question_count:count});
+      }
+    });
+  }catch(e){}
+  return terms;
+}
+function applyNegativeRiskConversionTerms(candidate,terms){
+  if(!candidate||!candidate.bundle_conversion_candidate)return candidate;
+  const marketId=String(candidate.neg_risk_market_id||""),term=terms&&terms.get(marketId),legCount=(candidate.bundle_legs||[]).length;
+  const hasMetadataFee=candidate.neg_risk_metadata_fee_bips!==null&&candidate.neg_risk_metadata_fee_bips!==undefined;
+  const metadataFee=Number(candidate.neg_risk_metadata_fee_bips),metadataMatches=!hasMetadataFee
+    ||(Number.isFinite(metadataFee)&&Math.abs(metadataFee-Number(term&&term.fee_bips))<=1e-9);
+  const verified=Boolean(term&&term.status==="verified-onchain"&&Number(term.question_count)===legCount
+    &&Number.isFinite(Number(term.fee_bips))&&Number(term.fee_bips)>=0&&Number(term.fee_bips)<=10000&&metadataMatches);
+  if(!verified)return Object.assign({},candidate,{bundle_conversion_terms_verified:false,bundle_immediate_convert:false,
+    neg_risk_fee_bips:null,neg_risk_question_count:term?Number(term.question_count):null,
+    conversion_verification_status:!term?"onchain-terms-unavailable":(!metadataMatches?"metadata-fee-mismatch":"question-count-mismatch")});
+  const feeBips=Number(term.fee_bips),settlementPayout=Number(candidate.bundle_settlement_payout_per_unit),cost=Number(candidate.bundle_cost_per_unit);
+  const payout=settlementPayout*(1-feeBips/10000),profit=payout-cost,netReturn=cost>0?profit/cost:0;
+  return Object.assign({},candidate,{bundle_conversion_terms_verified:true,bundle_immediate_convert:true,neg_risk_fee_bips:feeBips,
+    neg_risk_question_count:Number(term.question_count),conversion_verification_status:"verified-onchain",
+    bundle_payout_per_unit:+payout.toFixed(8),bundle_net_profit_per_unit:+profit.toFixed(6),edge:+netReturn.toFixed(6),net_edge:+netReturn.toFixed(6),
+    drivers:[...(candidate.drivers||[]).filter(driver=>driver!=="on-chain conversion terms pending"&&driver!=="guaranteed settlement payout"),"exact adapter conversion payout"],
+    rationale:`Complete NO conversion: buy every NO leg together, then atomically convert the full ${legCount}-question set through Polymarket's negative-risk adapter for ${payout.toFixed(4)} collateral per unit after the on-chain ${feeBips.toFixed(2)} bps conversion fee. Live order-book depth and every market-specific CLOB fee must still verify before entry.`});
+}
 async function verifyExecutableBundles(candidates){
-  const shortlist=bundleVerificationShortlist(candidates);
+  const initialShortlist=bundleVerificationShortlist(candidates);
+  const conversionTerms=await fetchNegativeRiskConversionTerms(initialShortlist.filter(candidate=>candidate.bundle_conversion_candidate)
+    .map(candidate=>candidate.neg_risk_market_id));
+  const shortlist=initialShortlist.map(candidate=>applyNegativeRiskConversionTerms(candidate,conversionTerms));
   const tokenIds=shortlist.flatMap(candidate=>(candidate.bundle_legs||[]).map(leg=>leg.token_id));
   const books=await fetchBundleBooks(tokenIds),depthChecked=shortlist.map(candidate=>{
     const estimatedCost=Number(candidate.bundle_cost_per_unit),requiredUnits=bundleMinimumExecutionUnits(Math.max(estimatedCost,0.01));
@@ -1539,8 +1608,8 @@ async function fetchNegativeRiskBundles(limit=NEG_RISK_EVENT_SCAN_LIMIT){
     events.push(...page);if(page.length<size)break;
   }
   const audited=events.flatMap(event=>{
-    const complete=negativeRiskBundleSuggestion(event,{includeUnprofitable:true});
-    return [...(complete?[complete]:[]),...dominanceBundleSuggestions(event,{includeUnprofitable:true}),
+    const complete=negativeRiskBundleSuggestions(event,{includeUnprofitable:true});
+    return [...complete,...dominanceBundleSuggestions(event,{includeUnprofitable:true}),
       ...binaryComplementBundleSuggestions(event,{includeUnprofitable:true})];
   }).sort(compareBundleOpportunities);
   const executableAudit=await verifyExecutableBundles(audited);
@@ -1549,9 +1618,19 @@ async function fetchNegativeRiskBundles(limit=NEG_RISK_EVENT_SCAN_LIMIT){
   const unique=candidates.filter(candidate=>{const id=String(candidate.bundle_id||candidate.market_id);if(!id||seen.has(id))return false;seen.add(id);return true;});
   const prioritized=prioritizeIndependentBundles(unique,20);
   const closest=executableAudit.find(candidate=>candidate.depth_verified)||executableAudit[0]||null;
+  const conversions=executableAudit.filter(candidate=>candidate.bundle_conversion_candidate);
+  const closestConversion=conversions.find(candidate=>candidate.depth_verified)||conversions[0]||null;
   return {candidates:prioritized,audit:{status:"ok",scanned_at:nowIso(),event_scan_limit:limit,events_scanned:events.length,
     evaluated_structures:audited.length,depth_checked_structures:executableAudit.length,depth_verified_structures:executableAudit.filter(candidate=>candidate.depth_verified).length,
     fee_verified_structures:executableAudit.filter(candidate=>candidate.fees_verified).length,actionable_bundles:unique.length,
+    conversion_candidates_scanned:audited.filter(candidate=>candidate.bundle_conversion_candidate).length,
+    conversion_structures:conversions.length,conversion_depth_verified:conversions.filter(candidate=>candidate.depth_verified).length,
+    conversion_terms_verified:conversions.filter(candidate=>candidate.bundle_conversion_terms_verified).length,
+    conversion_fee_verified:conversions.filter(candidate=>candidate.fees_verified).length,
+    actionable_conversions:unique.filter(candidate=>candidate.bundle_immediate_convert).length,
+    closest_conversion_margin_cents:closestConversion?+(Number(closestConversion.bundle_net_profit_per_unit)*100).toFixed(2):null,
+    closest_conversion_return_pct:closestConversion?+(Number(closestConversion.net_edge)*100).toFixed(3):null,
+    closest_conversion_title:closestConversion?closestConversion.question:null,
     actionable_events:new Set(unique.map(bundleEventKey).filter(Boolean)).size,returned_events:new Set(prioritized.map(bundleEventKey).filter(Boolean)).size,
     closest_margin_cents:closest?+(Number(closest.bundle_net_profit_per_unit)*100).toFixed(2):null,
     closest_return_pct:closest?+(Number(closest.net_edge)*100).toFixed(3):null,
@@ -1609,6 +1688,12 @@ const NEG_RISK_MIN_NET_RETURN=0.0015;
 const BUNDLE_BOOK_BATCH_SIZE=200;
 const BUNDLE_DEPTH_CANDIDATE_LIMIT=80;
 const BINARY_COMPLEMENT_DEPTH_RESERVE=20;
+const NEG_RISK_CONVERSION_DEPTH_RESERVE=20;
+const NEG_RISK_POLYGON_RPC="https://polygon.drpc.org";
+const NEG_RISK_ADAPTER_ADDRESS="0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296";
+const NEG_RISK_FEE_BIPS_SELECTOR="0x2582cb5e";
+const NEG_RISK_QUESTION_COUNT_SELECTOR="0xb7f75d2c";
+const NEG_RISK_RPC_BATCH_CALL_LIMIT=10;
 const BUNDLE_FEE_CONCURRENCY=8;
 const BUNDLE_MIN_NOTIONAL=50;
 const BUNDLE_MIN_UNITS=5;
@@ -2158,8 +2243,11 @@ function compactSuggestionForSync(s){
     adaptive_promotion:s.adaptive_promotion,adaptive_probation:s.adaptive_probation,
     probation_exit_hours:s.probation_exit_hours,promoted_for_agents:s.promoted_for_agents,watch_only:s.watch_only,jump_risk:s.jump_risk,
     requires_live:s.requires_live,bundle_id:s.bundle_id,bundle_event_id:s.bundle_event_id,bundle_side:s.bundle_side,bundle_logic:s.bundle_logic,
-    bundle_immediate_merge:s.bundle_immediate_merge,bundle_immediate_convert:s.bundle_immediate_convert,
-    neg_risk_market_id:s.neg_risk_market_id,neg_risk_fee_bips:s.neg_risk_fee_bips,
+    bundle_immediate_merge:s.bundle_immediate_merge,bundle_conversion_candidate:s.bundle_conversion_candidate,
+    bundle_conversion_terms_verified:s.bundle_conversion_terms_verified,bundle_immediate_convert:s.bundle_immediate_convert,
+    neg_risk_market_id:s.neg_risk_market_id,neg_risk_fee_bips:s.neg_risk_fee_bips,neg_risk_metadata_fee_bips:s.neg_risk_metadata_fee_bips,
+    neg_risk_question_count:s.neg_risk_question_count,
+    conversion_verification_status:s.conversion_verification_status,
     bundle_cost_per_unit:s.bundle_cost_per_unit,bundle_payout_per_unit:s.bundle_payout_per_unit,
     bundle_settlement_payout_per_unit:s.bundle_settlement_payout_per_unit,bundle_net_profit_per_unit:s.bundle_net_profit_per_unit,bundle_legs:s.bundle_legs,
     bundle_capital_efficiency:s.bundle_capital_efficiency,
@@ -2624,10 +2712,12 @@ function convertibleNegativeRiskNoBundleGroup(group){
   if(!Array.isArray(group)||group.length<2)return false;
   const expected=Math.max(...group.map(pos=>Number(pos.bundle_leg_count||0)));
   const marketIds=new Set(group.map(pos=>String(pos.market_id||""))),adapterIds=new Set(group.map(pos=>String(pos.neg_risk_market_id||"")));
-  const feeBips=group.map(pos=>Number(pos.neg_risk_fee_bips));
+  const feeBips=group.map(pos=>Number(pos.neg_risk_fee_bips)),questionCounts=group.map(pos=>Number(pos.neg_risk_question_count));
   return group.length===expected&&marketIds.size===expected&&adapterIds.size===1&&Boolean([...adapterIds][0])
-    &&group.every(pos=>pos.side==="NO"&&pos.bundle_immediate_convert&&pos.bundle_logic==="neg-risk-complete-no"&&Number(pos.shares)>0)
-    &&feeBips.every(value=>Number.isFinite(value)&&value>=0&&value<=10000&&Math.abs(value-feeBips[0])<=1e-9);
+    &&group.every(pos=>pos.side==="NO"&&pos.bundle_conversion_terms_verified&&pos.bundle_immediate_convert
+      &&pos.bundle_logic==="neg-risk-complete-no"&&Number(pos.shares)>0)
+    &&feeBips.every(value=>Number.isFinite(value)&&value>=0&&value<=10000&&Math.abs(value-feeBips[0])<=1e-9)
+    &&questionCounts.every(value=>Number.isInteger(value)&&value===expected);
 }
 function convertCompleteNegativeRiskNoBundle(p,bundleId){
   const group=completeBundleGroups(p).find(rows=>String(rows[0]&&rows[0].bundle_id||"")===String(bundleId||""));
@@ -4350,6 +4440,7 @@ function rankSuggestionsForAgent(cfg,suggestions){
 function openNegativeRiskBundle(p,cfg,s,stake,decision){
   const legs=Array.isArray(s.bundle_legs)?s.bundle_legs:[],unitCost=Number(s.bundle_cost_per_unit),verifiedUnits=Number(s.execution_units);
   if(legs.length<2||!s.depth_verified||!s.fees_verified||s.verification_status!=="executable"
+    ||(s.bundle_immediate_convert&&!s.bundle_conversion_terms_verified)
     ||!(verifiedUnits>0)||!(unitCost>0)||!(Number(s.bundle_net_profit_per_unit)>0))return null;
   const units=+Math.min(verifiedUnits,Math.max(0,stake)/unitCost).toFixed(2);if(units<=0)return null;
   const bundleSide=s.bundle_side||s.side||"NO";
@@ -4363,8 +4454,11 @@ function openNegativeRiskBundle(p,cfg,s,stake,decision){
       momentum_strength:0,signal_strength:1,signal_confidence:1,signal_type:"bundle-arb",price_change_1d:0,price_change_1w:0,
       days_to_resolution:s.days_to_resolution,jump_risk:false,bundle_id:s.bundle_id,bundle_event_id:bundleEventKey(s),bundle_name:s.event||s.question,bundle_leg_count:legs.length,
       bundle_payout_per_unit:s.bundle_payout_per_unit,bundle_net_profit_per_unit:s.bundle_net_profit_per_unit,requires_complete_bundle:true,
-      bundle_logic:s.bundle_logic||null,bundle_immediate_merge:Boolean(s.bundle_immediate_merge),bundle_immediate_convert:Boolean(s.bundle_immediate_convert),
-      neg_risk_market_id:s.neg_risk_market_id||null,neg_risk_fee_bips:s.neg_risk_fee_bips==null?null:Number(s.neg_risk_fee_bips),fee_schedule:leg.fee_schedule||null,
+      bundle_logic:s.bundle_logic||null,bundle_immediate_merge:Boolean(s.bundle_immediate_merge),bundle_conversion_candidate:Boolean(s.bundle_conversion_candidate),
+      bundle_conversion_terms_verified:Boolean(s.bundle_conversion_terms_verified),bundle_immediate_convert:Boolean(s.bundle_immediate_convert),
+      neg_risk_market_id:s.neg_risk_market_id||null,neg_risk_fee_bips:s.neg_risk_fee_bips==null?null:Number(s.neg_risk_fee_bips),
+      neg_risk_metadata_fee_bips:s.neg_risk_metadata_fee_bips==null?null:Number(s.neg_risk_metadata_fee_bips),
+      neg_risk_question_count:s.neg_risk_question_count==null?null:Number(s.neg_risk_question_count),fee_schedule:leg.fee_schedule||null,
       learning_score:0,learning_confidence:0,market_learning_score:0,market_learning_confidence:0,learning_state:"priced-bundle",market_learning_state:"priced-bundle",
       historical_prior_score:0,historical_prior_confidence:0,historical_prior_features:[],historical_requires_promotion:false,
       learning_multiplier:1,learning_exploration:false,risk_budget_pct:+(tradeLossBudgetPct(cfg,s)*100).toFixed(2),
@@ -4736,7 +4830,9 @@ async function runDailyCycle(){
       setStatus(`analyzing ${analysisMarkets.length.toLocaleString()} most-active markets…`,true);
       setStatus("checking complete live-priced event bundles…",true);
       try{const bundleScan=await fetchNegativeRiskBundles();bundleSugs=bundleScan.candidates;bundleAudit=bundleScan.audit;}
-      catch(e){bundleSugs=[];bundleAudit={status:"unavailable",scanned_at:nowIso(),event_scan_limit:NEG_RISK_EVENT_SCAN_LIMIT,events_scanned:0,evaluated_structures:0,actionable_bundles:0,error:String(e&&e.message||e)};}
+      catch(e){bundleSugs=[];bundleAudit={status:"unavailable",scanned_at:nowIso(),event_scan_limit:NEG_RISK_EVENT_SCAN_LIMIT,events_scanned:0,evaluated_structures:0,
+        conversion_candidates_scanned:0,conversion_structures:0,conversion_terms_verified:0,conversion_depth_verified:0,conversion_fee_verified:0,actionable_conversions:0,
+        actionable_bundles:0,error:String(e&&e.message||e)};}
       setStatus("measuring reward-book competition…",true);
       try{makerAuditCandidates=await fetchRewardMakerCandidates();}catch(e){makerAuditCandidates=[];}
       setStatus("checking real-world context…",true);
@@ -5327,7 +5423,7 @@ function renderSuggestions(){
   const analyzed=Number(data.analyzed_count||data.market_count||0).toLocaleString();
   const audit=data.opportunity_audit||null;
   const auditText=audit&&audit.status==="ok"
-    ?` Bundle scanner checked ${Number(audit.events_scanned||0).toLocaleString()} events and ${Number(audit.evaluated_structures||0).toLocaleString()} complete, dominance, and binary-complement structures, depth-tested ${Number(audit.depth_checked_structures||0)}, and found ${Number(audit.depth_verified_structures||0)} with $50 depth; ${Number(audit.actionable_bundles||0)} also cleared the market-specific fee and profit gates.${audit.closest_margin_cents!=null?` Closest depth-tested margin: ${Number(audit.closest_margin_cents)>=0?"+":""}${Number(audit.closest_margin_cents).toFixed(2)}c per bundle.`:""}`
+    ?` Bundle scanner checked ${Number(audit.events_scanned||0).toLocaleString()} events and ${Number(audit.evaluated_structures||0).toLocaleString()} complete, dominance, and binary-complement structures, depth-tested ${Number(audit.depth_checked_structures||0)}, and found ${Number(audit.depth_verified_structures||0)} with $50 depth; ${Number(audit.actionable_bundles||0)} also cleared the market-specific fee and profit gates. Exact complete-NO conversion: ${Number(audit.conversion_candidates_scanned||0)} discovered, ${Number(audit.conversion_structures||0)} depth-tested in its reserved lane, ${Number(audit.conversion_terms_verified||0)} adapter-verified, ${Number(audit.conversion_depth_verified||0)} depth-verified, ${Number(audit.conversion_fee_verified||0)} CLOB-fee-verified, ${Number(audit.actionable_conversions||0)} actionable.${audit.closest_conversion_margin_cents!=null?` Closest conversion margin: ${Number(audit.closest_conversion_margin_cents)>=0?"+":""}${Number(audit.closest_conversion_margin_cents).toFixed(2)}c (${Number(audit.closest_conversion_return_pct)>=0?"+":""}${Number(audit.closest_conversion_return_pct).toFixed(2)}%).`:""}${audit.closest_margin_cents!=null?` Closest overall depth-tested margin: ${Number(audit.closest_margin_cents)>=0?"+":""}${Number(audit.closest_margin_cents).toFixed(2)}c per bundle.`:""}`
     :(audit?" Bundle scanner was unavailable during this cycle; the site did not treat cached bundle prices as executable.":"");
   $("focusNote").textContent=focus==="All"
     ? `Loaded the ${scanned} most active markets, analyzed ${analyzed}, and kept ${all.length} ideas (${buyCount} TRADE READY, ${watchCount} WATCH). Showing ${filtered.length}; directional signals remain WATCH until their own event-clustered cohorts earn positive promotion. Complete bundles are trade ready only after every leg clears a live $50 order-book depth check and the CLOB fee state agrees with the market-specific taker curve while preserving a positive worst-case payout margin. Cash is retained when neither condition is met. Avg evidence ${evAvg}.${auditText}`
@@ -7441,12 +7537,21 @@ function runEngineSelfTest(){
     {id:"yes-bundle-b",question:"B wins",outcomes:'["Yes","No"]',outcomePrices:'["0.305","0.695"]',clobTokenIds:'["yb-yes","yb-no"]',bestBid:0.30,bestAsk:0.31,liquidityNum:28000,volumeNum:100000,volume24hr:10000,acceptingOrders:true},
     {id:"yes-bundle-draw",question:"Draw",outcomes:'["Yes","No"]',outcomePrices:'["0.335","0.665"]',clobTokenIds:'["yd-yes","yd-no"]',bestBid:0.33,bestAsk:0.34,liquidityNum:20000,volumeNum:100000,volume24hr:10000,acceptingOrders:true},
   ]});
-  const convertibleNoBundleSuggestion=negativeRiskBundleSuggestion({id:"bundle-no-convert",title:"Three-way exact conversion",slug:"bundle-no-convert",
+  const convertibleNoBundleEvent={id:"bundle-no-convert",title:"Three-way exact conversion",slug:"bundle-no-convert",
     negRisk:true,enableNegRisk:true,negRiskMarketID:"0xneg-risk-market",negRiskFeeBips:25,markets:[
       {id:"convert-a",conditionId:"condition-a",question:"A wins",outcomes:'["Yes","No"]',outcomePrices:'["0.455","0.545"]',clobTokenIds:'["ca-yes","ca-no"]',bestBid:0.45,bestAsk:0.46,negRiskMarketID:"0xneg-risk-market",negRiskFeeBips:25,feesEnabled:false,liquidityNum:30000,acceptingOrders:true},
       {id:"convert-b",conditionId:"condition-b",question:"B wins",outcomes:'["Yes","No"]',outcomePrices:'["0.355","0.645"]',clobTokenIds:'["cb-yes","cb-no"]',bestBid:0.35,bestAsk:0.36,negRiskMarketID:"0xneg-risk-market",negRiskFeeBips:25,feesEnabled:false,liquidityNum:30000,acceptingOrders:true},
       {id:"convert-c",conditionId:"condition-c",question:"C wins",outcomes:'["Yes","No"]',outcomePrices:'["0.255","0.745"]',clobTokenIds:'["cc-yes","cc-no"]',bestBid:0.25,bestAsk:0.26,negRiskMarketID:"0xneg-risk-market",negRiskFeeBips:25,feesEnabled:false,liquidityNum:30000,acceptingOrders:true},
-    ]});
+    ]};
+  const conversionFixtureTerms=new Map([["0xneg-risk-market",{status:"verified-onchain",fee_bips:25,question_count:3}]]);
+  const convertibleCompleteSides=negativeRiskBundleSuggestions(convertibleNoBundleEvent,{includeUnprofitable:true,conversionTerms:conversionFixtureTerms});
+  const convertibleNoBundleSuggestion=convertibleCompleteSides.find(candidate=>candidate.bundle_side==="NO");
+  const questionCountMismatchSides=negativeRiskBundleSuggestions(convertibleNoBundleEvent,{includeUnprofitable:true,
+    conversionTerms:new Map([["0xneg-risk-market",{status:"verified-onchain",fee_bips:25,question_count:4}]])});
+  const pendingConversionCandidate=negativeRiskBundleSuggestions(convertibleNoBundleEvent,{includeUnprofitable:true})
+    .find(candidate=>candidate.bundle_side==="NO");
+  const mismatchedOnchainFeeCandidate=applyNegativeRiskConversionTerms(pendingConversionCandidate,
+    new Map([["0xneg-risk-market",{status:"verified-onchain",fee_bips:30,question_count:3}]]));
   const convertibleNoBooks=new Map((convertibleNoBundleSuggestion.bundle_legs||[]).map(leg=>[String(leg.token_id),
     {min_order_size:"5",asks:[{price:String(leg.top_ask_price),size:"100"}]}]));
   const convertibleNoQuote=bundleQuoteAtUnits(convertibleNoBundleSuggestion,convertibleNoBooks,100);
@@ -7558,6 +7663,7 @@ function runEngineSelfTest(){
   const binaryReserveOrder=bundleVerificationShortlist([
     ...Array.from({length:90},(_,index)=>Object.assign({},dominanceSuggestion,{bundle_id:`dominance:general-${index}:a:b`,bundle_event_id:`general-${index}`,net_edge:0.10-index/1000,days_to_resolution:5})),
     ...Array.from({length:30},(_,index)=>Object.assign({},binaryComplementSuggestion,{bundle_id:`binary:reserved-${index}:market`,bundle_event_id:`reserved-${index}`,net_edge:-0.01-index/1000})),
+    ...Array.from({length:30},(_,index)=>Object.assign({},convertibleNoBundleSuggestion,{bundle_id:`bundle:conversion-${index}:no`,bundle_event_id:`conversion-${index}`,net_edge:-0.02-index/1000})),
   ]);
   const eventCapBook=defaultPortfolio();
   eventCapBook.cash=8800;
@@ -8083,12 +8189,17 @@ function runEngineSelfTest(){
     bundleArbitrage:{
       discoversExactCompleteNoConversion:Boolean(convertibleNoBundleSuggestion&&convertibleNoBundleSuggestion.bundle_immediate_convert
         &&convertibleNoBundleSuggestion.bundle_logic==="neg-risk-complete-no"&&convertibleNoBundleSuggestion.neg_risk_market_id==="0xneg-risk-market"),
+      preservesBothCompleteSidesThroughAudit:convertibleCompleteSides.length===2
+        &&convertibleCompleteSides.some(candidate=>candidate.bundle_side==="YES")&&convertibleCompleteSides.some(candidate=>candidate.bundle_side==="NO"),
       deductsAdapterFeeFromConversionPayout:Boolean(convertibleNoBundleSuggestion
         &&Math.abs(convertibleNoBundleSuggestion.bundle_payout_per_unit-1.995)<0.0000001
         &&convertibleNoBundleSuggestion.neg_risk_fee_bips===25),
       atomicallyConvertsCompleteNoSet:Boolean(conversionOpen&&conversionOpen.conversion&&conversionBook.positions.length===0
         &&conversionBook.closed.length===3&&conversionBook.cash===10004.5&&conversionOpen.conversion.realized===4.5),
       blocksImmediateConversionOnMismatchedMetadata:Boolean(mismatchedConversionMetadata&&!mismatchedConversionMetadata.bundle_immediate_convert),
+      blocksImmediateConversionOnQuestionCountMismatch:questionCountMismatchSides.every(candidate=>!candidate.bundle_immediate_convert),
+      blocksImmediateConversionOnMetadataFeeMismatch:Boolean(mismatchedOnchainFeeCandidate
+        &&!mismatchedOnchainFeeCandidate.bundle_immediate_convert&&mismatchedOnchainFeeCandidate.conversion_verification_status==="metadata-fee-mismatch"),
       doesNotInventConversionWithoutAdapterMetadata:Boolean(bundleSuggestion&&!bundleSuggestion.bundle_immediate_convert),
       discoversExecutableBinaryComplements:Boolean(binaryComplementSuggestion&&binaryComplementSuggestion.bundle_logic==="binary-complement"
         &&binaryComplementQuote.depth_verified&&bundleQuoteIsActionable(binaryComplementQuote)&&Math.abs(binaryComplementQuote.profit-0.02)<0.000001),
@@ -8101,6 +8212,8 @@ function runEngineSelfTest(){
       immediateMergeMetadataSurvivesSync:compactedBinarySuggestion.bundle_immediate_merge===true,
       reservesBinaryComplementDepthChecks:binaryReserveOrder.length===BUNDLE_DEPTH_CANDIDATE_LIMIT
         &&binaryReserveOrder.filter(row=>row.bundle_logic==="binary-complement").length===BINARY_COMPLEMENT_DEPTH_RESERVE,
+      reservesExactConversionDepthChecks:binaryReserveOrder.length===BUNDLE_DEPTH_CANDIDATE_LIMIT
+        &&binaryReserveOrder.filter(row=>row.bundle_conversion_candidate).length===NEG_RISK_CONVERSION_DEPTH_RESERVE,
       prioritizesReturnPerLockedDay:capitalEfficiencyOrder[0].bundle_event_id==="fast-event",
       prioritizesIndependentEventsBeforeAlternates:independentBundleOrder.map(row=>row.bundle_event_id).join(",")==="event-a,event-b,event-a",
       derivesLegacyBundleEventKey:bundleEventKey({bundle_id:"dominance:legacy-event:market-a:market-b"})==="legacy-event",
