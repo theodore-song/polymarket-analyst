@@ -66,7 +66,13 @@ three-hour shock window count as one learner event.
 Each Build 121 cycle also scans the 1,000 most-active Polymarket events for
 complete negative-risk bundles and logically nested threshold or deadline
 pairs, plus same-market YES/NO complements whose equal shares have a fixed
-$1 redemption value. Gamma's market-specific fee flag replaces the old blanket 0.5-cent fee
+$1 redemption value. Polymarket's documented complete-set merge converts equal
+YES and NO amounts directly back into collateral, so a verified binary complement
+is merged and realized in the same paper cycle instead of waiting for resolution.
+Gasless CTF operations include merge transactions; see
+[Positions & Tokens](https://docs.polymarket.com/concepts/positions-tokens) and
+[Gasless Transactions](https://docs.polymarket.com/trading/gasless).
+Gamma's market-specific fee flag replaces the old blanket 0.5-cent fee
 reserve for markets declared fee-free. The scanner keeps the existing 60
 independent-first general structure checks and reserves 20 additional checks for
 same-market complements. Structures are ranked by locked-capital efficiency, with
