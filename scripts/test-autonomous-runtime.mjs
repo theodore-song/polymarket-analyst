@@ -9,7 +9,7 @@ const runner = fs.readFileSync(new URL("./run-autonomous-cycle.mjs", import.meta
 const resolutionAudit = JSON.parse(fs.readFileSync(new URL("../research/resolution-week-no-audit.json", import.meta.url), "utf8"));
 const build = Number(index.match(/const BUILD_VERSION = (\d+);/)?.[1]);
 
-assert.equal(build, 103);
+assert.equal(build, 104);
 assert.deepEqual([...ALLOWED_RUNTIME_KEYS].sort(), ["pma_agents_v2", "pma_suggestions_v5"]);
 assert.match(index, /function collectPublicRuntimeItems\(\)/);
 assert.match(index, /const PUBLIC_RUNTIME_KEYS=Object\.freeze\(\[AGENTS_KEY,SUG_KEY\]\)/);
@@ -26,7 +26,7 @@ assert.match(api, /Buffer\.from\(file\.content/);
 assert.match(api, /searchParams\.set\("runtime", `\$\{Date\.now\(\)\}/);
 assert.match(workflow, /cron: "2,7,12,17,22,27,32,37,42,47,52,57 \* \* \* \*"/);
 assert.match(workflow, /contents: write/);
-assert.match(workflow, /EXPECTED_BUILD: "103"/);
+assert.match(workflow, /EXPECTED_BUILD: "104"/);
 assert.match(index, /saveSuggestions\(sugs,markets\.length,analysisMarkets\.length,bundleAudit\)/);
 assert.match(index, /const NEG_RISK_EVENT_SCAN_LIMIT=1000;/);
 assert.match(index, /bundleOpportunityTelemetry:true/);

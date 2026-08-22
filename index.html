@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 61 · exact-fee learning · build 103</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 61 · exact-fee learning · build 104</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 103 active:</b> The public paper agents run autonomously every five minutes while every user device is closed. Each cycle scans the 1,000 most-active events for complete negative-risk and same-event dominance bundles, then checks the closest 60 against live CLOB depth for at least a $50 equal-unit order. Directional research now carries Gamma fee schedules through cloud and offline caches and grades each future checkpoint with exact entry and exit taker fees plus a half-cent slippage allowance. The latest disjoint audits rejected broad directional, shock, and near-settlement rules, so they remain zero-capital until independent forward cohorts prove an edge. Phones and computers display the same read-only autonomous state. Profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 104 active:</b> The public paper agents run autonomously every five minutes while every user device is closed. Each cycle scans the 1,000 most-active events for complete negative-risk and same-event dominance bundles, then checks the closest 60 against live CLOB depth for at least a $50 equal-unit order. Directional research now carries Gamma fee schedules through cloud and offline caches and grades each future checkpoint with exact entry and exit taker fees plus a half-cent slippage allowance. The latest disjoint audits rejected broad directional, shock, and near-settlement rules, so they remain zero-capital until independent forward cohorts prove an edge. Phones and computers display the same read-only autonomous state. Profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 103 · Adaptive strategy 61 · Five-minute autonomous scans · Exact-fee directional learning · Live depth, fee, and size-verified bundle audit · Corrected one-decision-per-event settlement audit · Zero capital before independent positive evidence · Autonomous runtime 1 · Offline runtime 2 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 104 · Adaptive strategy 61 · Five-minute autonomous scans · Exact-fee directional learning · Live depth, fee, and size-verified bundle audit · Corrected one-decision-per-event settlement audit · Zero capital before independent positive evidence · Autonomous runtime 1 · Offline runtime 2 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 103;
+const BUILD_VERSION = 104;
 const AGENT_LEARNING_VERSION = 3;
 const SUGGESTION_ENGINE_VERSION = 61;
 const MAKER_STRATEGY_VERSION = 3;
@@ -2297,14 +2297,14 @@ function updateSignalLedger(st,markets,suggestions){
     }
   }
   stillPending.sort((a,b)=>new Date(a.observed_at||0)-new Date(b.observed_at||0));
-  const existing=new Set(stillPending.map(x=>x.key)),pendingPairs=new Set(stillPending
+  const existing=new Set(stillPending.map(x=>x.key)),pendingPairs=new Set(stillPending.filter(currentSignalPolicy)
     .filter(x=>!Object.prototype.hasOwnProperty.call(x||{},"eligible_agent_ids")||(Array.isArray(x.eligible_agent_ids)&&x.eligible_agent_ids.length>0))
     .map(x=>`${x.market_id}:${x.side}`));
   const bucket=Math.floor(now/(6*3600000));
   const observable=prioritizeSignalObservations((suggestions||[])
     .filter(x=>!x.jump_risk&&["trend","reversal"].includes(x.signal_type)&&Number(x.signal_confidence||0)>=0.56),ledger,stillPending);
   for(const s of observable){
-    const pair=`${s.market_id}:${s.side}`,key=`${pair}:${bucket}:l${AGENT_LEARNING_VERSION}`;if(existing.has(key)||pendingPairs.has(pair))continue;
+    const pair=`${s.market_id}:${s.side}`,key=`${pair}:${bucket}:p${DIRECTIONAL_SIGNAL_POLICY_VERSION}:l${AGENT_LEARNING_VERSION}`;if(existing.has(key)||pendingPairs.has(pair))continue;
     if(stillPending.length>=SIGNAL_LEDGER_PENDING_LIMIT)break;
     existing.add(key);pendingPairs.add(pair);stillPending.push({key,market_id:String(s.market_id),event_key:String(s.url||s.event||s.market_id),observed_at:nowIso(),graded_horizons:[],side:s.side,entry_price:Number(s.entry_price),
       signal_type:s.signal_type||"unknown",quality:s.quality||"unknown",category:s.category||"Other",conviction:Number(s.conviction||0),
@@ -6458,6 +6458,13 @@ function runEngineSelfTest(){
     signal_confidence:0.62,trade_ready:false,jump_risk:false,category:"Politics",days_to_resolution:45}]);
   updateSignalLedger(observationLedgerState,[],[{market_id:"observation-only",side:"YES",entry_price:0.43,signal_type:"trend",quality:"watch",
     signal_confidence:0.64,trade_ready:false,jump_risk:false,category:"Politics",days_to_resolution:45}]);
+  const priorPolicyReplacementState={signal_ledger:{pending:[{key:"prior-policy",market_id:"policy-replacement",event_key:"policy-event",
+    observed_at:hoursAgo(1),graded_horizons:[],side:"YES",entry_price:0.42,signal_type:"trend",quality:"watch",category:"Politics",
+    eligible_agent_ids:["value"],signal_policy_version:DIRECTIONAL_SIGNAL_POLICY_VERSION-1,strategy_version:PREVIOUS_STRATEGY_VERSION}],outcomes:[]}};
+  updateSignalLedger(priorPolicyReplacementState,[],[{market_id:"policy-replacement",event_key:"policy-event",side:"YES",entry_price:0.42,
+    signal_type:"trend",quality:"watch",signal_confidence:0.64,signal_strength:0.72,evidence_score:0.52,evidence_source_count:1,
+    price_change_1d:0.02,conviction:74,trade_ready:false,jump_risk:false,category:"Politics",days_to_resolution:45,fees_enabled:false,
+    fee_schedule:{rate:0,exponent:1,takerOnly:true}}]);
   const nonDirectionalLedgerState={signal_ledger:defaultSignalLedger()};
   updateSignalLedger(nonDirectionalLedgerState,[],[
     {market_id:"priced-bundle",side:"NO",entry_price:0.80,signal_type:"bundle-arb",quality:"bundle-arb",signal_confidence:1,trade_ready:true,jump_risk:false},
@@ -6976,6 +6983,8 @@ function runEngineSelfTest(){
         &&observationLedgerState.signal_ledger.pending[0].trade_ready_at_observation===false
         &&observationLedgerState.signal_ledger.pending[0].signal_policy_version===DIRECTIONAL_SIGNAL_POLICY_VERSION,
       deduplicatesPendingMarketSide:observationLedgerState.signal_ledger.pending.length===1,
+      priorFeePolicyDoesNotDelayReplacement:priorPolicyReplacementState.signal_ledger.pending.length===2
+        &&priorPolicyReplacementState.signal_ledger.pending.some(item=>item.signal_policy_version===DIRECTIONAL_SIGNAL_POLICY_VERSION),
       oldestPendingSignalsSurviveCapacity:queueLedgerState.signal_ledger.pending.length===SIGNAL_LEDGER_PENDING_LIMIT
         &&queueLedgerState.signal_ledger.pending.some(x=>x.market_id==="old-market-0")
         &&queueLedgerState.signal_ledger.pending.some(x=>x.market_id==="new-market-0")
