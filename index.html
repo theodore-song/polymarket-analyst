@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 64 · durable evidence · build 122</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 64 · durable evidence · build 123</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 122 active:</b> Strategy 64 protects a dedicated evidence budget in every cloud snapshot, so pending observations and net-of-cost outcomes survive runner restarts instead of being displaced by repeated display text. Independently positive six-hour cohorts can enter bounded probation after at least 12 events and a lower confidence bound above 1%, using at most 0.5% per position and 1% per-agent total capital with a matching executable exit. Full directional sizing still requires positive 24-hour and 72-hour evidence, while one mature negative cohort can veto risk. Sports contest NO research is now zero-capital until its forward confidence gate passes. Depth-and-fee-verified complete bundles must return at least 0.02% per locked day, are ranked by that capital efficiency, and are capped at 12% of Value Hunter equity per underlying event. Phones and computers display the same read-only autonomous state. Profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 123 active:</b> Strategy 64 protects a dedicated evidence budget in every cloud snapshot, so pending observations and net-of-cost outcomes survive runner restarts instead of being displaced by repeated display text. Independently positive six-hour cohorts can enter bounded probation after at least 12 events and a lower confidence bound above 1%, using at most 0.5% per position and 1% per-agent total capital with a matching executable exit. Full directional sizing still requires positive 24-hour and 72-hour evidence, while one mature negative cohort can veto risk. Sports contest NO research is zero-capital until its forward confidence gate passes. Protected bundles require exact depth and fee checks on entry; when every live bid can realize at least 85% of remaining guaranteed profit, all legs exit atomically to book the gain and recycle capital. Phones and computers display the same read-only autonomous state. Profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 122 · Adaptive strategy 64 · Evidence-first bounded snapshots · Six-hour bounded probation with matched executable exits · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Capital-efficient, event-capped verified bundles · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 123 · Adaptive strategy 64 · Evidence-first bounded snapshots · Six-hour bounded probation with matched executable exits · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Capital-efficient, event-capped verified bundles · Atomic verified bundle-profit recycling · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 122;
+const BUILD_VERSION = 123;
 const AGENT_LEARNING_VERSION = 3;
 const SUGGESTION_ENGINE_VERSION = 64;
 const MAKER_STRATEGY_VERSION = 3;
@@ -1317,6 +1317,47 @@ function bundleExecutableLeg(book,units,feeSchedule){
   const askPrice=cost/Number(units),feePerShare=feeConfigValid?fees/Number(units):SIGNAL_ROUND_TRIP_COST;
   return {ask_price:askPrice,fee_per_share:feePerShare,total_price:askPrice+feePerShare,fee_config_valid:feeConfigValid};
 }
+function bundleBookBidLevels(book){
+  return (book&&Array.isArray(book.bids)?book.bids:[]).map(row=>({price:Number(row.price),size:Number(row.size)}))
+    .filter(row=>Number.isFinite(row.price)&&row.price>0&&row.price<1&&Number.isFinite(row.size)&&row.size>0)
+    .sort((a,b)=>b.price-a.price);
+}
+function bundleExecutableSaleLeg(book,units,feeSchedule){
+  let remaining=Number(units),gross=0,fees=0,feeConfigValid=Boolean(feeSchedule);if(!(remaining>0))return null;
+  for(const level of bundleBookBidLevels(book)){
+    const filled=Math.min(remaining,level.size),fee=bundleFeePerShare(feeSchedule,level.price);
+    gross+=filled*level.price;if(Number.isFinite(fee))fees+=filled*fee;else feeConfigValid=false;
+    remaining-=filled;if(remaining<=1e-9)break;
+  }
+  if(remaining>1e-9)return null;
+  const bidPrice=gross/Number(units),feePerShare=feeConfigValid?fees/Number(units):SIGNAL_ROUND_TRIP_COST;
+  return {bid_price:bidPrice,fee_per_share:feePerShare,net_price:bidPrice-feePerShare,fee_config_valid:feeConfigValid};
+}
+function bundleExitQuote(group,books,priceMap,reportedFees){
+  if(!Array.isArray(group)||group.length<2)return {status:"incomplete-group",actionable:false,depth_verified:false,fees_verified:false,legs:[]};
+  const units=Math.min(...group.map(pos=>Number(pos.shares||0))),cost=group.reduce((sum,pos)=>sum+Number(pos.cost||0),0);
+  const payoutPerUnit=Math.min(...group.map(pos=>Number(pos.bundle_payout_per_unit||0))),settlementPayout=units*payoutPerUnit;
+  const settlementProfit=Math.max(0,settlementPayout-cost);
+  const legs=group.map(pos=>{
+    const fresh=priceMap&&priceMap[String(pos.market_id)],conditionId=String(pos.condition_id||fresh&&fresh.condition_id||"");
+    const feeSchedule=pos.fee_schedule||fresh&&fresh.fee_schedule||null,reported=reportedFees&&reportedFees.get(conditionId);
+    const feeVerified=Boolean(conditionId&&bundleFeeSchedulesMatch(feeSchedule,reported));
+    const executable=bundleExecutableSaleLeg(books&&books.get(String(pos.token_id||"")),units,feeSchedule);
+    return {position:pos,condition_id:conditionId,fee_schedule:feeSchedule,fee_verified:feeVerified,
+      depth_verified:Boolean(executable),bid_price:executable?+executable.bid_price.toFixed(6):null,
+      fee_per_share:executable?+executable.fee_per_share.toFixed(6):null,net_price:executable?+executable.net_price.toFixed(6):null,
+      net_proceeds:executable?+(units*executable.net_price).toFixed(2):null};
+  });
+  const depthVerified=units>0&&legs.every(leg=>leg.depth_verified),feesVerified=legs.every(leg=>leg.fee_verified&&leg.depth_verified&&leg.net_price>0);
+  const proceeds=depthVerified&&feesVerified?+legs.reduce((sum,leg)=>sum+Number(leg.net_proceeds||0),0).toFixed(2):0;
+  const realizedProfit=+(proceeds-cost).toFixed(2),requiredProfit=Math.max(BUNDLE_EXIT_MIN_REALIZED_PROFIT,settlementProfit*BUNDLE_EXIT_PROFIT_CAPTURE);
+  const captureRatio=settlementProfit>0?realizedProfit/settlementProfit:0;
+  const actionable=depthVerified&&feesVerified&&realizedProfit+0.005>=requiredProfit;
+  return {status:actionable?"capture-ready":(!depthVerified?"insufficient-bid-depth":(!feesVerified?"fee-verification-unavailable":"capture-below-threshold")),
+    actionable,depth_verified:depthVerified,fees_verified:feesVerified,units,cost:+cost.toFixed(2),settlement_payout:+settlementPayout.toFixed(2),
+    settlement_profit:+settlementProfit.toFixed(2),required_profit:+requiredProfit.toFixed(2),proceeds,realized_profit:realizedProfit,
+    capture_ratio:+captureRatio.toFixed(4),legs};
+}
 function bundleMinimumExecutionUnits(unitCost,baselineUnits=0){
   const cost=Number(unitCost),baseline=Math.max(0,Number(baselineUnits)||0);
   if(!(cost>0))return +Math.max(BUNDLE_MIN_UNITS,baseline).toFixed(2);
@@ -1558,6 +1599,8 @@ const BUNDLE_MIN_UNITS=5;
 const BUNDLE_MAX_VERIFIED_NOTIONAL=400;
 const BUNDLE_EVENT_CAP_PCT=0.12;
 const BUNDLE_MIN_DAILY_RETURN=0.0002;
+const BUNDLE_EXIT_PROFIT_CAPTURE=0.85;
+const BUNDLE_EXIT_MIN_REALIZED_PROFIT=0.01;
 const SPORTS_FAVORITE_MIN_ENTRY=0.03;
 const SPORTS_FAVORITE_MAX_ENTRY=0.97;
 const SPORTS_FAVORITE_TARGET_LEAD_HOURS=72;
@@ -2559,6 +2602,53 @@ function mergeCompleteBinaryBundle(p,bundleId){
     detail:`Merged equal YES/NO shares immediately for ${fmtUSD(proceeds)} collateral (realized ${fmtUSD(realized)} after exact modeled execution costs)`});
   return {units,proceeds,cost:totalCost,realized};
 }
+function closeCompleteBundleGroupAtVerifiedBids(p,group,quote){
+  if(!p||!quote||!quote.actionable||!Array.isArray(group)||group.length<2)return null;
+  const members=new Set(group),closedAt=cycleIso();p.cash=+(Number(p.cash||0)+Number(quote.proceeds||0)).toFixed(2);
+  quote.legs.forEach(leg=>{
+    const pos=leg.position,netProceeds=Number(leg.net_proceeds||0);
+    pos.exit_price=Number(leg.bid_price||0);pos.exit_fee=+(Number(leg.fee_per_share||0)*Number(quote.units||0)).toFixed(2);
+    pos.current_price=pos.exit_price;pos.value=+netProceeds.toFixed(2);pos.unrealized_pnl=0;pos.closed_at=closedAt;
+    pos.close_reason=`Verified bundle profit recycling at ${(quote.capture_ratio*100).toFixed(1)}% of settlement profit`;
+    pos.close_action="RECYCLE";pos.bundle_recycled_at=closedAt;
+    pos.realized_pnl=+(netProceeds-Number(pos.cost||0)+Number(pos.partial_realized_pnl||0)).toFixed(2);p.closed.push(pos);
+  });
+  p.positions=(p.positions||[]).filter(pos=>!members.has(pos));
+  p.history.push({date:logDay(),action:"RECYCLE",question:group[0].bundle_name||group[0].question,side:"MIXED",
+    detail:`Atomically sold every bundle leg into verified bid depth for ${fmtUSD(quote.proceeds)}, realizing ${fmtUSD(quote.realized_profit)} now (${(quote.capture_ratio*100).toFixed(1)}% of its remaining guaranteed settlement profit) and releasing the capital.`});
+  return {bundle_id:String(group[0].bundle_id||""),proceeds:quote.proceeds,realized_profit:quote.realized_profit,capture_ratio:quote.capture_ratio};
+}
+async function recycleVerifiedBundleCapital(st,priceMap,{execute=true}={}){
+  const records=[];
+  if(st&&st.agents)AGENTS.forEach(agent=>{
+    const portfolio=st.agents[agent.id];completeBundleGroups(portfolio).forEach(group=>records.push({agent_id:agent.id,portfolio,group}));
+  });
+  const base={status:execute?"ok":"disabled-offline",groups:records.length,depth_verified:0,fee_verified:0,capture_ready:0,exited:0,
+    capital_released:0,realized_profit:0,profit_capture_threshold:BUNDLE_EXIT_PROFIT_CAPTURE};
+  if(!execute||!records.length)return base;
+  const eligible=records.filter(({group})=>group.every(pos=>{
+    const fresh=priceMap&&priceMap[String(pos.market_id)];return pos.token_id&&fresh&&!marketIsSettled(fresh)&&!marketIsSuspended(fresh)
+      &&String(pos.condition_id||fresh.condition_id||"");
+  }));
+  if(!eligible.length)return Object.assign(base,{status:"no-live-eligible-groups"});
+  try{
+    const tokenIds=eligible.flatMap(({group})=>group.map(pos=>pos.token_id));
+    const conditionIds=eligible.flatMap(({group})=>group.map(pos=>String(pos.condition_id||priceMap[String(pos.market_id)]&&priceMap[String(pos.market_id)].condition_id||"")));
+    const [books,reportedFees]=await Promise.all([fetchBundleBooks(tokenIds),fetchBundleFeeSchedules(conditionIds)]);
+    for(const record of eligible){
+      const quote=bundleExitQuote(record.group,books,priceMap,reportedFees);
+      if(quote.depth_verified)base.depth_verified++;
+      if(quote.fees_verified)base.fee_verified++;
+      if(!quote.actionable)continue;
+      base.capture_ready++;
+      const closed=closeCompleteBundleGroupAtVerifiedBids(record.portfolio,record.group,quote);if(!closed)continue;
+      base.exited++;base.capital_released=+(base.capital_released+closed.proceeds).toFixed(2);
+      base.realized_profit=+(base.realized_profit+closed.realized_profit).toFixed(2);
+    }
+    return base;
+  }catch(error){return Object.assign(base,{status:"unavailable",error:String(error&&error.message||error)});}
+}
+function bundleRecyclingCanExecute(runMode,executeTrades){return runMode==="live"&&Boolean(executeTrades);}
 function completeBundleAccountingFloor(group){
   const cost=group.reduce((sum,pos)=>sum+Number(pos.cost||0),0);
   const payoutPerUnit=Math.min(...group.map(pos=>Number(pos.bundle_payout_per_unit||0)));
@@ -4217,7 +4307,7 @@ function openNegativeRiskBundle(p,cfg,s,stake,decision){
   const bundleSide=s.bundle_side||s.side||"NO";
   const openedAt=cycleIso(),positions=legs.map(leg=>{
     const entry=Number(leg.entry_price),current=Number(leg.current_price),cost=+(units*entry).toFixed(2),side=leg.side||bundleSide;
-    return {market_id:String(leg.market_id),question:leg.question,side,shares:units,token_id:leg.token_id||null,
+    return {market_id:String(leg.market_id),condition_id:leg.condition_id||null,question:leg.question,side,shares:units,token_id:leg.token_id||null,
       entry_price:+entry.toFixed(4),current_price:+current.toFixed(4),cost,value:+(units*current).toFixed(2),
       original_shares:units,original_cost:cost,unrealized_pnl:+(units*current-cost).toFixed(2),conviction:s.conviction,peer_conviction:s.conviction,
       category:s.category,opened_at:openedAt,url:leg.url||s.url||"",peer_note:"",entry_reason:s.rationale||"",net_edge:s.net_edge,evidence_score:1,evidence_source_count:0,
@@ -4225,7 +4315,7 @@ function openNegativeRiskBundle(p,cfg,s,stake,decision){
       momentum_strength:0,signal_strength:1,signal_confidence:1,signal_type:"bundle-arb",price_change_1d:0,price_change_1w:0,
       days_to_resolution:s.days_to_resolution,jump_risk:false,bundle_id:s.bundle_id,bundle_event_id:bundleEventKey(s),bundle_name:s.event||s.question,bundle_leg_count:legs.length,
       bundle_payout_per_unit:s.bundle_payout_per_unit,bundle_net_profit_per_unit:s.bundle_net_profit_per_unit,requires_complete_bundle:true,
-      bundle_logic:s.bundle_logic||null,bundle_immediate_merge:Boolean(s.bundle_immediate_merge),
+      bundle_logic:s.bundle_logic||null,bundle_immediate_merge:Boolean(s.bundle_immediate_merge),fee_schedule:leg.fee_schedule||null,
       learning_score:0,learning_confidence:0,market_learning_score:0,market_learning_confidence:0,learning_state:"priced-bundle",market_learning_state:"priced-bundle",
       historical_prior_score:0,historical_prior_confidence:0,historical_prior_features:[],historical_requires_promotion:false,
       learning_multiplier:1,learning_exploration:false,risk_budget_pct:+(tradeLossBudgetPct(cfg,s)*100).toFixed(2),
@@ -4676,6 +4766,8 @@ async function runDailyCycle(){
     AGENTS.forEach(agent=>{makerActivityByAgent[agent.id]=manageMakerQuotes(st.agents[agent.id],quoteMarketMap,
       {executeTrades:runMode==="live"&&executeTrades,touchHistory:makerTouchHistory});});
     const sharedMakerProfile=buildSharedMakerProfile(st);
+    if(runMode==="live"&&executeTrades)setStatus("checking protected bundle profit exits…",true);
+    const bundleRecycleActivity=await recycleVerifiedBundleCapital(st,priceMap,{execute:bundleRecyclingCanExecute(runMode,executeTrades)});
     for(const cfg of AGENTS){
       const p=st.agents[cfg.id];
       markToMarket(p,priceMap,cfg,{policyExits:executeTrades,executeTrades});
@@ -4751,6 +4843,14 @@ async function runDailyCycle(){
           p.lastDecision.allocationStatus=`${p.lastDecision.allocationStatus||""} Maker research: ${staged.shadowActive} zero-capital lock-or-exit observation${staged.shadowActive===1?"":"s"}, ${makerActivity.shadowCompleted||0} outcome${makerActivity.shadowCompleted===1?"":"s"} graded this cycle; capital remains disabled after the chronological holdout failure, and displayed reward estimates are never credited as P&L.`.trim();
         }
       }
+    }
+    const valueDecision=st.agents.value&&st.agents.value.lastDecision;
+    if(valueDecision){
+      st.agents.value.lastDecision=Object.assign({},valueDecision,{bundleRecycling:bundleRecycleActivity});
+      const recycleSummary=bundleRecycleActivity.status==="unavailable"
+        ?"Protected bundle exit verification was unavailable, so every guarantee stayed intact."
+        :`Protected bundle recycling checked ${bundleRecycleActivity.groups} complete group${bundleRecycleActivity.groups===1?"":"s"}; ${bundleRecycleActivity.depth_verified} had full bid depth, ${bundleRecycleActivity.fee_verified} passed exact fee verification, and ${bundleRecycleActivity.exited} atomically realized at least ${(BUNDLE_EXIT_PROFIT_CAPTURE*100).toFixed(0)}% of remaining settlement profit${bundleRecycleActivity.exited?`, releasing ${fmtUSD(bundleRecycleActivity.capital_released)} and realizing ${fmtUSD(bundleRecycleActivity.realized_profit)}`:""}.`;
+      st.agents.value.lastDecision.allocationStatus=`${st.agents.value.lastDecision.allocationStatus||""} ${recycleSummary}`.trim();
     }
     const shockStage=stageShockFadeShadows(shockPortfolio,cycleSuggestions,{execute:runMode==="live"&&entriesAllowed,usedClaimKeys:claimedShockEvents});
     const shockProfile=sharedShockFadePilotProfile(st);
@@ -6591,6 +6691,9 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
   tradeLossBudgetPct,
   boundedStakeForRisk,
   bundleMinimumExecutionUnits,
+  bundleExecutableSaleLeg,
+  bundleExitQuote,
+  recycleVerifiedBundleCapital,
   portfolioPositionValue,
   applyCompleteBundleAccountingMarks,
   sportsFavoritePilotSuggestion,
@@ -7301,6 +7404,25 @@ function runEngineSelfTest(){
   const depthLimitedBundleBooks=new Map((zeroFeeBundleSuggestion.bundle_legs||[]).map((leg,index)=>[String(leg.token_id),
     {min_order_size:"5",asks:[{price:String(scalableBundlePrices[index]),size:String(index===2?120:500)}]}]));
   const depthLimitedBundleQuote=maximizeBundleExecution(zeroFeeBundleSuggestion,depthLimitedBundleBooks,bundleMinimumExecutionUnits(0.95));
+  const recyclableBundleBook=defaultPortfolio();recyclableBundleBook.cash=9905;
+  recyclableBundleBook.positions=[
+    {market_id:"recycle-a",condition_id:"recycle-condition-a",question:"Recycle A",side:"YES",shares:100,token_id:"recycle-token-a",entry_price:0.475,current_price:0.49,cost:47.5,value:47.5,
+      bundle_id:"bundle:recycle:yes",bundle_name:"Recycle fixture",bundle_leg_count:2,bundle_payout_per_unit:1,bundle_net_profit_per_unit:0.05,requires_complete_bundle:true,fee_schedule:{rate:0,exponent:1,takerOnly:true}},
+    {market_id:"recycle-b",condition_id:"recycle-condition-b",question:"Recycle B",side:"YES",shares:100,token_id:"recycle-token-b",entry_price:0.475,current_price:0.49,cost:47.5,value:47.5,
+      bundle_id:"bundle:recycle:yes",bundle_name:"Recycle fixture",bundle_leg_count:2,bundle_payout_per_unit:1,bundle_net_profit_per_unit:0.05,requires_complete_bundle:true,fee_schedule:{rate:0,exponent:1,takerOnly:true}},
+  ];
+  const recyclableGroup=completeBundleGroups(recyclableBundleBook)[0],recyclePriceMap={
+    "recycle-a":{condition_id:"recycle-condition-a",fee_schedule:{rate:0,exponent:1,takerOnly:true},closed:false,accepting_orders:true},
+    "recycle-b":{condition_id:"recycle-condition-b",fee_schedule:{rate:0,exponent:1,takerOnly:true},closed:false,accepting_orders:true},
+  };
+  const recycleFees=new Map([["recycle-condition-a",{rate:0,exponent:1,takerOnly:true}],["recycle-condition-b",{rate:0,exponent:1,takerOnly:true}]]);
+  const recycleBooksAt=(price,size=200)=>new Map([["recycle-token-a",{bids:[{price:String(price),size:String(size)}]}],["recycle-token-b",{bids:[{price:String(price),size:String(size)}]}]]);
+  const belowCaptureBundleExit=bundleExitQuote(recyclableGroup,recycleBooksAt(0.495),recyclePriceMap,recycleFees);
+  const shallowBundleExit=bundleExitQuote(recyclableGroup,recycleBooksAt(0.4965,50),recyclePriceMap,recycleFees);
+  const mismatchedExitFees=new Map(recycleFees);mismatchedExitFees.set("recycle-condition-b",{rate:0.01,exponent:1,takerOnly:true});
+  const mismatchedFeeBundleExit=bundleExitQuote(recyclableGroup,recycleBooksAt(0.4965),recyclePriceMap,mismatchedExitFees);
+  const recyclableBundleExit=bundleExitQuote(recyclableGroup,recycleBooksAt(0.4965),recyclePriceMap,recycleFees);
+  const recycledBundleClose=closeCompleteBundleGroupAtVerifiedBids(recyclableBundleBook,recyclableGroup,recyclableBundleExit);
   const tinyReturnBundle=negativeRiskBundleSuggestion({id:"bundle-tiny",title:"Ten-way result",slug:"bundle-tiny",negRisk:true,enableNegRisk:true,markets:Array.from({length:10},(_,i)=>({
     id:`bundle-tiny-${i}`,question:`Outcome ${i+1}`,outcomes:'["Yes","No"]',outcomePrices:'["0.1055","0.8945"]',clobTokenIds:`["tiny-${i}-yes","tiny-${i}-no"]`,
     bestBid:0.1055,bestAsk:0.1065,liquidityNum:30000,volumeNum:100000,volume24hr:10000,acceptingOrders:true,
@@ -7902,6 +8024,14 @@ function runEngineSelfTest(){
       derivesLegacyBundleEventKey:bundleEventKey({bundle_id:"dominance:legacy-event:market-a:market-b"})==="legacy-event",
       capsUnderlyingEventExposure:eventCapBook.positions.length===2&&eventCapBook.lastDecision.rejectionCounts.bundle_event_cap===1,
       blocksLowReturnPerLockedDay:slowCapitalBook.positions.length===0&&slowCapitalBook.lastDecision.rejectionCounts.bundle_capital_efficiency===1,
+      consumesLiveBidDepthForExit:bundleExecutableSaleLeg({bids:[{price:"0.50",size:"30"},{price:"0.49",size:"20"}]},50,{rate:0,exponent:1,takerOnly:true}).bid_price===0.496,
+      holdsWhenOnlyEightyPercentProfitIsAvailable:!belowCaptureBundleExit.actionable&&belowCaptureBundleExit.status==="capture-below-threshold"
+        &&belowCaptureBundleExit.capture_ratio===0.8,
+      blocksBundleExitWithoutFullBidDepth:!shallowBundleExit.actionable&&!shallowBundleExit.depth_verified,
+      blocksBundleExitOnFeeMismatch:!mismatchedFeeBundleExit.actionable&&!mismatchedFeeBundleExit.fees_verified,
+      atomicallyRecyclesEightySixPercentProfit:Boolean(recycledBundleClose&&recyclableBundleExit.actionable&&recyclableBundleExit.capture_ratio===0.86
+        &&recyclableBundleBook.positions.length===0&&recyclableBundleBook.closed.length===2&&recyclableBundleBook.cash===10004.3
+        &&recycledBundleClose.realized_profit===4.3),
       usesMarketSpecificZeroFee:Boolean(zeroFeeBundleSuggestion&&zeroFeeBundleSuggestion.friction===0
         &&zeroFeeBundleSuggestion.bundle_cost_per_unit===0.95&&zeroFeeBundleSuggestion.bundle_net_profit_per_unit===0.05),
       appliesPublishedFeeCurve:bundleFeePerShare({rate:0.07,exponent:1,takerOnly:true},0.5)===0.0175,
@@ -7977,6 +8107,7 @@ function runEngineSelfTest(){
       yesBundle:{openedPositions:yesBundleOpenedPositions,closedPositions:yesBundleBook.closed.length,cash:yesBundleBook.cash,units:yesBundleUnits||0},
     },
     offline:{fresh:offlineCachePolicy(30*60000),staleEntry:offlineCachePolicy(3*3600000),expired:offlineCachePolicy(25*3600000),
+      bundleProfitRecyclingRequiresLive:!bundleRecyclingCanExecute("offline-cache",true)&&!bundleRecyclingCanExecute("live",false)&&bundleRecyclingCanExecute("live",true),
       cloudRestartReconstructsUsableCache:Boolean(runtimeFallbackCache&&runtimeFallbackCache.runtime_reconstructed
         &&offlineCachePolicy(runtimeFallbackCache.age_ms).entriesAllowed&&runtimeFallbackCache.suggestions.length===1),
       reconstructedCacheIncludesOpenPositions:Boolean(runtimeFallbackCache&&runtimeFallbackCache.price_map["offline-open-position"]

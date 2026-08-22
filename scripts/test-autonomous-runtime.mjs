@@ -13,8 +13,8 @@ const adaptiveAudit = JSON.parse(fs.readFileSync(new URL("../research/adaptive-s
 const sportsEvaluator = fs.readFileSync(new URL("./evaluate-sports-favorites.mjs", import.meta.url), "utf8");
 const build = Number(index.match(/const BUILD_VERSION = (\d+);/)?.[1]);
 
-assert.equal(build, 122);
-assert.match(index, /Adaptive strategy 64 · durable evidence · build 122/);
+assert.equal(build, 123);
+assert.match(index, /Adaptive strategy 64 · durable evidence · build 123/);
 assert.deepEqual([...ALLOWED_RUNTIME_KEYS].sort(), ["pma_agents_v2", "pma_suggestions_v5"]);
 assert.match(index, /function collectPublicRuntimeItems\(\)/);
 assert.match(index, /const PUBLIC_RUNTIME_KEYS=Object\.freeze\(\[AGENTS_KEY,SUG_KEY\]\)/);
@@ -101,6 +101,10 @@ assert.match(index, /function bundleVerificationShortlist\(candidates\)/);
 assert.match(index, /function prioritizeIndependentBundles\(candidates,limit=Infinity\)/);
 assert.match(index, /prioritizesIndependentEventsBeforeAlternates:/);
 assert.match(index, /function bundleEventExposure\(portfolio,eventKey\)/);
+assert.match(index, /function recycleVerifiedBundleCapital\(st,priceMap,\{execute=true\}=\{\}\)/);
+assert.match(index, /bundleProfitRecyclingRequiresLive:/);
+assert.match(index, /const BUNDLE_EXIT_PROFIT_CAPTURE=0\.85;/);
+assert.match(index, /atomicallyRecyclesEightySixPercentProfit:/);
 assert.match(index, /prioritizesReturnPerLockedDay:/);
 assert.match(index, /capsUnderlyingEventExposure:/);
 assert.match(index, /blocksLowReturnPerLockedDay:/);
