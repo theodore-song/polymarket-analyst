@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 63 · six-hour probation · build 119</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 63 · durable evidence · build 120</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 119 active:</b> Strategy 63 adds a six-hour adaptive probation lane so independently positive current-policy cohorts can begin bounded paper trading on the same day instead of waiting for the full multi-day gate. Probation requires at least 12 independent events and a net-of-cost lower confidence bound above 1% for every required feature, uses at most 0.5% per position and 1% per-agent total capital, deduplicates events across agents, and exits at the matching six-hour executable price. Full directional sizing still requires positive 24-hour and 72-hour evidence, while one mature negative cohort can veto risk. The public agents continue serialized five-minute cycles, restart-safe offline execution from fresh cached state, the bounded sports-contest NO exploration lane, and depth-and-fee-verified complete bundles. Phones and computers display the same read-only autonomous state. Profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 120 active:</b> Strategy 63 protects a dedicated evidence budget in every cloud snapshot, so pending observations and net-of-cost outcomes survive runner restarts instead of being displaced by repeated display text. Independently positive six-hour cohorts can enter bounded probation after at least 12 events and a lower confidence bound above 1%, using at most 0.5% per position and 1% per-agent total capital with a matching executable exit. Full directional sizing still requires positive 24-hour and 72-hour evidence, while one mature negative cohort can veto risk. Chart snapshots retain bounded time coverage, the public agents continue serialized five-minute cycles and restart-safe offline operation, and intact complete bundles remain depth-and-fee verified. Phones and computers display the same read-only autonomous state. Profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 119 · Adaptive strategy 63 · Six-hour bounded probation with matched executable exits · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Verified-capacity complete bundles · Conservative intact-bundle accounting · Contest-deduplicated sports exploration · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 120 · Adaptive strategy 63 · Evidence-first bounded snapshots · Six-hour bounded probation with matched executable exits · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Verified-capacity complete bundles · Conservative intact-bundle accounting · Contest-deduplicated sports exploration · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 119;
+const BUILD_VERSION = 120;
 const AGENT_LEARNING_VERSION = 3;
 const SUGGESTION_ENGINE_VERSION = 63;
 const MAKER_STRATEGY_VERSION = 3;
@@ -809,7 +809,7 @@ const CATEGORIES = ["All","Politics","Sports","Crypto","Economy","Pop Culture","
 const SYNC_KEYS=[AGENTS_KEY,SUG_KEY,FOCUS_KEY,VIEW_KEY,PF_SORT_KEY,CHART_RANGE_KEY,INVEST_KEY,PAPER_KEY,LIVE_KEY,EMAIL_ALERT_KEY];
 const PUBLIC_RUNTIME_KEYS=Object.freeze([AGENTS_KEY,SUG_KEY]);
 const SYNC_LIMITS={closed:80,history:160,snapshots:240,suggestions:900,paperHistory:120,paperSnapshots:120,audit:120};
-const PUBLIC_RUNTIME_LIMITS=Object.freeze({...SYNC_LIMITS,history:80,suggestions:300});
+const PUBLIC_RUNTIME_LIMITS=Object.freeze({...SYNC_LIMITS,history:48,snapshots:96,suggestions:300});
 const CAT_COLORS = {Politics:"#fb7185",Sports:"#34d399",Crypto:"#fbbf24",Economy:"#7c8cff",
   "Pop Culture":"#c77dff",Other:"#94a1bb",All:"#7c8cff"};
 const CLOB = "https://clob.polymarket.com";
@@ -950,7 +950,12 @@ const SIGNAL_EVAL_HOURS = SIGNAL_EVAL_HORIZONS[0];
 const SIGNAL_LEDGER_PENDING_LIMIT = 600;
 const SIGNAL_LEDGER_OUTCOME_LIMIT = 1000;
 const PUBLIC_RUNTIME_SNAPSHOT_BUDGET_BYTES = 875000;
-const PUBLIC_SIGNAL_OUTCOME_RESERVE = 96;
+const PUBLIC_SIGNAL_OUTCOME_RESERVE = 144;
+const PUBLIC_SIGNAL_LEDGER_RESERVE_BYTES = 75000;
+const PUBLIC_RUNTIME_HISTORY_FLOOR = 24;
+const PUBLIC_RUNTIME_MAKER_OUTCOME_LIMIT = 30;
+const PUBLIC_RUNTIME_MAKER_OUTCOME_FLOOR = 12;
+const PUBLIC_RUNTIME_SUGGESTION_FLOOR = 240;
 const SIGNAL_LEDGER_RETRY_HOURS = SIGNAL_EVAL_HORIZONS[SIGNAL_EVAL_HORIZONS.length-1]+SIGNAL_EVAL_TOLERANCE_HOURS;
 const SIGNAL_LEDGER_DUE_FETCH_LIMIT = 80;
 const currentCycleHour = () => {const p=partsInLocalTime();return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}|s${SUGGESTION_ENGINE_VERSION}`;};
@@ -1952,6 +1957,23 @@ function compactDecisionForPublic(decision){
   }
   return out;
 }
+function compactHistoryForPublic(row){
+  if(!row||typeof row!=="object")return row;
+  return {date:row.date,action:row.action,question:typeof row.question==="string"?row.question.slice(0,140):row.question,
+    side:row.side,detail:typeof row.detail==="string"?row.detail.slice(0,220):row.detail};
+}
+function compactSnapshotsForPublic(rows,limit=PUBLIC_RUNTIME_LIMITS.snapshots){
+  const list=Array.isArray(rows)?rows:[];
+  if(list.length<=limit)return list;
+  const recentCount=Math.min(24,limit),older=list.slice(0,-recentCount),olderSlots=limit-recentCount;
+  if(olderSlots<=0)return list.slice(-limit);
+  const sampled=[];
+  for(let i=0;i<olderSlots;i++){
+    const index=olderSlots===1?older.length-1:Math.round(i*(older.length-1)/(olderSlots-1));
+    if(older[index]&&sampled.at(-1)!==older[index])sampled.push(older[index]);
+  }
+  return sampled.concat(list.slice(-recentCount)).slice(-limit);
+}
 function compactMakerOutcomeForPublic(row){
   if(!row||typeof row!=="object")return row;
   return {quote_id:row.quote_id,market_id:row.market_id,event_key:row.event_key,category:row.category,
@@ -1992,10 +2014,16 @@ function compactSuggestionsForSync(payload,limits=SYNC_LIMITS){
 function compactPublicSuggestionsForSync(payload){
   const compact=compactSuggestionsForSync(payload,PUBLIC_RUNTIME_LIMITS);
   compact.suggestions=(compact.suggestions||[]).map(suggestion=>{
-    const out=Object.assign({},suggestion,{
-      drivers:Array.isArray(suggestion.drivers)?suggestion.drivers.slice(0,1).map(driver=>String(driver).slice(0,80)):suggestion.drivers,
-      rationale:typeof suggestion.rationale==="string"?suggestion.rationale.slice(0,240):suggestion.rationale,
-    });
+    const out=Object.assign({},suggestion);
+    if(suggestion.trade_ready||suggestion.adaptive_probation||suggestion.bundle_id){
+      out.drivers=Array.isArray(suggestion.drivers)?suggestion.drivers.slice(0,1).map(driver=>String(driver).slice(0,80)):[];
+      out.rationale=typeof suggestion.rationale==="string"?suggestion.rationale.slice(0,180):"Trade-ready opportunity passed the active execution gate.";
+    }else{
+      out.drivers=[];
+      out.rationale=suggestion.jump_risk?"Watch only: settlement-gap risk prevents a protected entry."
+        :(suggestion.signal_type&&suggestion.signal_type!=="none"?"Watch only: gathering independent forward evidence before capital is enabled."
+          :"Watch only: no independently confirmed direction yet.");
+    }
     if(!out.trade_ready){delete out.clob_yes;delete out.clob_no;}
     return out;
   });
@@ -2115,11 +2143,15 @@ function prepareCycleSuggestions(suggestions,runMode,entriesAllowed){
 }
 function collectSyncItems(){const items={};SYNC_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!=null)items[k]=v;});return compactSyncItems(items);}
 function collectPublicRuntimeItems(){
-  const st=compactAgentStateForSync(loadState(),PUBLIC_RUNTIME_LIMITS);
+  const sourceLimits=Object.assign({},PUBLIC_RUNTIME_LIMITS,{snapshots:SYNC_LIMITS.snapshots});
+  const st=compactAgentStateForSync(loadState(),sourceLimits);
   st.signal_ledger=compactPublicSignalLedger(st.signal_ledger);
   AGENTS.forEach(agent=>{if(st.agents&&st.agents[agent.id]){
-    st.agents[agent.id].lastDecision=compactDecisionForPublic(st.agents[agent.id].lastDecision);
-    st.agents[agent.id].maker_outcomes=(st.agents[agent.id].maker_outcomes||[]).map(compactMakerOutcomeForPublic);
+    const p=st.agents[agent.id];
+    p.history=(p.history||[]).slice(-PUBLIC_RUNTIME_LIMITS.history).map(compactHistoryForPublic);
+    p.snapshots=compactSnapshotsForPublic(p.snapshots,PUBLIC_RUNTIME_LIMITS.snapshots);
+    p.lastDecision=compactDecisionForPublic(p.lastDecision);
+    p.maker_outcomes=(p.maker_outcomes||[]).slice(-PUBLIC_RUNTIME_MAKER_OUTCOME_LIMIT).map(compactMakerOutcomeForPublic);
   }});
   st.pending_sync=false;
   st.runtime_managed=true;
@@ -2137,6 +2169,22 @@ function fitPublicRuntimeSnapshot(snapshot){
   const writeState=()=>{snapshot.items[AGENTS_KEY]=JSON.stringify(st);return runtimeSnapshotByteLength(snapshot)<=PUBLIC_RUNTIME_SNAPSHOT_BUDGET_BYTES;};
   const reservedCount=Math.min(PUBLIC_SIGNAL_OUTCOME_RESERVE,outcomes.length);
   ledger.pending=[];ledger.outcomes=reservedCount?outcomes.slice(-reservedCount):[];
+  writeState();
+  const nonLearningTarget=PUBLIC_RUNTIME_SNAPSHOT_BUDGET_BYTES-PUBLIC_SIGNAL_LEDGER_RESERVE_BYTES;
+  if(runtimeSnapshotByteLength(snapshot)>nonLearningTarget){
+    AGENTS.forEach(agent=>{const p=st.agents&&st.agents[agent.id];if(!p)return;
+      p.history=(p.history||[]).slice(-PUBLIC_RUNTIME_HISTORY_FLOOR);
+      p.maker_outcomes=(p.maker_outcomes||[]).slice(-PUBLIC_RUNTIME_MAKER_OUTCOME_FLOOR);
+    });
+    writeState();
+  }
+  if(runtimeSnapshotByteLength(snapshot)>nonLearningTarget){
+    try{
+      const suggestionState=JSON.parse(snapshot.items[SUG_KEY]);
+      suggestionState.suggestions=(suggestionState.suggestions||[]).slice(0,PUBLIC_RUNTIME_SUGGESTION_FLOOR);
+      snapshot.items[SUG_KEY]=JSON.stringify(suggestionState);
+    }catch(e){}
+  }
   if(!writeState()&&reservedCount){
     let low=0,high=reservedCount;
     while(low<high){

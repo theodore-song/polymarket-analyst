@@ -20,7 +20,7 @@ market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
 
-Build 119 targets five-minute slots with a serialized, self-chained GitHub Actions runtime.
+Build 120 targets five-minute slots with a serialized, self-chained GitHub Actions runtime.
 It continues from the previous agent snapshot and runs the next due paper cycle
 even when no browser is open. After each successful cycle, one repo-scoped
 workflow dispatch waits for the next five-minute boundary; one concurrency group
@@ -32,10 +32,15 @@ contains only `pma_agents_v2` and `pma_suggestions_v5`, with suggestions capped 
 300 to keep cross-device loads small. The API preserves oldest-first pending
 observations plus fee schedules, agent promotion scopes, and verified bundle
 capacity from the bounded runtime instead of applying its older lossy compactor.
-Public maker outcomes retain only calibration fields and action logs are bounded
-to 80 entries per agent. If the 875 KB transport budget is reached, up to 96 of
-the newest completed directional outcomes are reserved before the oldest
-still-pending observations consume the remaining evidence space.
+Public maker outcomes retain only calibration fields, action logs are bounded
+to 48 entries per agent, and chart snapshots are evenly sampled once their
+96-point public limit is reached so older dates remain represented. Repetitive
+watch-only explanations are normalized without changing signal fields. If the
+875 KB transport budget is reached, the compactor first protects 75 KB for
+learning, reserves up to 144 of the newest completed directional outcomes, and
+then gives the remaining evidence space to the oldest still-pending
+observations. Only after display history reaches its documented floor can the
+public suggestion list fall from 300 to its 240-item emergency floor.
 Paper accounts, passwords, email settings,
 investment allocations, chat history, wallet information, and live-money
 settings are explicitly excluded. While that fallback is active, ordinary
@@ -55,7 +60,7 @@ Polymarket event key. Related Ethereum or Bitcoin contracts cannot create
 several simultaneous copies of one move, and outcomes from the same underlying
 three-hour shock window count as one learner event.
 
-Each Build 119 cycle also scans the 1,000 most-active Polymarket events for
+Each Build 120 cycle also scans the 1,000 most-active Polymarket events for
 complete negative-risk bundles and logically nested threshold or deadline
 pairs. Gamma's market-specific fee flag replaces the old blanket 0.5-cent fee
 reserve for markets declared fee-free. The closest 60 structures are then
@@ -74,7 +79,7 @@ The Suggestions view stores scan, depth, fee, actionable, and closest
 executable-margin counts so an empty lane is evidence rather than an ambiguous
 failure.
 
-Build 119 retains the directional learner's exact-fee policy, which replaced the blanket half-cent cost with
+Build 120 retains the directional learner's exact-fee policy, which replaced the blanket half-cent cost with
 the market's Gamma fee schedule at both the entry and future checkpoint, plus a
 separate half-cent round-trip slippage allowance. Fee-free markets pay only the
 slippage allowance; an unavailable fee schedule gets a conservative four-cent
@@ -95,7 +100,7 @@ Every probation position exits at the matching six-hour executable bid and keeps
 the 18% stop policy active. Normal directional sizing remains locked until the
 same cohort independently passes both the 24-hour and 72-hour promotion gates.
 
-Build 119 retains Build 100's retirement of the old 3-6 day resolution-window
+Build 120 retains Build 100's retirement of the old 3-6 day resolution-window
 capital permission. That audit clustered confidence by event but still averaged
 several correlated contracts inside each event, while production could choose
 only one. The corrected replay chooses the highest-volume eligible contract per event and
@@ -215,7 +220,7 @@ evidence proves an edge.
 
 Run `npm run evaluate:sports-favorites` for the retired pregame favorite audit.
 Its 12-hour, 60%-75% cohort had positive point estimates but did not establish a
-reliable confidence bound, so Build 119 no longer allocates capital to that rule.
+reliable confidence bound, so Build 120 no longer allocates capital to that rule.
 
 Strategy 63 also uses the exact-fee settlement calibration's three-day Sports
 NO cohort as a bounded paper exploration lane. The corrected 5,000-market run

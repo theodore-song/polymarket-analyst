@@ -10,7 +10,7 @@ const resolutionAudit = JSON.parse(fs.readFileSync(new URL("../research/resoluti
 const sportsContestAudit = JSON.parse(fs.readFileSync(new URL("../research/sports-contest-no-exploration-audit.json", import.meta.url), "utf8"));
 const build = Number(index.match(/const BUILD_VERSION = (\d+);/)?.[1]);
 
-assert.equal(build, 119);
+assert.equal(build, 120);
 assert.deepEqual([...ALLOWED_RUNTIME_KEYS].sort(), ["pma_agents_v2", "pma_suggestions_v5"]);
 assert.match(index, /function collectPublicRuntimeItems\(\)/);
 assert.match(index, /const PUBLIC_RUNTIME_KEYS=Object\.freeze\(\[AGENTS_KEY,SUG_KEY\]\)/);
@@ -21,8 +21,15 @@ assert.match(index, /if\(!out\.trade_ready\)\{delete out\.clob_yes;delete out\.c
 assert.match(index, /function compactPublicSignalLedger\(ledger\)/);
 assert.match(index, /st\.signal_ledger=compactPublicSignalLedger\(st\.signal_ledger\)/);
 assert.match(index, /const PUBLIC_RUNTIME_SNAPSHOT_BUDGET_BYTES = 875000;/);
-assert.match(index, /const PUBLIC_SIGNAL_OUTCOME_RESERVE = 96;/);
-assert.match(index, /history:80,suggestions:300/);
+assert.match(index, /const PUBLIC_SIGNAL_OUTCOME_RESERVE = 144;/);
+assert.match(index, /const PUBLIC_SIGNAL_LEDGER_RESERVE_BYTES = 75000;/);
+assert.match(index, /history:48,snapshots:96,suggestions:300/);
+assert.match(index, /function compactHistoryForPublic\(row\)/);
+assert.match(index, /function compactSnapshotsForPublic\(rows,limit=PUBLIC_RUNTIME_LIMITS\.snapshots\)/);
+assert.match(index, /sourceLimits=Object\.assign\(\{\},PUBLIC_RUNTIME_LIMITS,\{snapshots:SYNC_LIMITS\.snapshots\}\)/);
+assert.match(index, /PUBLIC_RUNTIME_MAKER_OUTCOME_LIMIT/);
+assert.match(index, /PUBLIC_RUNTIME_HISTORY_FLOOR/);
+assert.match(index, /PUBLIC_RUNTIME_SUGGESTION_FLOOR/);
 assert.match(index, /function compactMakerOutcomeForPublic\(row\)/);
 assert.match(index, /publicMakerCompactionPreservesCalibration:/);
 assert.match(index, /function fitPublicRuntimeSnapshot\(snapshot\)/);
