@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { ALLOWED_RUNTIME_KEYS, validateRuntimeSnapshot } from "./run-autonomous-cycle.mjs";
+import { ALLOWED_RUNTIME_KEYS, compactRuntimeTransportSnapshot, validateRuntimeSnapshot } from "./run-autonomous-cycle.mjs";
 
 const index = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const api = fs.readFileSync(new URL("../api/state.js", import.meta.url), "utf8");
@@ -78,6 +78,7 @@ assert.match(index, /sizesToLargestVerifiedProfitableFill:/);
 assert.match(index, /stopsSizingAtShallowestBundleLeg:/);
 assert.match(index, /!s\.depth_verified\|\|!s\.fees_verified\|\|s\.verification_status!=="executable"/);
 assert.match(runner, /MAX_STATE_BYTES = 900_000/);
+assert.match(runner, /compactRuntimeTransportSnapshot\(rawSnapshot\)/);
 assert.match(runner, /Production already advanced to Build \$\{status\.build\}; retiring stale Build \$\{expectedBuild\} runner/);
 assert.equal(resolutionAudit.strategy, "resolution-window-no-50-55-forward-shadow-v3");
 assert.deepEqual(resolutionAudit.selection.horizon_days_enabled, []);
@@ -116,5 +117,36 @@ assert.equal(validateRuntimeSnapshot(snapshot, build).agents.seeded, true);
 assert.throws(() => validateRuntimeSnapshot({ ...snapshot, items: { ...snapshot.items, pma_paper_accounts_v1: "{}" } }, build), /unexpected keys/);
 assert.throws(() => validateRuntimeSnapshot({ ...snapshot, build_version: build - 1 }, build), /Expected Build/);
 assert.throws(() => validateRuntimeSnapshot({ ...snapshot, items: { ...snapshot.items, pma_suggestions_v5: JSON.stringify({ suggestions: [] }) } }, build), /no live suggestions/);
+
+const transportState = JSON.parse(snapshot.items.pma_agents_v2);
+for (const [index, portfolio] of Object.values(transportState.agents).entries()) {
+  portfolio.cash = 9000 + index;
+  portfolio.positions = [{ market_id: `position-${index}`, value: 1000 }];
+  portfolio.history = Array.from({ length: 80 }, (_, row) => ({ date: "2026-08-22", action: "WATCH", question: "q".repeat(180), detail: "d".repeat(500 + row) }));
+  portfolio.snapshots = Array.from({ length: 240 }, (_, row) => ({ timestamp: new Date(1_700_000_000_000 + row * 300_000).toISOString(), equity: 10000 + row }));
+  portfolio.maker_outcomes = Array.from({ length: 45 }, (_, row) => ({ quote_id: `${index}-${row}`, pnl: row / 100 }));
+}
+transportState.signal_ledger = {
+  pending: Array.from({ length: 50 }, (_, index) => ({ key: `pending-${index}`, event_key: `event-${index}` })),
+  outcomes: Array.from({ length: 144 }, (_, index) => ({ key: `outcome-${index}`, event_key: `event-${index}`, return: 0.01 })),
+  expired_ungraded: 0,
+};
+const transportSuggestions = {
+  suggestions: Array.from({ length: 300 }, (_, index) => ({ market_id: `${index}`, trade_ready: false, signal_type: "trend", rationale: "r".repeat(500), drivers: ["d".repeat(200)] })),
+};
+const transportInput = { ...snapshot, items: { pma_agents_v2: JSON.stringify(transportState), pma_suggestions_v5: JSON.stringify(transportSuggestions) } };
+const transportOutput = compactRuntimeTransportSnapshot(transportInput);
+const transportedState = JSON.parse(transportOutput.items.pma_agents_v2);
+assert.equal(transportedState.signal_ledger.pending.length, 50);
+assert.equal(transportedState.signal_ledger.outcomes.length, 144);
+assert.equal(transportedState.agents.value.cash, 9000);
+assert.equal(transportedState.agents.value.positions[0].market_id, "position-0");
+assert.equal(transportedState.agents.value.history.length, 24);
+assert.equal(transportedState.agents.value.snapshots.length, 96);
+assert.equal(transportedState.agents.value.snapshots[0].timestamp, transportState.agents.value.snapshots[0].timestamp);
+assert.equal(transportedState.agents.value.snapshots.at(-1).timestamp, transportState.agents.value.snapshots.at(-1).timestamp);
+assert.equal(transportedState.agents.value.maker_outcomes.length, 30);
+assert.equal(JSON.parse(transportOutput.items.pma_suggestions_v5).suggestions.length, 300);
+assert.ok(Buffer.byteLength(JSON.stringify(transportOutput)) < Buffer.byteLength(JSON.stringify(transportInput)));
 
 console.log(`autonomous runtime verified for Build ${build}`);

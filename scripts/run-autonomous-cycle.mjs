@@ -13,6 +13,77 @@ const FORBIDDEN_RUNTIME_KEYS = Object.freeze([
   "pma_paid_agent_chat_v1",
 ]);
 const MAX_STATE_BYTES = 900_000;
+const TRANSPORT_HISTORY_LIMIT = 24;
+const TRANSPORT_SNAPSHOT_LIMIT = 96;
+const TRANSPORT_MAKER_OUTCOME_LIMIT = 30;
+
+function sampleSnapshots(rows, limit = TRANSPORT_SNAPSHOT_LIMIT) {
+  const list = Array.isArray(rows) ? rows : [];
+  if (list.length <= limit) return list;
+  const recentCount = Math.min(24, limit);
+  const older = list.slice(0, -recentCount);
+  const olderSlots = limit - recentCount;
+  const sampled = [];
+  for (let i = 0; i < olderSlots; i += 1) {
+    const index = olderSlots === 1 ? older.length - 1 : Math.round(i * (older.length - 1) / (olderSlots - 1));
+    if (older[index] && sampled.at(-1) !== older[index]) sampled.push(older[index]);
+  }
+  return sampled.concat(list.slice(-recentCount)).slice(-limit);
+}
+
+function compactHistoryRow(row) {
+  if (!row || typeof row !== "object") return row;
+  return {
+    date: row.date,
+    action: row.action,
+    question: typeof row.question === "string" ? row.question.slice(0, 140) : row.question,
+    side: row.side,
+    detail: typeof row.detail === "string" ? row.detail.slice(0, 220) : row.detail,
+  };
+}
+
+function compactPublicSuggestion(suggestion) {
+  if (!suggestion || typeof suggestion !== "object") return suggestion;
+  const out = { ...suggestion };
+  if (suggestion.trade_ready || suggestion.adaptive_probation || suggestion.bundle_id) {
+    out.drivers = Array.isArray(suggestion.drivers) ? suggestion.drivers.slice(0, 1).map(value => String(value).slice(0, 80)) : [];
+    out.rationale = typeof suggestion.rationale === "string"
+      ? suggestion.rationale.slice(0, 180)
+      : "Trade-ready opportunity passed the active execution gate.";
+  } else {
+    out.drivers = [];
+    out.rationale = suggestion.jump_risk
+      ? "Watch only: settlement-gap risk prevents a protected entry."
+      : suggestion.signal_type && suggestion.signal_type !== "none"
+        ? "Watch only: gathering independent forward evidence before capital is enabled."
+        : "Watch only: no independently confirmed direction yet.";
+    delete out.clob_yes;
+    delete out.clob_no;
+  }
+  return out;
+}
+
+export function compactRuntimeTransportSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== "object" || !snapshot.items) return snapshot;
+  const out = { ...snapshot, items: { ...snapshot.items } };
+  let state;
+  let suggestions;
+  try {
+    state = JSON.parse(out.items[AGENTS_KEY]);
+    suggestions = JSON.parse(out.items[SUGGESTIONS_KEY]);
+  } catch {
+    return out;
+  }
+  for (const portfolio of Object.values(state.agents || {})) {
+    portfolio.history = (portfolio.history || []).slice(-TRANSPORT_HISTORY_LIMIT).map(compactHistoryRow);
+    portfolio.snapshots = sampleSnapshots(portfolio.snapshots, TRANSPORT_SNAPSHOT_LIMIT);
+    portfolio.maker_outcomes = (portfolio.maker_outcomes || []).slice(-TRANSPORT_MAKER_OUTCOME_LIMIT);
+  }
+  suggestions.suggestions = (suggestions.suggestions || []).slice(0, 300).map(compactPublicSuggestion);
+  out.items[AGENTS_KEY] = JSON.stringify(state);
+  out.items[SUGGESTIONS_KEY] = JSON.stringify(suggestions);
+  return out;
+}
 
 function required(name, fallback = "") {
   const value = process.env[name] || fallback;
@@ -158,7 +229,8 @@ async function main() {
     }, null, { timeout: 12 * 60_000 });
     await page.evaluate(() => window.PMA_AUTOMATION.runCycle());
     await page.waitForFunction(() => !window.PMA_AUTOMATION?.status?.().running, null, { timeout: 12 * 60_000 });
-    const snapshot = await page.evaluate(() => window.PMA_AUTOMATION.exportShared());
+    const rawSnapshot = await page.evaluate(() => window.PMA_AUTOMATION.exportShared());
+    const snapshot = compactRuntimeTransportSnapshot(rawSnapshot);
     const validated = validateRuntimeSnapshot(snapshot, expectedBuild);
     await writeRuntimeFile(repository, branch, pathname, snapshot, prior.sha);
     const status = await page.evaluate(() => window.PMA_AUTOMATION.status());
