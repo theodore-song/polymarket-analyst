@@ -67,7 +67,9 @@ Each Build 121 cycle also scans the 1,000 most-active Polymarket events for
 complete negative-risk bundles and logically nested threshold or deadline
 pairs. Gamma's market-specific fee flag replaces the old blanket 0.5-cent fee
 reserve for markets declared fee-free. The closest 60 structures are then
-repriced from batched CLOB asks from the equal-unit size needed for at least a $50
+ranked by locked-capital efficiency, with the best structure from each independent
+event checked before alternates from events already represented. They are repriced
+from batched CLOB asks from the equal-unit size needed for at least a $50
 paper order up to a $400 verified-notional ceiling. The scanner applies each market's Gamma fee schedule at every
 consumed ask level and checks the CLOB fee-rate endpoint for a matching enabled
 or fee-free state. Any opened position is capped to the exact equal-unit size
@@ -102,8 +104,12 @@ favorite trends all had 90% upper bounds below zero at 12 hours. A separate
 rules and found zero robust positive rule. Strategy 64 retains online
 directional evidence under fee policy 2. A separate probation gate can now use
 capital after at least 12 current-policy independent events produce a net-of-cost
-six-hour lower confidence bound above 1% for every required cohort feature. It
-uses at most 0.5% of equity per position, 1% per-agent total capital, one new
+six-hour lower confidence bound above 1% for every required cohort feature.
+The corresponding 500-market, 1,920-rule chronological audit selected zero
+rules in validation at 6, 24, or 72 hours. No directional rule is preapproved;
+probation and full sizing must be earned from new event-deduplicated forward
+observations. Probation uses at most 0.5% of equity per position, 1% per-agent
+total capital, one new
 position per agent cycle, and one owner per Polymarket event across all agents.
 Every probation position exits at the matching six-hour executable bid and keeps
 the 18% stop policy active. Normal directional sizing remains locked until the

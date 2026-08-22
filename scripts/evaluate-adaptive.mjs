@@ -103,7 +103,7 @@ function observations(market, points) {
     }
     if (!complete) continue;
     const future = {};
-    for (const hours of [24, 72]) {
+    for (const hours of [6, 24, 72]) {
       const next = atOrAfter(points, current.t + hours * HOUR);
       if (next && next.t - (current.t + hours * HOUR) <= 3 * HOUR) future[hours] = next.p;
     }
@@ -203,11 +203,13 @@ function evaluateHorizon(horizon) {
 }
 
 const compact = (stats) => Object.fromEntries(Object.entries(stats).map(([key, value]) => [key, Number.isFinite(value) ? +value.toFixed(5) : value]));
-const horizons = [24, 72].map(evaluateHorizon).map((result) => ({ ...result,
+const horizons = [6, 24, 72].map(evaluateHorizon).map((result) => ({ ...result,
   candidates: result.candidates.map((candidate) => ({ rule: candidate.rule, passesHoldout: candidate.passesHoldout,
     train: compact(candidate.train), validation: compact(candidate.validation), test: compact(candidate.test) })) }));
-const passedByHorizon = horizons.map((result) => new Set(result.candidates.filter((candidate) => candidate.passesHoldout).map((candidate) => candidate.rule.id)));
-const durableRuleIds = [...passedByHorizon[0]].filter((id) => passedByHorizon[1].has(id));
+const passedByHorizon = Object.fromEntries(horizons.map((result) => [result.horizon,
+  new Set(result.candidates.filter((candidate) => candidate.passesHoldout).map((candidate) => candidate.rule.id))]));
+const probationRuleIds = [...passedByHorizon[6]];
+const durableRuleIds = [...passedByHorizon[24]].filter((id) => passedByHorizon[72].has(id));
 
 console.log(JSON.stringify({ generatedAt: new Date().toISOString(), requestedMarkets: MARKET_LIMIT, fetchedMarkets: markets.length,
   historiesWithData: histories.filter((result) => result && !result.error && result.points).length,
@@ -215,4 +217,4 @@ console.log(JSON.stringify({ generatedAt: new Date().toISOString(), requestedMar
   methodology: { costCents: COST * 100, observationSpacingHours: 12, split: "60% train / 20% validation / 20% untouched holdout",
     clusterUnit: "Polymarket event", candidateRules: rules.length,
     promotionGate: "positive event-clustered 90% lower bound with minimum support in train, validation, and holdout" },
-  durableRuleIds, horizons }, null, 2));
+  probationRuleIds, durableRuleIds, horizons }, null, 2));

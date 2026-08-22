@@ -8,6 +8,7 @@ const workflow = fs.readFileSync(new URL("../.github/workflows/autonomous-cycle.
 const runner = fs.readFileSync(new URL("./run-autonomous-cycle.mjs", import.meta.url), "utf8");
 const resolutionAudit = JSON.parse(fs.readFileSync(new URL("../research/resolution-week-no-audit.json", import.meta.url), "utf8"));
 const sportsContestAudit = JSON.parse(fs.readFileSync(new URL("../research/sports-contest-no-exploration-audit.json", import.meta.url), "utf8"));
+const adaptiveAudit = JSON.parse(fs.readFileSync(new URL("../research/adaptive-strategy-64-audit.json", import.meta.url), "utf8"));
 const build = Number(index.match(/const BUILD_VERSION = (\d+);/)?.[1]);
 
 assert.equal(build, 121);
@@ -79,6 +80,8 @@ assert.match(index, /const BUNDLE_MAX_VERIFIED_NOTIONAL=400;/);
 assert.match(index, /const BUNDLE_EVENT_CAP_PCT=0\.12;/);
 assert.match(index, /const BUNDLE_MIN_DAILY_RETURN=0\.0002;/);
 assert.match(index, /function compareBundleOpportunities\(a,b\)/);
+assert.match(index, /function prioritizeIndependentBundles\(candidates,limit=Infinity\)/);
+assert.match(index, /prioritizesIndependentEventsBeforeAlternates:/);
 assert.match(index, /function bundleEventExposure\(portfolio,eventKey\)/);
 assert.match(index, /prioritizesReturnPerLockedDay:/);
 assert.match(index, /capsUnderlyingEventExposure:/);
@@ -108,6 +111,11 @@ assert.ok(sportsContestAudit.corrected_5000_market_result.validation.lower_95 < 
 assert.equal(sportsContestAudit.production_constraints.initial_position_pct, 0.5);
 assert.equal(sportsContestAudit.production_constraints.total_lane_cap_pct, 3);
 assert.equal(sportsContestAudit.production_constraints.exact_entry_fee_required, true);
+assert.equal(adaptiveAudit.strategy, 64);
+assert.equal(adaptiveAudit.fetched_markets, 500);
+assert.deepEqual(adaptiveAudit.probation_rule_ids, []);
+assert.deepEqual(adaptiveAudit.durable_rule_ids, []);
+assert.ok(adaptiveAudit.horizons.every((row) => row.validation_selected === 0 && row.holdout_passed === 0));
 assert.match(index, /function sportsContestKey\(m\)/);
 assert.match(index, /function sportsContestNoSuggestions\(markets\)/);
 assert.match(index, /const SPORTS_FAVORITE_MAX_NEW_PER_CYCLE=1;/);
