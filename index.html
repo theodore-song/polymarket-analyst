@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 62 · contest-level learning · build 110</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 62 · contest-level learning · build 111</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 110 active:</b> The public paper agents run autonomously every five minutes while every user device is closed. Each cycle scans the 500 most-active eligible markets and 1,000 most-active events, carries exact Gamma fee schedules through cloud and offline caches, and checks complete bundles against live depth. Strategy 62 adds a bounded sports-contest NO exploration lane: one highest-priced NO contract per real contest near the three-day checkpoint, exact entry fee plus slippage, 0.5% initial size, 3% total cap, and automatic forward promotion or suspension. Intact guaranteed bundles are conservatively held at cost in portfolio accounting, while modeled profit remains unbooked until settlement. This point-positive historical pattern is not a proven edge. Phones and computers display the same read-only autonomous state. Profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 111 active:</b> The public paper agents run autonomously every five minutes while every user device is closed. Each cycle scans the 500 most-active eligible markets and 1,000 most-active events, carries exact Gamma fee schedules through cloud and offline caches, and checks complete bundles against live depth. Strategy 62 adds a bounded sports-contest NO exploration lane: one highest-priced NO contract per real contest near the three-day checkpoint, exact entry fee plus slippage, 0.5% initial size, 3% total cap, and automatic forward promotion or suspension. Intact guaranteed bundles are conservatively held at cost in portfolio accounting, while modeled profit remains unbooked until settlement. This point-positive historical pattern is not a proven edge. Phones and computers display the same read-only autonomous state. Profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 110 · Adaptive strategy 62 · Five-minute autonomous scans · Exact-fee directional learning · Conservative intact-bundle accounting · Contest-deduplicated sports exploration · Live depth, fee, and size-verified bundle audit · Corrected one-decision-per-event settlement audit · Autonomous runtime 1 · Offline runtime 2 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 111 · Adaptive strategy 62 · Five-minute autonomous scans · Exact-fee directional learning · Conservative intact-bundle accounting · Contest-deduplicated sports exploration · Live depth, fee, and size-verified bundle audit · Corrected one-decision-per-event settlement audit · Autonomous runtime 1 · Offline runtime 2 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 110;
+const BUILD_VERSION = 111;
 const AGENT_LEARNING_VERSION = 3;
 const SUGGESTION_ENGINE_VERSION = 62;
 const MAKER_STRATEGY_VERSION = 3;
@@ -1965,6 +1965,13 @@ function compactSuggestionsForSync(payload,limits=SYNC_LIMITS){
   if(!payload||typeof payload!=="object")return payload;
   return Object.assign({},payload,{suggestions:(payload.suggestions||[]).slice(0,limits.suggestions).map(compactSuggestionForSync)});
 }
+function compactPublicSuggestionsForSync(payload){
+  const compact=compactSuggestionsForSync(payload,PUBLIC_RUNTIME_LIMITS);
+  compact.suggestions=(compact.suggestions||[]).map(suggestion=>Object.assign({},suggestion,{
+    drivers:Array.isArray(suggestion.drivers)?suggestion.drivers.slice(0,2).map(driver=>String(driver).slice(0,80)):suggestion.drivers,
+  }));
+  return compact;
+}
 function compactPaperStoreForSync(store,limits=SYNC_LIMITS){
   if(!store||typeof store!=="object"||!store.accounts)return store;
   const accounts={};
@@ -2040,7 +2047,7 @@ function collectPublicRuntimeItems(){
   AGENTS.forEach(agent=>{if(st.agents&&st.agents[agent.id])st.agents[agent.id].lastDecision=compactDecisionForPublic(st.agents[agent.id].lastDecision);});
   st.pending_sync=false;
   st.runtime_managed=true;
-  const suggestions=compactSuggestionsForSync(loadSuggestions(),PUBLIC_RUNTIME_LIMITS);
+  const suggestions=compactPublicSuggestionsForSync(loadSuggestions());
   return {[AGENTS_KEY]:JSON.stringify(st),[SUG_KEY]:JSON.stringify(suggestions)};
 }
 function buildPublicRuntimeSnapshot(){
