@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 62 · contest-level learning · build 111</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 62 · restart-safe offline runtime · build 112</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 111 active:</b> The public paper agents run autonomously every five minutes while every user device is closed. Each cycle scans the 500 most-active eligible markets and 1,000 most-active events, carries exact Gamma fee schedules through cloud and offline caches, and checks complete bundles against live depth. Strategy 62 adds a bounded sports-contest NO exploration lane: one highest-priced NO contract per real contest near the three-day checkpoint, exact entry fee plus slippage, 0.5% initial size, 3% total cap, and automatic forward promotion or suspension. Intact guaranteed bundles are conservatively held at cost in portfolio accounting, while modeled profit remains unbooked until settlement. This point-positive historical pattern is not a proven edge. Phones and computers display the same read-only autonomous state. Profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 112 active:</b> The public paper agents run autonomously every five minutes while every user device is closed. Each fresh cloud browser reconstructs a bounded offline cache from the shared suggestions and open positions, allowing 90-minute cached entries and 24-hour mark-only continuity without persisting private account data; live-depth bundles still require a live connection. Each live cycle scans the 500 most-active eligible markets and 1,000 most-active events, carries exact Gamma fee schedules through cloud and offline caches, and checks complete bundles against live depth. Strategy 62 adds a bounded sports-contest NO exploration lane: one highest-priced NO contract per real contest near the three-day checkpoint, exact entry fee plus slippage, 0.5% initial size, 3% total cap, and automatic forward promotion or suspension. Intact guaranteed bundles are conservatively held at cost in portfolio accounting, while modeled profit remains unbooked until settlement. This point-positive historical pattern is not a proven edge. Phones and computers display the same read-only autonomous state. Profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 111 · Adaptive strategy 62 · Five-minute autonomous scans · Exact-fee directional learning · Conservative intact-bundle accounting · Contest-deduplicated sports exploration · Live depth, fee, and size-verified bundle audit · Corrected one-decision-per-event settlement audit · Autonomous runtime 1 · Offline runtime 2 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 112 · Adaptive strategy 62 · Five-minute autonomous scans · Restart-safe offline runtime · Exact-fee directional learning · Conservative intact-bundle accounting · Contest-deduplicated sports exploration · Live depth, fee, and size-verified bundle audit · Corrected one-decision-per-event settlement audit · Autonomous runtime 1 · Offline runtime 3 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 111;
+const BUILD_VERSION = 112;
 const AGENT_LEARNING_VERSION = 3;
 const SUGGESTION_ENGINE_VERSION = 62;
 const MAKER_STRATEGY_VERSION = 3;
@@ -2019,6 +2019,36 @@ function loadMarketCache(){
     payload.age_ms=Math.max(0,Date.now()-new Date(payload.captured_at).getTime());
     return Number.isFinite(payload.age_ms)?payload:null;
   }catch(e){return null;}
+}
+function cachedMarketFromSuggestion(s){
+  const id=String(s&&s.market_id||""),yes=Number(s&&s.yes_price),no=Number(s&&s.no_price);
+  if(!id||id.startsWith("bundle:")||!Number.isFinite(yes)||!Number.isFinite(no))return null;
+  return compactCachedMarket(Object.assign({},s,{id,yes_price:yes,no_price:no,closed:false,accepting_orders:true}));
+}
+function cachedMarketFromPosition(pos){
+  const id=String(pos&&pos.market_id||""),current=Number(pos&&pos.current_price);
+  if(!id||!Number.isFinite(current)||current<0||current>1)return null;
+  const yes=pos.side==="NO"?1-current:current,no=pos.side==="NO"?current:1-current;
+  return compactCachedMarket({id,question:pos.question,event:pos.bundle_name||pos.question,url:pos.url,category:pos.category,
+    yes_price:yes,no_price:no,volume:0,volume_24hr:0,liquidity:0,spread:null,price_change_1h:0,price_change_1d:0,price_change_1w:0,
+    days_to_resolution:pos.days_to_resolution,end_date:pos.end_date,game_start:pos.game_start,hours_to_start:pos.hours_to_start,
+    closed:false,accepting_orders:true,fees_enabled:pos.fees_enabled,fee_schedule:pos.fee_schedule});
+}
+function buildRuntimeFallbackMarketCache(stored,state){
+  if(!stored||!stored.generated_at||!Array.isArray(stored.suggestions)||!stored.suggestions.length)return null;
+  const capturedAt=new Date(stored.generated_at).getTime(),ageMs=Date.now()-capturedAt;
+  if(!Number.isFinite(capturedAt)||!Number.isFinite(ageMs)||ageMs<0)return null;
+  const markets=new Map();
+  stored.suggestions.forEach(suggestion=>{const market=cachedMarketFromSuggestion(suggestion);if(market)markets.set(String(market.id),market);});
+  const rows=[];
+  Object.values(state&&state.agents||{}).forEach(portfolio=>{
+    rows.push(...(portfolio.positions||[]),...(portfolio.maker_quotes||[]),...(portfolio.sports_favorite_shadows||[]),
+      ...(portfolio.shock_fade_shadows||[]),...(portfolio.resolution_week_no_shadows||[]));
+  });
+  rows.forEach(row=>{const market=cachedMarketFromPosition(row);if(market&&!markets.has(String(market.id)))markets.set(String(market.id),market);});
+  const priceMap={};markets.forEach((market,id)=>{priceMap[id]=market;});
+  return {version:Number(stored.engine_version||BUILD_VERSION),strategy_version:Number(stored.strategy_version||SUGGESTION_ENGINE_VERSION),
+    captured_at:stored.generated_at,age_ms:ageMs,markets:[...markets.values()],suggestions:stored.suggestions,price_map:priceMap,runtime_reconstructed:true};
 }
 function offlineCachePolicy(ageMs){
   const age=Number(ageMs);
@@ -4241,8 +4271,8 @@ async function runDailyCycle(){
           ||(Number(b.quality==="shock-fade-shadow")-Number(a.quality==="shock-fade-shadow"))||(b.conviction-a.conviction)).slice(0,SUGGESTION_TOTAL);
       saveSuggestions(sugs,markets.length,analysisMarkets.length,bundleAudit);
     }catch(networkError){
-      cache=cache||loadMarketCache();
       const stored=loadSuggestions();
+      cache=cache||loadMarketCache()||buildRuntimeFallbackMarketCache(stored,st);
       sugs=(cache&&cache.suggestions&&cache.suggestions.length?cache.suggestions:stored.suggestions)||[];
       analysisMarkets=(cache&&cache.markets)||[];
       cacheAgeMs=cache?cache.age_ms:Infinity;
@@ -6244,6 +6274,7 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
   marketIsSuspended,
   historicalPriceFeatures,
   offlineCachePolicy,
+  buildRuntimeFallbackMarketCache,
   prepareCycleSuggestions,
   scanExecutableBundles:(limit=NEG_RISK_EVENT_SCAN_LIMIT)=>fetchNegativeRiskBundles(limit),
   prioritizeSignalObservations,
@@ -6253,7 +6284,7 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
     coreGapTradeLossPct:MAX_CORE_GAP_TRADE_LOSS_PCT*100,aggressiveGapTradeLossPct:MAX_AGGRESSIVE_GAP_TRADE_LOSS_PCT*100,
     offlineEntryMaxAgeMinutes:OFFLINE_ENTRY_MAX_AGE_MS/60000,offlineCacheMaxAgeHours:OFFLINE_CACHE_MAX_AGE_MS/3600000,explorationPct:15,
     networkTimeoutSeconds:NETWORK_REQUEST_TIMEOUT_MS/1000,priceTimeoutSeconds:PRICE_REQUEST_TIMEOUT_MS/1000,
-    staleCacheIsMarkOnly:true,strategyEvidenceSurvivesBuilds:true,signalEvaluationHours:SIGNAL_EVAL_HOURS,signalEvaluationHorizons:SIGNAL_EVAL_HORIZONS,
+    staleCacheIsMarkOnly:true,cloudRestartReconstructsOfflineCache:true,strategyEvidenceSurvivesBuilds:true,signalEvaluationHours:SIGNAL_EVAL_HOURS,signalEvaluationHorizons:SIGNAL_EVAL_HORIZONS,
     signalEarlyRiskHorizons:SIGNAL_EARLY_RISK_HORIZONS,signalPromotionHorizons:SIGNAL_PROMOTION_HORIZONS,
     signalEvaluationToleranceHours:SIGNAL_EVAL_TOLERANCE_HOURS,signalRetryHours:SIGNAL_LEDGER_RETRY_HOURS,
     signalPendingLimit:SIGNAL_LEDGER_PENDING_LIMIT,signalOutcomeLimit:SIGNAL_LEDGER_OUTCOME_LIMIT,
@@ -7051,6 +7082,11 @@ function runEngineSelfTest(){
   openPositions(staleEntryBook,staleEntryAgent,[Object.assign({},trend,{trade_ready:false,entry_candidate:false,watch_only:true})],"All",{
     minConv:0,maxNew:1,maxFrac:0.04,reserve:0.10,targetExposure:0.60,learning:buildAdaptiveProfile(staleEntryBook),marketLearning:{samples:0,pending:0,buckets:{}},
   },new Set(),{});
+  const runtimeFallbackState=defaultState();
+  runtimeFallbackState.agents.value.positions.push({market_id:"offline-open-position",question:"Offline open position",side:"NO",
+    current_price:0.64,entry_price:0.60,shares:100,cost:60,value:64,unrealized_pnl:4});
+  const runtimeFallbackCache=buildRuntimeFallbackMarketCache({generated_at:hoursAgo(0.5),engine_version:BUILD_VERSION,
+    strategy_version:SUGGESTION_ENGINE_VERSION,suggestions:[trend]},runtimeFallbackState);
   const buildMigrationState=defaultState();
   buildMigrationState.engine_version=58;buildMigrationState.strategy_version=SUGGESTION_ENGINE_VERSION;
   buildMigrationState.agents.value.engine_baseline={version:SUGGESTION_ENGINE_VERSION,started_at:hoursAgo(2),equity:9876.54};
@@ -7456,6 +7492,10 @@ function runEngineSelfTest(){
       yesBundle:{openedPositions:yesBundleOpenedPositions,closedPositions:yesBundleBook.closed.length,cash:yesBundleBook.cash,units:yesBundleUnits||0},
     },
     offline:{fresh:offlineCachePolicy(30*60000),staleEntry:offlineCachePolicy(3*3600000),expired:offlineCachePolicy(25*3600000),
+      cloudRestartReconstructsUsableCache:Boolean(runtimeFallbackCache&&runtimeFallbackCache.runtime_reconstructed
+        &&offlineCachePolicy(runtimeFallbackCache.age_ms).entriesAllowed&&runtimeFallbackCache.suggestions.length===1),
+      reconstructedCacheIncludesOpenPositions:Boolean(runtimeFallbackCache&&runtimeFallbackCache.price_map["offline-open-position"]
+        &&runtimeFallbackCache.price_map["offline-open-position"].no_price===0.64),
       staleMarkUpdatesValue:markOnlyBook.positions.length===1&&markOnlyBook.positions[0].value===800,
       staleMarkPreservesTrades:markOnlyBook.positions.length===1&&markOnlyBook.positions[0].shares===1000&&markOnlyBook.cash===9500&&markOnlyBook.positions[0].price_status==="cached-mark-only",
       staleCacheBlocksHiddenCandidates:staleEntryBook.positions.length===0&&staleEntryBook.cash===STARTING_BALANCE,

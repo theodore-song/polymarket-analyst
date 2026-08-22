@@ -10,13 +10,15 @@ const resolutionAudit = JSON.parse(fs.readFileSync(new URL("../research/resoluti
 const sportsContestAudit = JSON.parse(fs.readFileSync(new URL("../research/sports-contest-no-exploration-audit.json", import.meta.url), "utf8"));
 const build = Number(index.match(/const BUILD_VERSION = (\d+);/)?.[1]);
 
-assert.equal(build, 111);
+assert.equal(build, 112);
 assert.deepEqual([...ALLOWED_RUNTIME_KEYS].sort(), ["pma_agents_v2", "pma_suggestions_v5"]);
 assert.match(index, /function collectPublicRuntimeItems\(\)/);
 assert.match(index, /const PUBLIC_RUNTIME_KEYS=Object\.freeze\(\[AGENTS_KEY,SUG_KEY\]\)/);
 assert.match(index, /suggestions:300/);
 assert.match(index, /function compactPublicSuggestionsForSync\(payload\)/);
 assert.match(index, /drivers\.slice\(0,2\)/);
+assert.match(index, /function buildRuntimeFallbackMarketCache\(stored,state\)/);
+assert.match(index, /buildRuntimeFallbackMarketCache\(stored,st\)/);
 assert.match(index, /window\.PMA_AUTOMATION=Object\.freeze/);
 assert.match(index, /if\(CLOUD_STATE_HEALTH\.read_only\)return false/);
 assert.match(index, /function autonomousRuntimeControlsCycle/);
@@ -29,7 +31,8 @@ assert.match(api, /Buffer\.from\(file\.content/);
 assert.match(api, /searchParams\.set\("runtime", `\$\{Date\.now\(\)\}/);
 assert.match(workflow, /cron: "2,7,12,17,22,27,32,37,42,47,52,57 \* \* \* \*"/);
 assert.match(workflow, /contents: write/);
-assert.match(workflow, /EXPECTED_BUILD: "111"/);
+assert.match(workflow, /EXPECTED_BUILD: "112"/);
+assert.match(index, /cloudRestartReconstructsOfflineCache:true/);
 assert.match(index, /saveSuggestions\(sugs,markets\.length,analysisMarkets\.length,bundleAudit\)/);
 assert.match(index, /const NEG_RISK_EVENT_SCAN_LIMIT=1000;/);
 assert.match(index, /bundleOpportunityTelemetry:true/);
