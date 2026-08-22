@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 121 active:</b> Strategy 64 protects a dedicated evidence budget in every cloud snapshot, so pending observations and net-of-cost outcomes survive runner restarts instead of being displaced by repeated display text. Independently positive six-hour cohorts can enter bounded probation after at least 12 events and a lower confidence bound above 1%, using at most 0.5% per position and 1% per-agent total capital with a matching executable exit. Full directional sizing still requires positive 24-hour and 72-hour evidence, while one mature negative cohort can veto risk. Depth-and-fee-verified complete bundles are ranked by return per locked day and capped at 12% of Value Hunter equity per underlying event, preventing repeated threshold pairs from crowding out independent opportunities. Phones and computers display the same read-only autonomous state. Profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 121 active:</b> Strategy 64 protects a dedicated evidence budget in every cloud snapshot, so pending observations and net-of-cost outcomes survive runner restarts instead of being displaced by repeated display text. Independently positive six-hour cohorts can enter bounded probation after at least 12 events and a lower confidence bound above 1%, using at most 0.5% per position and 1% per-agent total capital with a matching executable exit. Full directional sizing still requires positive 24-hour and 72-hour evidence, while one mature negative cohort can veto risk. Depth-and-fee-verified complete bundles must return at least 0.02% per locked day, are ranked by that capital efficiency, and are capped at 12% of Value Hunter equity per underlying event. Phones and computers display the same read-only autonomous state. Profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -1376,11 +1376,13 @@ async function verifyExecutableBundles(candidates){
     return Object.assign({},candidate,{bundle_legs:quote.legs,execution_units:quote.units,execution_notional:Number.isFinite(quote.notional)?+quote.notional.toFixed(2):null,
       bundle_cost_per_unit:Number.isFinite(cost)?+cost.toFixed(6):null,bundle_net_profit_per_unit:Number.isFinite(profit)?+profit.toFixed(6):null,
       edge:Number.isFinite(netReturn)?+netReturn.toFixed(6):null,net_edge:Number.isFinite(netReturn)?+netReturn.toFixed(6):null,
+      bundle_capital_efficiency:Number.isFinite(netReturn)?+bundleCapitalEfficiency(Object.assign({},candidate,{net_edge:netReturn})).toFixed(8):0,
       depth_verified:quote.depth_verified,fees_verified:false,trade_ready:false,entry_candidate:false,opportunity_actionable:false,watch_only:true,audited_observation_only:true,
       execution_model:"live-order-book-vwap",verification_status:quote.depth_verified?"depth-verified":"insufficient-depth"});
   });
   const potentiallyActionable=depthChecked.filter(candidate=>candidate.depth_verified
     &&Number(candidate.bundle_net_profit_per_unit)>=NEG_RISK_MIN_NET_PROFIT&&Number(candidate.net_edge)>=NEG_RISK_MIN_NET_RETURN
+    &&Number(candidate.bundle_capital_efficiency)>=BUNDLE_MIN_DAILY_RETURN
     &&(candidate.bundle_legs||[]).every(leg=>leg.fee_config_valid));
   const reportedFees=await fetchBundleFeeRates(potentiallyActionable.flatMap(candidate=>candidate.bundle_legs.map(leg=>leg.token_id)));
   return depthChecked.map(candidate=>{
@@ -1388,17 +1390,18 @@ async function verifyExecutableBundles(candidates){
     const feesVerified=feeConfigValid&&(candidate.bundle_legs||[]).every(leg=>{
       const reported=reportedFees.get(String(leg.token_id));return Number.isFinite(reported)&&(leg.fees_enabled===false?reported===0:reported>0);
     });
-    const actionable=candidate.depth_verified&&feesVerified
+    const capitalEfficient=Number(candidate.bundle_capital_efficiency)>=BUNDLE_MIN_DAILY_RETURN;
+    const actionable=candidate.depth_verified&&feesVerified&&capitalEfficient
       &&Number(candidate.bundle_net_profit_per_unit)>=NEG_RISK_MIN_NET_PROFIT&&Number(candidate.net_edge)>=NEG_RISK_MIN_NET_RETURN;
     const feeState=!feeConfigValid?"fee-schedule-unavailable":(feesVerified?"verified-market-specific":"fee-verification-unavailable");
+    const blockState=!capitalEfficient?"capital-efficiency-too-low":feeState;
     const friction=(candidate.bundle_legs||[]).reduce((sum,leg)=>sum+Number(leg.fee_per_share||0),0);
     return Object.assign({},candidate,{fees_verified:feesVerified,fee_model:feeState,trade_ready:actionable,entry_candidate:actionable,
       opportunity_actionable:actionable,watch_only:!actionable,audited_observation_only:!actionable,
-      verification_status:actionable?"executable":(candidate.depth_verified?feeState:candidate.verification_status),
-      bundle_capital_efficiency:+bundleCapitalEfficiency(Object.assign({},candidate,{net_edge:netReturn})).toFixed(8),
+      verification_status:actionable?"executable":(candidate.depth_verified?blockState:candidate.verification_status),
       friction:+friction.toFixed(6),drivers:[...(candidate.drivers||[]).filter(driver=>driver!=="positive margin after estimated costs"),
-        "live order-book VWAP",feesVerified?"CLOB-verified fee schedule":"fee check blocks entry"],
-      rationale:`${candidate.rationale} Live verification modeled ${Number(candidate.execution_units||0).toFixed(2)} equal units (${candidate.execution_notional==null?"unavailable":fmtUSD(candidate.execution_notional)}) across every leg and applied the taker fee curve at each consumed ask. ${actionable?`All legs had sufficient depth and their CLOB fee state matched Gamma; executable worst-case profit is ${Number(candidate.bundle_net_profit_per_unit).toFixed(4)} per unit after ${friction.toFixed(4)} in fees per unit.`:`Entry is blocked: ${candidate.depth_verified?feeState:"one or more legs lacked sufficient ask depth"}.`}`});
+        "live order-book VWAP",capitalEfficient?"capital lock return clears floor":"capital lock return below floor",feesVerified?"CLOB-verified fee schedule":"fee check blocks entry"],
+      rationale:`${candidate.rationale} Live verification modeled ${Number(candidate.execution_units||0).toFixed(2)} equal units (${candidate.execution_notional==null?"unavailable":fmtUSD(candidate.execution_notional)}) across every leg and applied the taker fee curve at each consumed ask. ${actionable?`All legs had sufficient depth, their CLOB fee state matched Gamma, and executable worst-case profit is ${Number(candidate.bundle_net_profit_per_unit).toFixed(4)} per unit after ${friction.toFixed(4)} in fees per unit, above the ${(BUNDLE_MIN_DAILY_RETURN*100).toFixed(2)}% daily locked-capital floor.`:`Entry is blocked: ${candidate.depth_verified?blockState:"one or more legs lacked sufficient ask depth"}.`}`});
   }).sort(compareBundleOpportunities);
 }
 async function fetchNegativeRiskBundles(limit=NEG_RISK_EVENT_SCAN_LIMIT){
@@ -1482,6 +1485,7 @@ const BUNDLE_MIN_NOTIONAL=50;
 const BUNDLE_MIN_UNITS=5;
 const BUNDLE_MAX_VERIFIED_NOTIONAL=400;
 const BUNDLE_EVENT_CAP_PCT=0.12;
+const BUNDLE_MIN_DAILY_RETURN=0.0002;
 const SPORTS_FAVORITE_MIN_ENTRY=0.03;
 const SPORTS_FAVORITE_MAX_ENTRY=0.97;
 const SPORTS_FAVORITE_TARGET_LEAD_HOURS=72;
@@ -4173,6 +4177,7 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
     if(!s.learning_allowed)return reject(s.learning_block_reason==="historical"?"historical_prior":"learning");
     if(s.quality==="bundle-arb"){
       if(!Array.isArray(s.bundle_legs)||s.bundle_legs.length<2||!(Number(s.bundle_net_profit_per_unit)>0))return reject("bundle_integrity");
+      if(Number(s.bundle_capital_efficiency)<BUNDLE_MIN_DAILY_RETURN)return reject("bundle_capital_efficiency");
       if((p.positions||[]).length+s.bundle_legs.length>maxPositions)return reject("portfolio_limit");
       if((p.positions||[]).some(pos=>pos.bundle_id===s.bundle_id))return reject("already_held");
       if(bundleEventExposure(p,bundleEventKey(s))>=eqBefore*BUNDLE_EVENT_CAP_PCT-BUNDLE_MIN_NOTIONAL)return reject("bundle_event_cap");
@@ -6523,6 +6528,7 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
     bundleMinimumNotional:BUNDLE_MIN_NOTIONAL,bundleRequiresDepthVerification:true,bundleRequiresClobFeeVerification:true,
     dominanceBundleLogic:"same-event nested threshold or calendar-deadline YES/NO pairs with identical normalized terms",
     negativeRiskMinimumNetReturnPct:NEG_RISK_MIN_NET_RETURN*100,bundleEventCapPct:BUNDLE_EVENT_CAP_PCT*100,
+    bundleMinimumDailyReturnPct:BUNDLE_MIN_DAILY_RETURN*100,
     bundleRanking:"net return per locked day, then raw executable edge",
     pairedMakerQuotes:"research-only-immediate-lock-or-exit",makerStrategyVersion:MAKER_STRATEGY_VERSION,
     makerShadowHorizonHours:MAKER_SHADOW_HORIZON_HOURS,makerLegacyQuoteExpiryHours:MAKER_QUOTE_EXPIRY_HOURS,makerMinimumLockMarginPct:MAKER_MIN_LOCK_MARGIN*100,
@@ -7199,6 +7205,7 @@ function runEngineSelfTest(){
   const invalidDeadlineRejected=parseDominanceDeadline("Will Acme launch by February 30, 2026?")===null;
   [bundleSuggestion,yesBundleSuggestion,dominanceSuggestion,deadlineSuggestion].filter(Boolean).forEach(suggestion=>Object.assign(suggestion,{
     depth_verified:true,fees_verified:true,fee_model:"verified-zero-fee",execution_model:"fixture-vwap",verification_status:"executable",execution_units:1000,
+    bundle_capital_efficiency:BUNDLE_MIN_DAILY_RETURN*2,
   }));
   const capitalEfficiencyOrder=[
     Object.assign({},dominanceSuggestion,{bundle_id:"dominance:slow-event:a:b",bundle_event_id:"slow-event",net_edge:0.03,days_to_resolution:30}),
@@ -7212,6 +7219,12 @@ function runEngineSelfTest(){
   ];
   openPositions(eventCapBook,AGENTS.find(a=>a.id==="value"),[dominanceSuggestion],"All",{
     minConv:0,maxNew:1,maxFrac:0.04,reserve:0.10,targetExposure:0.60,learning:buildAdaptiveProfile(eventCapBook),marketLearning:{samples:0,pending:0,buckets:{}},
+  },new Set(),{});
+  const slowCapitalBook=defaultPortfolio(),slowCapitalSuggestion=Object.assign({},dominanceSuggestion,{
+    bundle_id:"dominance:slow-capital-event:a:b",bundle_event_id:"slow-capital-event",bundle_capital_efficiency:BUNDLE_MIN_DAILY_RETURN/2,
+  });
+  openPositions(slowCapitalBook,AGENTS.find(a=>a.id==="value"),[slowCapitalSuggestion],"All",{
+    minConv:0,maxNew:1,maxFrac:0.04,reserve:0.10,targetExposure:0.60,learning:buildAdaptiveProfile(slowCapitalBook),marketLearning:{samples:0,pending:0,buckets:{}},
   },new Set(),{});
   const unverifiedBundleBook=defaultPortfolio(),unverifiedBundleOpen=openNegativeRiskBundle(unverifiedBundleBook,AGENTS.find(a=>a.id==="value"),
     Object.assign({},bundleSuggestion,{depth_verified:false,verification_status:"top-of-book-estimate"}),100,null);
@@ -7718,6 +7731,7 @@ function runEngineSelfTest(){
       prioritizesReturnPerLockedDay:capitalEfficiencyOrder[0].bundle_event_id==="fast-event",
       derivesLegacyBundleEventKey:bundleEventKey({bundle_id:"dominance:legacy-event:market-a:market-b"})==="legacy-event",
       capsUnderlyingEventExposure:eventCapBook.positions.length===2&&eventCapBook.lastDecision.rejectionCounts.bundle_event_cap===1,
+      blocksLowReturnPerLockedDay:slowCapitalBook.positions.length===0&&slowCapitalBook.lastDecision.rejectionCounts.bundle_capital_efficiency===1,
       usesMarketSpecificZeroFee:Boolean(zeroFeeBundleSuggestion&&zeroFeeBundleSuggestion.friction===0
         &&zeroFeeBundleSuggestion.bundle_cost_per_unit===0.95&&zeroFeeBundleSuggestion.bundle_net_profit_per_unit===0.05),
       appliesPublishedFeeCurve:bundleFeePerShare({rate:0.07,exponent:1,takerOnly:true},0.5)===0.0175,

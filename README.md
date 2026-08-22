@@ -73,7 +73,9 @@ cash, reserve, and 4% limits can reduce it further. Strategy 64 ranks verified
 structures by net return per expected locked day before raw edge, and caps active
 cost from one underlying event at 12% of Value Hunter equity. This prevents
 several related threshold pairs from monopolizing the non-directional book while
-preserving every already-open complete bundle until settlement. Existing paper bundles are
+preserving every already-open complete bundle until settlement. New bundles must
+also clear a 0.02% daily locked-capital return floor, approximately 7.3% annualized,
+so a tiny spread cannot immobilize capital for months. Existing paper bundles are
 never retroactively enlarged against depth their original simulated fill would
 already have consumed. A bundle can enter Value Discipline only when that fee check
 passes and the resulting worst-case payout clears both the three-tenths-cent
