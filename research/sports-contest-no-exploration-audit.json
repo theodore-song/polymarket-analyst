@@ -1,0 +1,78 @@
+{
+  "generated_at": "2026-08-21T21:20:00.000Z",
+  "strategy": "sports-contest-no-three-day-exploration-v1",
+  "production_strategy": 62,
+  "status": "bounded-paper-exploration-not-proven",
+  "selection": {
+    "resolved_markets_requested": 5000,
+    "histories_with_data": 4731,
+    "side": "NO",
+    "entry_range": [0.03, 0.97],
+    "decision_horizon_days": 3,
+    "category": "Sports",
+    "contest_clustering": "dated Gamma market slug prefix, with game-start and normalized-title fallback",
+    "one_market_per_contest": "highest NO entry",
+    "decision_anchor": "published gameStartTime",
+    "modeled_entry": "historical midpoint plus exact Gamma taker fee plus 0.5-cent slippage",
+    "settlement_exit_fee": 0
+  },
+  "corrected_5000_market_result": {
+    "independent_contests": 76,
+    "train": {
+      "contests": 34,
+      "mean_return": 0.23457,
+      "lower_95": 0.057,
+      "win_rate": 0.912
+    },
+    "validation": {
+      "contests": 20,
+      "mean_return": 0.01776,
+      "lower_95": -0.19809,
+      "win_rate": 0.85
+    },
+    "holdout": {
+      "contests": 22,
+      "mean_return": 0.36683,
+      "lower_95": 0.12251,
+      "win_rate": 0.909
+    },
+    "chronological_quarter_means": [0.35259, 0.07435, 0.00466, 0.28046],
+    "passed_strict_gate": false,
+    "failure_reason": "Validation's 95% lower confidence bound crossed zero. The point estimate repeated, but the edge was not independently precise in every segment."
+  },
+  "disjoint_checks": {
+    "recent_3000": {
+      "train_mean": 0.03751,
+      "validation_mean": 0.16165,
+      "holdout_mean": 0.35035,
+      "holdout_lower_95": 0.07389,
+      "passed_strict_gate": false
+    },
+    "older_3000": {
+      "train_mean": 0.04042,
+      "validation_mean": 0.46699,
+      "holdout_mean": 0.48381,
+      "chronological_quarter_means": [-0.10883, 0.26995, 0.24012, 0.48381],
+      "passed_strict_gate": false,
+      "failure_reason": "The earliest older chronological quarter was negative."
+    }
+  },
+  "production_constraints": {
+    "paper_only": true,
+    "initial_position_pct": 0.5,
+    "promoted_position_pct": 0.75,
+    "maximum_position_pct": 1,
+    "total_lane_cap_pct": 3,
+    "maximum_new_contests_per_cycle": 1,
+    "promotion_events": 20,
+    "maximum_promotion_events": 40,
+    "suspension_events": 15,
+    "suspension_rule": "mean at or below -5%, upper 90% bound at or below zero, or realized lane loss at least 1% of starting portfolio",
+    "exact_entry_fee_required": true,
+    "unknown_fee_schedule_rejected": true,
+    "offline_fresh_cache_allowed": true,
+    "offline_stale_cache_mark_only": true,
+    "settlement_must_be_verified": true
+  },
+  "interpretation": "Repeated positive point estimates justify a small observable paper experiment, not a return promise. Capital size must respond only to independent forward contest settlements."
+}

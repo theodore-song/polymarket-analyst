@@ -20,7 +20,7 @@ market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
 
-Build 105 runs the headless GitHub Actions runtime every five minutes, continues
+Build 106 runs the headless GitHub Actions runtime every five minutes, continues
 from the previous agent snapshot,
 and runs the next due paper cycle even when no browser is open. It writes a
 sanitized snapshot to the `runtime-state` branch and `/api/state` uses that as a
@@ -41,7 +41,7 @@ Polymarket event key. Related Ethereum or Bitcoin contracts cannot create
 several simultaneous copies of one move, and outcomes from the same underlying
 three-hour shock window count as one learner event.
 
-Each Build 105 cycle also scans the 1,000 most-active Polymarket events for
+Each Build 106 cycle also scans the 1,000 most-active Polymarket events for
 complete negative-risk bundles and logically nested threshold or deadline
 pairs. Gamma's market-specific fee flag replaces the old blanket 0.5-cent fee
 reserve for markets declared fee-free. The closest 60 structures are then
@@ -57,7 +57,7 @@ The Suggestions view stores scan, depth, fee, actionable, and closest
 executable-margin counts so an empty lane is evidence rather than an ambiguous
 failure.
 
-Build 105 also replaces the directional learner's blanket half-cent cost with
+Build 106 retains the directional learner's exact-fee policy, which replaced the blanket half-cent cost with
 the market's Gamma fee schedule at both the entry and future checkpoint, plus a
 separate half-cent round-trip slippage allowance. Fee-free markets pay only the
 slippage allowance; an unavailable fee schedule gets a conservative four-cent
@@ -68,12 +68,12 @@ available at reduced weight. The exact-fee replay covered the top 1,000
 active markets and 208 independent events: broad trends, reversals, and
 favorite trends all had 90% upper bounds below zero at 12 hours. A separate
 3,000-recently-closed-market study tested 297 one-decision-per-event settlement
-rules and found zero robust positive rule. Strategy 61 therefore resets online
+rules and found zero robust positive rule. Strategy 62 retains online
 directional evidence under fee policy 2 and keeps those lanes observation-only
 until current independent 24-hour and 72-hour cohorts pass the existing
 promotion gate.
 
-Build 105 retains Build 100's retirement of the old 3-6 day resolution-window
+Build 106 retains Build 100's retirement of the old 3-6 day resolution-window
 capital permission. That audit clustered confidence by event but still averaged
 several correlated contracts inside each event, while production could choose
 only one. The corrected replay chooses the highest-volume eligible contract per event and
@@ -191,20 +191,24 @@ and validation at either 24 or 72 hours. Strategy 55 therefore keeps directional
 signals in the walk-forward observation ledger until current, independent-event
 evidence proves an edge.
 
-Run `npm run evaluate:sports-favorites` for the separate pregame favorite audit.
-It anchors decisions to the published game start, rejects stale prices, takes only
-the highest-priced eligible favorite per event, and uses a chronological 60/20/20
-split. The refreshed August 20 run loaded all 3,000 histories with no failures and
-found zero train-pass rules. The Strategy 57 24-hour, 60%-85% capital rule was
-negative even with zero modeled execution cost, so Strategy 58 retired it. The
-narrower 12-hour, 60%-75% cohort stayed positive by point estimate in train,
-validation, and holdout at a one-cent cost, but the train and holdout confidence
-bounds still crossed zero; its holdout point estimate also turned negative near a
-two-cent cost. Build 74 therefore records only zero-capital observations whose
-executable ask plus a 0.25-cent slippage buffer is no more than one cent above the
-midpoint. It persists the pending and completed forward ledger offline, grades
-only closed markets, and requires 30 new independent closed events with a positive
-90% lower confidence bound before 1.25% positions can begin.
+Run `npm run evaluate:sports-favorites` for the retired pregame favorite audit.
+Its 12-hour, 60%-75% cohort had positive point estimates but did not establish a
+reliable confidence bound, so Build 106 no longer allocates capital to that rule.
+
+Strategy 62 instead uses the exact-fee settlement calibration's three-day Sports
+NO cohort as a bounded paper exploration lane. The corrected 5,000-market run
+groups every prop with the same dated contest slug, anchors the decision to the
+published game start, and keeps only the highest-priced eligible NO contract per
+real contest. Its 76 contests had positive point estimates in all four
+chronological quarters; train and holdout 95% lower bounds were positive, but
+validation returned only +1.78% with a wide negative lower bound. This is not a
+proven edge. Favorite Backer therefore starts at 0.5% of equity per position,
+opens at most one contest per cycle, caps the lane at 3%, and includes the
+executable NO ask, exact Gamma taker fee, and 0.25-cent slippage. Twenty positive
+independent settlements can raise size to 0.75%, 40 can raise it to 1%, and 15
+convincingly losing settlements or a 1% portfolio loss suspend capital. The same
+ledger persists offline, but stale cache policy and verified settlement rules
+still apply.
 
 Run `npm run evaluate:settlement-calibration` for the stricter settlement-bias
 search across up to 5,000 resolved markets. It uses a 60/20/20 chronological
@@ -317,7 +321,7 @@ Strategy 54 gives previously opened Politics trend positions that 72-hour observ
 ordinary signal exits. Stops, profit locks, settlement handling, and risk-budget
 reductions remain immediate.
 
-Strategy 61 applies exact Gamma entry and exit taker fees plus a half-cent
+Strategy 62 retains exact Gamma entry and exit taker fees plus a half-cent
 slippage allowance when grading each live walk-forward signal. Confidence uses the largest independent matching bucket,
 not the sum of five overlapping feature buckets, and evidence from older engine
 versions is down-weighted. This prevents a handful of duplicated observations
