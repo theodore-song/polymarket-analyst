@@ -33,9 +33,9 @@ else process.env.NEON_DATABASE_URL = originalNeonUrl;
 
 const compacted = compactSuggestion({
   market_id: "bundle:1:yes", side: "YES", signal_type: "bundle-arb", signal_confidence: 1,
-  entry_candidate: true, adaptive_promotion: false, requires_live: true, bundle_id: "bundle:1:yes",
+  entry_candidate: true, adaptive_promotion: false, requires_live: true, bundle_id: "bundle:1:yes", bundle_event_id: "1",
   bundle_side: "YES", bundle_logic: "threshold-dominance", bundle_cost_per_unit: 0.95, bundle_payout_per_unit: 1,
-  bundle_net_profit_per_unit: 0.05, bundle_legs: [{ market_id: "1", side: "YES" }],
+  bundle_net_profit_per_unit: 0.05, bundle_capital_efficiency: 0.0025, bundle_legs: [{ market_id: "1", side: "YES" }],
   fees_enabled: false, fee_schedule: { rate: 0, exponent: 1, takerOnly: true },
   depth_verified: true, fees_verified: true, fee_model: "verified-market-specific", execution_model: "live-order-book-vwap",
   execution_units: 250, execution_notional: 237.5, verification_status: "executable", promoted_for_agents: ["value"],
@@ -44,7 +44,9 @@ assert.equal(compacted.signal_type, "bundle-arb");
 assert.equal(compacted.entry_candidate, true);
 assert.equal(compacted.requires_live, true);
 assert.equal(compacted.bundle_side, "YES");
+assert.equal(compacted.bundle_event_id, "1");
 assert.equal(compacted.bundle_logic, "threshold-dominance");
+assert.equal(compacted.bundle_capital_efficiency, 0.0025);
 assert.equal(compacted.bundle_legs.length, 1);
 assert.equal(compacted.fee_schedule.rate, 0);
 assert.equal(compacted.execution_units, 250);

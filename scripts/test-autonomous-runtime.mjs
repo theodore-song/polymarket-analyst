@@ -10,7 +10,7 @@ const resolutionAudit = JSON.parse(fs.readFileSync(new URL("../research/resoluti
 const sportsContestAudit = JSON.parse(fs.readFileSync(new URL("../research/sports-contest-no-exploration-audit.json", import.meta.url), "utf8"));
 const build = Number(index.match(/const BUILD_VERSION = (\d+);/)?.[1]);
 
-assert.equal(build, 120);
+assert.equal(build, 121);
 assert.deepEqual([...ALLOWED_RUNTIME_KEYS].sort(), ["pma_agents_v2", "pma_suggestions_v5"]);
 assert.match(index, /function collectPublicRuntimeItems\(\)/);
 assert.match(index, /const PUBLIC_RUNTIME_KEYS=Object\.freeze\(\[AGENTS_KEY,SUG_KEY\]\)/);
@@ -74,6 +74,11 @@ assert.match(index, /bundleRequiresClobFeeVerification:true/);
 assert.match(index, /function bundleExecutableLeg\(book,units,feeSchedule\)/);
 assert.match(index, /function maximizeBundleExecution\(candidate,books,minimumUnits\)/);
 assert.match(index, /const BUNDLE_MAX_VERIFIED_NOTIONAL=400;/);
+assert.match(index, /const BUNDLE_EVENT_CAP_PCT=0\.12;/);
+assert.match(index, /function compareBundleOpportunities\(a,b\)/);
+assert.match(index, /function bundleEventExposure\(portfolio,eventKey\)/);
+assert.match(index, /prioritizesReturnPerLockedDay:/);
+assert.match(index, /capsUnderlyingEventExposure:/);
 assert.match(index, /sizesToLargestVerifiedProfitableFill:/);
 assert.match(index, /stopsSizingAtShallowestBundleLeg:/);
 assert.match(index, /!s\.depth_verified\|\|!s\.fees_verified\|\|s\.verification_status!=="executable"/);
