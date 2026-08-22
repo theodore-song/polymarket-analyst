@@ -10,7 +10,7 @@ const resolutionAudit = JSON.parse(fs.readFileSync(new URL("../research/resoluti
 const sportsContestAudit = JSON.parse(fs.readFileSync(new URL("../research/sports-contest-no-exploration-audit.json", import.meta.url), "utf8"));
 const build = Number(index.match(/const BUILD_VERSION = (\d+);/)?.[1]);
 
-assert.equal(build, 118);
+assert.equal(build, 119);
 assert.deepEqual([...ALLOWED_RUNTIME_KEYS].sort(), ["pma_agents_v2", "pma_suggestions_v5"]);
 assert.match(index, /function collectPublicRuntimeItems\(\)/);
 assert.match(index, /const PUBLIC_RUNTIME_KEYS=Object\.freeze\(\[AGENTS_KEY,SUG_KEY\]\)/);
@@ -30,6 +30,13 @@ assert.match(index, /reservedCount=Math\.min\(PUBLIC_SIGNAL_OUTCOME_RESERVE,outc
 assert.match(index, /return fitPublicRuntimeSnapshot\(snapshot\)/);
 assert.match(index, /publicCompactionPreservesForwardGrading:/);
 assert.match(index, /publicCompactionPreservesAgentCalibration:/);
+assert.match(index, /const DIRECTIONAL_PROBATION_HORIZON_HOURS = 6;/);
+assert.match(index, /const DIRECTIONAL_PROBATION_MIN_EVENTS = 12;/);
+assert.match(index, /sixHourEvidenceStartsBoundedProbation:/);
+assert.match(index, /probationMetadataSurvivesOfflineCompaction:/);
+assert.match(index, /probationExitsAtExecutableSixHourPrice:/);
+assert.match(index, /claimedProbationEvents/);
+assert.match(api, /adaptive_probation: s\.adaptive_probation, probation_exit_hours: s\.probation_exit_hours/);
 assert.match(index, /function buildRuntimeFallbackMarketCache\(stored,state\)/);
 assert.match(index, /buildRuntimeFallbackMarketCache\(stored,st\)/);
 assert.match(index, /window\.PMA_AUTOMATION=Object\.freeze/);
@@ -44,7 +51,7 @@ assert.match(api, /Buffer\.from\(file\.content/);
 assert.match(api, /searchParams\.set\("runtime", `\$\{Date\.now\(\)\}/);
 assert.match(workflow, /cron: "2,7,12,17,22,27,32,37,42,47,52,57 \* \* \* \*"/);
 assert.match(workflow, /contents: write/);
-assert.match(workflow, /EXPECTED_BUILD: "118"/);
+assert.match(workflow, /EXPECTED_BUILD: "119"/);
 assert.match(workflow, /actions: write/);
 assert.match(workflow, /cancel-in-progress: false/);
 assert.match(workflow, /next=\$\(\( \(now \/ 300 \+ 1\) \* 300 \+ 15 \)\)/);

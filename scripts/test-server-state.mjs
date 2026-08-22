@@ -9,6 +9,7 @@ assert.equal(normalizeDatabaseUrl("DATABASE_URL=postgresql://user:pass@example.t
   "postgresql://user:pass@example.test/db");
 assert.equal(cycleVersion("2026-08-21T20|v59"), 59);
 assert.equal(cycleVersion("2026-08-21T20:05|s62"), 62);
+assert.equal(cycleVersion("2026-08-21T20:05|s63"), 63);
 assert.equal(cycleVersion("2026-08-21T20:05"), 0);
 
 const originalDatabaseUrl = process.env.DATABASE_URL;
@@ -61,6 +62,15 @@ assert.equal(compactedShock.market_price, 0.18);
 assert.equal(compactedShock.shock_move_3h, 0.12);
 assert.equal(compactedShock.shock_strategy_version, 3);
 assert.equal(compactedShock.pilot_prior.modeled_cost_cents, 2);
+
+const compactedProbation = compactSuggestion({
+  market_id: "probation:1", event_key: "event:probation", side: "YES", signal_type: "trend",
+  trade_ready: true, entry_candidate: true, adaptive_probation: true, probation_exit_hours: 6,
+  promoted_for_agents: ["momentum"], fee_schedule: { rate: 0.04, exponent: 1, takerOnly: true },
+});
+assert.equal(compactedProbation.adaptive_probation, true);
+assert.equal(compactedProbation.probation_exit_hours, 6);
+assert.deepEqual(compactedProbation.promoted_for_agents, ["momentum"]);
 
 const compactedState = compactAgentState({
   agents: { reversal: {

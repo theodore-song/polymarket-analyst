@@ -285,6 +285,7 @@ export function compactSuggestion(s) {
     momentum_strength: s.momentum_strength, signal_strength: s.signal_strength, signal_confidence: s.signal_confidence,
     signal_type: s.signal_type, trade_ready: s.trade_ready, entry_candidate: s.entry_candidate,
     audited_observation_only: s.audited_observation_only, adaptive_promotion: s.adaptive_promotion,
+    adaptive_probation: s.adaptive_probation, probation_exit_hours: s.probation_exit_hours,
     promoted_for_agents: s.promoted_for_agents,
     watch_only: s.watch_only, jump_risk: s.jump_risk, requires_live: s.requires_live,
     bundle_id: s.bundle_id, bundle_side: s.bundle_side, bundle_logic: s.bundle_logic, bundle_cost_per_unit: s.bundle_cost_per_unit,
