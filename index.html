@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 62 · self-chained runtime · build 114</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 62 · bounded learning state · build 115</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 114 active:</b> The public paper agents target five-minute slots with one serialized, self-chained GitHub Actions successor after every successful cycle and cron as recovery. Each fresh cloud browser reconstructs a bounded offline cache from the shared suggestions and open positions, allowing 90-minute cached entries and 24-hour mark-only continuity without persisting private account data; live-depth bundles still require a live connection. Each live cycle scans the 500 most-active eligible markets and 1,000 most-active events, carries exact Gamma fee schedules through cloud and offline caches, and checks complete bundles against live depth. Strategy 62 adds a bounded sports-contest NO exploration lane: one highest-priced NO contract per real contest near the three-day checkpoint, exact entry fee plus slippage, 0.5% initial size, 3% total cap, and automatic forward promotion or suspension. Intact guaranteed bundles are conservatively held at cost in portfolio accounting, while modeled profit remains unbooked until settlement. This point-positive historical pattern is not a proven edge. Phones and computers display the same read-only autonomous state. Profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 115 active:</b> The public paper agents target five-minute slots with one serialized, self-chained GitHub Actions successor after every successful cycle and cron as recovery. Public forward-learning records retain every field required for future grading, fee-aware returns, cohort calibration, and agent eligibility while dropping duplicated diagnostics, keeping the autonomous state below GitHub's transport ceiling as evidence accumulates. Each fresh cloud browser reconstructs a bounded offline cache from the shared suggestions and open positions, allowing 90-minute cached entries and 24-hour mark-only continuity without persisting private account data; live-depth bundles still require a live connection. Each live cycle scans the 500 most-active eligible markets and 1,000 most-active events, carries exact Gamma fee schedules through cloud and offline caches, and checks complete bundles against live depth. Strategy 62 adds a bounded sports-contest NO exploration lane: one highest-priced NO contract per real contest near the three-day checkpoint, exact entry fee plus slippage, 0.5% initial size, 3% total cap, and automatic forward promotion or suspension. Intact guaranteed bundles are conservatively held at cost in portfolio accounting, while modeled profit remains unbooked until settlement. This point-positive historical pattern is not a proven edge. Phones and computers display the same read-only autonomous state. Profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 114 · Adaptive strategy 62 · Serialized self-chained five-minute slots with cron recovery · Restart-safe offline runtime · Exact-fee directional learning · Conservative intact-bundle accounting · Contest-deduplicated sports exploration · Live depth, fee, and size-verified bundle audit · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 115 · Adaptive strategy 62 · Serialized self-chained five-minute slots with cron recovery · Bounded forward-learning transport · Restart-safe offline runtime · Exact-fee directional learning · Conservative intact-bundle accounting · Contest-deduplicated sports exploration · Live depth, fee, and size-verified bundle audit · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 114;
+const BUILD_VERSION = 115;
 const AGENT_LEARNING_VERSION = 3;
 const SUGGESTION_ENGINE_VERSION = 62;
 const MAKER_STRATEGY_VERSION = 3;
@@ -943,6 +943,7 @@ const SIGNAL_EVAL_TOLERANCE_HOURS = 6;
 const SIGNAL_EVAL_HOURS = SIGNAL_EVAL_HORIZONS[0];
 const SIGNAL_LEDGER_PENDING_LIMIT = 600;
 const SIGNAL_LEDGER_OUTCOME_LIMIT = 1000;
+const PUBLIC_RUNTIME_SNAPSHOT_BUDGET_BYTES = 875000;
 const SIGNAL_LEDGER_RETRY_HOURS = SIGNAL_EVAL_HORIZONS[SIGNAL_EVAL_HORIZONS.length-1]+SIGNAL_EVAL_TOLERANCE_HOURS;
 const SIGNAL_LEDGER_DUE_FETCH_LIMIT = 80;
 const currentCycleHour = () => {const p=partsInLocalTime();return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}|s${SUGGESTION_ENGINE_VERSION}`;};
@@ -1967,10 +1968,28 @@ function compactSuggestionsForSync(payload,limits=SYNC_LIMITS){
 }
 function compactPublicSuggestionsForSync(payload){
   const compact=compactSuggestionsForSync(payload,PUBLIC_RUNTIME_LIMITS);
-  compact.suggestions=(compact.suggestions||[]).map(suggestion=>Object.assign({},suggestion,{
-    drivers:Array.isArray(suggestion.drivers)?suggestion.drivers.slice(0,2).map(driver=>String(driver).slice(0,80)):suggestion.drivers,
-  }));
+  compact.suggestions=(compact.suggestions||[]).map(suggestion=>{
+    const out=Object.assign({},suggestion,{
+      drivers:Array.isArray(suggestion.drivers)?suggestion.drivers.slice(0,1).map(driver=>String(driver).slice(0,80)):suggestion.drivers,
+      rationale:typeof suggestion.rationale==="string"?suggestion.rationale.slice(0,240):suggestion.rationale,
+    });
+    if(!out.trade_ready){delete out.clob_yes;delete out.clob_no;}
+    return out;
+  });
   return compact;
+}
+const PUBLIC_SIGNAL_FIELDS=Object.freeze(["key","market_id","event_key","observed_at","graded_horizons","side","entry_price",
+  "signal_type","quality","category","days_to_resolution","trade_ready_at_observation","fees_enabled","fee_schedule",
+  "eligible_agent_ids","signal_policy_version","strategy_version","evaluated_at","target_horizon_hours","horizon_hours",
+  "future_price","gross_return","estimated_cost_per_share","estimated_fee_per_share","estimated_slippage_per_share",
+  "estimated_cost_return","return"]);
+function compactPublicSignalObservation(item){
+  const out={};PUBLIC_SIGNAL_FIELDS.forEach(key=>{if(item&&item[key]!==undefined)out[key]=item[key];});return out;
+}
+function compactPublicSignalLedger(ledger){
+  return {pending:(ledger&&ledger.pending||[]).slice(-SIGNAL_LEDGER_PENDING_LIMIT).map(compactPublicSignalObservation),
+    outcomes:(ledger&&ledger.outcomes||[]).slice(-SIGNAL_LEDGER_OUTCOME_LIMIT).map(compactPublicSignalObservation),
+    expired_ungraded:Number(ledger&&ledger.expired_ungraded||0)};
 }
 function compactPaperStoreForSync(store,limits=SYNC_LIMITS){
   if(!store||typeof store!=="object"||!store.accounts)return store;
@@ -2074,19 +2093,49 @@ function prepareCycleSuggestions(suggestions,runMode,entriesAllowed){
 function collectSyncItems(){const items={};SYNC_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!=null)items[k]=v;});return compactSyncItems(items);}
 function collectPublicRuntimeItems(){
   const st=compactAgentStateForSync(loadState(),PUBLIC_RUNTIME_LIMITS);
+  st.signal_ledger=compactPublicSignalLedger(st.signal_ledger);
   AGENTS.forEach(agent=>{if(st.agents&&st.agents[agent.id])st.agents[agent.id].lastDecision=compactDecisionForPublic(st.agents[agent.id].lastDecision);});
   st.pending_sync=false;
   st.runtime_managed=true;
   const suggestions=compactPublicSuggestionsForSync(loadSuggestions());
   return {[AGENTS_KEY]:JSON.stringify(st),[SUG_KEY]:JSON.stringify(suggestions)};
 }
+function runtimeSnapshotByteLength(snapshot){return new TextEncoder().encode(JSON.stringify(snapshot)).length;}
+function fitPublicRuntimeSnapshot(snapshot){
+  const st=stateFromSyncItems(snapshot.items),ledger=st&&st.signal_ledger;
+  if(!ledger)return snapshot;
+  const pending=Array.isArray(ledger.pending)?ledger.pending:[],outcomes=Array.isArray(ledger.outcomes)?ledger.outcomes:[];
+  snapshot.summary.signal_ledger={pending_retained:pending.length,pending_total:pending.length,
+    outcomes_retained:outcomes.length,outcomes_total:outcomes.length,byte_budget:PUBLIC_RUNTIME_SNAPSHOT_BUDGET_BYTES};
+  if(runtimeSnapshotByteLength(snapshot)<=PUBLIC_RUNTIME_SNAPSHOT_BUDGET_BYTES)return snapshot;
+  ledger.outcomes=[];
+  snapshot.items[AGENTS_KEY]=JSON.stringify(st);
+  if(runtimeSnapshotByteLength(snapshot)>PUBLIC_RUNTIME_SNAPSHOT_BUDGET_BYTES&&pending.length){
+    let low=0,high=pending.length;
+    while(low<high){
+      const mid=Math.ceil((low+high)/2);ledger.pending=pending.slice(0,mid);snapshot.items[AGENTS_KEY]=JSON.stringify(st);
+      if(runtimeSnapshotByteLength(snapshot)<=PUBLIC_RUNTIME_SNAPSHOT_BUDGET_BYTES)low=mid;else high=mid-1;
+    }
+    ledger.pending=pending.slice(0,low);
+  }
+  let low=0,high=outcomes.length;
+  while(low<high){
+    const mid=Math.ceil((low+high)/2);ledger.outcomes=outcomes.slice(-mid);snapshot.items[AGENTS_KEY]=JSON.stringify(st);
+    if(runtimeSnapshotByteLength(snapshot)<=PUBLIC_RUNTIME_SNAPSHOT_BUDGET_BYTES)low=mid;else high=mid-1;
+  }
+  ledger.outcomes=low?outcomes.slice(-low):[];snapshot.items[AGENTS_KEY]=JSON.stringify(st);
+  snapshot.summary.signal_ledger.pending_retained=ledger.pending.length;
+  snapshot.summary.signal_ledger.outcomes_retained=ledger.outcomes.length;
+  return snapshot;
+}
 function buildPublicRuntimeSnapshot(){
   const st=loadState();
-  return {schema_version:1,build_version:BUILD_VERSION,strategy_version:SUGGESTION_ENGINE_VERSION,
+  const snapshot={schema_version:1,build_version:BUILD_VERSION,strategy_version:SUGGESTION_ENGINE_VERSION,
     generated_at:nowIso(),updated_at:nowIso(),last_cycle_hour:st.last_cycle_hour||null,
     source:"github-actions",read_only:true,items:collectPublicRuntimeItems(),
     summary:{agents:AGENTS.map(cfg=>{const p=st.agents[cfg.id],eq=equity(p);return {id:cfg.id,equity:+eq.toFixed(2),
       return_pct:+((eq/STARTING_BALANCE-1)*100).toFixed(3),cash:+Number(p.cash||0).toFixed(2),positions:(p.positions||[]).length};})}};
+  return fitPublicRuntimeSnapshot(snapshot);
 }
 function applyPublicRuntimeSnapshot(snapshot){
   if(!snapshot||typeof snapshot!=="object"||!snapshot.items||typeof snapshot.items!=="object")return false;
@@ -6609,6 +6658,14 @@ function runEngineSelfTest(){
   const ledgerState={signal_ledger:{pending:[{key:"ledger-test",market_id:"ledger-test",observed_at:hoursAgo(25),side:"YES",entry_price:0.40,
     signal_type:"trend",quality:"confirmed",category:"Politics"}],outcomes:[]}};
   updateSignalLedger(ledgerState,[market({id:"ledger-test",yes_price:0.50,no_price:0.50})],[]);
+  const compactedLedgerState={signal_ledger:compactPublicSignalLedger({pending:[{key:"ledger-compacted",market_id:"ledger-compacted",
+    event_key:"compacted-event",observed_at:hoursAgo(6.5),graded_horizons:[],side:"YES",entry_price:0.40,signal_type:"trend",
+    quality:"confirmed",category:"Politics",days_to_resolution:30,trade_ready_at_observation:true,fees_enabled:false,
+    fee_schedule:{rate:0,exponent:1,takerOnly:true},eligible_agent_ids:["value"],signal_policy_version:DIRECTIONAL_SIGNAL_POLICY_VERSION,
+    strategy_version:SUGGESTION_ENGINE_VERSION,conviction:99,signal_confidence:0.99,evidence_score:0.99}],outcomes:[]})};
+  updateSignalLedger(compactedLedgerState,[market({id:"ledger-compacted",yes_price:0.50,no_price:0.50})],[]);
+  const compactedValueCalibration=buildSignalCalibration(compactedLedgerState.signal_ledger,"value");
+  const compactedMomentumCalibration=buildSignalCalibration(compactedLedgerState.signal_ledger,"momentum");
   const feeFreeSignalCost=signalExecutionCost({fees_enabled:false,fee_schedule:{rate:0,exponent:1}},0.50,0.60);
   const exactFeeSignalCost=signalExecutionCost({fees_enabled:true,fee_schedule:{rate:0.07,exponent:1}},0.50,0.60);
   const unknownFeeSignalCost=signalExecutionCost({},0.50,0.60);
@@ -7196,6 +7253,11 @@ function runEngineSelfTest(){
       underObservedCohortsAndEventsSampleFirst:coveragePriority.map(x=>x.market_id).join(",")==="new-sports,new-politics,popular-repeat",
       firstHorizonGradesWithoutLookahead:ledgerState.signal_ledger.pending.length===1&&ledgerState.signal_ledger.pending[0].graded_horizons.includes(24)
         &&ledgerState.signal_ledger.outcomes.length===1&&ledgerState.signal_ledger.outcomes[0].target_horizon_hours===24&&ledgerState.signal_ledger.outcomes[0].return===0.2375,
+      publicCompactionPreservesForwardGrading:compactedLedgerState.signal_ledger.pending.length===1
+        &&compactedLedgerState.signal_ledger.pending[0].graded_horizons.includes(6)
+        &&compactedLedgerState.signal_ledger.outcomes.length===1&&compactedLedgerState.signal_ledger.outcomes[0].target_horizon_hours===6,
+      publicCompactionPreservesAgentCalibration:compactedValueCalibration.samples===1&&compactedValueCalibration.pending===1
+        &&compactedMomentumCalibration.samples===0&&compactedMomentumCalibration.pending===0,
       secondHorizonGradesAndCompletes:secondHorizonState.signal_ledger.pending.length===0&&secondHorizonState.signal_ledger.outcomes.length===1
         &&secondHorizonState.signal_ledger.outcomes[0].target_horizon_hours===72,
       holdsSignalsUntilPolicyHorizon:earlyLedgerState.signal_ledger.pending.length===1&&earlyLedgerState.signal_ledger.outcomes.length===0,
