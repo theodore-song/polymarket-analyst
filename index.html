@@ -2816,9 +2816,19 @@ function tradeReturnForLearning(trade,closed){
   const pnl=closed?Number(trade.realized_pnl||0):Number(trade.unrealized_pnl||0)+Number(trade.partial_realized_pnl||0);
   return clamp(pnl/basis,-1,2);
 }
+function generalAdaptiveLearningExclusion(trade){
+  if(!trade||!["YES","NO"].includes(String(trade.side||"")))return "not-directional";
+  if(trade.requires_complete_bundle||trade.bundle_id)return "priced-bundle";
+  if(trade.maker_quote_id||String(trade.signal_type||"").includes("maker"))return "maker-strategy";
+  if(["shock-fade-pilot","sports-contest-no-pilot","resolution-week-no-pilot"].includes(String(trade.signal_type||"")))return "specialized-learner";
+  if(trade.jump_risk||Number(trade.days_to_resolution)<0)return "settlement-unsafe";
+  if(/full-horizon settlement safety gate|settled before its timed exit/i.test(String(trade.close_reason||'')))return "retired-safety-migration";
+  return null;
+}
 function buildAdaptiveProfile(p){
   const buckets={},currentBuckets={},observations=[],currentClosedObservations=[],currentClosedReturns=[];
   const add=(trade,closed)=>{
+    if(generalAdaptiveLearningExclusion(trade))return;
     const version=normalizedStrategyVersion(trade.strategy_version);if(version<34)return;
     const age=Math.max(0,Date.now()-new Date(trade.closed_at||trade.opened_at||0).getTime());
     const recency=Number.isFinite(age)?Math.exp(-age/(45*86400000)):0.4;
@@ -2838,8 +2848,10 @@ function buildAdaptiveProfile(p){
       }
     });
   };
-  (p.closed||[]).forEach(t=>add(t,true));
-  (p.positions||[]).filter(t=>daysHeld(t)>=1).forEach(t=>add(t,false));
+  const closedRows=(p.closed||[]).filter(t=>normalizedStrategyVersion(t.strategy_version)>=34);
+  const eligibleClosed=closedRows.filter(t=>!generalAdaptiveLearningExclusion(t));
+  eligibleClosed.forEach(t=>add(t,true));
+  (p.positions||[]).filter(t=>daysHeld(t)>=1&&!generalAdaptiveLearningExclusion(t)).forEach(t=>add(t,false));
   const learned=Object.fromEntries(Object.entries(buckets).map(([k,b])=>[k,summarizeLearningBucket(b,6)]));
   const currentLearned=Object.fromEntries(Object.entries(currentBuckets).map(([k,b])=>[k,summarizeLearningBucket(b,6)]));
   const totalWeight=observations.reduce((s,x)=>s+x.weight,0),totalSum=observations.reduce((s,x)=>s+x.ret*x.weight,0);
@@ -2848,7 +2860,7 @@ function buildAdaptiveProfile(p){
   const currentClosedSum=currentClosedObservations.reduce((s,x)=>s+x.ret*x.weight,0);
   const ranked=Object.entries(learned).filter(([k,v])=>!k.startsWith("side:")&&v.weight>=1)
     .sort((a,b)=>b[1].score-a[1].score);
-  return {version:SUGGESTION_ENGINE_VERSION,samples:(p.closed||[]).filter(t=>normalizedStrategyVersion(t.strategy_version)>=34).length,
+  return {version:SUGGESTION_ENGINE_VERSION,samples:eligibleClosed.length,excluded_samples:closedRows.length-eligibleClosed.length,
     effective_samples:+totalWeight.toFixed(2),global_score:+globalScore.toFixed(4),buckets:learned,current_buckets:currentLearned,
     current_samples:currentClosedReturns.length,current_effective_samples:+currentClosedWeight.toFixed(2),
     current_global_score:+(currentClosedSum/(currentClosedWeight+4)).toFixed(4),
@@ -4939,7 +4951,7 @@ function decisionSummary(p){
   const blockerLabels={historical_prior:"history-tested losing setup",learning:"live learned losing regime",pilot_learning:"sports pilot demoted",shock_learning:"shock pilot unpromoted",resolution_week_learning:"resolution-week pilot demoted",event_overlap:"same event",confidence:"confidence",overlap:"material overlap",already_held:"already held",cooldown:"stop cooldown",focus:"category focus",price:"entry price",edge:"edge",timing:"timing",liquidity:"liquidity",activity:"activity",evidence:"evidence",direction:"direction",portfolio_limit:"portfolio limit"};
   const blockerRows=Object.entries(d.rejectionCounts||{}).filter(([,count])=>count>0).sort((a,b)=>b[1]-a[1]);
   const blockers=blockerRows.length?` Blocks: ${blockerRows.slice(0,4).map(([key,count])=>`${blockerLabels[key]||key} ${count}`).join(", ")}.`:"";
-  const learning=d.learning?` Learning: ${d.learning.samples} completed trades retained as historical context, ${(d.learning.global_score*100).toFixed(2)}% all-version shrunk expectancy; ${d.learning.current_samples||0} completed under adaptive strategy ${SUGGESTION_ENGINE_VERSION} with ${((d.learning.current_global_score||0)*100).toFixed(2)}% current-strategy shrunk expectancy. Only current-strategy closed trades can change sizing or personal cohort promotion${d.learning.best?`; historical strongest ${d.learning.best.feature.replace(":"," ")}`:""}${d.learning.worst?`; historical weakest ${d.learning.worst.feature.replace(":"," ")}`:""}.`:"";
+  const learning=d.learning?` Learning: ${d.learning.samples} eligible directional trades retained as historical context${d.learning.excluded_samples?`; ${d.learning.excluded_samples} bundle, maker, specialized-pilot, or settlement-unsafe trade${d.learning.excluded_samples===1?" was":"s were"} excluded and remains in the visible P&L ledger`:""}, ${(d.learning.global_score*100).toFixed(2)}% all-version shrunk expectancy; ${d.learning.current_samples||0} completed under adaptive strategy ${SUGGESTION_ENGINE_VERSION} with ${((d.learning.current_global_score||0)*100).toFixed(2)}% current-strategy shrunk expectancy. Only eligible current-strategy directional trades can change sizing or personal cohort promotion${d.learning.best?`; historical strongest ${d.learning.best.feature.replace(":"," ")}`:""}${d.learning.worst?`; historical weakest ${d.learning.worst.feature.replace(":"," ")}`:""}.`:"";
   let calibration="";
   if(d.marketLearning){
     const ml=d.marketLearning,hasCounts=Number.isFinite(ml.events)&&Number.isFinite(ml.markets),hasCurrentCounts=Number.isFinite(ml.current_events);
@@ -6910,6 +6922,13 @@ function runEngineSelfTest(){
   for(let i=0;i<8;i++)learner.closed.push({strategy_version:34,signal_type:"reversal",quality:"reversal",category:"Sports",side:"NO",entry_price:0.42,original_cost:100,
     realized_pnl:-20,opened_at:hoursAgo(72+i),closed_at:closedAt});
   const learningProfile=buildAdaptiveProfile(learner);
+  const isolatedLearningBook=defaultPortfolio();
+  isolatedLearningBook.closed.push({strategy_version:SUGGESTION_ENGINE_VERSION,signal_type:"trend",quality:"confirmed",category:"Politics",side:"YES",
+    entry_price:0.42,original_cost:100,realized_pnl:10,opened_at:hoursAgo(24),closed_at:closedAt});
+  isolatedLearningBook.closed.push({strategy_version:59,signal_type:"shock-fade-pilot",shock_strategy_version:3,quality:"shock-fade-pilot",category:"Sports",side:"YES",
+    entry_price:0.20,original_cost:100,realized_pnl:328.40,days_to_resolution:-0.05,jump_risk:true,opened_at:hoursAgo(23),closed_at:closedAt,
+    close_reason:"Shock contract failed the full-horizon settlement safety gate"});
+  const isolatedLearningProfile=buildAdaptiveProfile(isolatedLearningBook);
   const legacyOnlyOpportunity=learnedOpportunity(AGENTS[0],learner,{market_id:"legacy-only-personal",signal_type:"catalyst",quality:"confirmed",
     category:"Politics",side:"YES",entry_price:0.42,days_to_resolution:45},learningProfile,{samples:0,pending:0,buckets:{}});
   const legacyPositiveDecision=adaptiveDecision(AGENTS[0],learner,1,AGENTS.length,STARTING_BALANCE,buildSignalCalibration(defaultSignalLedger()));
@@ -7544,6 +7563,8 @@ function runEngineSelfTest(){
         &&currentPositiveProfile.current_samples===8&&Object.keys(currentPositiveProfile.current_buckets||{}).length>=5,
       currentCapitalLearningSurvivesOfflineCompaction:offlineCurrentProfile.current_samples===currentPositiveProfile.current_samples
         &&offlineCurrentProfile.current_buckets["signal:catalyst"].score===currentPositiveProfile.current_buckets["signal:catalyst"].score,
+      specializedUnsafeTradesCannotBiasDirectionalLearning:isolatedLearningProfile.samples===1&&isolatedLearningProfile.excluded_samples===1
+        &&isolatedLearningProfile.current_samples===1&&isolatedLearningProfile.global_score<0.01,
       legacyTradesCannotIncreaseCurrentSizing:legacyPositiveDecision.maxFrac===0.045,
       currentProfitsCanIncreaseBoundedSizing:currentPositiveDecision.maxFrac>legacyPositiveDecision.maxFrac
         &&currentPositiveDecision.maxFrac<=0.06,

@@ -76,6 +76,8 @@ assert.match(index, /const BINARY_COMPLEMENT_DEPTH_RESERVE=20;/);
 assert.match(index, /bundleRequiresDepthVerification:true/);
 assert.match(index, /bundleRequiresClobFeeVerification:true/);
 assert.match(index, /function bundleExecutableLeg\(book,units,feeSchedule\)/);
+assert.match(index, /function generalAdaptiveLearningExclusion\(trade\)/);
+assert.match(index, /specializedUnsafeTradesCannotBiasDirectionalLearning:/);
 assert.match(index, /function fetchBundleFeeSchedules\(conditionIds\)/);
 assert.match(index, /function bundleFeeSchedulesMatch\(expected,reported\)/);
 assert.match(index, /rejectsMismatchedClobFeeCurve:/);
