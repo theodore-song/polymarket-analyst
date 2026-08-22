@@ -118,6 +118,9 @@ async function waitForProductionBuild(page, arenaUrl, expectedBuild) {
     await page.waitForFunction(() => Boolean(window.PMA_AUTOMATION), null, { timeout: 20_000 }).catch(() => {});
     const status = await page.evaluate(() => window.PMA_AUTOMATION?.status?.() || null);
     if (Number(status?.build) === expectedBuild) return status;
+    if (Number(status?.build) > expectedBuild) {
+      throw new Error(`Production already advanced to Build ${status.build}; retiring stale Build ${expectedBuild} runner`);
+    }
     await sleep(20_000);
   }
   throw new Error(`Production did not reach Build ${expectedBuild} before the autonomous cycle deadline`);
@@ -128,7 +131,7 @@ async function main() {
   const branch = process.env.RUNTIME_BRANCH || "runtime-state";
   const pathname = process.env.RUNTIME_STATE_PATH || "runtime/state.json";
   const arenaUrl = (process.env.ARENA_URL || "https://polymarket-site-eta.vercel.app").replace(/\/$/, "");
-  const expectedBuild = Number(required("EXPECTED_BUILD", "116"));
+  const expectedBuild = Number(required("EXPECTED_BUILD", "117"));
   await ensureRuntimeBranch(repository, branch);
   const prior = await readRuntimeFile(repository, branch, pathname);
   if (prior.snapshot) validateRuntimeSnapshot(prior.snapshot, 0, { allowIncomplete: true });
