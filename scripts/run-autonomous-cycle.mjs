@@ -16,6 +16,10 @@ const MAX_STATE_BYTES = 900_000;
 const TRANSPORT_HISTORY_LIMIT = 24;
 const TRANSPORT_SNAPSHOT_LIMIT = 96;
 const TRANSPORT_MAKER_OUTCOME_LIMIT = 30;
+const TRANSPORT_TARGET_BYTES = 875_000;
+const TRANSPORT_HISTORY_FLOOR = 12;
+const TRANSPORT_MAKER_OUTCOME_FLOOR = 12;
+const TRANSPORT_SUGGESTION_FLOOR = 240;
 
 function sampleSnapshots(rows, limit = TRANSPORT_SNAPSHOT_LIMIT) {
   const list = Array.isArray(rows) ? rows : [];
@@ -63,6 +67,34 @@ function compactPublicSuggestion(suggestion) {
   return out;
 }
 
+function compactDecision(decision) {
+  if (!decision || typeof decision !== "object") return decision;
+  const out = { ...decision };
+  if (out.makerProfile && typeof out.makerProfile === "object") {
+    out.makerProfile = { version: out.makerProfile.version, outcomes: out.makerProfile.outcomes, global: out.makerProfile.global };
+  }
+  if (out.learning && typeof out.learning === "object") {
+    out.learning = { ...out.learning };
+    delete out.learning.buckets;
+    delete out.learning.current_buckets;
+  }
+  if (out.marketLearning && typeof out.marketLearning === "object") {
+    out.marketLearning = { ...out.marketLearning };
+    delete out.marketLearning.buckets;
+  }
+  return out;
+}
+
+function compactMakerOutcome(row) {
+  if (!row || typeof row !== "object") return row;
+  return {
+    quote_id: row.quote_id, market_id: row.market_id, event_key: row.event_key, category: row.category,
+    spread: row.spread, spread_band: row.spread_band, reward_yield_band: row.reward_yield_band, status: row.status,
+    pnl: row.pnl, shadow_only: row.shadow_only, deployed_capital: row.deployed_capital, reserved_capital: row.reserved_capital,
+    completed_at: row.completed_at, strategy_version: row.strategy_version, maker_strategy_version: row.maker_strategy_version,
+  };
+}
+
 export function compactRuntimeTransportSnapshot(snapshot) {
   if (!snapshot || typeof snapshot !== "object" || !snapshot.items) return snapshot;
   const out = { ...snapshot, items: { ...snapshot.items } };
@@ -77,11 +109,29 @@ export function compactRuntimeTransportSnapshot(snapshot) {
   for (const portfolio of Object.values(state.agents || {})) {
     portfolio.history = (portfolio.history || []).slice(-TRANSPORT_HISTORY_LIMIT).map(compactHistoryRow);
     portfolio.snapshots = sampleSnapshots(portfolio.snapshots, TRANSPORT_SNAPSHOT_LIMIT);
-    portfolio.maker_outcomes = (portfolio.maker_outcomes || []).slice(-TRANSPORT_MAKER_OUTCOME_LIMIT);
+    portfolio.maker_outcomes = (portfolio.maker_outcomes || []).slice(-TRANSPORT_MAKER_OUTCOME_LIMIT).map(compactMakerOutcome);
+    portfolio.lastDecision = compactDecision(portfolio.lastDecision);
   }
   suggestions.suggestions = (suggestions.suggestions || []).slice(0, 300).map(compactPublicSuggestion);
   out.items[AGENTS_KEY] = JSON.stringify(state);
   out.items[SUGGESTIONS_KEY] = JSON.stringify(suggestions);
+  if (Buffer.byteLength(JSON.stringify(out)) > TRANSPORT_TARGET_BYTES) {
+    for (const portfolio of Object.values(state.agents || {})) {
+      portfolio.history = (portfolio.history || []).slice(-TRANSPORT_HISTORY_FLOOR);
+      portfolio.maker_outcomes = (portfolio.maker_outcomes || []).slice(-TRANSPORT_MAKER_OUTCOME_FLOOR);
+    }
+    suggestions.suggestions = suggestions.suggestions.slice(0, TRANSPORT_SUGGESTION_FLOOR);
+    out.items[AGENTS_KEY] = JSON.stringify(state);
+    out.items[SUGGESTIONS_KEY] = JSON.stringify(suggestions);
+  }
+  if (out.summary && out.summary.signal_ledger && state.signal_ledger) {
+    const pending = Array.isArray(state.signal_ledger.pending) ? state.signal_ledger.pending.length : 0;
+    const outcomes = Array.isArray(state.signal_ledger.outcomes) ? state.signal_ledger.outcomes.length : 0;
+    out.summary.signal_ledger.pending_retained = pending;
+    out.summary.signal_ledger.pending_total = Math.max(Number(out.summary.signal_ledger.pending_total || 0), pending);
+    out.summary.signal_ledger.outcomes_retained = outcomes;
+    out.summary.signal_ledger.outcomes_total = Math.max(Number(out.summary.signal_ledger.outcomes_total || 0), outcomes);
+  }
   return out;
 }
 
@@ -229,7 +279,14 @@ async function main() {
     }, null, { timeout: 12 * 60_000 });
     await page.evaluate(() => window.PMA_AUTOMATION.runCycle());
     await page.waitForFunction(() => !window.PMA_AUTOMATION?.status?.().running, null, { timeout: 12 * 60_000 });
-    const rawSnapshot = await page.evaluate(() => window.PMA_AUTOMATION.exportShared());
+    const rawSnapshot = await page.evaluate(({ agentKey, suggestionsKey }) => {
+      const snapshot = window.PMA_AUTOMATION.exportShared();
+      const agents = localStorage.getItem(agentKey);
+      const suggestions = localStorage.getItem(suggestionsKey);
+      if (agents) snapshot.items[agentKey] = agents;
+      if (suggestions) snapshot.items[suggestionsKey] = suggestions;
+      return snapshot;
+    }, { agentKey: AGENTS_KEY, suggestionsKey: SUGGESTIONS_KEY });
     const snapshot = compactRuntimeTransportSnapshot(rawSnapshot);
     const validated = validateRuntimeSnapshot(snapshot, expectedBuild);
     await writeRuntimeFile(repository, branch, pathname, snapshot, prior.sha);

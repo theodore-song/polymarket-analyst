@@ -79,6 +79,10 @@ assert.match(index, /stopsSizingAtShallowestBundleLeg:/);
 assert.match(index, /!s\.depth_verified\|\|!s\.fees_verified\|\|s\.verification_status!=="executable"/);
 assert.match(runner, /MAX_STATE_BYTES = 900_000/);
 assert.match(runner, /compactRuntimeTransportSnapshot\(rawSnapshot\)/);
+assert.match(runner, /localStorage\.getItem\(agentKey\)/);
+assert.match(runner, /localStorage\.getItem\(suggestionsKey\)/);
+assert.match(runner, /TRANSPORT_TARGET_BYTES = 875_000/);
+assert.match(runner, /TRANSPORT_SUGGESTION_FLOOR = 240/);
 assert.match(runner, /Production already advanced to Build \$\{status\.build\}; retiring stale Build \$\{expectedBuild\} runner/);
 assert.equal(resolutionAudit.strategy, "resolution-window-no-50-55-forward-shadow-v3");
 assert.deepEqual(resolutionAudit.selection.horizon_days_enabled, []);
@@ -134,7 +138,7 @@ transportState.signal_ledger = {
 const transportSuggestions = {
   suggestions: Array.from({ length: 300 }, (_, index) => ({ market_id: `${index}`, trade_ready: false, signal_type: "trend", rationale: "r".repeat(500), drivers: ["d".repeat(200)] })),
 };
-const transportInput = { ...snapshot, items: { pma_agents_v2: JSON.stringify(transportState), pma_suggestions_v5: JSON.stringify(transportSuggestions) } };
+const transportInput = { ...snapshot, summary: { signal_ledger: { pending_retained: 0, pending_total: 0, outcomes_retained: 0, outcomes_total: 0 } }, items: { pma_agents_v2: JSON.stringify(transportState), pma_suggestions_v5: JSON.stringify(transportSuggestions) } };
 const transportOutput = compactRuntimeTransportSnapshot(transportInput);
 const transportedState = JSON.parse(transportOutput.items.pma_agents_v2);
 assert.equal(transportedState.signal_ledger.pending.length, 50);
@@ -147,6 +151,8 @@ assert.equal(transportedState.agents.value.snapshots[0].timestamp, transportStat
 assert.equal(transportedState.agents.value.snapshots.at(-1).timestamp, transportState.agents.value.snapshots.at(-1).timestamp);
 assert.equal(transportedState.agents.value.maker_outcomes.length, 30);
 assert.equal(JSON.parse(transportOutput.items.pma_suggestions_v5).suggestions.length, 300);
+assert.equal(transportOutput.summary.signal_ledger.pending_retained, 50);
+assert.equal(transportOutput.summary.signal_ledger.outcomes_retained, 144);
 assert.ok(Buffer.byteLength(JSON.stringify(transportOutput)) < Buffer.byteLength(JSON.stringify(transportInput)));
 
 console.log(`autonomous runtime verified for Build ${build}`);
