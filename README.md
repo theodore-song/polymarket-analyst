@@ -19,6 +19,9 @@ Vercel Blob. Build 73 also installs an offline app shell and caches timestamped
 market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
+Offline cycles can apply calibration already earned from live observations, but
+the evidence ledger is read-only: cached prices cannot grade pending signals,
+expire horizons, or create new observations.
 
 Build 121 targets five-minute slots with a serialized, self-chained GitHub Actions runtime.
 It continues from the previous agent snapshot and runs the next due paper cycle

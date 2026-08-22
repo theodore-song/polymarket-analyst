@@ -2572,7 +2572,8 @@ function pendingSignalMarketIds(ledger,knownIds=new Set(),now=Date.now()){
   }
   return ids;
 }
-function updateSignalLedger(st,markets,suggestions){
+function updateSignalLedger(st,markets,suggestions,{liveEvidence=true}={}){
+  if(!liveEvidence)return st.signal_ledger&&typeof st.signal_ledger==="object"?st.signal_ledger:defaultSignalLedger();
   const ledger=st.signal_ledger&&typeof st.signal_ledger==="object"?st.signal_ledger:defaultSignalLedger();
   ledger.pending=Array.isArray(ledger.pending)?ledger.pending:[];ledger.outcomes=Array.isArray(ledger.outcomes)?ledger.outcomes:[];
   const now=Date.now(),marketMap=Object.fromEntries((markets||[]).map(m=>[String(m.id),m])),stillPending=[];
@@ -4530,10 +4531,8 @@ async function runDailyCycle(){
       ?(freshById[String(id)]||((analysisIds.has(String(id)))?cachedById[String(id)]:null))
       :(cachedById[String(id)]||null);
     if(runMode==="live")saveMarketCache(analysisMarkets,sugs,priceMap);
-    if(runMode==="live"){
-      const supplemental=dueSignalIds.map(id=>freshById[String(id)]).filter(Boolean);
-      updateSignalLedger(st,[...analysisMarkets,...supplemental],sugs);
-    }
+    const supplemental=runMode==="live"?dueSignalIds.map(id=>freshById[String(id)]).filter(Boolean):[];
+    updateSignalLedger(st,[...analysisMarkets,...supplemental],sugs,{liveEvidence:runMode==="live"});
     const marketLearning=buildSignalCalibration(st.signal_ledger);
     const marketLearningByAgent=Object.fromEntries(AGENTS.map(agent=>[agent.id,buildSignalCalibration(st.signal_ledger,agent.id)]));
     if(runMode==="live"){
@@ -6843,6 +6842,11 @@ function runEngineSelfTest(){
   const ledgerState={signal_ledger:{pending:[{key:"ledger-test",market_id:"ledger-test",observed_at:hoursAgo(25),side:"YES",entry_price:0.40,
     signal_type:"trend",quality:"confirmed",category:"Politics"}],outcomes:[]}};
   updateSignalLedger(ledgerState,[market({id:"ledger-test",yes_price:0.50,no_price:0.50})],[]);
+  const offlineEvidenceState={signal_ledger:{pending:[{key:"offline-ledger",market_id:"offline-ledger",observed_at:hoursAgo(25),side:"YES",entry_price:0.40,
+    signal_type:"trend",quality:"confirmed",category:"Politics"}],outcomes:[],expired_ungraded:2}};
+  const offlineEvidenceBefore=JSON.stringify(offlineEvidenceState.signal_ledger);
+  updateSignalLedger(offlineEvidenceState,[market({id:"offline-ledger",yes_price:0.90,no_price:0.10})],[{market_id:"offline-new",side:"YES",entry_price:0.42,
+    signal_type:"trend",quality:"confirmed",signal_confidence:0.99,jump_risk:false,category:"Politics"}],{liveEvidence:false});
   const compactedLedgerState={signal_ledger:compactPublicSignalLedger({pending:[{key:"ledger-compacted",market_id:"ledger-compacted",
     event_key:"compacted-event",observed_at:hoursAgo(6.5),graded_horizons:[],side:"YES",entry_price:0.40,signal_type:"trend",
     quality:"confirmed",category:"Politics",days_to_resolution:30,trade_ready_at_observation:true,fees_enabled:false,
@@ -7461,6 +7465,7 @@ function runEngineSelfTest(){
         &&compactedScopedState.signal_ledger.outcomes[0].eligible_agent_ids[0]==="momentum"
         &&compactedScopedSuggestion.promoted_for_agents[0]==="momentum",
       offlineCacheRebuildsAgentPromotion:offlineScopedMomentum.trade_ready&&!offlineScopedValue.trade_ready,
+      offlineEvidenceCapabilityIsReadOnly:JSON.stringify(offlineEvidenceState.signal_ledger)===offlineEvidenceBefore,
       losingCohortDemotesOnlyEligibleAgent:losingValueState.state==="demoted"&&!losingValueState.allowed
         &&unrelatedMomentumProfile.samples===0&&unrelatedMomentumProfile.current_samples===0,
       legacyUnscopedEvidenceRemainsReadable:buildSignalCalibration(legacyUnscopedLedger,"momentum").samples===1

@@ -42,6 +42,8 @@ assert.match(index, /const DIRECTIONAL_PROBATION_MIN_EVENTS = 12;/);
 assert.match(index, /sixHourEvidenceStartsBoundedProbation:/);
 assert.match(index, /probationMetadataSurvivesOfflineCompaction:/);
 assert.match(index, /probationExitsAtExecutableSixHourPrice:/);
+assert.match(index, /updateSignalLedger\(st,\[\.\.\.analysisMarkets,\.\.\.supplemental\],sugs,\{liveEvidence:runMode==="live"\}\)/);
+assert.match(index, /offlineEvidenceCapabilityIsReadOnly:/);
 assert.match(index, /claimedProbationEvents/);
 assert.match(api, /adaptive_probation: s\.adaptive_probation, probation_exit_hours: s\.probation_exit_hours/);
 assert.match(index, /function buildRuntimeFallbackMarketCache\(stored,state\)/);
