@@ -20,7 +20,7 @@ market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
 
-Build 100 runs the headless GitHub Actions runtime every five minutes, continues
+Build 101 runs the headless GitHub Actions runtime every five minutes, continues
 from the previous agent snapshot,
 and runs the next due paper cycle even when no browser is open. It writes a
 sanitized snapshot to the `runtime-state` branch and `/api/state` uses that as a
@@ -41,21 +41,25 @@ Polymarket event key. Related Ethereum or Bitcoin contracts cannot create
 several simultaneous copies of one move, and outcomes from the same underlying
 three-hour shock window count as one learner event.
 
-Each Build 100 cycle also scans the 1,000 most-active Polymarket events for
+Each Build 101 cycle also scans the 1,000 most-active Polymarket events for
 complete negative-risk bundles and logically nested threshold or deadline
-pairs. Only a positive worst-case payout margin after 0.5 cents of modeled cost
-per leg can enter the Value Discipline portfolio. The Suggestions view stores
-the event count, number of audited structures, actionable count, and closest
-observed margin so an empty bundle lane is visible evidence rather than an
-ambiguous failure. A full 1,000-event audit on August 21, 2026 found 136
-eligible negative-risk events and 1,431 dominance pairs, but no positive bundle
-after costs; the closest complete bundle was 0.5 cents underwater and the
-closest dominance pair was 0.3 cents underwater.
+pairs. Gamma's market-specific fee flag replaces the old blanket 0.5-cent fee
+reserve for markets declared fee-free. The closest 60 structures are then
+repriced from batched CLOB asks at the equal-unit size needed for at least a $50
+paper order. The scanner applies each market's Gamma fee schedule at every
+consumed ask level and checks the CLOB fee-rate endpoint for a matching enabled
+or fee-free state. A bundle can enter Value Discipline only when that fee check
+passes and the resulting worst-case payout clears both the three-tenths-cent
+profit floor and the 0.15% return floor. Top-of-book gaps, missing books,
+incomplete fee schedules, and unavailable fee verification remain audit-only.
+The Suggestions view stores scan, depth, fee, actionable, and closest
+executable-margin counts so an empty lane is evidence rather than an ambiguous
+failure.
 
-Build 100 retires the old 3-6 day resolution-window capital permission. Its
-audit clustered confidence by event but still averaged several correlated
-contracts inside each event, while production could choose only one. The
-corrected replay chooses the highest-volume eligible contract per event and
+Build 101 retains Build 100's retirement of the old 3-6 day resolution-window
+capital permission. That audit clustered confidence by event but still averaged
+several correlated contracts inside each event, while production could choose
+only one. The corrected replay chooses the highest-volume eligible contract per event and
 rule. In the recent 3,000-market discovery sample, only the safe non-Sports
 50%-55% NO rule four days before settlement survived every chronological gate:
 145 events, a 38.42% mean, and a 26.12% lower 90% bound after one cent of cost.
