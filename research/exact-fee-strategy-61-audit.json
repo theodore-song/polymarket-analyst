@@ -1,0 +1,61 @@
+{
+  "generatedAt": "2026-08-22T00:55:19.692Z",
+  "strategy": 61,
+  "verdict": "No tested directional, shock-fade, or near-settlement rule earned capital permission. Keep those lanes observation-only and retain only live depth-and-fee-verified complete bundles as immediately capital-enabled.",
+  "costModel": {
+    "directional": "Gamma entry and exit taker fee schedules plus 0.5 cents of round-trip slippage",
+    "settlement": "Gamma entry taker fee plus 0.5 cents of entry slippage; redemption has no modeled exit trade",
+    "unknownFeeSchedule": "4 cent conservative fee fallback"
+  },
+  "directional": {
+    "primary": {
+      "activeMarkets": 1000,
+      "activeMarketsSkipped": 0,
+      "eventsAt12Hours": 208,
+      "eventMeanAt12Hours": -0.03932,
+      "lower90At12Hours": -0.05078,
+      "upper90At12Hours": -0.02786,
+      "robustPositiveRulesAt12Hours": 0,
+      "robustNegativeRulesAt12Hours": 64
+    },
+    "independent": {
+      "activeMarkets": 1000,
+      "activeMarketsSkipped": 1000,
+      "eventsAt12Hours": 254,
+      "eventMeanAt12Hours": -0.05392,
+      "lower90At12Hours": -0.06326,
+      "upper90At12Hours": -0.04457,
+      "robustPositiveRulesByHorizon": {
+        "6": 0,
+        "12": 0,
+        "24": 0,
+        "72": 0
+      },
+      "robustNegativeRulesByHorizon": {
+        "6": 69,
+        "12": 66,
+        "24": 51,
+        "72": 34
+      }
+    }
+  },
+  "settlement": {
+    "recentResolvedMarkets": 3000,
+    "marketsWithHistory": 2916,
+    "testedRules": 297,
+    "horizonsDays": [1, 3, 7, 14, 30],
+    "robustPositiveRules": 0
+  },
+  "shockFade": {
+    "selectedOnIndependentCohort": "fade_h12_w3_m0.08_aligned_v1_All_All",
+    "freshPrimaryTrainLower90": 0.02099,
+    "freshPrimaryValidationLower90": 0.02641,
+    "freshPrimaryHoldoutLower90": -0.00751,
+    "freshPrimaryVerdict": "rejected"
+  },
+  "limitations": [
+    "CLOB price history is a midpoint proxy and does not reconstruct historical order-book depth.",
+    "Active-market cohorts are survivorship-biased, so positive results would still require resolved-market and forward validation.",
+    "The absence of a validated rule is evidence for retaining cash, not proof that no future opportunity can exist."
+  ]
+}

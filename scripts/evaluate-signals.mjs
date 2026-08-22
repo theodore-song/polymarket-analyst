@@ -1,11 +1,12 @@
 const GAMMA = "https://gamma-api.polymarket.com";
 const CLOB = "https://clob.polymarket.com";
-const MARKET_LIMIT = Math.max(10, Math.min(500, Number(process.env.EVAL_MARKETS || 80)));
+const MARKET_LIMIT = Math.max(10, Math.min(1000, Number(process.env.EVAL_MARKETS || 80)));
 const ACTIVE_SKIP = Math.max(0, Math.min(5000, Number(process.env.EVAL_SKIP || 0)));
 const CONCURRENCY = Math.max(1, Math.min(12, Number(process.env.EVAL_CONCURRENCY || 6)));
 const HORIZONS = [...new Set(String(process.env.EVAL_HORIZONS || "6,12,24,72").split(",")
   .map(Number).filter((value) => Number.isFinite(value) && value >= 1 && value <= 168))].sort((a, b) => a - b);
 const COST_CENTS = Math.max(0, Math.min(5, Number(process.env.EVAL_COST_CENTS || 0.5)));
+const EXACT_GAMMA_FEES = process.env.EVAL_EXACT_GAMMA_FEES === "1";
 const HOUR = 3600;
 
 const CATEGORY_RULES = [
@@ -24,6 +25,18 @@ function parseJson(value) {
 function categoryOf(raw) {
   const tags = (Array.isArray(raw.tags) ? raw.tags : []).map((tag) => String(tag.slug || tag.label || "").toLowerCase());
   return CATEGORY_RULES.find(([, keys]) => tags.some((tag) => keys.includes(tag)))?.[0] || "Other";
+}
+
+function feeScheduleOf(raw) {
+  const rate = Number(raw?.feeSchedule?.rate), exponent = Number(raw?.feeSchedule?.exponent);
+  return Number.isFinite(rate) && rate >= 0 && Number.isFinite(exponent) && exponent > 0
+    ? { rate, exponent } : null;
+}
+
+function takerFeePerShare(schedule, price) {
+  const p = Number(price), rate = Number(schedule?.rate), exponent = Number(schedule?.exponent);
+  if (!(p > 0 && p < 1) || !Number.isFinite(rate) || rate < 0 || !Number.isFinite(exponent) || exponent <= 0) return null;
+  return rate * Math.pow(p * (1 - p), exponent);
 }
 
 async function fetchJson(url, attempts = 3) {
@@ -116,12 +129,21 @@ function evaluateMarket(market, points) {
       const exit = signal.side === "YES" ? future.p : 1 - future.p;
       const fadeExit = signal.side === "YES" ? 1 - future.p : future.p;
       const grossReturn = exit / entry - 1;
-      const netReturn = grossReturn - (COST_CENTS / 100) / entry;
+      const entryFee = EXACT_GAMMA_FEES ? takerFeePerShare(market.feeSchedule, entry) : null;
+      const exitFee = EXACT_GAMMA_FEES ? takerFeePerShare(market.feeSchedule, exit) : null;
+      const roundTripCost = COST_CENTS / 100
+        + (EXACT_GAMMA_FEES && Number.isFinite(entryFee) && Number.isFinite(exitFee) ? entryFee + exitFee : 0);
+      const netReturn = grossReturn - roundTripCost / entry;
+      const fadeEntryFee = EXACT_GAMMA_FEES ? takerFeePerShare(market.feeSchedule, fadeEntry) : null;
+      const fadeExitFee = EXACT_GAMMA_FEES ? takerFeePerShare(market.feeSchedule, fadeExit) : null;
+      const fadeRoundTripCost = COST_CENTS / 100
+        + (EXACT_GAMMA_FEES && Number.isFinite(fadeEntryFee) && Number.isFinite(fadeExitFee) ? fadeEntryFee + fadeExitFee : 0);
       const fadeNetReturn = fadeEntry > 0.02 && fadeEntry < 0.98
-        ? fadeExit / fadeEntry - 1 - (COST_CENTS / 100) / fadeEntry : null;
+        ? fadeExit / fadeEntry - 1 - fadeRoundTripCost / fadeEntry : null;
       outcomes.push({ marketId: market.id, eventKey: market.eventKey, question: market.question, category: market.category,
         type: signal.type, side: signal.side, band: priceBand(entry), entry, exit, horizonHours,
-        grossReturn, netReturn, fadeNetReturn, hourMove: signal.hourMove, dayMove: signal.dayMove, weekMove: signal.weekMove,
+        grossReturn, netReturn, fadeNetReturn, roundTripCost, exactFeeSchedule: EXACT_GAMMA_FEES && market.feeSchedule != null,
+        hourMove: signal.hourMove, dayMove: signal.dayMove, weekMove: signal.weekMove,
         observedAt: current.t, evaluatedAt: future.t });
       captured = true;
     }
@@ -261,11 +283,12 @@ function chronologicalEvaluation(rows) {
 
 async function fetchActiveMarkets(limit, skip = 0) {
   const markets = [], seen = new Set(), pageSize = 100;
-  let eligibleSkipped = 0;
-  for (let offset = 0; markets.length < limit && offset < (limit + skip) * 4; offset += pageSize) {
+  let eligibleSkipped = 0, cursor = "";
+  while (markets.length < limit) {
     const params = new URLSearchParams({ active: "true", closed: "false", archived: "false", include_tag: "true",
-      limit: String(pageSize), offset: String(offset), order: "volume24hr", ascending: "false" });
-    const page = await fetchJson(`${GAMMA}/markets?${params}`);
+      limit: String(pageSize), order: "volume24hr", ascending: "false" });
+    if (cursor) params.set("after_cursor", cursor);
+    const payload = await fetchJson(`${GAMMA}/markets/keyset?${params}`), page = payload?.markets;
     if (!Array.isArray(page) || !page.length) break;
     for (const market of page) {
       const id = String(market.id || ""), labels = parseJson(market.outcomes).map((outcome) => String(outcome).trim().toLowerCase());
@@ -274,7 +297,8 @@ async function fetchActiveMarkets(limit, skip = 0) {
       seen.add(id); markets.push(market);
       if (markets.length >= limit) break;
     }
-    if (page.length < pageSize) break;
+    if (page.length < pageSize || !payload.next_cursor || payload.next_cursor === cursor) break;
+    cursor = payload.next_cursor;
   }
   return markets.slice(0, limit);
 }
@@ -283,7 +307,7 @@ const rawMarkets = await fetchActiveMarkets(MARKET_LIMIT, ACTIVE_SKIP);
 const markets = rawMarkets.map((raw) => ({ id: String(raw.id), question: raw.question || "", category: categoryOf(raw),
   binaryLabels: parseJson(raw.outcomes).map((outcome) => String(outcome).trim().toLowerCase()),
   eventKey: String(raw.events?.[0]?.id || raw.events?.[0]?.slug || raw.eventId || raw.id),
-  tokenId: String(parseJson(raw.clobTokenIds)[0] || "") })).filter((market) => market.id && market.tokenId
+  tokenId: String(parseJson(raw.clobTokenIds)[0] || ""), feeSchedule: feeScheduleOf(raw) })).filter((market) => market.id && market.tokenId
     && market.binaryLabels[0] === "yes" && market.binaryLabels[1] === "no");
 const histories = await mapLimit(markets, CONCURRENCY, async (market) => {
   const data = await fetchJson(`${CLOB}/prices-history?market=${encodeURIComponent(market.tokenId)}&interval=1m&fidelity=60`);
@@ -298,7 +322,7 @@ const primaryOutcomes = outcomes.filter((row) => row.horizonHours === primaryHor
 const report = {
   generatedAt: new Date().toISOString(), marketLimit: MARKET_LIMIT, activeMarketsSkipped: ACTIVE_SKIP, marketsWithHistory: successful.length,
   methodology: { horizonHours: HORIZONS, primaryHorizon, observationBucketHours: 6, historyInterval: "1m", fidelityMinutes: 60,
-    estimatedRoundTripCostCents: COST_CENTS, clusterUnit: "event",
+    estimatedRoundTripSlippageCents: COST_CENTS, exactGammaFeeSchedules: EXACT_GAMMA_FEES, clusterUnit: "event",
     note: "Current active-market selection and current category tags are a survivorship-biased proxy; signal inputs and future marks are time-ordered without lookahead. Confidence intervals cluster correlated markets by Polymarket event." },
   overall: summarize(primaryOutcomes), byType: grouped(primaryOutcomes, "type"), byCategory: grouped(primaryOutcomes, "category"),
   byBand: grouped(primaryOutcomes, "band"), bySide: grouped(primaryOutcomes, "side"),

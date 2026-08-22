@@ -8,12 +8,15 @@ const EXTERNAL_MARKET_LIMIT = Math.max(100, Math.min(2000, Number(process.env.SH
 const HISTORY_DAYS = Math.max(14, Math.min(30, Number(process.env.SHOCK_HISTORY_DAYS || 30)));
 const CONCURRENCY = Math.max(1, Math.min(8, Number(process.env.SHOCK_CONCURRENCY || 6)));
 const COST = Math.max(0, Math.min(0.05, Number(process.env.SHOCK_COST_CENTS || 0.5) / 100));
+const EXACT_GAMMA_FEES = process.env.SHOCK_EXACT_GAMMA_FEES === "1";
 const MIN_ENTRY_PRICE = Math.max(0.02, Math.min(0.40, Number(process.env.SHOCK_MIN_ENTRY_PRICE || 0.08)));
 const MAX_ENTRY_PRICE = Math.max(0.60, Math.min(0.98, Number(process.env.SHOCK_MAX_ENTRY_PRICE || 0.92)));
 const CACHE_FILE = String(process.env.SHOCK_CACHE_FILE || "").trim();
 const OUTPUT_FILE = String(process.env.SHOCK_OUTPUT_FILE || "").trim();
 const SUMMARY_ONLY = process.env.SHOCK_SUMMARY === "1";
 const SUMMARY_CANDIDATES = Math.max(0, Math.min(10, Number(process.env.SHOCK_SUMMARY_CANDIDATES || 10)));
+const CLOSED_ORDER = String(process.env.SHOCK_CLOSED_ORDER || "closedTime").trim() || "closedTime";
+const CLOSED_ASCENDING = process.env.SHOCK_CLOSED_ASCENDING === "true";
 const HOUR = 3600;
 const STRATEGY4_MINIMUM_RUNWAY_HOURS = 14;
 const HORIZONS = [3, 6, 12, 24];
@@ -27,6 +30,19 @@ const PRICE_BANDS = ["All", "longshot", "lower-mid", "center", "upper-mid", "fav
 function parseJson(value) {
   if (Array.isArray(value)) return value;
   try { return JSON.parse(value || "[]"); } catch { return []; }
+}
+
+function feeScheduleOf(raw) {
+  if (raw?.feesEnabled === false) return { rate: 0, exponent: 1, takerOnly: true };
+  const rate = Number(raw?.feeSchedule?.rate), exponent = Number(raw?.feeSchedule?.exponent);
+  return raw?.feesEnabled === true && Number.isFinite(rate) && rate >= 0 && Number.isFinite(exponent) && exponent > 0
+    ? { rate, exponent, takerOnly: raw.feeSchedule.takerOnly !== false } : null;
+}
+
+function takerFeePerShare(schedule, price) {
+  const p = Number(price);
+  return schedule && Number.isFinite(p) && p > 0 && p < 1
+    ? Number(schedule.rate) * Math.pow(p * (1 - p), Number(schedule.exponent || 1)) : null;
 }
 
 async function fetchJson(url, options = {}, attempts = 3) {
@@ -88,7 +104,7 @@ async function fetchMarkets(limit, universe = "active") {
   if (universe === "closed") {
     let cursor = "";
     while (markets.length < limit) {
-      const params = new URLSearchParams({ closed: "true", order: "volumeNum", ascending: "false", limit: "100", include_tag: "true" });
+      const params = new URLSearchParams({ closed: "true", order: CLOSED_ORDER, ascending: String(CLOSED_ASCENDING), limit: "100", include_tag: "true" });
       if (cursor) params.set("after_cursor", cursor);
       const payload = await fetchJson(`${GAMMA}/markets/keyset?${params}`), page = payload?.markets;
       if (!Array.isArray(page) || !page.length) break;
@@ -100,7 +116,7 @@ async function fetchMarkets(limit, universe = "active") {
         if (!id || seen.has(id) || !resolved || labels[0] !== "yes" || labels[1] !== "no" || tokens.length !== 2) continue;
         seen.add(id);
         const endTs = Date.parse(raw.endDate || raw.events?.[0]?.endDate || "") / 1000;
-        markets.push({ id, token: tokens[0], category: categoryOf(raw), question: raw.question || "",
+        markets.push({ id, token: tokens[0], category: categoryOf(raw), question: raw.question || "", feeSchedule: feeScheduleOf(raw),
           eventTitle: raw.events?.[0]?.title || "", endTs: Number.isFinite(endTs) ? endTs : null,
           eventKey: String(raw.events?.[0]?.id || raw.events?.[0]?.slug || raw.eventId || id) });
         if (markets.length >= limit) break;
@@ -124,7 +140,7 @@ async function fetchMarkets(limit, universe = "active") {
       if (skipped < ACTIVE_SKIP) { skipped++; continue; }
       seen.add(id);
       const endTs = Date.parse(raw.endDate || raw.events?.[0]?.endDate || "") / 1000;
-      markets.push({ id, token: tokens[0], category: categoryOf(raw), question: raw.question || "",
+      markets.push({ id, token: tokens[0], category: categoryOf(raw), question: raw.question || "", feeSchedule: feeScheduleOf(raw),
         eventTitle: raw.events?.[0]?.title || "", endTs: Number.isFinite(endTs) ? endTs : null,
         eventKey: String(raw.events?.[0]?.id || raw.events?.[0]?.slug || raw.eventId || id) });
       if (markets.length >= limit) break;
@@ -226,6 +242,7 @@ function observations(market, points) {
       const future = atOrAfter(points, current.t + horizon * HOUR);
       if (!future || future.t - (current.t + horizon * HOUR) > 2 * HOUR) continue;
       rows.push({ marketId: market.id, eventKey: market.eventKey, category: market.category, question: market.question,
+        feeSchedule: market.feeSchedule,
         endTs: Number(market.endTs), hardSettlementJumpRisk: hardSettlementJumpRisk(market), observedAt: current.t,
         evaluatedAt: future.t, horizon, price: current.p, futurePrice: future.p, ...features });
       captured = true;
@@ -255,10 +272,13 @@ function simulate(row, rule) {
   if (entry < MIN_ENTRY_PRICE || entry > MAX_ENTRY_PRICE) return null;
   const band = priceBand(entry);
   if (rule.band !== "All" && band !== rule.band) return null;
-  const rawNetReturn = exit / entry - 1 - COST / entry;
+  const entryFee = EXACT_GAMMA_FEES ? takerFeePerShare(row.feeSchedule, entry) : null;
+  const exitFee = EXACT_GAMMA_FEES ? takerFeePerShare(row.feeSchedule, exit) : null;
+  const roundTripCost = EXACT_GAMMA_FEES && Number.isFinite(entryFee) && Number.isFinite(exitFee) ? entryFee + exitFee : COST;
+  const rawNetReturn = (exit - entry - roundTripCost) / entry;
   const netReturn = Math.max(-1, Math.min(2, rawNetReturn));
   return { marketId: row.marketId, eventKey: row.eventKey, observedAt: row.observedAt, evaluatedAt: row.evaluatedAt,
-    category: row.category, band, side, entry, exit, netReturn };
+    category: row.category, band, side, entry, exit, roundTripCost, exactFeeSchedule: EXACT_GAMMA_FEES && Number.isFinite(entryFee) && Number.isFinite(exitFee), netReturn };
 }
 
 function summary(rows) {
@@ -399,10 +419,12 @@ const report = { generatedAt: new Date().toISOString(), requestedMarkets: MARKET
   archivePassed: finalists.filter((candidate) => candidate.passesArchive).length,
   methodology: { requestedHistoryDays: HISTORY_DAYS, medianHistoryCoverageDays: +medianCoverageDays.toFixed(2),
     maximumHistoryCoverageDays: +(coverageDays.at(-1) || 0).toFixed(2), observationSpacingHours: 3, horizons: HORIZONS, windows: WINDOWS,
-    costCents: COST * 100, entryPriceRange: [MIN_ENTRY_PRICE, MAX_ENTRY_PRICE], returnWinsorization: [-1, 2],
+    costCents: COST * 100, exactGammaFeeSchedules: EXACT_GAMMA_FEES, feeFallbackCents: COST * 100,
+    entryPriceRange: [MIN_ENTRY_PRICE, MAX_ENTRY_PRICE], returnWinsorization: [-1, 2],
     eventSplit: "25% deterministic event-disjoint holdout reserved before search",
     split: "Remaining events use 60% train / 20% validation / 20% untouched chronological holdout with future-mark purge",
     clusterUnit: "Polymarket event", refinementSource: "Only base rules with a positive train lower bound are refined by category and entry band",
+    closedArchiveOrder: `${CLOSED_ORDER} ${CLOSED_ASCENDING ? "ascending" : "descending"}`,
     strategy4ContractGate: `Reject path barriers and exact numeric ranges; require ${STRATEGY4_MINIMUM_RUNWAY_HOURS} hours to market end at entry`,
     limitation: "Current active-market selection is survivorship biased; any holdout winner still requires resolved-market external validation" },
   partitions: Object.fromEntries(Object.entries(partitions).map(([key, value]) => [key, value.length])), exactStrategy3, exactStrategy4,

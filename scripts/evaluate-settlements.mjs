@@ -6,6 +6,7 @@ const CONCURRENCY = Math.max(1, Math.min(12, Number(process.env.SETTLEMENT_CONCU
 const HORIZON_DAYS = [...new Set(String(process.env.SETTLEMENT_HORIZONS || "1,3,7,14,30,90").split(",")
   .map(Number).filter((value) => Number.isFinite(value) && value >= 1 && value <= 365))].sort((a, b) => a - b);
 const COST_CENTS = Math.max(0, Math.min(5, Number(process.env.SETTLEMENT_COST_CENTS || 0.5)));
+const EXACT_GAMMA_FEES = process.env.SETTLEMENT_EXACT_GAMMA_FEES === "1";
 const FINE_GRID = String(process.env.SETTLEMENT_FINE_GRID || "false").toLowerCase() === "true";
 const SELECTION_ORDER = ["volumeNum", "closedTime", "createdAt", "id"].includes(process.env.SETTLEMENT_ORDER)
   ? process.env.SETTLEMENT_ORDER : "volumeNum";
@@ -31,6 +32,18 @@ function categoryOf(raw) {
   if (/\b(fed|inflation|gdp|recession|stock|company|economy|tariff|interest rate|unemployment|earnings)\b/.test(text)) return "Economy";
   if (/\b(movie|music|album|box office|television|celebrity|award|gaming|youtube|stream)\b/.test(text)) return "Pop Culture";
   return "Other";
+}
+
+function feeScheduleOf(raw) {
+  const rate = Number(raw?.feeSchedule?.rate), exponent = Number(raw?.feeSchedule?.exponent);
+  return Number.isFinite(rate) && rate >= 0 && Number.isFinite(exponent) && exponent > 0
+    ? { rate, exponent } : null;
+}
+
+function takerFeePerShare(schedule, price) {
+  const p = Number(price), rate = Number(schedule?.rate), exponent = Number(schedule?.exponent);
+  if (!(p > 0 && p < 1) || !Number.isFinite(rate) || rate < 0 || !Number.isFinite(exponent) || exponent <= 0) return null;
+  return rate * Math.pow(p * (1 - p), exponent);
 }
 
 function hardSettlementJumpRisk(raw) {
@@ -122,7 +135,8 @@ async function fetchResolvedMarkets(limit, skip = 0) {
       seen.add(id); raw.push({ id, question: market.question || "", category: categoryOf(market),
         eventId: String(market.events?.[0]?.id || id),
         tokenId: String(tokens[0]), finalYes: outcomes[0] >= 0.99 ? 1 : 0, closedAt,
-        safeContract: !hardSettlementJumpRisk(market), volume: Number(market.volumeNum || market.volume || 0) });
+        safeContract: !hardSettlementJumpRisk(market), feeSchedule: feeScheduleOf(market),
+        volume: Number(market.volumeNum || market.volume || 0) });
       if (raw.length >= targetCount) break;
     }
     if (page.length < pageSize || !payload.next_cursor || payload.next_cursor === cursor) break;
@@ -141,14 +155,16 @@ function evaluateMarket(market, points) {
     const winningSide = market.finalYes ? "YES" : "NO", trend = confirmedTrendAt(points, target, point);
     for (const side of ["YES", "NO"]) {
       const entry = side === "YES" ? yesEntry : noEntry, final = side === winningSide ? 1 : 0;
-      const netReturn = final / entry - 1 - (COST_CENTS / 100) / entry;
+      const fee = EXACT_GAMMA_FEES ? takerFeePerShare(market.feeSchedule, entry) : null;
+      const entryCost = COST_CENTS / 100 + (EXACT_GAMMA_FEES && Number.isFinite(fee) ? fee : 0);
+      const netReturn = final / entry - 1 - entryCost / entry;
       rows.push({ marketId: market.id, eventId: market.eventId, question: market.question, category: market.category,
         safeContract: market.safeContract, closedAt: market.closedAt, volume: market.volume,
         horizonDays, side, favorite: side === favoriteSide, winner: side === winningSide,
         trend: Boolean(trend && trend.side === side), trendSide: trend?.side || null,
         dayMove: trend?.dayMove || 0, weekMove: trend?.weekMove || 0,
         strongTrend: Boolean(trend?.strong), moderateTrend: Boolean(trend?.moderate),
-        entry, band: priceBand(entry), netReturn });
+        entry, band: priceBand(entry), entryCost, exactFeeSchedule: EXACT_GAMMA_FEES && market.feeSchedule != null, netReturn });
     }
   }
   return rows;
@@ -308,7 +324,8 @@ const rows = successful.flatMap((result) => result.rows);
 const report = {
   generatedAt: new Date().toISOString(), requestedMarkets: MARKET_LIMIT, resolvedMarkets: markets.length,
   marketsWithHistory: successful.length, failures: histories.filter((result) => result?.error).length,
-  methodology: { horizonDays: HORIZON_DAYS, estimatedRoundTripCostCents: COST_CENTS,
+  methodology: { horizonDays: HORIZON_DAYS, estimatedEntrySlippageCents: COST_CENTS,
+    exactGammaFeeSchedules: EXACT_GAMMA_FEES, settlementRedemptionExitFeeCents: 0,
     historyFidelityMinutes: 1440,
     fineGrid:FINE_GRID,
     testedRules:RULES.length,

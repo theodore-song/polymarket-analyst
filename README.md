@@ -20,7 +20,7 @@ market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
 
-Build 102 runs the headless GitHub Actions runtime every five minutes, continues
+Build 103 runs the headless GitHub Actions runtime every five minutes, continues
 from the previous agent snapshot,
 and runs the next due paper cycle even when no browser is open. It writes a
 sanitized snapshot to the `runtime-state` branch and `/api/state` uses that as a
@@ -41,7 +41,7 @@ Polymarket event key. Related Ethereum or Bitcoin contracts cannot create
 several simultaneous copies of one move, and outcomes from the same underlying
 three-hour shock window count as one learner event.
 
-Each Build 102 cycle also scans the 1,000 most-active Polymarket events for
+Each Build 103 cycle also scans the 1,000 most-active Polymarket events for
 complete negative-risk bundles and logically nested threshold or deadline
 pairs. Gamma's market-specific fee flag replaces the old blanket 0.5-cent fee
 reserve for markets declared fee-free. The closest 60 structures are then
@@ -57,7 +57,21 @@ The Suggestions view stores scan, depth, fee, actionable, and closest
 executable-margin counts so an empty lane is evidence rather than an ambiguous
 failure.
 
-Build 102 retains Build 100's retirement of the old 3-6 day resolution-window
+Build 103 also replaces the directional learner's blanket half-cent cost with
+the market's Gamma fee schedule at both the entry and future checkpoint, plus a
+separate half-cent round-trip slippage allowance. Fee-free markets pay only the
+slippage allowance; an unavailable fee schedule gets a conservative four-cent
+fee reserve and cannot look artificially profitable. Fee metadata survives
+cloud compaction and offline caching. The exact-fee replay covered the top 1,000
+active markets and 208 independent events: broad trends, reversals, and
+favorite trends all had 90% upper bounds below zero at 12 hours. A separate
+3,000-recently-closed-market study tested 297 one-decision-per-event settlement
+rules and found zero robust positive rule. Strategy 61 therefore resets online
+directional evidence under fee policy 2 and keeps those lanes observation-only
+until current independent 24-hour and 72-hour cohorts pass the existing
+promotion gate.
+
+Build 103 retains Build 100's retirement of the old 3-6 day resolution-window
 capital permission. That audit clustered confidence by event but still averaged
 several correlated contracts inside each event, while production could choose
 only one. The corrected replay chooses the highest-volume eligible contract per event and
@@ -301,8 +315,8 @@ Strategy 54 gives previously opened Politics trend positions that 72-hour observ
 ordinary signal exits. Stops, profit locks, settlement handling, and risk-budget
 reductions remain immediate.
 
-Strategy 54 also subtracts a half-cent round-trip cost when grading each live
-walk-forward signal. Confidence uses the largest independent matching bucket,
+Strategy 61 applies exact Gamma entry and exit taker fees plus a half-cent
+slippage allowance when grading each live walk-forward signal. Confidence uses the largest independent matching bucket,
 not the sum of five overlapping feature buckets, and evidence from older engine
 versions is down-weighted. This prevents a handful of duplicated observations
 from authorizing larger positions or hiding a modest negative regime.
