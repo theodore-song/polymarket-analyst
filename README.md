@@ -23,7 +23,7 @@ Offline cycles can apply calibration already earned from live observations, but
 the evidence ledger is read-only: cached prices cannot grade pending signals,
 expire horizons, or create new observations.
 
-Build 123 targets five-minute slots with a serialized, self-chained GitHub Actions runtime.
+Build 124 targets five-minute slots with a serialized, self-chained GitHub Actions runtime.
 It continues from the previous agent snapshot and runs the next due paper cycle
 even when no browser is open. After each successful cycle, one repo-scoped
 workflow dispatch waits for the next five-minute boundary; one concurrency group
@@ -63,12 +63,19 @@ Polymarket event key. Related Ethereum or Bitcoin contracts cannot create
 several simultaneous copies of one move, and outcomes from the same underlying
 three-hour shock window count as one learner event.
 
-Each Build 123 cycle also scans the 1,000 most-active Polymarket events for
+Each Build 124 cycle also scans the 1,000 most-active Polymarket events for
 complete negative-risk bundles and logically nested threshold or deadline
 pairs, plus same-market YES/NO complements whose equal shares have a fixed
 $1 redemption value. Polymarket's documented complete-set merge converts equal
 YES and NO amounts directly back into collateral, so a verified binary complement
 is merged and realized in the same paper cycle instead of waiting for resolution.
+The official negative-risk adapter also converts a complete set of NO tokens into
+`n - 1` units of collateral, less the event's `negRiskFeeBips`. Strategy 65 treats
+that as a separate immediate path: every leg must expose one consistent
+`negRiskMarketID` and conversion fee, all asks and CLOB fee schedules must verify,
+and the post-conversion proceeds must remain profitable. Missing or inconsistent
+adapter metadata cannot produce paper P&L. Complete YES sets and logical dominance
+pairs are not convertible and continue to use settlement or verified live-bid exits.
 Gasless CTF operations include merge transactions; see
 [Positions & Tokens](https://docs.polymarket.com/concepts/positions-tokens) and
 [Gasless Transactions](https://docs.polymarket.com/trading/gasless).
@@ -83,7 +90,7 @@ paper order up to a $400 verified-notional ceiling. The scanner applies each mar
 consumed ask level and checks the exact CLOB condition metadata for a matching
 fee curve or fee-free state. Any opened position is capped to the exact equal-unit size
 of the largest fill that stays profitable and passes this depth test; portfolio
-cash, reserve, and 4% limits can reduce it further. Strategy 64 ranks verified
+cash, reserve, and 4% limits can reduce it further. Strategy 65 ranks verified
 structures by net return per expected locked day before raw edge, and caps active
 cost from one underlying event at 12% of Value Hunter equity. This prevents
 several related threshold pairs from monopolizing the non-directional book. New bundles must
@@ -103,7 +110,7 @@ The Suggestions view stores scan, depth, fee, actionable, and closest
 executable-margin counts so an empty lane is evidence rather than an ambiguous
 failure.
 
-Build 123 retains the directional learner's exact-fee policy, which replaced the blanket half-cent cost with
+Build 124 retains the directional learner's exact-fee policy, which replaced the blanket half-cent cost with
 the market's Gamma fee schedule at both the entry and future checkpoint, plus a
 separate half-cent round-trip slippage allowance. Fee-free markets pay only the
 slippage allowance; an unavailable fee schedule gets a conservative four-cent
@@ -114,7 +121,7 @@ available at reduced weight. The exact-fee replay covered the top 1,000
 active markets and 208 independent events: broad trends, reversals, and
 favorite trends all had 90% upper bounds below zero at 12 hours. A separate
 3,000-recently-closed-market study tested 297 one-decision-per-event settlement
-rules and found zero robust positive rule. Strategy 64 retains online
+rules and found zero robust positive rule. Strategy 65 retains online
 directional evidence under fee policy 2. A separate probation gate can now use
 capital after at least 12 current-policy independent events produce a net-of-cost
 six-hour lower confidence bound above 1% for every required cohort feature.
@@ -128,7 +135,7 @@ Every probation position exits at the matching six-hour executable bid and keeps
 the 18% stop policy active. Normal directional sizing remains locked until the
 same cohort independently passes both the 24-hour and 72-hour promotion gates.
 
-Build 123 retains Build 100's retirement of the old 3-6 day resolution-window
+Build 124 retains Build 100's retirement of the old 3-6 day resolution-window
 capital permission. That audit clustered confidence by event but still averaged
 several correlated contracts inside each event, while production could choose
 only one. The corrected replay chooses the highest-volume eligible contract per event and
@@ -248,9 +255,9 @@ evidence proves an edge.
 
 Run `npm run evaluate:sports-favorites` for the retired pregame favorite audit.
 Its 12-hour, 60%-75% cohort had positive point estimates but did not establish a
-reliable confidence bound, so Build 123 no longer allocates capital to that rule.
+reliable confidence bound, so Build 124 no longer allocates capital to that rule.
 
-Strategy 64 also tracks the exact-fee settlement calibration's three-day Sports
+Strategy 65 also tracks the exact-fee settlement calibration's three-day Sports
 NO cohort as a zero-capital forward lane. The corrected 5,000-market run
 groups every prop with the same dated contest slug, anchors the decision to the
 published game start, and keeps only the highest-priced eligible NO contract per
@@ -378,7 +385,7 @@ Strategy 54 gives previously opened Politics trend positions that 72-hour observ
 ordinary signal exits. Stops, profit locks, settlement handling, and risk-budget
 reductions remain immediate.
 
-Strategy 64 retains exact Gamma entry and exit taker fees plus a half-cent
+Strategy 65 retains exact Gamma entry and exit taker fees plus a half-cent
 slippage allowance when grading each live walk-forward signal. Confidence uses the largest independent matching bucket,
 not the sum of five overlapping feature buckets, and evidence from older engine
 versions is down-weighted. This prevents a handful of duplicated observations
