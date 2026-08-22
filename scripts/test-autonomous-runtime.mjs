@@ -8,10 +8,13 @@ const workflow = fs.readFileSync(new URL("../.github/workflows/autonomous-cycle.
 const runner = fs.readFileSync(new URL("./run-autonomous-cycle.mjs", import.meta.url), "utf8");
 const resolutionAudit = JSON.parse(fs.readFileSync(new URL("../research/resolution-week-no-audit.json", import.meta.url), "utf8"));
 const sportsContestAudit = JSON.parse(fs.readFileSync(new URL("../research/sports-contest-no-exploration-audit.json", import.meta.url), "utf8"));
+const sportsDisjointAudit = JSON.parse(fs.readFileSync(new URL("../research/sports-contest-no-disjoint-10000-audit.json", import.meta.url), "utf8"));
 const adaptiveAudit = JSON.parse(fs.readFileSync(new URL("../research/adaptive-strategy-64-audit.json", import.meta.url), "utf8"));
+const sportsEvaluator = fs.readFileSync(new URL("./evaluate-sports-favorites.mjs", import.meta.url), "utf8");
 const build = Number(index.match(/const BUILD_VERSION = (\d+);/)?.[1]);
 
-assert.equal(build, 121);
+assert.equal(build, 122);
+assert.match(index, /Adaptive strategy 64 · durable evidence · build 122/);
 assert.deepEqual([...ALLOWED_RUNTIME_KEYS].sort(), ["pma_agents_v2", "pma_suggestions_v5"]);
 assert.match(index, /function collectPublicRuntimeItems\(\)/);
 assert.match(index, /const PUBLIC_RUNTIME_KEYS=Object\.freeze\(\[AGENTS_KEY,SUG_KEY\]\)/);
@@ -126,6 +129,15 @@ assert.ok(sportsContestAudit.corrected_5000_market_result.validation.lower_95 < 
 assert.equal(sportsContestAudit.production_constraints.initial_position_pct, 0.5);
 assert.equal(sportsContestAudit.production_constraints.total_lane_cap_pct, 3);
 assert.equal(sportsContestAudit.production_constraints.exact_entry_fee_required, true);
+assert.equal(sportsDisjointAudit.status, "zero-capital-forward-shadow");
+assert.equal(sportsDisjointAudit.recent_5000.holdout_rules_passing, 0);
+assert.equal(sportsDisjointAudit.older_disjoint_5000.validation_rules_passing, 0);
+assert.ok(sportsDisjointAudit.recent_5000.closest_rule.holdout_lower_90 < 0);
+assert.ok(sportsDisjointAudit.older_disjoint_5000.closest_rule.holdout_lower_90 < 0);
+assert.equal(sportsDisjointAudit.decision.capital_enabled, false);
+assert.equal(sportsDisjointAudit.decision.initial_position_pct, 0);
+assert.match(sportsEvaluator, /const MARKET_SKIP =/);
+assert.match(sportsEvaluator, /fetchMarkets\(MARKET_LIMIT, MARKET_SKIP\)/);
 assert.equal(adaptiveAudit.strategy, 64);
 assert.equal(adaptiveAudit.fetched_markets, 500);
 assert.deepEqual(adaptiveAudit.probation_rule_ids, []);
@@ -134,6 +146,9 @@ assert.ok(adaptiveAudit.horizons.every((row) => row.validation_selected === 0 &&
 assert.match(index, /function sportsContestKey\(m\)/);
 assert.match(index, /function sportsContestNoSuggestions\(markets\)/);
 assert.match(index, /const SPORTS_FAVORITE_MAX_NEW_PER_CYCLE=1;/);
+assert.match(index, /const SPORTS_FAVORITE_PILOT_POSITION_PCT=0;/);
+assert.match(index, /capitalRequiresForwardPromotion:true,boundedExploration:false/);
+assert.match(index, /initialStateIsZeroCapitalShadow:/);
 assert.match(index, /function compactDecisionForPublic\(decision\)/);
 assert.match(index, /delete out\.learning\.buckets/);
 

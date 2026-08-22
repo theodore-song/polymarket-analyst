@@ -23,7 +23,7 @@ Offline cycles can apply calibration already earned from live observations, but
 the evidence ledger is read-only: cached prices cannot grade pending signals,
 expire horizons, or create new observations.
 
-Build 121 targets five-minute slots with a serialized, self-chained GitHub Actions runtime.
+Build 122 targets five-minute slots with a serialized, self-chained GitHub Actions runtime.
 It continues from the previous agent snapshot and runs the next due paper cycle
 even when no browser is open. After each successful cycle, one repo-scoped
 workflow dispatch waits for the next five-minute boundary; one concurrency group
@@ -63,7 +63,7 @@ Polymarket event key. Related Ethereum or Bitcoin contracts cannot create
 several simultaneous copies of one move, and outcomes from the same underlying
 three-hour shock window count as one learner event.
 
-Each Build 121 cycle also scans the 1,000 most-active Polymarket events for
+Each Build 122 cycle also scans the 1,000 most-active Polymarket events for
 complete negative-risk bundles and logically nested threshold or deadline
 pairs, plus same-market YES/NO complements whose equal shares have a fixed
 $1 redemption value. Polymarket's documented complete-set merge converts equal
@@ -99,7 +99,7 @@ The Suggestions view stores scan, depth, fee, actionable, and closest
 executable-margin counts so an empty lane is evidence rather than an ambiguous
 failure.
 
-Build 121 retains the directional learner's exact-fee policy, which replaced the blanket half-cent cost with
+Build 122 retains the directional learner's exact-fee policy, which replaced the blanket half-cent cost with
 the market's Gamma fee schedule at both the entry and future checkpoint, plus a
 separate half-cent round-trip slippage allowance. Fee-free markets pay only the
 slippage allowance; an unavailable fee schedule gets a conservative four-cent
@@ -124,7 +124,7 @@ Every probation position exits at the matching six-hour executable bid and keeps
 the 18% stop policy active. Normal directional sizing remains locked until the
 same cohort independently passes both the 24-hour and 72-hour promotion gates.
 
-Build 121 retains Build 100's retirement of the old 3-6 day resolution-window
+Build 122 retains Build 100's retirement of the old 3-6 day resolution-window
 capital permission. That audit clustered confidence by event but still averaged
 several correlated contracts inside each event, while production could choose
 only one. The corrected replay chooses the highest-volume eligible contract per event and
@@ -244,21 +244,23 @@ evidence proves an edge.
 
 Run `npm run evaluate:sports-favorites` for the retired pregame favorite audit.
 Its 12-hour, 60%-75% cohort had positive point estimates but did not establish a
-reliable confidence bound, so Build 121 no longer allocates capital to that rule.
+reliable confidence bound, so Build 122 no longer allocates capital to that rule.
 
-Strategy 64 also uses the exact-fee settlement calibration's three-day Sports
-NO cohort as a bounded paper exploration lane. The corrected 5,000-market run
+Strategy 64 also tracks the exact-fee settlement calibration's three-day Sports
+NO cohort as a zero-capital forward lane. The corrected 5,000-market run
 groups every prop with the same dated contest slug, anchors the decision to the
 published game start, and keeps only the highest-priced eligible NO contract per
 real contest. Its 76 contests had positive point estimates in all four
 chronological quarters; train and holdout 95% lower bounds were positive, but
 validation returned only +1.78% with a wide negative lower bound. This is not a
-proven edge. Favorite Backer therefore starts at 0.5% of equity per position,
-opens at most one contest per cycle, caps the lane at 3%, and includes the
-executable NO ask, exact Gamma taker fee, and 0.25-cent slippage. Twenty positive
-independent settlements can raise size to 0.75%, 40 can raise it to 1%, and 15
-convincingly losing settlements or a 1% portfolio loss suspend capital. The same
-ledger persists offline, but stale cache policy and verified settlement rules
+proven edge. A follow-up search tested 60 rules on the most recent 5,000 eligible
+resolved sports markets and again on the next older disjoint 5,000. No rule passed
+train, validation, and untouched holdout in both archives. Favorite Backer therefore
+opens no sports capital initially and records at most one contest-level observation
+per cycle using the executable NO ask, exact Gamma taker fee, and 0.25-cent slippage.
+Twenty independent forward settlements with a lower 90% confidence bound above
+0.5% can promote 0.75% positions; 40 stronger outcomes can raise size to 1%. The
+same ledger persists offline, but stale cache policy and verified settlement rules
 still apply.
 
 Run `npm run evaluate:settlement-calibration` for the stricter settlement-bias

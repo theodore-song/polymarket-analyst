@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 63 · durable evidence · build 120</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 64 · durable evidence · build 122</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 121 active:</b> Strategy 64 protects a dedicated evidence budget in every cloud snapshot, so pending observations and net-of-cost outcomes survive runner restarts instead of being displaced by repeated display text. Independently positive six-hour cohorts can enter bounded probation after at least 12 events and a lower confidence bound above 1%, using at most 0.5% per position and 1% per-agent total capital with a matching executable exit. Full directional sizing still requires positive 24-hour and 72-hour evidence, while one mature negative cohort can veto risk. Depth-and-fee-verified complete bundles must return at least 0.02% per locked day, are ranked by that capital efficiency, and are capped at 12% of Value Hunter equity per underlying event. Phones and computers display the same read-only autonomous state. Profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 122 active:</b> Strategy 64 protects a dedicated evidence budget in every cloud snapshot, so pending observations and net-of-cost outcomes survive runner restarts instead of being displaced by repeated display text. Independently positive six-hour cohorts can enter bounded probation after at least 12 events and a lower confidence bound above 1%, using at most 0.5% per position and 1% per-agent total capital with a matching executable exit. Full directional sizing still requires positive 24-hour and 72-hour evidence, while one mature negative cohort can veto risk. Sports contest NO research is now zero-capital until its forward confidence gate passes. Depth-and-fee-verified complete bundles must return at least 0.02% per locked day, are ranked by that capital efficiency, and are capped at 12% of Value Hunter equity per underlying event. Phones and computers display the same read-only autonomous state. Profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 121 · Adaptive strategy 64 · Evidence-first bounded snapshots · Six-hour bounded probation with matched executable exits · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Capital-efficient, event-capped verified bundles · Conservative intact-bundle accounting · Contest-deduplicated sports exploration · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 122 · Adaptive strategy 64 · Evidence-first bounded snapshots · Six-hour bounded probation with matched executable exits · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Capital-efficient, event-capped verified bundles · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 121;
+const BUILD_VERSION = 122;
 const AGENT_LEARNING_VERSION = 3;
 const SUGGESTION_ENGINE_VERSION = 64;
 const MAKER_STRATEGY_VERSION = 3;
@@ -1562,7 +1562,7 @@ const SPORTS_FAVORITE_MIN_ENTRY=0.03;
 const SPORTS_FAVORITE_MAX_ENTRY=0.97;
 const SPORTS_FAVORITE_TARGET_LEAD_HOURS=72;
 const SPORTS_FAVORITE_LEAD_TOLERANCE_HOURS=12;
-const SPORTS_FAVORITE_PILOT_POSITION_PCT=0.005;
+const SPORTS_FAVORITE_PILOT_POSITION_PCT=0;
 const SPORTS_FAVORITE_PROMOTED_POSITION_PCT=0.0075;
 const SPORTS_FAVORITE_MAX_POSITION_PCT=0.01;
 const SPORTS_FAVORITE_TOTAL_CAPITAL_PCT=0.03;
@@ -1828,13 +1828,13 @@ function sportsFavoritePilotSuggestion(m){
     market_price:+marketPrice.toFixed(4),entry_price:+modeledEntry.toFixed(4),conviction,volume:m.volume,volume_24hr:m.volume_24hr,liquidity:m.liquidity,
     spread:m.spread,price_change_1h:m.price_change_1h,price_change_1d:m.price_change_1d,price_change_1w:m.price_change_1w,
     momentum_strength:0,signal_strength:0.60,signal_confidence:0.60,signal_type:"sports-contest-no-pilot",
-    trade_ready:true,entry_candidate:true,audited_observation_only:false,adaptive_promotion:true,watch_only:false,jump_risk:true,requires_live:false,
+    trade_ready:false,entry_candidate:false,audited_observation_only:true,adaptive_promotion:false,watch_only:true,jump_risk:true,requires_live:false,
     game_start:m.game_start,hours_to_start:+lead.toFixed(2),days_to_resolution:m.days_to_resolution!=null?+m.days_to_resolution.toFixed(1):null,
     sports_contest_strategy_version:SPORTS_CONTEST_NO_STRATEGY_VERSION,
-    pilot_prior:{markets:5000,independent_contests:76,modeled_cost_cents:+(executionCost*100).toFixed(2),train_mean:0.23457,train_lower_95:0.057,
-      validation_mean:0.01776,validation_lower_95:-0.19809,holdout_mean:0.36683,holdout_lower_95:0.12251,strictly_promoted:false},
-    drivers:["bounded paper exploration","one highest-priced NO per real contest","three days before published start","executable NO ask","exact Gamma entry fee","0.25c slippage"],
-    rationale:`Bounded paper exploration: this is the highest-priced eligible NO contract found for ${eventKey.replace("sports:","")} ${lead.toFixed(1)}h before the published start. The modeled ${pct(modeledEntry)} entry includes the executable NO ask, ${(fee*100).toFixed(2)}c exact taker fee, and 0.25c slippage, ${(executionCost*100).toFixed(2)}c above midpoint. In the corrected 5,000-market audit, 76 independent contests were positive in all four chronological quarters; train and holdout lower bounds were positive, while validation returned +1.78% with a wide negative lower bound. This is not a proven edge, so it starts at 0.5%, allows one contest per cycle, and shuts down automatically if forward settlements reject it.`};
+    pilot_prior:{markets:10000,independent_contests:76,modeled_cost_cents:+(executionCost*100).toFixed(2),train_mean:0.23457,train_lower_95:0.057,
+      validation_mean:0.01776,validation_lower_95:-0.19809,holdout_mean:0.36683,holdout_lower_95:0.12251,strictly_promoted:false,disjoint_rule_search_passed:false},
+    drivers:["zero-capital forward shadow","one highest-priced NO per real contest","three days before published start","executable NO ask","exact Gamma entry fee","0.25c slippage"],
+    rationale:`Zero-capital forward learner: this is the highest-priced eligible NO contract found for ${eventKey.replace("sports:","")} ${lead.toFixed(1)}h before the published start. The modeled ${pct(modeledEntry)} entry includes the executable NO ask, ${(fee*100).toFixed(2)}c exact taker fee, and 0.25c slippage, ${(executionCost*100).toFixed(2)}c above midpoint. The original 5,000-market replay failed its validation confidence gate, and a separate grid search across the next older 5,000 eligible sports markets found no rule that passed train, validation, and untouched holdout. This lane therefore records no-capital observations until at least ${SPORTS_FAVORITE_PROMOTION_EVENTS} independent forward settlements clear the promotion confidence gate.`};
 }
 function sportsContestNoSuggestions(markets){
   const grouped=new Map();
@@ -2899,7 +2899,7 @@ function sportsFavoritePilotProfile(p){
   const forwardPositive=events>=SPORTS_FAVORITE_PROMOTION_EVENTS&&lower>0.005;
   const maximumPositive=events>=SPORTS_FAVORITE_MAX_PROMOTION_EVENTS&&lower>0.01;
   const positionPct=demoted?0:(maximumPositive?SPORTS_FAVORITE_MAX_POSITION_PCT:(forwardPositive?SPORTS_FAVORITE_PROMOTED_POSITION_PCT:SPORTS_FAVORITE_PILOT_POSITION_PCT));
-  return {state:demoted?"demoted":(maximumPositive?"max-promoted":(forwardPositive?"promoted":"exploration")),allowed:!demoted,promoted:forwardPositive,max_promoted:maximumPositive,demoted,events,
+  return {state:demoted?"demoted":(maximumPositive?"max-promoted":(forwardPositive?"promoted":"shadow")),allowed:forwardPositive&&!demoted,promoted:forwardPositive,max_promoted:maximumPositive,demoted,events,
     mean:+mean.toFixed(4),lower:+lower.toFixed(4),upper:+upper.toFixed(4),pnl:+pnl.toFixed(2),
     shadow_pnl_per_100:+shadowPnl.toFixed(2),active_shadows:(p&&p.sports_favorite_shadows||[])
       .filter(row=>Number(row.sports_contest_strategy_version||0)===SPORTS_CONTEST_NO_STRATEGY_VERSION).length,
@@ -2908,8 +2908,8 @@ function sportsFavoritePilotProfile(p){
 function applySportsFavoriteForwardPromotion(s,p){
   if(!s||(s.signal_type||"")!=="sports-contest-no-pilot")return s;
   const profile=sportsFavoritePilotProfile(p);
-  if(profile.demoted)return Object.assign({},s,{trade_ready:false,entry_candidate:false,watch_only:true,
-    rationale:`Forward suspension: ${profile.events} independent contests produced a ${(profile.mean*100).toFixed(2)}% mean and ${(profile.upper*100).toFixed(2)}% 90% upper confidence bound, so this lane is back to zero capital. ${s.rationale||""}`});
+  if(!profile.allowed)return Object.assign({},s,{trade_ready:false,entry_candidate:false,audited_observation_only:true,adaptive_promotion:false,watch_only:true,
+    rationale:`Forward ${profile.demoted?"suspension":"shadow gate"}: ${profile.events} independent contests have not qualified capital, so this lane remains at zero size. ${s.rationale||""}`});
   return Object.assign({},s,{trade_ready:true,entry_candidate:true,audited_observation_only:false,adaptive_promotion:true,watch_only:false,
     rationale:`Adaptive ${profile.state} size ${(profile.position_pct*100).toFixed(2)}% after ${profile.events} independent settled contest${profile.events===1?"":"s"}. ${s.rationale||""}`});
 }
@@ -4967,7 +4967,7 @@ function decisionSummary(p){
   }
   const makerStats=d.makerProfile&&d.makerProfile.global;
   const maker=d.makerQuotes!=null?` Maker research: ${d.makerShadowActive||0} zero-capital lock-or-exit observations active; ${d.makerFills||0} verified touches and ${d.makerShadowCompleted||0} outcomes completed this cycle.${makerStats?` Event-clustered ledger: ${makerStats.attempts} attempts / ${makerStats.events} events, ${makerStats.locked} locked pairs, ${makerStats.adverse} immediate adverse exits, ${makerStats.unfilled} unfilled, and ${fmtUSD(makerStats.shadow_pnl)} simulated shadow net.`:""} Capital is disabled because neither the 6,048-rule chronological maker audit nor the reward stress test produced a validated holdout winner. Hypothetical rewards are excluded.`:"";
-  const sportsPilot=d.sportsFavoritePilot?` Sports contest NO learner: ${d.sportsFavoritePilot.state}, ${d.sportsFavoritePilot.active_shadows||0} zero-capital observations active and ${d.sportsFavoritePilot.events} independent settled contests, ${d.sportsFavoritePilot.events?`${(d.sportsFavoritePilot.mean*100).toFixed(2)}% mean with ${d.sportsFavoritePilot.lower>=0?"+":""}${(d.sportsFavoritePilot.lower*100).toFixed(2)}% to ${d.sportsFavoritePilot.upper>=0?"+":""}${(d.sportsFavoritePilot.upper*100).toFixed(2)}% 90% interval; `:""}${fmtUSD(d.sportsFavoritePilot.shadow_pnl_per_100||0)} simulated per-$100 net and ${fmtUSD(d.sportsFavoritePilot.pnl)} realized capital P&L. Current per-position cap ${(d.sportsFavoritePilot.position_pct*100).toFixed(2)}%; 20 positive independent outcomes can raise it to 0.75%, 40 can raise it to 1%, and a rejected forward interval suspends capital.`:"";
+  const sportsPilot=d.sportsFavoritePilot?` Sports contest NO learner: ${d.sportsFavoritePilot.state}, ${d.sportsFavoritePilot.active_shadows||0} zero-capital observations active and ${d.sportsFavoritePilot.events} independent settled contests, ${d.sportsFavoritePilot.events?`${(d.sportsFavoritePilot.mean*100).toFixed(2)}% mean with ${d.sportsFavoritePilot.lower>=0?"+":""}${(d.sportsFavoritePilot.lower*100).toFixed(2)}% to ${d.sportsFavoritePilot.upper>=0?"+":""}${(d.sportsFavoritePilot.upper*100).toFixed(2)}% 90% interval; `:""}${fmtUSD(d.sportsFavoritePilot.shadow_pnl_per_100||0)} simulated per-$100 net and ${fmtUSD(d.sportsFavoritePilot.pnl)} realized capital P&L. Current per-position cap ${(d.sportsFavoritePilot.position_pct*100).toFixed(2)}%; capital begins only after 20 independent outcomes clear the positive lower-bound gate, and 40 stronger outcomes can raise it to 1%.`:"";
   const shockPilot=d.shockFadePilot?` Shared shock strategy ${SHOCK_FADE_STRATEGY_VERSION}: ${d.shockFadePilot.state}, ${d.shockFadePilot.active_shadows||0} ${SHOCK_FADE_EXIT_HOURS}-hour observations active and ${d.shockFadePilot.events} deduplicated forward events complete across five adopters. Mean ${(d.shockFadePilot.mean*100).toFixed(2)}%; 90% interval ${(d.shockFadePilot.lower*100).toFixed(2)}% to ${(d.shockFadePilot.upper*100).toFixed(2)}%; ${d.shockFadePilot.expired_ungraded||0} missed windows were discarded. Position cap ${(d.shockFadePilot.position_pct*100).toFixed(2)}%, total cap ${SHOCK_FADE_TOTAL_CAPITAL_PCT*100}%; ${SHOCK_FADE_QUALIFICATION_EVENTS} positive events can qualify 1% capital and ${SHOCK_FADE_PROMOTION_EVENTS} stronger events can raise size to ${SHOCK_FADE_PROMOTED_POSITION_PCT*100}%.`:"";
   const resolutionWeek=d.resolutionWeekNoPilot?` Corrected 4-day NO learner: ${d.resolutionWeekNoPilot.state}, ${d.resolutionWeekNoPilot.events} shared settled events, ${(d.resolutionWeekNoPilot.mean*100).toFixed(2)}% mean and ${(d.resolutionWeekNoPilot.lower*100).toFixed(2)}% lower 90% bound. Position cap ${(d.resolutionWeekNoPilot.position_pct*100).toFixed(2)}%; capital remains zero until 40 independent outcomes clear the forward confidence gate.`:"";
   return `${d.mode} mode: ${d.reason}${emotion} Limits now: ${d.maxNew} new trade${d.maxNew===1?"":"s"}, max ${(d.maxFrac*100).toFixed(1)}% per position${d.minConv?`, conviction ${d.minConv}+`:""}.${learning}${calibration}${maker}${sportsPilot}${shockPilot}${resolutionWeek}${exposure}${allocation}${candidates}${blockers}`;
@@ -4976,8 +4976,8 @@ function renderAgentBrief(cfg,p,st){
   const root=$("agentBrief"); if(!root)return;
   const bw=bestAndWorst(p);
   const risk=cfg.aggressive?"Extreme risk":cfg.maxFrac>=0.055?"Active":cfg.maxFrac<=0.04?"Broad active":"Disciplined";
-  const cadence=cfg.id==="favorite"?"One contest-level sports NO entry per cycle; 0.5% initial size, 3% lane cap, and automatic evidence-based promotion or suspension":RESOLUTION_WEEK_NO_ADOPTER_IDS.has(cfg.id)?`Zero-capital 4-day NO observations until 40 independent settlements promote 0.5% positions; plus zero-capital shock research`:`${cfg.maxNew||0} new trades max per cycle`;
-  const exitRule=cfg.id==="favorite"?"Grade zero-capital observations only when Polymarket closes the market; bounded capital positions retain the 18% stop and profit locks":RESOLUTION_WEEK_NO_ADOPTER_IDS.has(cfg.id)?`Grade 4-day NO observations only at verified settlement; after promotion, capital positions also hold to settlement; shock observations exit at the executable bid after ${SHOCK_FADE_EXIT_HOURS} hours`
+  const cadence=cfg.id==="favorite"?"Zero-capital contest-level sports NO observations until 20 independent settlements clear the forward confidence gate":RESOLUTION_WEEK_NO_ADOPTER_IDS.has(cfg.id)?`Zero-capital 4-day NO observations until 40 independent settlements promote 0.5% positions; plus zero-capital shock research`:`${cfg.maxNew||0} new trades max per cycle`;
+  const exitRule=cfg.id==="favorite"?"Grade shadow observations only when Polymarket closes the market; any previously opened capital position retains the 18% stop and profit locks":RESOLUTION_WEEK_NO_ADOPTER_IDS.has(cfg.id)?`Grade 4-day NO observations only at verified settlement; after promotion, capital positions also hold to settlement; shock observations exit at the executable bid after ${SHOCK_FADE_EXIT_HOURS} hours`
     :`Exit after a confirmed reversal, a 12h unconfirmed fade after 48h, a trailing-profit retrace, or ${EXIT_STALE_DAYS}d stale while losing; Politics trends get 72h before ordinary signal exits`;
   const thesis=agentPlainBlurb(cfg,st);
   const quoteSummary=(p.maker_quotes||[]).slice(0,3).map(quote=>`${quote.shadow_only?"Shadow":"Capital"} · ${quote.question.slice(0,34)}${quote.question.length>34?"...":""}: YES ${pct(quote.yes_quote)} + NO ${pct(quote.no_quote)}${quote.yes_filled_at||quote.no_filled_at?" (one leg touched)":""}`).join("; ");
@@ -6659,13 +6659,13 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
       totalCapitalPct:DIRECTIONAL_PROBATION_TOTAL_CAPITAL_PCT*100,maxNewPerAgentCycle:DIRECTIONAL_PROBATION_MAX_NEW_PER_AGENT_CYCLE,
       eventDeduplicatedAcrossAgents:true,fullSizingStillRequiresHorizons:SIGNAL_PROMOTION_HORIZONS},
     favoriteTrendReplayHardBlock:true,
-    sportsFavoritePilot:{name:"sports-contest-NO-exploration",strategyVersion:SPORTS_CONTEST_NO_STRATEGY_VERSION,entryBand:[SPORTS_FAVORITE_MIN_ENTRY,SPORTS_FAVORITE_MAX_ENTRY],targetLeadHours:SPORTS_FAVORITE_TARGET_LEAD_HOURS,
+    sportsFavoritePilot:{name:"sports-contest-NO-forward-shadow",strategyVersion:SPORTS_CONTEST_NO_STRATEGY_VERSION,entryBand:[SPORTS_FAVORITE_MIN_ENTRY,SPORTS_FAVORITE_MAX_ENTRY],targetLeadHours:SPORTS_FAVORITE_TARGET_LEAD_HOURS,
       leadToleranceHours:SPORTS_FAVORITE_LEAD_TOLERANCE_HOURS,pilotPositionPct:SPORTS_FAVORITE_PILOT_POSITION_PCT*100,
       promotedPositionPct:SPORTS_FAVORITE_PROMOTED_POSITION_PCT*100,maximumPositionPct:SPORTS_FAVORITE_MAX_POSITION_PCT*100,
       totalCapitalPct:SPORTS_FAVORITE_TOTAL_CAPITAL_PCT*100,shadowLimit:SPORTS_FAVORITE_SHADOW_LIMIT,
       verdictEvents:SPORTS_FAVORITE_VERDICT_EVENTS,promotionEvents:SPORTS_FAVORITE_PROMOTION_EVENTS,
       slippageBufferCents:SPORTS_FAVORITE_SLIPPAGE_BUFFER*100,maximumExecutionCostCents:SPORTS_FAVORITE_MAX_EXECUTION_COST*100,
-      maxNewPerCycle:SPORTS_FAVORITE_MAX_NEW_PER_CYCLE,capitalRequiresForwardPromotion:false,boundedExploration:true,
+      maxNewPerCycle:SPORTS_FAVORITE_MAX_NEW_PER_CYCLE,capitalRequiresForwardPromotion:true,boundedExploration:false,
       exactEntryFeesRequired:true,oneHighestNoPerContest:true,oldFavoriteRuleRetired:true},
     shockFadePilot:{strategyVersion:SHOCK_FADE_STRATEGY_VERSION,minimumMovePct:SHOCK_FADE_MIN_MOVE*100,signalWindowHours:SHOCK_FADE_SIGNAL_WINDOW_HOURS,
       exitHours:SHOCK_FADE_EXIT_HOURS,gradeToleranceHours:SHOCK_FADE_GRADE_TOLERANCE_HOURS,initialPositionPct:SHOCK_FADE_INITIAL_POSITION_PCT*100,
@@ -6685,7 +6685,7 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
       adopterAgentIds:[...RESOLUTION_WEEK_NO_ADOPTER_IDS],backtestApproved:RESOLUTION_WEEK_NO_BACKTEST_APPROVED,
       shadowLimit:RESOLUTION_WEEK_NO_SHADOW_LIMIT,outcomeLimit:RESOLUTION_WEEK_NO_OUTCOME_LIMIT,capitalRequiresForwardPromotion:true,
       oneDecisionPerEventAudit:true,disjointHoldoutRequired:true,fixedDateOnly:true,sportsExcluded:true,settlementOnlyExit:true,oneOwnerPerEvent:true,sharedForwardDemotion:true},
-    historicalPrior:"Exact-fee directional, settlement, shock, and maker audits found no robust broad capital rule. A corrected 5,000-market audit found a point-positive three-day Sports NO pattern across all chronological quarters and 76 independent contests, but validation uncertainty remained wide. It therefore runs only as bounded 0.5% paper exploration with exact entry fees, contest deduplication, and automatic forward promotion or suspension. Complete depth-and-fee-verified bundles remain the only proven-arbitrage entry lane."}),
+    historicalPrior:"Exact-fee directional, settlement, shock, and maker audits found no robust broad capital rule. A corrected 5,000-market audit found a point-positive three-day Sports NO pattern, but validation uncertainty remained wide; a disjoint older 5,000-market rule search also found no strict holdout winner. Sports NO therefore remains zero-capital shadow research with exact entry fees and contest deduplication until forward promotion. Complete depth-and-fee-verified bundles remain the only proven-arbitrage entry lane."}),
 });
 function runEngineSelfTest(){
   const market=(overrides={})=>Object.assign({
@@ -7724,7 +7724,7 @@ function runEngineSelfTest(){
       activeLegacyPositionBlocksNewEvidence:legacyResolutionClaimKeys.has("legacy-active-resolution"),
     },
     sportsFavoritePilot:{
-      identifiesBoundedContestNoPilot:Boolean(sportsPilot&&sportsPilot.trade_ready&&!sportsPilot.audited_observation_only
+      identifiesContestNoShadow:Boolean(sportsPilot&&!sportsPilot.trade_ready&&sportsPilot.audited_observation_only
         &&sportsPilot.quality==="sports-contest-no-pilot"&&sportsPilot.side==="NO"),
       derivesStableDatedContestKey:Boolean(sportsPilot&&sportsPilot.event_key==="sports:harbor-city-2026-08-24"),
       keepsOnlyHighestNoPerContest:contestCandidates.length===1&&contestCandidates[0].market_id==="contest-high-no",
@@ -7742,11 +7742,11 @@ function runEngineSelfTest(){
         &&sportsPilotBook.sports_favorite_outcomes[0].net_return>0,
       offlineSnapshotCannotInventSettlement:offlineSportsStayedPending,
       forwardLearnerSurvivesCompaction:compactedSportsBook.sports_favorite_shadows.length===1&&compactedSportsBook.sports_favorite_outcomes.length===1,
-      freshOfflineSnapshotKeepsBoundedEntry:freshOfflineSportsPilot.trade_ready&&freshOfflineSportsPilot.entry_candidate,
+      freshOfflineSnapshotKeepsShadowGate:!freshOfflineSportsPilot.trade_ready&&!freshOfflineSportsPilot.entry_candidate&&freshOfflineSportsPilot.watch_only,
       offlineTimingIsRechecked:!expiredOfflineSportsPilot.trade_ready&&!expiredOfflineSportsPilot.entry_candidate&&expiredOfflineSportsPilot.watch_only
         &&expiredOfflineSportsPilot.hours_to_start<SPORTS_FAVORITE_TARGET_LEAD_HOURS-SPORTS_FAVORITE_LEAD_TOLERANCE_HOURS,
       completedLossesKeepCapitalDisabled:losingSportsPilotProfile.demoted&&!losingSportsPilotProfile.allowed&&losingSportsPilotProfile.position_pct===0,
-      initialExplorationStartsHalfPercent:initialSportsPilotProfile.allowed&&!initialSportsPilotProfile.promoted
+      initialStateIsZeroCapitalShadow:!initialSportsPilotProfile.allowed&&!initialSportsPilotProfile.promoted&&initialSportsPilotProfile.state==="shadow"
         &&initialSportsPilotProfile.position_pct===SPORTS_FAVORITE_PILOT_POSITION_PCT,
       losingSuggestionReturnsToWatch:!unpromotedSportsSuggestion.trade_ready&&unpromotedSportsSuggestion.signal_type==="sports-contest-no-pilot",
       positiveConfidenceCanPromote:promotedSportsPilotProfile.promoted&&promotedSportsPilotProfile.allowed

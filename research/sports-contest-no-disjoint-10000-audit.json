@@ -1,0 +1,58 @@
+{
+  "generated_at": "2026-08-22T12:55:00.000Z",
+  "strategy": "sports-contest-no-disjoint-10000-followup",
+  "production_strategy": 64,
+  "status": "zero-capital-forward-shadow",
+  "methodology": {
+    "cohorts": [
+      "most recent 5000 eligible resolved sports markets",
+      "next older disjoint 5000 eligible resolved sports markets"
+    ],
+    "rules_tested_per_cohort": 60,
+    "lead_hours": [12, 18, 24, 30, 36],
+    "entry_bands": "grid from 0.55 through 0.95",
+    "modeled_cost_cents": 2,
+    "selection": "one highest-priced eligible favorite per contest",
+    "split": "60% train / 20% validation / 20% untouched holdout",
+    "strict_gate": "positive lower 90% confidence bound in train, validation, and untouched holdout"
+  },
+  "recent_5000": {
+    "train_rules_passing": 19,
+    "validation_rules_passing": 5,
+    "holdout_rules_passing": 0,
+    "closest_rule": {
+      "id": "lead30_0.55-0.75",
+      "train_mean": 0.12789,
+      "train_lower_90": 0.03068,
+      "validation_mean": 0.09454,
+      "validation_lower_90": 0.0101,
+      "holdout_mean": 0.09368,
+      "holdout_lower_90": -0.00833
+    }
+  },
+  "older_disjoint_5000": {
+    "train_rules_passing": 5,
+    "validation_rules_passing": 0,
+    "holdout_rules_passing": 0,
+    "closest_rule": {
+      "id": "lead30_0.55-0.75",
+      "train_mean": 0.01857,
+      "train_lower_90": -0.0588,
+      "validation_mean": 0.05567,
+      "validation_lower_90": -0.04222,
+      "holdout_mean": 0.08661,
+      "holdout_lower_90": -0.01431
+    },
+    "current_24_hour_broad_rule_segment_means": [-0.039, -0.026, -0.0097]
+  },
+  "decision": {
+    "capital_enabled": false,
+    "initial_position_pct": 0,
+    "promotion_events": 20,
+    "promotion_lower_90_minimum": 0.005,
+    "promoted_position_pct": 0.75,
+    "maximum_promotion_events": 40,
+    "maximum_position_pct": 1,
+    "reason": "No rule survived both disjoint archives with a positive lower confidence bound in every chronological partition. Recent positive point estimates are insufficient evidence for capital."
+  }
+}
