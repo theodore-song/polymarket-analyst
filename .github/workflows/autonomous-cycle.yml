@@ -35,7 +35,8 @@ jobs:
       - run: node scripts/run-autonomous-cycle.mjs
         env:
           ARENA_URL: https://polymarket-site-eta.vercel.app
-          EXPECTED_BUILD: "119"
+          # Keep Build 118 advancing until the Vercel free deployment quota resets.
+          EXPECTED_BUILD: "118"
           RUNTIME_BRANCH: runtime-state
           RUNTIME_STATE_PATH: runtime/state.json
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

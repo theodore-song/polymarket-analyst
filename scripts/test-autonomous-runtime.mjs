@@ -51,7 +51,7 @@ assert.match(api, /Buffer\.from\(file\.content/);
 assert.match(api, /searchParams\.set\("runtime", `\$\{Date\.now\(\)\}/);
 assert.match(workflow, /cron: "2,7,12,17,22,27,32,37,42,47,52,57 \* \* \* \*"/);
 assert.match(workflow, /contents: write/);
-assert.match(workflow, /EXPECTED_BUILD: "119"/);
+assert.match(workflow, /EXPECTED_BUILD: "118"/);
 assert.match(workflow, /actions: write/);
 assert.match(workflow, /cancel-in-progress: false/);
 assert.match(workflow, /next=\$\(\( \(now \/ 300 \+ 1\) \* 300 \+ 15 \)\)/);
