@@ -65,10 +65,13 @@ three-hour shock window count as one learner event.
 
 Each Build 121 cycle also scans the 1,000 most-active Polymarket events for
 complete negative-risk bundles and logically nested threshold or deadline
-pairs. Gamma's market-specific fee flag replaces the old blanket 0.5-cent fee
-reserve for markets declared fee-free. The closest 60 structures are then
-ranked by locked-capital efficiency, with the best structure from each independent
-event checked before alternates from events already represented. They are repriced
+pairs, plus same-market YES/NO complements whose equal shares have a fixed
+$1 redemption value. Gamma's market-specific fee flag replaces the old blanket 0.5-cent fee
+reserve for markets declared fee-free. The scanner keeps the existing 60
+independent-first general structure checks and reserves 20 additional checks for
+same-market complements. Structures are ranked by locked-capital efficiency, with
+the best structure from each independent event checked before alternates from events
+already represented. They are repriced
 from batched CLOB asks from the equal-unit size needed for at least a $50
 paper order up to a $400 verified-notional ceiling. The scanner applies each market's Gamma fee schedule at every
 consumed ask level and checks the CLOB fee-rate endpoint for a matching enabled
