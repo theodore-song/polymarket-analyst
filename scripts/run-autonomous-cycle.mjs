@@ -128,7 +128,7 @@ async function main() {
   const branch = process.env.RUNTIME_BRANCH || "runtime-state";
   const pathname = process.env.RUNTIME_STATE_PATH || "runtime/state.json";
   const arenaUrl = (process.env.ARENA_URL || "https://polymarket-site-eta.vercel.app").replace(/\/$/, "");
-  const expectedBuild = Number(required("EXPECTED_BUILD", "112"));
+  const expectedBuild = Number(required("EXPECTED_BUILD", "113"));
   await ensureRuntimeBranch(repository, branch);
   const prior = await readRuntimeFile(repository, branch, pathname);
   if (prior.snapshot) validateRuntimeSnapshot(prior.snapshot, 0, { allowIncomplete: true });

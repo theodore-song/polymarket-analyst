@@ -14,10 +14,11 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: autonomous-paper-cycle
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   cycle:
@@ -34,7 +35,28 @@ jobs:
       - run: node scripts/run-autonomous-cycle.mjs
         env:
           ARENA_URL: https://polymarket-site-eta.vercel.app
-          EXPECTED_BUILD: "112"
+          EXPECTED_BUILD: "113"
           RUNTIME_BRANCH: runtime-state
           RUNTIME_STATE_PATH: runtime/state.json
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Wait for the next five-minute slot
+        if: success()
+        shell: bash
+        run: |
+          now=$(date +%s)
+          next=$(( (now / 300 + 1) * 300 + 15 ))
+          delay=$(( next - now ))
+          echo "Next autonomous slot starts in ${delay}s"
+          sleep "$delay"
+      - name: Dispatch the next autonomous cycle
+        if: success()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer ${GITHUB_TOKEN}" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/autonomous-cycle.yml/dispatches" \
+            --data '{"ref":"main"}'

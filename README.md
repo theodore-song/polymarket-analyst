@@ -20,9 +20,12 @@ market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
 
-Build 112 runs the headless GitHub Actions runtime every five minutes, continues
-from the previous agent snapshot,
-and runs the next due paper cycle even when no browser is open. It writes a
+Build 113 targets five-minute slots with a self-chained GitHub Actions runtime.
+It continues from the previous agent snapshot and runs the next due paper cycle
+even when no browser is open. After each successful cycle, one repo-scoped
+workflow dispatch waits for the next five-minute boundary; concurrency
+cancellation prevents competing chains, a failed cycle does not self-repeat,
+and the cron schedule remains as recovery. The runtime writes a
 sanitized snapshot to the `runtime-state` branch and `/api/state` uses that as a
 read-only fallback while Neon or Vercel Blob is unavailable. The public snapshot
 contains only `pma_agents_v2` and `pma_suggestions_v5`, with suggestions capped at
@@ -36,9 +39,7 @@ headless browser also rebuilds a minimal timestamped market cache from those two
 public items on every restart. A complete network outage can therefore continue
 the existing 90-minute cached-entry and 24-hour mark-only policy without adding
 another synchronized key; strategies that require fresh order-book depth remain
-blocked until live connectivity returns.
-The
-five shock-strategy adopters now learn from one shared,
+blocked until live connectivity returns. The five shock-strategy adopters now learn from one shared,
 event-deduplicated forward ledger. A trade allocated to one agent therefore
 teaches the other four without copying its cash or P&L; shared positive evidence
 can promote bounded size and shared negative evidence disables the lane.
@@ -47,7 +48,7 @@ Polymarket event key. Related Ethereum or Bitcoin contracts cannot create
 several simultaneous copies of one move, and outcomes from the same underlying
 three-hour shock window count as one learner event.
 
-Each Build 112 cycle also scans the 1,000 most-active Polymarket events for
+Each Build 113 cycle also scans the 1,000 most-active Polymarket events for
 complete negative-risk bundles and logically nested threshold or deadline
 pairs. Gamma's market-specific fee flag replaces the old blanket 0.5-cent fee
 reserve for markets declared fee-free. The closest 60 structures are then
@@ -63,7 +64,7 @@ The Suggestions view stores scan, depth, fee, actionable, and closest
 executable-margin counts so an empty lane is evidence rather than an ambiguous
 failure.
 
-Build 112 retains the directional learner's exact-fee policy, which replaced the blanket half-cent cost with
+Build 113 retains the directional learner's exact-fee policy, which replaced the blanket half-cent cost with
 the market's Gamma fee schedule at both the entry and future checkpoint, plus a
 separate half-cent round-trip slippage allowance. Fee-free markets pay only the
 slippage allowance; an unavailable fee schedule gets a conservative four-cent
@@ -79,7 +80,7 @@ directional evidence under fee policy 2 and keeps those lanes observation-only
 until current independent 24-hour and 72-hour cohorts pass the existing
 promotion gate.
 
-Build 112 retains Build 100's retirement of the old 3-6 day resolution-window
+Build 113 retains Build 100's retirement of the old 3-6 day resolution-window
 capital permission. That audit clustered confidence by event but still averaged
 several correlated contracts inside each event, while production could choose
 only one. The corrected replay chooses the highest-volume eligible contract per event and
@@ -199,7 +200,7 @@ evidence proves an edge.
 
 Run `npm run evaluate:sports-favorites` for the retired pregame favorite audit.
 Its 12-hour, 60%-75% cohort had positive point estimates but did not establish a
-reliable confidence bound, so Build 112 no longer allocates capital to that rule.
+reliable confidence bound, so Build 113 no longer allocates capital to that rule.
 
 Strategy 62 instead uses the exact-fee settlement calibration's three-day Sports
 NO cohort as a bounded paper exploration lane. The corrected 5,000-market run
