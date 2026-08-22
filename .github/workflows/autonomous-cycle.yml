@@ -18,7 +18,7 @@ permissions:
 
 concurrency:
   group: autonomous-paper-cycle
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   cycle:
@@ -35,7 +35,7 @@ jobs:
       - run: node scripts/run-autonomous-cycle.mjs
         env:
           ARENA_URL: https://polymarket-site-eta.vercel.app
-          EXPECTED_BUILD: "113"
+          EXPECTED_BUILD: "114"
           RUNTIME_BRANCH: runtime-state
           RUNTIME_STATE_PATH: runtime/state.json
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
