@@ -1161,7 +1161,7 @@ function dominanceBundleSuggestions(event,{includeUnprofitable=false}={}){
     if(!contract||outcomes.length!==2||outcomes[0]!=="yes"||outcomes[1]!=="no"||prices.length!==2||tokens.length!==2
       ||!tokens[0]||!tokens[1]||!Number.isFinite(yesBid)||!Number.isFinite(yesAsk)||yesBid<0||yesAsk>1||yesAsk<yesBid
       ||liquidity<NEG_RISK_MIN_LIQUIDITY||raw.closed||raw.active===false||raw.acceptingOrders===false)return null;
-    return Object.assign({},contract,{market_id:String(raw.id||""),question:String(raw.question||"").trim(),yes_bid:yesBid,yes_ask:yesAsk,
+    return Object.assign({},contract,{market_id:String(raw.id||""),condition_id:String(raw.conditionId||""),question:String(raw.question||"").trim(),yes_bid:yesBid,yes_ask:yesAsk,
       yes_mid:prices[0],no_mid:prices[1],yes_token:tokens[0],no_token:tokens[1],liquidity,
       volume:toNum(raw.volumeNum||raw.volume),volume_24hr:toNum(raw.volume24hr),spread:toNum(raw.spread),
       fees_enabled:raw.feesEnabled===false?false:true,fee_schedule:normalizeBundleFeeSchedule(raw),
@@ -1177,7 +1177,7 @@ function dominanceBundleSuggestions(event,{includeUnprofitable=false}={}){
       const lower=ordered[left],higher=ordered[right],deadline=lower.kind==="deadline";
       const superset=deadline?null:(lower.direction==="above"?lower:higher),subset=deadline?null:(lower.direction==="above"?higher:lower);
       const pair=deadline?[{quote:lower,side:"NO"},{quote:higher,side:"YES"}]:[{quote:superset,side:"YES"},{quote:subset,side:"NO"}];
-      const legs=pair.map(({quote,side})=>{const topAsk=side==="YES"?quote.yes_ask:1-quote.yes_bid,feeReserve=bundleFeeReserve({feesEnabled:quote.fees_enabled,feeSchedule:quote.fee_schedule},topAsk);return {market_id:quote.market_id,question:quote.question,side,
+      const legs=pair.map(({quote,side})=>{const topAsk=side==="YES"?quote.yes_ask:1-quote.yes_bid,feeReserve=bundleFeeReserve({feesEnabled:quote.fees_enabled,feeSchedule:quote.fee_schedule},topAsk);return {market_id:quote.market_id,condition_id:quote.condition_id,question:quote.question,side,
         token_id:side==="YES"?quote.yes_token:quote.no_token,
         top_ask_price:topAsk,fee_reserve:feeReserve,fees_enabled:quote.fees_enabled,fee_schedule:quote.fee_schedule,
         entry_price:topAsk+feeReserve,
@@ -1218,7 +1218,7 @@ function negativeRiskBundleSuggestion(event,{includeUnprofitable=false}={}){
   const quotes=rawLegs.map(raw=>{
     const outcomes=parseJsonField(raw.outcomes).map(outcome=>String(outcome||"").trim().toLowerCase());
     const prices=parseJsonField(raw.outcomePrices).map(toNum),tokens=parseJsonField(raw.clobTokenIds).map(String);
-    return {market_id:String(raw.id||""),question:(raw.question||"").trim(),yes_bid:toNum(raw.bestBid,NaN),yes_ask:toNum(raw.bestAsk,NaN),
+    return {market_id:String(raw.id||""),condition_id:String(raw.conditionId||""),question:(raw.question||"").trim(),yes_bid:toNum(raw.bestBid,NaN),yes_ask:toNum(raw.bestAsk,NaN),
       yes_mid:prices[0],no_mid:prices[1],yes_token:tokens[0]||null,no_token:tokens[1]||null,
       fees_enabled:raw.feesEnabled===false?false:true,fee_schedule:normalizeBundleFeeSchedule(raw),raw_market:raw,
       binary_labels:outcomes[0]==="yes"&&outcomes[1]==="no",liquidity:toNum(raw.liquidityNum||raw.liquidity),url:event.slug?`https://polymarket.com/event/${event.slug}`:""};
@@ -1230,7 +1230,7 @@ function negativeRiskBundleSuggestion(event,{includeUnprofitable=false}={}){
     const yesSide=side==="YES",payout=yesSide?1:quotes.length-1;
     const legs=quotes.map(leg=>{
       const topAsk=yesSide?leg.yes_ask:1-leg.yes_bid,feeReserve=bundleFeeReserve(leg.raw_market,topAsk),entry=topAsk+feeReserve,current=yesSide?leg.yes_mid:leg.no_mid;
-      return {market_id:leg.market_id,question:leg.question,side,token_id:yesSide?leg.yes_token:leg.no_token,
+      return {market_id:leg.market_id,condition_id:leg.condition_id,question:leg.question,side,token_id:yesSide?leg.yes_token:leg.no_token,
         top_ask_price:+topAsk.toFixed(4),fee_reserve:feeReserve,fees_enabled:leg.fees_enabled,fee_schedule:leg.fee_schedule,
         entry_price:+entry.toFixed(4),current_price:+Number(current).toFixed(4),liquidity:leg.liquidity,url:leg.url};
     });
@@ -1274,9 +1274,9 @@ function binaryComplementBundleSuggestions(event,{includeUnprofitable=false}={})
     const yesFee=bundleFeeReserve({feesEnabled,feeSchedule},yesAsk),noAsk=1-yesBid,noFee=bundleFeeReserve({feesEnabled,feeSchedule},noAsk);
     const url=event.slug?`https://polymarket.com/event/${event.slug}`:"",yesMid=Number(prices[0]),noMid=Number(prices[1]);
     const legs=[
-      {market_id:String(raw.id||""),question:raw.question||event.title||"Binary market",side:"YES",token_id:tokens[0],top_ask_price:+yesAsk.toFixed(4),fee_reserve:yesFee,
+      {market_id:String(raw.id||""),condition_id:String(raw.conditionId||""),question:raw.question||event.title||"Binary market",side:"YES",token_id:tokens[0],top_ask_price:+yesAsk.toFixed(4),fee_reserve:yesFee,
         fees_enabled:feesEnabled,fee_schedule:feeSchedule,entry_price:+(yesAsk+yesFee).toFixed(4),current_price:+yesMid.toFixed(4),liquidity,url},
-      {market_id:String(raw.id||""),question:raw.question||event.title||"Binary market",side:"NO",token_id:tokens[1],top_ask_price:+noAsk.toFixed(4),fee_reserve:noFee,
+      {market_id:String(raw.id||""),condition_id:String(raw.conditionId||""),question:raw.question||event.title||"Binary market",side:"NO",token_id:tokens[1],top_ask_price:+noAsk.toFixed(4),fee_reserve:noFee,
         fees_enabled:feesEnabled,fee_schedule:feeSchedule,entry_price:+(noAsk+noFee).toFixed(4),current_price:+noMid.toFixed(4),liquidity,url},
     ];
     if(!eventId||!legs[0].market_id||legs.some(leg=>!Number.isFinite(leg.current_price)||leg.entry_price<=0||leg.entry_price>=1))return null;
@@ -1408,17 +1408,28 @@ async function fetchBundleBooks(tokenIds){
   }
   return books;
 }
-async function fetchBundleFeeRates(tokenIds){
-  const unique=[...new Set((tokenIds||[]).map(String).filter(Boolean))],results=new Map();
+function normalizeClobFeeSchedule(raw){
+  const details=raw&&raw.fd;if(details==null)return {rate:0,exponent:1,takerOnly:true};
+  const rate=Number(details.r),exponent=Number(details.e);
+  return Number.isFinite(rate)&&rate>=0&&Number.isFinite(exponent)&&exponent>0
+    ?{rate,exponent,takerOnly:details.to!==false}:null;
+}
+function bundleFeeSchedulesMatch(expected,reported){
+  return Boolean(expected&&reported&&Math.abs(Number(expected.rate)-Number(reported.rate))<=1e-9
+    &&Math.abs(Number(expected.exponent)-Number(reported.exponent))<=1e-9
+    &&Boolean(expected.takerOnly)===Boolean(reported.takerOnly));
+}
+async function fetchBundleFeeSchedules(conditionIds){
+  const unique=[...new Set((conditionIds||[]).map(String).filter(Boolean))],results=new Map();
   let cursor=0;
   const workers=Array.from({length:Math.min(BUNDLE_FEE_CONCURRENCY,unique.length)},async()=>{
     while(cursor<unique.length){
-      const token=unique[cursor++];
+      const conditionId=unique[cursor++];
       try{
-        const response=await fetchWithTimeout(`${CLOB}/fee-rate?token_id=${encodeURIComponent(token)}`);
-        if(!response.ok){results.set(token,null);continue;}
-        const payload=await response.json(),rate=Number(payload&&payload.base_fee);results.set(token,Number.isFinite(rate)?rate:null);
-      }catch(e){results.set(token,null);}
+        const response=await fetchWithTimeout(`${CLOB}/clob-markets/${encodeURIComponent(conditionId)}`);
+        if(!response.ok){results.set(conditionId,null);continue;}
+        const payload=await response.json();results.set(conditionId,normalizeClobFeeSchedule(payload));
+      }catch(e){results.set(conditionId,null);}
     }
   });
   await Promise.all(workers);return results;
@@ -1441,11 +1452,11 @@ async function verifyExecutableBundles(candidates){
     &&Number(candidate.bundle_net_profit_per_unit)>=NEG_RISK_MIN_NET_PROFIT&&Number(candidate.net_edge)>=NEG_RISK_MIN_NET_RETURN
     &&Number(candidate.bundle_capital_efficiency)>=BUNDLE_MIN_DAILY_RETURN
     &&(candidate.bundle_legs||[]).every(leg=>leg.fee_config_valid));
-  const reportedFees=await fetchBundleFeeRates(potentiallyActionable.flatMap(candidate=>candidate.bundle_legs.map(leg=>leg.token_id)));
+  const reportedFees=await fetchBundleFeeSchedules(potentiallyActionable.flatMap(candidate=>candidate.bundle_legs.map(leg=>leg.condition_id)));
   return depthChecked.map(candidate=>{
     const feeConfigValid=(candidate.bundle_legs||[]).every(leg=>leg.fee_config_valid);
     const feesVerified=feeConfigValid&&(candidate.bundle_legs||[]).every(leg=>{
-      const reported=reportedFees.get(String(leg.token_id));return Number.isFinite(reported)&&(leg.fees_enabled===false?reported===0:reported>0);
+      const reported=reportedFees.get(String(leg.condition_id||""));return bundleFeeSchedulesMatch(leg.fee_schedule,reported);
     });
     const capitalEfficient=Number(candidate.bundle_capital_efficiency)>=BUNDLE_MIN_DAILY_RETURN;
     const actionable=candidate.depth_verified&&feesVerified&&capitalEfficient
@@ -7867,6 +7878,10 @@ function runEngineSelfTest(){
       usesMarketSpecificZeroFee:Boolean(zeroFeeBundleSuggestion&&zeroFeeBundleSuggestion.friction===0
         &&zeroFeeBundleSuggestion.bundle_cost_per_unit===0.95&&zeroFeeBundleSuggestion.bundle_net_profit_per_unit===0.05),
       appliesPublishedFeeCurve:bundleFeePerShare({rate:0.07,exponent:1,takerOnly:true},0.5)===0.0175,
+      normalizesClobFeeFreeMarkets:bundleFeeSchedulesMatch({rate:0,exponent:1,takerOnly:true},normalizeClobFeeSchedule({fd:null})),
+      acceptsExactClobFeeCurve:bundleFeeSchedulesMatch({rate:0.05,exponent:1,takerOnly:true},normalizeClobFeeSchedule({fd:{r:0.05,e:1,to:true}})),
+      rejectsMismatchedClobFeeCurve:!bundleFeeSchedulesMatch({rate:0.05,exponent:1,takerOnly:true},normalizeClobFeeSchedule({fd:{r:0.04,e:1,to:true}})),
+      rejectsMissingClobFeeCurve:!bundleFeeSchedulesMatch({rate:0.05,exponent:1,takerOnly:true},null),
       depthVwapConsumesMultipleAskLevels:depthVwapFixture===0.396,
       sizesToLargestVerifiedProfitableFill:scalableBundleQuote.units===421.05&&Math.abs(scalableBundleQuote.notional-399.9975)<0.0001
         &&scalableBundleQuote.net_return>0.05,
