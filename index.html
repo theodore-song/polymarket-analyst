@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 62 · contest-level learning · build 108</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 62 · contest-level learning · build 109</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 108 active:</b> The public paper agents run autonomously every five minutes while every user device is closed. Each cycle scans the 500 most-active eligible markets and 1,000 most-active events, carries exact Gamma fee schedules through cloud and offline caches, and checks complete bundles against live depth. Strategy 62 adds a bounded sports-contest NO exploration lane: one highest-priced NO contract per real contest near the three-day checkpoint, exact entry fee plus slippage, 0.5% initial size, 3% total cap, and automatic forward promotion or suspension. This point-positive historical pattern is not a proven edge. Phones and computers display the same read-only autonomous state. Profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 109 active:</b> The public paper agents run autonomously every five minutes while every user device is closed. Each cycle scans the 500 most-active eligible markets and 1,000 most-active events, carries exact Gamma fee schedules through cloud and offline caches, and checks complete bundles against live depth. Strategy 62 adds a bounded sports-contest NO exploration lane: one highest-priced NO contract per real contest near the three-day checkpoint, exact entry fee plus slippage, 0.5% initial size, 3% total cap, and automatic forward promotion or suspension. Intact guaranteed bundles are conservatively marked at no less than their cost basis, while modeled profit remains unbooked until settlement. This point-positive historical pattern is not a proven edge. Phones and computers display the same read-only autonomous state. Profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 108 · Adaptive strategy 62 · Five-minute autonomous scans · Exact-fee directional learning · Contest-deduplicated sports exploration · Live depth, fee, and size-verified bundle audit · Corrected one-decision-per-event settlement audit · Autonomous runtime 1 · Offline runtime 2 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 109 · Adaptive strategy 62 · Five-minute autonomous scans · Exact-fee directional learning · Conservative intact-bundle accounting · Contest-deduplicated sports exploration · Live depth, fee, and size-verified bundle audit · Corrected one-decision-per-event settlement audit · Autonomous runtime 1 · Offline runtime 2 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 108;
+const BUILD_VERSION = 109;
 const AGENT_LEARNING_VERSION = 3;
 const SUGGESTION_ENGINE_VERSION = 62;
 const MAKER_STRATEGY_VERSION = 3;
@@ -2247,7 +2247,54 @@ async function notifyTradeDigest(events,{test=false}={}){
 }
 
 /* ---------- Agent mechanics ---------- */
-const equity=(p)=>p.cash+p.positions.reduce((s,x)=>s+x.shares*x.current_price,0);
+function completeBundleGroups(p){
+  const groups=new Map();
+  (p&&Array.isArray(p.positions)?p.positions:[]).forEach(pos=>{
+    if(!pos.requires_complete_bundle||!pos.bundle_id)return;
+    const key=String(pos.bundle_id),group=groups.get(key)||[];group.push(pos);groups.set(key,group);
+  });
+  return [...groups.values()].filter(group=>{
+    const expected=Math.max(...group.map(pos=>Number(pos.bundle_leg_count||0)));
+    const shares=group.map(pos=>Number(pos.shares||0));
+    return expected>=2&&group.length===expected&&shares.every(value=>value>0&&Math.abs(value-shares[0])<=0.02);
+  });
+}
+function completeBundleAccountingFloor(group){
+  const cost=group.reduce((sum,pos)=>sum+Number(pos.cost||0),0);
+  const payoutPerUnit=Math.min(...group.map(pos=>Number(pos.bundle_payout_per_unit||0)));
+  const units=Math.min(...group.map(pos=>Number(pos.shares||0)));
+  const settlementFloor=units*payoutPerUnit;
+  return settlementFloor+0.005>=cost?cost:0;
+}
+function portfolioPositionValue(p){
+  const positions=p&&Array.isArray(p.positions)?p.positions:[];
+  let total=positions.reduce((sum,pos)=>sum+Number(pos.shares||0)*Number(pos.current_price||0),0);
+  completeBundleGroups(p).forEach(group=>{
+    const raw=group.reduce((sum,pos)=>sum+Number(pos.shares||0)*Number(pos.current_price||0),0);
+    total+=Math.max(0,completeBundleAccountingFloor(group)-raw);
+  });
+  return total;
+}
+function applyCompleteBundleAccountingMarks(p){
+  completeBundleGroups(p).forEach(group=>{
+    const raw=group.reduce((sum,pos)=>sum+Number(pos.shares||0)*Number(pos.current_price||0),0);
+    const floor=completeBundleAccountingFloor(group),adjustment=Math.max(0,floor-raw);
+    const cost=group.reduce((sum,pos)=>sum+Number(pos.cost||0),0);
+    let distributed=0;
+    group.forEach((pos,index)=>{
+      const rawValue=Number(pos.shares||0)*Number(pos.current_price||0);
+      const weight=cost>0?Number(pos.cost||0)/cost:1/group.length;
+      const allocated=index===group.length-1
+        ? adjustment-distributed
+        : Number((adjustment*weight).toFixed(2));
+      distributed+=allocated;
+      pos.raw_value=+rawValue.toFixed(2);pos.bundle_mark_adjustment=+allocated.toFixed(2);
+      pos.value=+(pos.raw_value+pos.bundle_mark_adjustment).toFixed(2);
+      pos.unrealized_pnl=+(pos.value-Number(pos.cost||0)).toFixed(2);
+    });
+  });
+}
+const equity=(p)=>p.cash+portfolioPositionValue(p);
 const hasPosition=(p,id)=>p.positions.some(x=>x.market_id===id);
 function recentReturnDelta(p){
   const snaps=(p.snapshots||[]).slice(-3);
@@ -3356,6 +3403,7 @@ function markToMarket(p,priceMap,cfg=null,{policyExits=false,executeTrades=true}
     stillOpen.push(pos);
   }
   p.positions=stillOpen;
+  applyCompleteBundleAccountingMarks(p);
 }
 function makerSpreadBand(spread){return Number(spread)<=0.03?"tight":Number(spread)<=0.05?"medium":"wide";}
 function makerRewardBand(row){
@@ -6169,6 +6217,8 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
   tradeLossBudgetPct,
   boundedStakeForRisk,
   bundleMinimumExecutionUnits,
+  portfolioPositionValue,
+  applyCompleteBundleAccountingMarks,
   sportsFavoritePilotSuggestion,
   sportsContestKey,
   sportsContestNoSuggestions,
@@ -6873,6 +6923,16 @@ function runEngineSelfTest(){
     ]});
   const repricedBoundaryBook=defaultPortfolio();
   const repricedBoundaryOpen=openNegativeRiskBundle(repricedBoundaryBook,AGENTS.find(a=>a.id==="value"),repricedBoundaryCandidate,400,null);
+  const conservativeBundleMarkBook=JSON.parse(JSON.stringify(repricedBoundaryBook));
+  conservativeBundleMarkBook.positions.forEach(pos=>{
+    pos.current_price=+(Number(pos.current_price)*0.75).toFixed(6);
+    pos.value=+(Number(pos.shares)*Number(pos.current_price)).toFixed(2);
+    pos.unrealized_pnl=+(pos.value-Number(pos.cost)).toFixed(2);
+  });
+  const conservativeBundleRawValue=conservativeBundleMarkBook.positions.reduce((sum,pos)=>sum+Number(pos.value),0);
+  applyCompleteBundleAccountingMarks(conservativeBundleMarkBook);
+  const conservativeBundleAccountedValue=conservativeBundleMarkBook.positions.reduce((sum,pos)=>sum+Number(pos.value),0);
+  const conservativeBundleCost=conservativeBundleMarkBook.positions.reduce((sum,pos)=>sum+Number(pos.cost),0);
   const undersizedBoundaryCandidate=Object.assign({},repricedBoundaryCandidate,{execution_units:50.04});
   const undersizedBoundaryBook=defaultPortfolio();
   openPositions(undersizedBoundaryBook,AGENTS.find(a=>a.id==="value"),[undersizedBoundaryCandidate],"All",{
@@ -7329,6 +7389,10 @@ function runEngineSelfTest(){
       liveRepricingRoundsUpToMinimumNotional:repricedBoundaryUnits===50.21&&repricedBoundaryUnits*0.996041>=BUNDLE_MIN_NOTIONAL+0.009,
       repricedMinimumNotionalOpensAtomically:Boolean(repricedBoundaryOpen&&repricedBoundaryBook.positions.length===2
         &&repricedBoundaryOpen.cost>=BUNDLE_MIN_NOTIONAL),
+      intactBundleDoesNotShowArtificialLoss:conservativeBundleRawValue<conservativeBundleCost
+        &&Math.abs(conservativeBundleAccountedValue-conservativeBundleCost)<=0.01
+        &&Math.abs(equity(conservativeBundleMarkBook)-STARTING_BALANCE)<=0.01,
+      modeledSettlementProfitIsNotBookedEarly:Math.abs(equity(conservativeBundleMarkBook)-STARTING_BALANCE)<=0.01,
       undersizedAtomicFailureIsReported:undersizedBoundaryBook.positions.length===0
         &&undersizedBoundaryBook.lastDecision.rejectionCounts.bundle_execution===1,
       blocksUnverifiedBundleEntry:unverifiedBundleOpen===null&&unverifiedBundleBook.positions.length===0&&unverifiedBundleBook.cash===STARTING_BALANCE,
