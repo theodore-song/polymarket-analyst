@@ -20,7 +20,7 @@ market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
 
-Build 104 runs the headless GitHub Actions runtime every five minutes, continues
+Build 105 runs the headless GitHub Actions runtime every five minutes, continues
 from the previous agent snapshot,
 and runs the next due paper cycle even when no browser is open. It writes a
 sanitized snapshot to the `runtime-state` branch and `/api/state` uses that as a
@@ -41,7 +41,7 @@ Polymarket event key. Related Ethereum or Bitcoin contracts cannot create
 several simultaneous copies of one move, and outcomes from the same underlying
 three-hour shock window count as one learner event.
 
-Each Build 104 cycle also scans the 1,000 most-active Polymarket events for
+Each Build 105 cycle also scans the 1,000 most-active Polymarket events for
 complete negative-risk bundles and logically nested threshold or deadline
 pairs. Gamma's market-specific fee flag replaces the old blanket 0.5-cent fee
 reserve for markets declared fee-free. The closest 60 structures are then
@@ -57,12 +57,14 @@ The Suggestions view stores scan, depth, fee, actionable, and closest
 executable-margin counts so an empty lane is evidence rather than an ambiguous
 failure.
 
-Build 104 also replaces the directional learner's blanket half-cent cost with
+Build 105 also replaces the directional learner's blanket half-cent cost with
 the market's Gamma fee schedule at both the entry and future checkpoint, plus a
 separate half-cent round-trip slippage allowance. Fee-free markets pay only the
 slippage allowance; an unavailable fee schedule gets a conservative four-cent
 fee reserve and cannot look artificially profitable. Fee metadata survives
-cloud compaction and offline caching. The exact-fee replay covered the top 1,000
+cloud compaction and offline caching. Unfinished observations from the prior fee
+policy are replaced immediately, while completed historical outcomes remain
+available at reduced weight. The exact-fee replay covered the top 1,000
 active markets and 208 independent events: broad trends, reversals, and
 favorite trends all had 90% upper bounds below zero at 12 hours. A separate
 3,000-recently-closed-market study tested 297 one-decision-per-event settlement
@@ -71,7 +73,7 @@ directional evidence under fee policy 2 and keeps those lanes observation-only
 until current independent 24-hour and 72-hour cohorts pass the existing
 promotion gate.
 
-Build 104 retains Build 100's retirement of the old 3-6 day resolution-window
+Build 105 retains Build 100's retirement of the old 3-6 day resolution-window
 capital permission. That audit clustered confidence by event but still averaged
 several correlated contracts inside each event, while production could choose
 only one. The corrected replay chooses the highest-volume eligible contract per event and
