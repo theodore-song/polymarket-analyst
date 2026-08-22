@@ -2,7 +2,7 @@ name: Release Build 121 after Vercel quota reset
 
 on:
   schedule:
-    - cron: "15 8 23 8 *"
+    - cron: "15 13 23 8 *"
   workflow_dispatch:
 
 permissions:
