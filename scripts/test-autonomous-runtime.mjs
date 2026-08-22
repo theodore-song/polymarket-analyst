@@ -10,7 +10,7 @@ const resolutionAudit = JSON.parse(fs.readFileSync(new URL("../research/resoluti
 const sportsContestAudit = JSON.parse(fs.readFileSync(new URL("../research/sports-contest-no-exploration-audit.json", import.meta.url), "utf8"));
 const build = Number(index.match(/const BUILD_VERSION = (\d+);/)?.[1]);
 
-assert.equal(build, 115);
+assert.equal(build, 116);
 assert.deepEqual([...ALLOWED_RUNTIME_KEYS].sort(), ["pma_agents_v2", "pma_suggestions_v5"]);
 assert.match(index, /function collectPublicRuntimeItems\(\)/);
 assert.match(index, /const PUBLIC_RUNTIME_KEYS=Object\.freeze\(\[AGENTS_KEY,SUG_KEY\]\)/);
@@ -40,7 +40,7 @@ assert.match(api, /Buffer\.from\(file\.content/);
 assert.match(api, /searchParams\.set\("runtime", `\$\{Date\.now\(\)\}/);
 assert.match(workflow, /cron: "2,7,12,17,22,27,32,37,42,47,52,57 \* \* \* \*"/);
 assert.match(workflow, /contents: write/);
-assert.match(workflow, /EXPECTED_BUILD: "115"/);
+assert.match(workflow, /EXPECTED_BUILD: "116"/);
 assert.match(workflow, /actions: write/);
 assert.match(workflow, /cancel-in-progress: false/);
 assert.match(workflow, /next=\$\(\( \(now \/ 300 \+ 1\) \* 300 \+ 15 \)\)/);
@@ -54,6 +54,10 @@ assert.match(index, /const BUNDLE_DEPTH_CANDIDATE_LIMIT=60;/);
 assert.match(index, /bundleRequiresDepthVerification:true/);
 assert.match(index, /bundleRequiresClobFeeVerification:true/);
 assert.match(index, /function bundleExecutableLeg\(book,units,feeSchedule\)/);
+assert.match(index, /function maximizeBundleExecution\(candidate,books,minimumUnits\)/);
+assert.match(index, /const BUNDLE_MAX_VERIFIED_NOTIONAL=400;/);
+assert.match(index, /sizesToLargestVerifiedProfitableFill:/);
+assert.match(index, /stopsSizingAtShallowestBundleLeg:/);
 assert.match(index, /!s\.depth_verified\|\|!s\.fees_verified\|\|s\.verification_status!=="executable"/);
 assert.match(runner, /MAX_STATE_BYTES = 900_000/);
 assert.equal(resolutionAudit.strategy, "resolution-window-no-50-55-forward-shadow-v3");

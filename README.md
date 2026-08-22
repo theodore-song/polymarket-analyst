@@ -20,7 +20,7 @@ market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
 
-Build 115 targets five-minute slots with a serialized, self-chained GitHub Actions runtime.
+Build 116 targets five-minute slots with a serialized, self-chained GitHub Actions runtime.
 It continues from the previous agent snapshot and runs the next due paper cycle
 even when no browser is open. After each successful cycle, one repo-scoped
 workflow dispatch waits for the next five-minute boundary; one concurrency group
@@ -29,7 +29,10 @@ and the cron schedule remains as recovery. The runtime writes a
 sanitized snapshot to the `runtime-state` branch and `/api/state` uses that as a
 read-only fallback while Neon or Vercel Blob is unavailable. The public snapshot
 contains only `pma_agents_v2` and `pma_suggestions_v5`, with suggestions capped at
-300 to keep cross-device loads small. Paper accounts, passwords, email settings,
+300 to keep cross-device loads small. The API preserves oldest-first pending
+observations plus fee schedules, agent promotion scopes, and verified bundle
+capacity from the bounded runtime instead of applying its older lossy compactor.
+Paper accounts, passwords, email settings,
 investment allocations, chat history, wallet information, and live-money
 settings are explicitly excluded. While that fallback is active, ordinary
 phones and computers are display-only and cannot fork the public portfolio with
@@ -48,15 +51,18 @@ Polymarket event key. Related Ethereum or Bitcoin contracts cannot create
 several simultaneous copies of one move, and outcomes from the same underlying
 three-hour shock window count as one learner event.
 
-Each Build 115 cycle also scans the 1,000 most-active Polymarket events for
+Each Build 116 cycle also scans the 1,000 most-active Polymarket events for
 complete negative-risk bundles and logically nested threshold or deadline
 pairs. Gamma's market-specific fee flag replaces the old blanket 0.5-cent fee
 reserve for markets declared fee-free. The closest 60 structures are then
-repriced from batched CLOB asks at the equal-unit size needed for at least a $50
-paper order. The scanner applies each market's Gamma fee schedule at every
+repriced from batched CLOB asks from the equal-unit size needed for at least a $50
+paper order up to a $400 verified-notional ceiling. The scanner applies each market's Gamma fee schedule at every
 consumed ask level and checks the CLOB fee-rate endpoint for a matching enabled
 or fee-free state. Any opened position is capped to the exact equal-unit size
-that passed this depth test. A bundle can enter Value Discipline only when that fee check
+of the largest fill that stays profitable and passes this depth test; portfolio
+cash, reserve, and 4% limits can reduce it further. Existing paper bundles are
+never retroactively enlarged against depth their original simulated fill would
+already have consumed. A bundle can enter Value Discipline only when that fee check
 passes and the resulting worst-case payout clears both the three-tenths-cent
 profit floor and the 0.15% return floor. Top-of-book gaps, missing books,
 incomplete fee schedules, and unavailable fee verification remain audit-only.
@@ -64,7 +70,7 @@ The Suggestions view stores scan, depth, fee, actionable, and closest
 executable-margin counts so an empty lane is evidence rather than an ambiguous
 failure.
 
-Build 115 retains the directional learner's exact-fee policy, which replaced the blanket half-cent cost with
+Build 116 retains the directional learner's exact-fee policy, which replaced the blanket half-cent cost with
 the market's Gamma fee schedule at both the entry and future checkpoint, plus a
 separate half-cent round-trip slippage allowance. Fee-free markets pay only the
 slippage allowance; an unavailable fee schedule gets a conservative four-cent
@@ -80,7 +86,7 @@ directional evidence under fee policy 2 and keeps those lanes observation-only
 until current independent 24-hour and 72-hour cohorts pass the existing
 promotion gate.
 
-Build 115 retains Build 100's retirement of the old 3-6 day resolution-window
+Build 116 retains Build 100's retirement of the old 3-6 day resolution-window
 capital permission. That audit clustered confidence by event but still averaged
 several correlated contracts inside each event, while production could choose
 only one. The corrected replay chooses the highest-volume eligible contract per event and
@@ -200,7 +206,7 @@ evidence proves an edge.
 
 Run `npm run evaluate:sports-favorites` for the retired pregame favorite audit.
 Its 12-hour, 60%-75% cohort had positive point estimates but did not establish a
-reliable confidence bound, so Build 115 no longer allocates capital to that rule.
+reliable confidence bound, so Build 116 no longer allocates capital to that rule.
 
 Strategy 62 instead uses the exact-fee settlement calibration's three-day Sports
 NO cohort as a bounded paper exploration lane. The corrected 5,000-market run

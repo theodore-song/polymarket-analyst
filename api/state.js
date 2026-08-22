@@ -14,7 +14,7 @@ const PAPER_KEY = "pma_paper_accounts_v1";
 const LIVE_KEY = "pma_live_readiness_v1";
 const AGENT_IDS = ["value", "momentum", "favorite", "longshot", "diversifier", "catalyst", "reversal", "breakout", "tailalpha", "conviction"];
 const LIMITS = { closed: 80, history: 160, snapshots: 240, suggestions: 900, paperHistory: 120, paperSnapshots: 120, audit: 120 };
-const SIGNAL_LEDGER_LIMITS = { pending: 300, outcomes: 500 };
+const SIGNAL_LEDGER_LIMITS = { pending: 600, outcomes: 1000 };
 const RUNTIME_ALLOWED_KEYS = new Set([AGENTS_KEY, SUG_KEY]);
 
 function withBlobAuth(options = {}) {
@@ -200,8 +200,8 @@ async function latestVersionedStateBlob() {
   return readBlobJson(newest.pathname);
 }
 
-function cycleVersion(cycle = "") {
-  const m = String(cycle).match(/\|v(\d+)$/);
+export function cycleVersion(cycle = "") {
+  const m = String(cycle).match(/\|[vs](\d+)$/);
   return m ? Number(m[1]) : 0;
 }
 
@@ -261,7 +261,7 @@ export function compactAgentState(st) {
   }
   if (st.signal_ledger && typeof st.signal_ledger === "object") {
     out.signal_ledger = {
-      pending: Array.isArray(st.signal_ledger.pending) ? st.signal_ledger.pending.slice(-SIGNAL_LEDGER_LIMITS.pending) : [],
+      pending: Array.isArray(st.signal_ledger.pending) ? st.signal_ledger.pending.slice(0, SIGNAL_LEDGER_LIMITS.pending) : [],
       outcomes: Array.isArray(st.signal_ledger.outcomes) ? st.signal_ledger.outcomes.slice(-SIGNAL_LEDGER_LIMITS.outcomes) : [],
       expired_ungraded: Number(st.signal_ledger.expired_ungraded || 0),
     };
@@ -280,15 +280,23 @@ export function compactSuggestion(s) {
     net_edge: s.net_edge, friction: s.friction, chase_penalty: s.chase_penalty,
     evidence_score: s.evidence_score, evidence_source_count: s.evidence_source_count, quality: s.quality,
     conviction: s.conviction, volume: s.volume, volume_24hr: s.volume_24hr, liquidity: s.liquidity,
+    fees_enabled: s.fees_enabled, fee_schedule: s.fee_schedule,
     spread: s.spread, price_change_1h: s.price_change_1h, price_change_1d: s.price_change_1d, price_change_1w: s.price_change_1w,
     momentum_strength: s.momentum_strength, signal_strength: s.signal_strength, signal_confidence: s.signal_confidence,
     signal_type: s.signal_type, trade_ready: s.trade_ready, entry_candidate: s.entry_candidate,
     audited_observation_only: s.audited_observation_only, adaptive_promotion: s.adaptive_promotion,
+    promoted_for_agents: s.promoted_for_agents,
     watch_only: s.watch_only, jump_risk: s.jump_risk, requires_live: s.requires_live,
     bundle_id: s.bundle_id, bundle_side: s.bundle_side, bundle_logic: s.bundle_logic, bundle_cost_per_unit: s.bundle_cost_per_unit,
     bundle_payout_per_unit: s.bundle_payout_per_unit, bundle_net_profit_per_unit: s.bundle_net_profit_per_unit,
-    bundle_legs: s.bundle_legs,
-    days_to_resolution: s.days_to_resolution, pilot_prior: s.pilot_prior,
+    bundle_legs: s.bundle_legs, depth_verified: s.depth_verified, fees_verified: s.fees_verified,
+    fee_model: s.fee_model, execution_model: s.execution_model, execution_units: s.execution_units,
+    execution_notional: s.execution_notional, verification_status: s.verification_status,
+    days_to_resolution: s.days_to_resolution, end_date: s.end_date, game_start: s.game_start,
+    hours_to_start: s.hours_to_start, target_horizon_days: s.target_horizon_days,
+    resolution_week_strategy_version: s.resolution_week_strategy_version,
+    sports_contest_strategy_version: s.sports_contest_strategy_version, entry_fee: s.entry_fee,
+    pilot_prior: s.pilot_prior,
     shock_move_1h: s.shock_move_1h, shock_prior_move_1h: s.shock_prior_move_1h, shock_move_3h: s.shock_move_3h,
     shock_observed_at: s.shock_observed_at, shock_strategy_version: s.shock_strategy_version,
     drivers: s.drivers, rationale: s.rationale,
