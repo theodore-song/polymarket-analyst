@@ -23,7 +23,7 @@ Offline cycles can apply calibration already earned from live observations, but
 the evidence ledger is read-only: cached prices cannot grade pending signals,
 expire horizons, or create new observations.
 
-Build 143 targets five-minute slots with a serialized, self-chained GitHub Actions runtime.
+Build 144 targets five-minute slots with a serialized, self-chained GitHub Actions runtime.
 The mutable snapshot stays on the dedicated `runtime-state` branch, which is
 explicitly excluded from Vercel Git deployments through
 `git.deploymentEnabled`. This prevents high-frequency state commits from
@@ -137,6 +137,15 @@ the exact post-touch hedge-or-unwind checks. This addresses the live Build 142 c
 which a protected complete-YES quote remained at 25 cents after the currently safe bid
 had moved to 27 cents, reducing fill probability despite the new bid retaining positive
 protected economics.
+
+Build 144 adds a fill-competitiveness gate after the protected-price search. A
+candidate must place at least 5% into its current spread. The binary search still
+evaluates every higher price first, so a one-tick baseline is not rejected when a more
+competitive price remains inside the exact profit, duration, fee, and 3% immediate-unwind limits.
+This removes deep wide-spread bids like the Sachsen observation, whose quote sat only
+3.1% into the spread and never came within 13 cents of any trade during the inspected
+six-hour CLOB history, while retaining tighter quotes such as the adaptive deadline
+observation.
 
 Build 136 also preserves verified complete-NO conversion metadata after a
 maker-assisted touch. Once that cohort earns paper promotion, buying the remaining
