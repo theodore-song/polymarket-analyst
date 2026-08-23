@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 65 · duration-aware protected returns · build 126</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 65 · expanded executable search · build 127</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 126 active:</b> Strategy 65 keeps directional capital locked because its forward evidence remains negative after exact costs. Protected entries now adapt their hurdle to expected lock time: 0.03% per day through 7 days, 0.04% through 30, 0.05% through 90, and 0.075% beyond 90 days. Every entry also needs at least $0.50 of executable locked profit, exact depth and fees, and a 0.10c per-unit safety margin. Duration-aware 6-10% sizing remains inside the 12% event cap. Phones and computers display the same read-only autonomous state. Profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 127 active:</b> Strategy 65 now exact-depth-checks 200 protected structures per cycle instead of 80, while reserving 40 checks each for complete-NO conversions and binary complements. The larger search preserves every economic gate: duration-aware return hurdles, at least $0.50 of executable locked profit, exact depth and fees, a 0.10c per-unit safety margin, 6-10% sizing, and the 12% event cap. Directional capital remains locked while its forward evidence is negative after exact costs. Phones and computers display the same read-only autonomous state. Profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 126 · Adaptive strategy 65 · Exact-fee complete-NO conversion · Evidence-first bounded snapshots · Six-hour bounded probation with matched executable exits · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Duration-aware, event-capped verified bundles · Scale-aware executable-profit floor · Atomic verified bundle-profit recycling · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 127 · Adaptive strategy 65 · Expanded independent-event executable search · Exact-fee complete-NO conversion · Evidence-first bounded snapshots · Six-hour bounded probation with matched executable exits · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Duration-aware, event-capped verified bundles · Scale-aware executable-profit floor · Atomic verified bundle-profit recycling · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 126;
+const BUILD_VERSION = 127;
 const AGENT_LEARNING_VERSION = 3;
 const SUGGESTION_ENGINE_VERSION = 65;
 const MAKER_STRATEGY_VERSION = 3;
@@ -1783,9 +1783,9 @@ const NEG_RISK_MIN_LIQUIDITY=1000;
 const NEG_RISK_MIN_NET_PROFIT=0.001;
 const NEG_RISK_MIN_NET_RETURN=0.0015;
 const BUNDLE_BOOK_BATCH_SIZE=200;
-const BUNDLE_DEPTH_CANDIDATE_LIMIT=80;
-const BINARY_COMPLEMENT_DEPTH_RESERVE=20;
-const NEG_RISK_CONVERSION_DEPTH_RESERVE=20;
+const BUNDLE_DEPTH_CANDIDATE_LIMIT=200;
+const BINARY_COMPLEMENT_DEPTH_RESERVE=40;
+const NEG_RISK_CONVERSION_DEPTH_RESERVE=40;
 const NEG_RISK_POLYGON_RPC="https://polygon.drpc.org";
 const NEG_RISK_ADAPTER_ADDRESS="0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296";
 const NEG_RISK_FEE_BIPS_SELECTOR="0x2582cb5e";
@@ -7844,9 +7844,9 @@ function runEngineSelfTest(){
     Object.assign({},dominanceSuggestion,{bundle_id:"dominance:event-b:a:b",bundle_event_id:"event-b",net_edge:0.02,days_to_resolution:5}),
   ],3);
   const binaryReserveOrder=bundleVerificationShortlist([
-    ...Array.from({length:90},(_,index)=>Object.assign({},dominanceSuggestion,{bundle_id:`dominance:general-${index}:a:b`,bundle_event_id:`general-${index}`,net_edge:0.10-index/1000,days_to_resolution:5})),
-    ...Array.from({length:30},(_,index)=>Object.assign({},binaryComplementSuggestion,{bundle_id:`binary:reserved-${index}:market`,bundle_event_id:`reserved-${index}`,net_edge:-0.01-index/1000})),
-    ...Array.from({length:30},(_,index)=>Object.assign({},convertibleNoBundleSuggestion,{bundle_id:`bundle:conversion-${index}:no`,bundle_event_id:`conversion-${index}`,net_edge:-0.02-index/1000})),
+    ...Array.from({length:180},(_,index)=>Object.assign({},dominanceSuggestion,{bundle_id:`dominance:general-${index}:a:b`,bundle_event_id:`general-${index}`,net_edge:0.10-index/1000,days_to_resolution:5})),
+    ...Array.from({length:60},(_,index)=>Object.assign({},binaryComplementSuggestion,{bundle_id:`binary:reserved-${index}:market`,bundle_event_id:`reserved-${index}`,net_edge:-0.01-index/1000})),
+    ...Array.from({length:60},(_,index)=>Object.assign({},convertibleNoBundleSuggestion,{bundle_id:`bundle:conversion-${index}:no`,bundle_event_id:`conversion-${index}`,net_edge:-0.02-index/1000})),
   ]);
   const eventCapBook=defaultPortfolio();
   eventCapBook.cash=8800;
