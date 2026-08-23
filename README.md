@@ -23,17 +23,17 @@ Offline cycles can apply calibration already earned from live observations, but
 the evidence ledger is read-only: cached prices cannot grade pending signals,
 expire horizons, or create new observations.
 
-Build 124 targets five-minute slots with a serialized, self-chained GitHub Actions runtime.
+Build 125 targets five-minute slots with a serialized, self-chained GitHub Actions runtime.
 The mutable snapshot stays on the dedicated `runtime-state` branch, which is
 explicitly excluded from Vercel Git deployments through
 `git.deploymentEnabled`. This prevents high-frequency state commits from
 consuming Preview deployment quota while ordinary `main` source commits still
 produce Production deployments.
 It continues from the previous agent snapshot and runs the next due paper cycle
-even when no browser is open. After each successful cycle, one repo-scoped
+even when no browser is open. After each cycle attempt, one repo-scoped
 workflow dispatch waits for the next five-minute boundary; one concurrency group
-serializes active and pending runs, a failed cycle does not self-repeat,
-and the cron schedule remains as recovery. The runtime writes a
+serializes active and pending runs, and both successful and failed runs hand off
+after the next boundary while the cron schedule remains as recovery. The runtime writes a
 sanitized snapshot to the `runtime-state` branch and `/api/state` uses that as a
 read-only fallback while Neon or Vercel Blob is unavailable. The public snapshot
 contains only `pma_agents_v2` and `pma_suggestions_v5`, with suggestions capped at
@@ -44,11 +44,13 @@ Public maker outcomes retain only calibration fields, action logs are bounded
 to 48 entries per agent, and chart snapshots are evenly sampled once their
 96-point public limit is reached so older dates remain represented. Repetitive
 watch-only explanations are normalized without changing signal fields. If the
-875 KB transport budget is reached, the compactor first protects 75 KB for
+875 KB browser transport budget is reached, the compactor first protects 75 KB for
 learning, reserves up to 144 of the newest completed directional outcomes, and
 then gives the remaining evidence space to the oldest still-pending
 observations. Only after display history reaches its documented floor can the
-public suggestion list fall from 300 to its 240-item emergency floor.
+public suggestion list fall from 300 to its 240-item emergency floor. The headless
+runner applies an additional 850 KB hard target before committing state, leaving
+margin below the API's 900 KB limit.
 Paper accounts, passwords, email settings,
 investment allocations, chat history, wallet information, and live-money
 settings are explicitly excluded. While that fallback is active, ordinary
@@ -68,7 +70,7 @@ Polymarket event key. Related Ethereum or Bitcoin contracts cannot create
 several simultaneous copies of one move, and outcomes from the same underlying
 three-hour shock window count as one learner event.
 
-Each Build 124 cycle also scans the 1,000 most-active Polymarket events for
+Each Build 125 cycle also scans the 1,000 most-active Polymarket events for
 complete negative-risk bundles and logically nested threshold or deadline
 pairs, plus same-market YES/NO complements whose equal shares have a fixed
 $1 redemption value. Polymarket's documented complete-set merge converts equal
@@ -84,10 +86,11 @@ count, all asks and CLOB fee schedules must verify, and the post-conversion proc
 must remain profitable. Missing or inconsistent adapter data cannot produce paper
 P&L. Complete YES sets and logical dominance pairs are not convertible and continue
 to use settlement or verified live-bid exits.
-Bundle capital is split between two independent agents instead of bottlenecking one
-portfolio: Value Hunter owns complete-set merge/conversion opportunities, while The
-Diversifier owns threshold and deadline dominance spreads. A global underlying-event
-claim prevents either book from duplicating exposure already held by the other.
+Bundle capital is split between five independent owners instead of bottlenecking one
+portfolio: Value Hunter owns settlement complete sets, Momentum owns exact complete-NO
+conversions, Breakout owns same-market binary merges, Tail Alpha owns exclusive NO
+pairs, and The Diversifier owns threshold and deadline dominance spreads. A global underlying-event
+claim prevents any owner from duplicating exposure already held by another.
 Gasless CTF operations include merge transactions; see
 [Positions & Tokens](https://docs.polymarket.com/concepts/positions-tokens) and
 [Gasless Transactions](https://docs.polymarket.com/trading/gasless).
@@ -98,15 +101,17 @@ same-market complements. Structures are ranked by locked-capital efficiency, wit
 the best structure from each independent event checked before alternates from events
 already represented. They are repriced
 from batched CLOB asks from the equal-unit size needed for at least a $50
-paper order up to a $400 verified-notional ceiling. The scanner applies each market's Gamma fee schedule at every
+paper order up to a $1,000 verified-notional ceiling. The scanner applies each market's Gamma fee schedule at every
 consumed ask level and checks the exact CLOB condition metadata for a matching
 fee curve or fee-free state. Any opened position is capped to the exact equal-unit size
 of the largest fill that stays profitable and passes this depth test; portfolio
-cash, reserve, and 4% limits can reduce it further. Strategy 65 ranks verified
+cash and reserve limits can reduce it further. Ordinary protected entries use at
+most 6% of equity, entries returning at least 0.20% per locked day use at most 8%,
+and immediate merge or conversion paths use at most 10%. Strategy 65 ranks verified
 structures by net return per expected locked day before raw edge, and caps active
-cost from one underlying event at 12% of Value Hunter equity. This prevents
+cost from one underlying event at 12% of the owning portfolio's equity. This prevents
 several related threshold pairs from monopolizing the non-directional book. New bundles must
-also clear a 0.02% daily locked-capital return floor, approximately 7.3% annualized,
+also clear a 0.05% daily locked-capital return floor, approximately 18.25% simple or 20% compounded annualized,
 so a tiny spread cannot immobilize capital for months. Existing paper bundles are
 never retroactively enlarged against depth their original simulated fill would
 already have consumed. Each live cycle also prices an atomic exit across every bid
@@ -122,7 +127,7 @@ The Suggestions view stores scan, depth, fee, actionable, and closest
 executable-margin counts so an empty lane is evidence rather than an ambiguous
 failure.
 
-Build 124 retains the directional learner's exact-fee policy, which replaced the blanket half-cent cost with
+Build 125 retains the directional learner's exact-fee policy, which replaced the blanket half-cent cost with
 the market's Gamma fee schedule at both the entry and future checkpoint, plus a
 separate half-cent round-trip slippage allowance. Fee-free markets pay only the
 slippage allowance; an unavailable fee schedule gets a conservative four-cent
@@ -155,7 +160,7 @@ target fell to -44.14% in validation and remained negative in holdout, so it
 cannot authorize capital. The reproducible result is stored in
 `research/settlement-calibration-exact-fee-5000-audit.json`.
 
-Build 124 retains Build 100's retirement of the old 3-6 day resolution-window
+Build 125 retains Build 100's retirement of the old 3-6 day resolution-window
 capital permission. That audit clustered confidence by event but still averaged
 several correlated contracts inside each event, while production could choose
 only one. The corrected replay chooses the highest-volume eligible contract per event and
@@ -275,7 +280,7 @@ evidence proves an edge.
 
 Run `npm run evaluate:sports-favorites` for the retired pregame favorite audit.
 Its 12-hour, 60%-75% cohort had positive point estimates but did not establish a
-reliable confidence bound, so Build 124 no longer allocates capital to that rule.
+reliable confidence bound, so Build 125 no longer allocates capital to that rule.
 
 Strategy 65 also tracks the exact-fee settlement calibration's three-day Sports
 NO cohort as a zero-capital forward lane. The corrected 5,000-market run

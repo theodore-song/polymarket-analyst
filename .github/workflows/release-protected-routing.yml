@@ -1,4 +1,4 @@
-name: Release protected agent routing after Vercel quota reset
+name: Release capital-efficient protected sizing after Vercel quota reset
 
 on:
   schedule:
@@ -26,23 +26,23 @@ jobs:
         env:
           ARENA_URL: https://polymarket-site-eta.vercel.app
         run: |
-          if curl --fail --silent --show-error "${ARENA_URL}/?routing_preflight=${GITHUB_RUN_ID}" | grep -q 'routesExclusiveNoPairToTailAlpha'; then
-            echo "Protected agent routing is already live."
+          if curl --fail --silent --show-error "${ARENA_URL}/?sizing_preflight=${GITHUB_RUN_ID}" | grep -q 'bundlePositionCapPct'; then
+            echo "Capital-efficient protected sizing is already live."
             exit 0
           fi
-          printf 'Protected routing deployment retry from run %s at %s\n' "$GITHUB_RUN_ID" "$(date -u +%FT%TZ)" > .protected-routing-release-trigger
+          printf 'Protected sizing deployment retry from run %s at %s\n' "$GITHUB_RUN_ID" "$(date -u +%FT%TZ)" > .capital-efficient-release-trigger
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .protected-routing-release-trigger
-          git commit -m "Retry protected agent routing deployment"
+          git add .capital-efficient-release-trigger
+          git commit -m "Retry capital-efficient protected sizing deployment"
           git push origin HEAD:main
-      - name: Verify the exact routing revision in production
+      - name: Verify the exact sizing revision in production
         env:
           ARENA_URL: https://polymarket-site-eta.vercel.app
         run: |
           for attempt in $(seq 1 40); do
-            if curl --fail --silent --show-error "${ARENA_URL}/?routing_wait=${GITHUB_RUN_ID}-${attempt}" | grep -q 'routesExclusiveNoPairToTailAlpha'; then
-              echo "Protected agent routing is live."
+            if curl --fail --silent --show-error "${ARENA_URL}/?sizing_wait=${GITHUB_RUN_ID}-${attempt}" | grep -q 'bundlePositionCapPct'; then
+              echo "Capital-efficient protected sizing is live."
               exit 0
             fi
             sleep 30

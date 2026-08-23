@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 65 · exact bundle conversion · build 124</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 65 · capital-efficient protected sizing · build 125</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 124 active:</b> Strategy 65 keeps the durable evidence and bounded six-hour probation gates from Strategy 64. Complete negative-risk NO sets now use Polymarket's exact event market ID and conversion fee: after every ask and CLOB fee is verified, all legs convert atomically to collateral instead of locking cash until settlement. YES bundles and logical dominance pairs still remain intact unless verified live bids realize at least 85% of their guaranteed settlement profit. Sports contest NO research remains zero-capital until forward evidence passes. Phones and computers display the same read-only autonomous state. Profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 125 active:</b> Strategy 65 keeps directional capital locked because its forward evidence remains negative after exact costs. Protected entries now require at least 0.05% modeled return per locked day, while short-duration and immediate conversion or merge opportunities can use 6-10% verified sizing inside the unchanged 12% event cap. Complete negative-risk conversions and binary merges realize atomically; settlement bundles remain intact unless verified live bids realize at least 85% of their guaranteed profit. Phones and computers display the same read-only autonomous state. Profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 124 · Adaptive strategy 65 · Exact-fee complete-NO conversion · Evidence-first bounded snapshots · Six-hour bounded probation with matched executable exits · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Capital-efficient, event-capped verified bundles · Atomic verified bundle-profit recycling · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 125 · Adaptive strategy 65 · Exact-fee complete-NO conversion · Evidence-first bounded snapshots · Six-hour bounded probation with matched executable exits · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Capital-efficient, event-capped verified bundles · Duration-aware protected sizing · Atomic verified bundle-profit recycling · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 3 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 124;
+const BUILD_VERSION = 125;
 const AGENT_LEARNING_VERSION = 3;
 const SUGGESTION_ENGINE_VERSION = 65;
 const MAKER_STRATEGY_VERSION = 3;
@@ -1472,6 +1472,11 @@ function bundleCapitalEfficiency(item={}){
   const lockDays=item.bundle_immediate_merge||item.bundle_immediate_convert?1:(Number.isFinite(days)&&days>0?Math.max(1,days):365);
   return netReturn/lockDays;
 }
+function bundlePositionCapPct(item={}){
+  if(item.bundle_immediate_merge||item.bundle_immediate_convert)return BUNDLE_IMMEDIATE_POSITION_CAP_PCT;
+  return Number(item.bundle_capital_efficiency)>=BUNDLE_HIGH_EFFICIENCY_DAILY_RETURN
+    ?BUNDLE_HIGH_EFFICIENCY_POSITION_CAP_PCT:BUNDLE_BASE_POSITION_CAP_PCT;
+}
 function compareBundleOpportunities(a,b){
   return bundleCapitalEfficiency(b)-bundleCapitalEfficiency(a)
     ||Number(b.net_edge||-Infinity)-Number(a.net_edge||-Infinity)
@@ -1760,9 +1765,13 @@ const NEG_RISK_RPC_BATCH_CALL_LIMIT=10;
 const BUNDLE_FEE_CONCURRENCY=8;
 const BUNDLE_MIN_NOTIONAL=50;
 const BUNDLE_MIN_UNITS=5;
-const BUNDLE_MAX_VERIFIED_NOTIONAL=400;
+const BUNDLE_MAX_VERIFIED_NOTIONAL=1000;
 const BUNDLE_EVENT_CAP_PCT=0.12;
-const BUNDLE_MIN_DAILY_RETURN=0.00002;
+const BUNDLE_MIN_DAILY_RETURN=0.0005;
+const BUNDLE_BASE_POSITION_CAP_PCT=0.06;
+const BUNDLE_HIGH_EFFICIENCY_POSITION_CAP_PCT=0.08;
+const BUNDLE_IMMEDIATE_POSITION_CAP_PCT=0.10;
+const BUNDLE_HIGH_EFFICIENCY_DAILY_RETURN=0.002;
 const BUNDLE_EXIT_PROFIT_CAPTURE=0.85;
 const BUNDLE_EXIT_MIN_REALIZED_PROFIT=0.01;
 const SPORTS_FAVORITE_MIN_ENTRY=0.03;
@@ -4702,7 +4711,7 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
     if(s.quality==="bundle-arb"){
       const eventCapacity=Math.max(0,eq*BUNDLE_EVENT_CAP_PCT-bundleEventExposure(p,bundleEventKey(s)));
       if(eventCapacity<BUNDLE_MIN_NOTIONAL){reject("bundle_event_cap");continue;}
-      const bundleStake=boundedStakeForRisk(eq,Math.min(eq*Math.min(d.maxFrac,0.04),investable,eventCapacity),cfg,s);
+      const bundleStake=Math.min(eq*bundlePositionCapPct(s),investable,eventCapacity,BUNDLE_MAX_VERIFIED_NOTIONAL);
       const bundle=openNegativeRiskBundle(p,cfg,s,bundleStake,decision);
       if(!bundle){reject("bundle_execution");continue;}
       cycleBudgetRemaining=Math.max(0,cycleBudgetRemaining-bundle.cost);
@@ -7697,7 +7706,7 @@ function runEngineSelfTest(){
   const depthVwapFixture=bundleExecutableAsk({asks:[{price:"0.40",size:"30"},{price:"0.39",size:"20"}]},50);
   const scalableBundlePrices=[0.30,0.31,0.34];
   const scalableBundleBooks=new Map((zeroFeeBundleSuggestion.bundle_legs||[]).map((leg,index)=>[String(leg.token_id),
-    {min_order_size:"5",asks:[{price:String(scalableBundlePrices[index]),size:"500"}]}]));
+    {min_order_size:"5",asks:[{price:String(scalableBundlePrices[index]),size:"2000"}]}]));
   const scalableBundleQuote=maximizeBundleExecution(zeroFeeBundleSuggestion,scalableBundleBooks,bundleMinimumExecutionUnits(0.95));
   const depthLimitedBundleBooks=new Map((zeroFeeBundleSuggestion.bundle_legs||[]).map((leg,index)=>[String(leg.token_id),
     {min_order_size:"5",asks:[{price:String(scalableBundlePrices[index]),size:String(index===2?120:500)}]}]));
@@ -7804,6 +7813,20 @@ function runEngineSelfTest(){
   openPositions(slowCapitalBook,agentById("diversifier"),[slowCapitalSuggestion],"All",{
     minConv:0,maxNew:1,maxFrac:0.04,reserve:0.10,targetExposure:0.60,learning:buildAdaptiveProfile(slowCapitalBook),marketLearning:{samples:0,pending:0,buckets:{}},
   },new Set(),{});
+  const highEfficiencyBundle=Object.assign({},dominanceSuggestion,{bundle_id:"dominance:high-efficiency:a:b",bundle_event_id:"high-efficiency",
+    bundle_capital_efficiency:BUNDLE_HIGH_EFFICIENCY_DAILY_RETURN*1.5,execution_units:2000});
+  const highEfficiencyBook=defaultPortfolio();
+  openPositions(highEfficiencyBook,agentById("diversifier"),[highEfficiencyBundle],"All",{
+    minConv:0,maxNew:1,maxFrac:0.04,reserve:0.05,targetExposure:0.90,learning:buildAdaptiveProfile(highEfficiencyBook),marketLearning:{samples:0,pending:0,buckets:{}},
+  },new Set(),{});
+  const highEfficiencyCost=highEfficiencyBook.positions.reduce((sum,pos)=>sum+Number(pos.cost||0),0);
+  const eventBurstBook=defaultPortfolio(),eventBurstSuggestions=Array.from({length:4},(_,index)=>Object.assign({},highEfficiencyBundle,{
+    bundle_id:`dominance:event-burst:leg-${index}-a:leg-${index}-b`,bundle_event_id:"event-burst",
+  }));
+  openPositions(eventBurstBook,Object.assign({},agentById("diversifier"),{aggressive:true}),eventBurstSuggestions,"All",{
+    minConv:0,maxNew:4,maxFrac:0.04,reserve:0.05,targetExposure:0.90,learning:buildAdaptiveProfile(eventBurstBook),marketLearning:{samples:0,pending:0,buckets:{}},
+  },new Set(),{});
+  const eventBurstExposure=bundleEventExposure(eventBurstBook,"event-burst");
   const unverifiedBundleBook=defaultPortfolio(),unverifiedBundleOpen=openNegativeRiskBundle(unverifiedBundleBook,AGENTS.find(a=>a.id==="value"),
     Object.assign({},bundleSuggestion,{depth_verified:false,verification_status:"top-of-book-estimate"}),100,null);
   const depthCappedBundleBook=defaultPortfolio(),depthCappedBundle=Object.assign({},bundleSuggestion,{execution_units:50});
@@ -8370,6 +8393,11 @@ function runEngineSelfTest(){
       derivesLegacyBundleEventKey:bundleEventKey({bundle_id:"dominance:legacy-event:market-a:market-b"})==="legacy-event",
       capsUnderlyingEventExposure:eventCapBook.positions.length===2&&eventCapBook.lastDecision.rejectionCounts.bundle_event_cap===1,
       blocksLowReturnPerLockedDay:slowCapitalBook.positions.length===0&&slowCapitalBook.lastDecision.rejectionCounts.bundle_capital_efficiency===1,
+      durationAwareSizingScalesProtectedCapital:highEfficiencyBook.positions.length===2
+        &&highEfficiencyCost>=799.9&&highEfficiencyCost<=800.1&&bundlePositionCapPct(highEfficiencyBundle)===0.08,
+      sameCycleEventBurstStaysWithinCap:eventBurstExposure<=STARTING_BALANCE*BUNDLE_EVENT_CAP_PCT+0.01
+        &&new Set(eventBurstBook.positions.map(pos=>pos.bundle_id)).size===2
+        &&eventBurstBook.lastDecision.rejectionCounts.bundle_event_cap>=1,
       consumesLiveBidDepthForExit:bundleExecutableSaleLeg({bids:[{price:"0.50",size:"30"},{price:"0.49",size:"20"}]},50,{rate:0,exponent:1,takerOnly:true}).bid_price===0.496,
       holdsWhenOnlyEightyPercentProfitIsAvailable:!belowCaptureBundleExit.actionable&&belowCaptureBundleExit.status==="capture-below-threshold"
         &&belowCaptureBundleExit.capture_ratio===0.8,
@@ -8386,7 +8414,7 @@ function runEngineSelfTest(){
       rejectsMismatchedClobFeeCurve:!bundleFeeSchedulesMatch({rate:0.05,exponent:1,takerOnly:true},normalizeClobFeeSchedule({fd:{r:0.04,e:1,to:true}})),
       rejectsMissingClobFeeCurve:!bundleFeeSchedulesMatch({rate:0.05,exponent:1,takerOnly:true},null),
       depthVwapConsumesMultipleAskLevels:depthVwapFixture===0.396,
-      sizesToLargestVerifiedProfitableFill:scalableBundleQuote.units===421.05&&Math.abs(scalableBundleQuote.notional-399.9975)<0.0001
+      sizesToLargestVerifiedProfitableFill:scalableBundleQuote.units===1052.63&&Math.abs(scalableBundleQuote.notional-999.9985)<0.0001
         &&scalableBundleQuote.net_return>0.05,
       stopsSizingAtShallowestBundleLeg:depthLimitedBundleQuote.units>=119.9&&depthLimitedBundleQuote.units<=120
         &&depthLimitedBundleQuote.notional<=BUNDLE_MAX_VERIFIED_NOTIONAL,
