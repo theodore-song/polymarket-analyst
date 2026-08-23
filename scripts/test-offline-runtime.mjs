@@ -17,5 +17,8 @@ assert.match(worker, /"\/cycle-worker\.js"/);
 assert.match(cycleWorker, /const INTERVAL_MS = 60000;/);
 assert.match(index, /requires_live:true/);
 assert.match(index, /runMode==="live"\|\|!next\.requires_live/);
+assert.match(index, /adaptive_probation:s\.adaptive_probation/);
+assert.match(index, /probation_exit_hours:s\.probation_exit_hours/);
+assert.match(index, /awaiting-probation-executable-exit/);
 
 console.log(`offline runtime verified for Build ${build}`);

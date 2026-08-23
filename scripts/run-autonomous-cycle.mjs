@@ -13,6 +13,127 @@ const FORBIDDEN_RUNTIME_KEYS = Object.freeze([
   "pma_paid_agent_chat_v1",
 ]);
 const MAX_STATE_BYTES = 900_000;
+const TRANSPORT_HISTORY_LIMIT = 24;
+const TRANSPORT_SNAPSHOT_LIMIT = 96;
+const TRANSPORT_MAKER_OUTCOME_LIMIT = 30;
+const TRANSPORT_TARGET_BYTES = 875_000;
+const TRANSPORT_HISTORY_FLOOR = 12;
+const TRANSPORT_MAKER_OUTCOME_FLOOR = 12;
+const TRANSPORT_SUGGESTION_FLOOR = 240;
+
+function sampleSnapshots(rows, limit = TRANSPORT_SNAPSHOT_LIMIT) {
+  const list = Array.isArray(rows) ? rows : [];
+  if (list.length <= limit) return list;
+  const recentCount = Math.min(24, limit);
+  const older = list.slice(0, -recentCount);
+  const olderSlots = limit - recentCount;
+  const sampled = [];
+  for (let i = 0; i < olderSlots; i += 1) {
+    const index = olderSlots === 1 ? older.length - 1 : Math.round(i * (older.length - 1) / (olderSlots - 1));
+    if (older[index] && sampled.at(-1) !== older[index]) sampled.push(older[index]);
+  }
+  return sampled.concat(list.slice(-recentCount)).slice(-limit);
+}
+
+function compactHistoryRow(row) {
+  if (!row || typeof row !== "object") return row;
+  return {
+    date: row.date,
+    action: row.action,
+    question: typeof row.question === "string" ? row.question.slice(0, 140) : row.question,
+    side: row.side,
+    detail: typeof row.detail === "string" ? row.detail.slice(0, 220) : row.detail,
+  };
+}
+
+function compactPublicSuggestion(suggestion) {
+  if (!suggestion || typeof suggestion !== "object") return suggestion;
+  const out = { ...suggestion };
+  if (suggestion.trade_ready || suggestion.adaptive_probation || suggestion.bundle_id) {
+    out.drivers = Array.isArray(suggestion.drivers) ? suggestion.drivers.slice(0, 1).map(value => String(value).slice(0, 80)) : [];
+    out.rationale = typeof suggestion.rationale === "string"
+      ? suggestion.rationale.slice(0, 180)
+      : "Trade-ready opportunity passed the active execution gate.";
+  } else {
+    out.drivers = [];
+    out.rationale = suggestion.jump_risk
+      ? "Watch only: settlement-gap risk prevents a protected entry."
+      : suggestion.signal_type && suggestion.signal_type !== "none"
+        ? "Watch only: gathering independent forward evidence before capital is enabled."
+        : "Watch only: no independently confirmed direction yet.";
+    delete out.clob_yes;
+    delete out.clob_no;
+  }
+  return out;
+}
+
+function compactDecision(decision) {
+  if (!decision || typeof decision !== "object") return decision;
+  const out = { ...decision };
+  if (out.makerProfile && typeof out.makerProfile === "object") {
+    out.makerProfile = { version: out.makerProfile.version, outcomes: out.makerProfile.outcomes, global: out.makerProfile.global };
+  }
+  if (out.learning && typeof out.learning === "object") {
+    out.learning = { ...out.learning };
+    delete out.learning.buckets;
+    delete out.learning.current_buckets;
+  }
+  if (out.marketLearning && typeof out.marketLearning === "object") {
+    out.marketLearning = { ...out.marketLearning };
+    delete out.marketLearning.buckets;
+  }
+  return out;
+}
+
+function compactMakerOutcome(row) {
+  if (!row || typeof row !== "object") return row;
+  return {
+    quote_id: row.quote_id, market_id: row.market_id, event_key: row.event_key, category: row.category,
+    spread: row.spread, spread_band: row.spread_band, reward_yield_band: row.reward_yield_band, status: row.status,
+    pnl: row.pnl, shadow_only: row.shadow_only, deployed_capital: row.deployed_capital, reserved_capital: row.reserved_capital,
+    completed_at: row.completed_at, strategy_version: row.strategy_version, maker_strategy_version: row.maker_strategy_version,
+  };
+}
+
+export function compactRuntimeTransportSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== "object" || !snapshot.items) return snapshot;
+  const out = { ...snapshot, items: { ...snapshot.items } };
+  let state;
+  let suggestions;
+  try {
+    state = JSON.parse(out.items[AGENTS_KEY]);
+    suggestions = JSON.parse(out.items[SUGGESTIONS_KEY]);
+  } catch {
+    return out;
+  }
+  for (const portfolio of Object.values(state.agents || {})) {
+    portfolio.history = (portfolio.history || []).slice(-TRANSPORT_HISTORY_LIMIT).map(compactHistoryRow);
+    portfolio.snapshots = sampleSnapshots(portfolio.snapshots, TRANSPORT_SNAPSHOT_LIMIT);
+    portfolio.maker_outcomes = (portfolio.maker_outcomes || []).slice(-TRANSPORT_MAKER_OUTCOME_LIMIT).map(compactMakerOutcome);
+    portfolio.lastDecision = compactDecision(portfolio.lastDecision);
+  }
+  suggestions.suggestions = (suggestions.suggestions || []).slice(0, 300).map(compactPublicSuggestion);
+  out.items[AGENTS_KEY] = JSON.stringify(state);
+  out.items[SUGGESTIONS_KEY] = JSON.stringify(suggestions);
+  if (Buffer.byteLength(JSON.stringify(out)) > TRANSPORT_TARGET_BYTES) {
+    for (const portfolio of Object.values(state.agents || {})) {
+      portfolio.history = (portfolio.history || []).slice(-TRANSPORT_HISTORY_FLOOR);
+      portfolio.maker_outcomes = (portfolio.maker_outcomes || []).slice(-TRANSPORT_MAKER_OUTCOME_FLOOR);
+    }
+    suggestions.suggestions = suggestions.suggestions.slice(0, TRANSPORT_SUGGESTION_FLOOR);
+    out.items[AGENTS_KEY] = JSON.stringify(state);
+    out.items[SUGGESTIONS_KEY] = JSON.stringify(suggestions);
+  }
+  if (out.summary && out.summary.signal_ledger && state.signal_ledger) {
+    const pending = Array.isArray(state.signal_ledger.pending) ? state.signal_ledger.pending.length : 0;
+    const outcomes = Array.isArray(state.signal_ledger.outcomes) ? state.signal_ledger.outcomes.length : 0;
+    out.summary.signal_ledger.pending_retained = pending;
+    out.summary.signal_ledger.pending_total = Math.max(Number(out.summary.signal_ledger.pending_total || 0), pending);
+    out.summary.signal_ledger.outcomes_retained = outcomes;
+    out.summary.signal_ledger.outcomes_total = Math.max(Number(out.summary.signal_ledger.outcomes_total || 0), outcomes);
+  }
+  return out;
+}
 
 function required(name, fallback = "") {
   const value = process.env[name] || fallback;
@@ -24,7 +145,7 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-export function validateRuntimeSnapshot(snapshot, expectedBuild = 0) {
+export function validateRuntimeSnapshot(snapshot, expectedBuild = 0, { allowIncomplete = false } = {}) {
   if (!snapshot || typeof snapshot !== "object" || !snapshot.items || typeof snapshot.items !== "object") {
     throw new Error("Autonomous export is not a state snapshot");
   }
@@ -47,7 +168,12 @@ export function validateRuntimeSnapshot(snapshot, expectedBuild = 0) {
   if (expectedBuild && Number(snapshot.build_version) !== Number(expectedBuild)) {
     throw new Error(`Expected Build ${expectedBuild}, received Build ${snapshot.build_version}`);
   }
-  if ((suggestions.suggestions || []).length > 300) throw new Error("Runtime suggestion snapshot exceeds the 300-item public limit");
+  const suggestionCount = (suggestions.suggestions || []).length;
+  if (suggestionCount > 300) throw new Error("Runtime suggestion snapshot exceeds the 300-item public limit");
+  if (!allowIncomplete && suggestionCount === 0) throw new Error("Runtime cycle produced no live suggestions");
+  if (!allowIncomplete && Object.values(agents.agents).some(agent => !agent?.lastDecision)) {
+    throw new Error("Runtime cycle did not produce a decision for every agent");
+  }
   const bytes = Buffer.byteLength(JSON.stringify(snapshot));
   if (bytes > MAX_STATE_BYTES) throw new Error(`Runtime snapshot is ${bytes} bytes; limit is ${MAX_STATE_BYTES}`);
   return { snapshot, bytes, agents, suggestions };
@@ -113,6 +239,9 @@ async function waitForProductionBuild(page, arenaUrl, expectedBuild) {
     await page.waitForFunction(() => Boolean(window.PMA_AUTOMATION), null, { timeout: 20_000 }).catch(() => {});
     const status = await page.evaluate(() => window.PMA_AUTOMATION?.status?.() || null);
     if (Number(status?.build) === expectedBuild) return status;
+    if (Number(status?.build) > expectedBuild) {
+      throw new Error(`Production already advanced to Build ${status.build}; retiring stale Build ${expectedBuild} runner`);
+    }
     await sleep(20_000);
   }
   throw new Error(`Production did not reach Build ${expectedBuild} before the autonomous cycle deadline`);
@@ -123,10 +252,10 @@ async function main() {
   const branch = process.env.RUNTIME_BRANCH || "runtime-state";
   const pathname = process.env.RUNTIME_STATE_PATH || "runtime/state.json";
   const arenaUrl = (process.env.ARENA_URL || "https://polymarket-site-eta.vercel.app").replace(/\/$/, "");
-  const expectedBuild = Number(required("EXPECTED_BUILD", "88"));
+  const expectedBuild = Number(required("EXPECTED_BUILD", "121"));
   await ensureRuntimeBranch(repository, branch);
   const prior = await readRuntimeFile(repository, branch, pathname);
-  if (prior.snapshot) validateRuntimeSnapshot(prior.snapshot);
+  if (prior.snapshot) validateRuntimeSnapshot(prior.snapshot, 0, { allowIncomplete: true });
 
   const browser = await chromium.launch({ headless: true });
   try {
@@ -150,7 +279,15 @@ async function main() {
     }, null, { timeout: 12 * 60_000 });
     await page.evaluate(() => window.PMA_AUTOMATION.runCycle());
     await page.waitForFunction(() => !window.PMA_AUTOMATION?.status?.().running, null, { timeout: 12 * 60_000 });
-    const snapshot = await page.evaluate(() => window.PMA_AUTOMATION.exportShared());
+    const rawSnapshot = await page.evaluate(({ agentKey, suggestionsKey }) => {
+      const snapshot = window.PMA_AUTOMATION.exportShared();
+      const agents = localStorage.getItem(agentKey);
+      const suggestions = localStorage.getItem(suggestionsKey);
+      if (agents) snapshot.items[agentKey] = agents;
+      if (suggestions) snapshot.items[suggestionsKey] = suggestions;
+      return snapshot;
+    }, { agentKey: AGENTS_KEY, suggestionsKey: SUGGESTIONS_KEY });
+    const snapshot = compactRuntimeTransportSnapshot(rawSnapshot);
     const validated = validateRuntimeSnapshot(snapshot, expectedBuild);
     await writeRuntimeFile(repository, branch, pathname, snapshot, prior.sha);
     const status = await page.evaluate(() => window.PMA_AUTOMATION.status());

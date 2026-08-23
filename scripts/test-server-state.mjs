@@ -1,12 +1,16 @@
 import assert from "node:assert/strict";
 import { databaseConnectionDiagnostics, databaseUrl, databaseUrls, normalizeDatabaseUrl } from "../lib/db.js";
-import { compactAgentState, compactSuggestion, providerErrorCode, sanitizeGithubRuntimeState } from "../api/state.js";
+import { compactAgentState, compactSuggestion, cycleVersion, providerErrorCode, sanitizeGithubRuntimeState } from "../api/state.js";
 
 assert.equal(normalizeDatabaseUrl("psql 'postgresql://user:pass@example.test/db?sslmode=require'"),
   "postgresql://user:pass@example.test/db?sslmode=require");
 assert.equal(normalizeDatabaseUrl('"postgres://user:pass@example.test/db"'), "postgres://user:pass@example.test/db");
 assert.equal(normalizeDatabaseUrl("DATABASE_URL=postgresql://user:pass@example.test/db"),
   "postgresql://user:pass@example.test/db");
+assert.equal(cycleVersion("2026-08-21T20|v59"), 59);
+assert.equal(cycleVersion("2026-08-21T20:05|s62"), 62);
+assert.equal(cycleVersion("2026-08-21T20:05|s63"), 63);
+assert.equal(cycleVersion("2026-08-21T20:05"), 0);
 
 const originalDatabaseUrl = process.env.DATABASE_URL;
 const originalNeonUrl = process.env.NEON_DATABASE_URL;
@@ -29,16 +33,38 @@ else process.env.NEON_DATABASE_URL = originalNeonUrl;
 
 const compacted = compactSuggestion({
   market_id: "bundle:1:yes", side: "YES", signal_type: "bundle-arb", signal_confidence: 1,
-  entry_candidate: true, adaptive_promotion: false, requires_live: true, bundle_id: "bundle:1:yes",
-  bundle_side: "YES", bundle_logic: "threshold-dominance", bundle_cost_per_unit: 0.95, bundle_payout_per_unit: 1,
-  bundle_net_profit_per_unit: 0.05, bundle_legs: [{ market_id: "1", side: "YES" }],
+  entry_candidate: true, adaptive_promotion: false, requires_live: true, bundle_id: "bundle:1:yes", bundle_event_id: "1",
+  bundle_side: "NO", bundle_logic: "neg-risk-complete-no", bundle_conversion_candidate: true,
+  bundle_conversion_terms_verified: true, bundle_immediate_convert: true,
+  neg_risk_market_id: "0xmarket", neg_risk_fee_bips: 25, neg_risk_metadata_fee_bips: 25,
+  neg_risk_question_count: 3, conversion_verification_status: "verified-onchain", bundle_cost_per_unit: 1.95,
+  bundle_payout_per_unit: 1.995, bundle_settlement_payout_per_unit: 2,
+  bundle_net_profit_per_unit: 0.05, bundle_capital_efficiency: 0.0025, bundle_legs: [{ market_id: "1", side: "YES" }],
+  fees_enabled: false, fee_schedule: { rate: 0, exponent: 1, takerOnly: true },
+  depth_verified: true, fees_verified: true, fee_model: "verified-market-specific", execution_model: "live-order-book-vwap",
+  execution_units: 250, execution_notional: 237.5, verification_status: "executable", promoted_for_agents: ["value"],
 });
 assert.equal(compacted.signal_type, "bundle-arb");
 assert.equal(compacted.entry_candidate, true);
 assert.equal(compacted.requires_live, true);
-assert.equal(compacted.bundle_side, "YES");
-assert.equal(compacted.bundle_logic, "threshold-dominance");
+assert.equal(compacted.bundle_side, "NO");
+assert.equal(compacted.bundle_event_id, "1");
+assert.equal(compacted.bundle_logic, "neg-risk-complete-no");
+assert.equal(compacted.bundle_conversion_candidate, true);
+assert.equal(compacted.bundle_conversion_terms_verified, true);
+assert.equal(compacted.bundle_immediate_convert, true);
+assert.equal(compacted.neg_risk_market_id, "0xmarket");
+assert.equal(compacted.neg_risk_fee_bips, 25);
+assert.equal(compacted.neg_risk_metadata_fee_bips, 25);
+assert.equal(compacted.neg_risk_question_count, 3);
+assert.equal(compacted.conversion_verification_status, "verified-onchain");
+assert.equal(compacted.bundle_settlement_payout_per_unit, 2);
+assert.equal(compacted.bundle_capital_efficiency, 0.0025);
 assert.equal(compacted.bundle_legs.length, 1);
+assert.equal(compacted.fee_schedule.rate, 0);
+assert.equal(compacted.execution_units, 250);
+assert.equal(compacted.verification_status, "executable");
+assert.deepEqual(compacted.promoted_for_agents, ["value"]);
 
 const compactedShock = compactSuggestion({
   market_id: "shock:1", event_key: "event:1", side: "NO", signal_type: "shock-fade-shadow",
@@ -52,6 +78,15 @@ assert.equal(compactedShock.shock_move_3h, 0.12);
 assert.equal(compactedShock.shock_strategy_version, 3);
 assert.equal(compactedShock.pilot_prior.modeled_cost_cents, 2);
 
+const compactedProbation = compactSuggestion({
+  market_id: "probation:1", event_key: "event:probation", side: "YES", signal_type: "trend",
+  trade_ready: true, entry_candidate: true, adaptive_probation: true, probation_exit_hours: 6,
+  promoted_for_agents: ["momentum"], fee_schedule: { rate: 0.04, exponent: 1, takerOnly: true },
+});
+assert.equal(compactedProbation.adaptive_probation, true);
+assert.equal(compactedProbation.probation_exit_hours, 6);
+assert.deepEqual(compactedProbation.promoted_for_agents, ["momentum"]);
+
 const compactedState = compactAgentState({
   agents: { reversal: {
     positions: [], closed: [], history: [], snapshots: [],
@@ -63,6 +98,20 @@ const compactedState = compactAgentState({
 assert.equal(compactedState.signal_ledger.expired_ungraded, 7);
 assert.equal(compactedState.agents.reversal.shock_fade_shadows[0].shock_strategy_version, 3);
 assert.equal(compactedState.agents.reversal.shock_fade_outcomes[0].net_return, 0.08);
+
+const ledgerOrder = compactAgentState({
+  agents: {},
+  signal_ledger: {
+    pending: Array.from({ length: 650 }, (_, i) => ({ key: `pending-${i}` })),
+    outcomes: Array.from({ length: 1050 }, (_, i) => ({ key: `outcome-${i}` })),
+  },
+}).signal_ledger;
+assert.equal(ledgerOrder.pending.length, 600);
+assert.equal(ledgerOrder.pending[0].key, "pending-0");
+assert.equal(ledgerOrder.pending.at(-1).key, "pending-599");
+assert.equal(ledgerOrder.outcomes.length, 1000);
+assert.equal(ledgerOrder.outcomes[0].key, "outcome-50");
+assert.equal(ledgerOrder.outcomes.at(-1).key, "outcome-1049");
 
 const publicAgents = Object.fromEntries([
   "value", "momentum", "favorite", "longshot", "diversifier", "catalyst", "reversal", "breakout", "tailalpha", "conviction",

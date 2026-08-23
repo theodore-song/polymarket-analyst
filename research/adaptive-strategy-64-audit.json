@@ -1,0 +1,31 @@
+{
+  "strategy": 64,
+  "generated_at": "2026-08-22T12:17:23.498Z",
+  "requested_markets": 500,
+  "fetched_markets": 500,
+  "histories_with_data": 500,
+  "failures": 0,
+  "observations": 6115,
+  "methodology": {
+    "cost_cents": 0.5,
+    "observation_spacing_hours": 12,
+    "split": "60% train / 20% validation / 20% untouched holdout",
+    "cluster_unit": "Polymarket event",
+    "candidate_rules": 1920,
+    "promotion_gate": "Positive event-clustered 90% lower bound with minimum support in train, validation, and holdout"
+  },
+  "probation_rule_ids": [],
+  "durable_rule_ids": [],
+  "horizons": [
+    {"hours": 6, "train_rows": 3640, "validation_rows": 1226, "test_rows": 1223, "validation_selected": 0, "holdout_passed": 0},
+    {"hours": 24, "train_rows": 3482, "validation_rows": 875, "test_rows": 1223, "validation_selected": 0, "holdout_passed": 0},
+    {"hours": 72, "train_rows": 3043, "validation_rows": 215, "test_rows": 1223, "validation_selected": 0, "holdout_passed": 0}
+  ],
+  "production_decision": {
+    "preapproved_directional_rules": [],
+    "six_hour_probation_requires_new_forward_evidence": true,
+    "full_directional_promotion_requires_new_forward_evidence": true,
+    "note": "No tested directional rule survived validation at any horizon. This active-market audit can still contain survivorship bias, so it cannot justify relaxing the live evidence gates."
+  },
+  "reproduce": "ADAPTIVE_MARKETS=500 ADAPTIVE_CONCURRENCY=12 npm run evaluate:adaptive"
+}

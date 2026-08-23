@@ -19,18 +19,184 @@ Vercel Blob. Build 73 also installs an offline app shell and caches timestamped
 market snapshots. During an outage, cycles continue locally; cached entries are
 allowed for 90 minutes, older snapshots become mark-only, and all cached data
 expires after 24 hours.
+Offline cycles can apply calibration already earned from live observations, but
+the evidence ledger is read-only: cached prices cannot grade pending signals,
+expire horizons, or create new observations.
 
-Build 88 adds a headless GitHub Actions runtime that checks the production site
-at seven minutes past every hour, continues from the previous agent snapshot,
-and runs the next due paper cycle even when no browser is open. It writes a
+Build 124 targets five-minute slots with a serialized, self-chained GitHub Actions runtime.
+The mutable snapshot stays on the dedicated `runtime-state` branch, which is
+explicitly excluded from Vercel Git deployments through
+`git.deploymentEnabled`. This prevents high-frequency state commits from
+consuming Preview deployment quota while ordinary `main` source commits still
+produce Production deployments.
+It continues from the previous agent snapshot and runs the next due paper cycle
+even when no browser is open. After each successful cycle, one repo-scoped
+workflow dispatch waits for the next five-minute boundary; one concurrency group
+serializes active and pending runs, a failed cycle does not self-repeat,
+and the cron schedule remains as recovery. The runtime writes a
 sanitized snapshot to the `runtime-state` branch and `/api/state` uses that as a
 read-only fallback while Neon or Vercel Blob is unavailable. The public snapshot
 contains only `pma_agents_v2` and `pma_suggestions_v5`, with suggestions capped at
-300 to keep cross-device loads small. Paper accounts, passwords, email settings,
+300 to keep cross-device loads small. The API preserves oldest-first pending
+observations plus fee schedules, agent promotion scopes, and verified bundle
+capacity from the bounded runtime instead of applying its older lossy compactor.
+Public maker outcomes retain only calibration fields, action logs are bounded
+to 48 entries per agent, and chart snapshots are evenly sampled once their
+96-point public limit is reached so older dates remain represented. Repetitive
+watch-only explanations are normalized without changing signal fields. If the
+875 KB transport budget is reached, the compactor first protects 75 KB for
+learning, reserves up to 144 of the newest completed directional outcomes, and
+then gives the remaining evidence space to the oldest still-pending
+observations. Only after display history reaches its documented floor can the
+public suggestion list fall from 300 to its 240-item emergency floor.
+Paper accounts, passwords, email settings,
 investment allocations, chat history, wallet information, and live-money
-settings are explicitly excluded. Manual cycles can still run locally, but the
-next autonomous hourly result is the shared public authority until managed
-storage is restored.
+settings are explicitly excluded. While that fallback is active, ordinary
+phones and computers are display-only and cannot fork the public portfolio with
+their local timer; only the headless runner advances it. The next autonomous
+result is the shared public authority until managed storage is restored. The
+headless browser also rebuilds a minimal timestamped market cache from those two
+public items on every restart. A complete network outage can therefore continue
+the existing 90-minute cached-entry and 24-hour mark-only policy without adding
+another synchronized key; strategies that require fresh order-book depth remain
+blocked until live connectivity returns. The five shock-strategy adopters now learn from one shared,
+event-deduplicated forward ledger. A trade allocated to one agent therefore
+teaches the other four without copying its cash or P&L; shared positive evidence
+can promote bounded size and shared negative evidence disables the lane.
+Active shock positions use a second underlying-risk key in addition to the
+Polymarket event key. Related Ethereum or Bitcoin contracts cannot create
+several simultaneous copies of one move, and outcomes from the same underlying
+three-hour shock window count as one learner event.
+
+Each Build 124 cycle also scans the 1,000 most-active Polymarket events for
+complete negative-risk bundles and logically nested threshold or deadline
+pairs, plus same-market YES/NO complements whose equal shares have a fixed
+$1 redemption value. Polymarket's documented complete-set merge converts equal
+YES and NO amounts directly back into collateral, so a verified binary complement
+is merged and realized in the same paper cycle instead of waiting for resolution.
+The official negative-risk adapter also converts a complete set of NO tokens into
+`n - 1` units of collateral, less the event's `negRiskFeeBips`. Strategy 65 treats
+that as a separate immediate path. The scanner reserves 20 of its 80 depth checks
+for complete-NO candidates, then reads `getFeeBips` and `getQuestionCount` from the
+official Polygon adapter for only those candidates. Every leg must expose one
+consistent `negRiskMarketID`, the event leg count must equal the on-chain question
+count, all asks and CLOB fee schedules must verify, and the post-conversion proceeds
+must remain profitable. Missing or inconsistent adapter data cannot produce paper
+P&L. Complete YES sets and logical dominance pairs are not convertible and continue
+to use settlement or verified live-bid exits.
+Bundle capital is split between two independent agents instead of bottlenecking one
+portfolio: Value Hunter owns complete-set merge/conversion opportunities, while The
+Diversifier owns threshold and deadline dominance spreads. A global underlying-event
+claim prevents either book from duplicating exposure already held by the other.
+Gasless CTF operations include merge transactions; see
+[Positions & Tokens](https://docs.polymarket.com/concepts/positions-tokens) and
+[Gasless Transactions](https://docs.polymarket.com/trading/gasless).
+Gamma's market-specific fee flag replaces the old blanket 0.5-cent fee
+reserve for markets declared fee-free. The scanner keeps the existing 60
+independent-first general structure checks and reserves 20 additional checks for
+same-market complements. Structures are ranked by locked-capital efficiency, with
+the best structure from each independent event checked before alternates from events
+already represented. They are repriced
+from batched CLOB asks from the equal-unit size needed for at least a $50
+paper order up to a $400 verified-notional ceiling. The scanner applies each market's Gamma fee schedule at every
+consumed ask level and checks the exact CLOB condition metadata for a matching
+fee curve or fee-free state. Any opened position is capped to the exact equal-unit size
+of the largest fill that stays profitable and passes this depth test; portfolio
+cash, reserve, and 4% limits can reduce it further. Strategy 65 ranks verified
+structures by net return per expected locked day before raw edge, and caps active
+cost from one underlying event at 12% of Value Hunter equity. This prevents
+several related threshold pairs from monopolizing the non-directional book. New bundles must
+also clear a 0.02% daily locked-capital return floor, approximately 7.3% annualized,
+so a tiny spread cannot immobilize capital for months. Existing paper bundles are
+never retroactively enlarged against depth their original simulated fill would
+already have consumed. Each live cycle also prices an atomic exit across every bid
+level needed to sell every leg of each intact bundle. It verifies every condition's
+exact fee schedule again and exits only when net proceeds realize at least 85% of
+the remaining guaranteed settlement profit. Missing depth, mismatched fees, or a
+smaller profit capture leave the guarantee intact; cached offline cycles cannot
+execute this recycling path. A bundle can enter Value Discipline only when that fee check
+passes and the resulting worst-case payout clears both the three-tenths-cent
+profit floor and the 0.15% return floor. Top-of-book gaps, missing books,
+incomplete fee schedules, and unavailable fee verification remain audit-only.
+The Suggestions view stores scan, depth, fee, actionable, and closest
+executable-margin counts so an empty lane is evidence rather than an ambiguous
+failure.
+
+Build 124 retains the directional learner's exact-fee policy, which replaced the blanket half-cent cost with
+the market's Gamma fee schedule at both the entry and future checkpoint, plus a
+separate half-cent round-trip slippage allowance. Fee-free markets pay only the
+slippage allowance; an unavailable fee schedule gets a conservative four-cent
+fee reserve and cannot look artificially profitable. Fee metadata survives
+cloud compaction and offline caching. Unfinished observations from the prior fee
+policy are replaced immediately, while completed historical outcomes remain
+available at reduced weight. The exact-fee replay covered the top 1,000
+active markets and 208 independent events: broad trends, reversals, and
+favorite trends all had 90% upper bounds below zero at 12 hours. A separate
+3,000-recently-closed-market study tested 297 one-decision-per-event settlement
+rules and found zero robust positive rule. Strategy 65 retains online
+directional evidence under fee policy 2. A separate probation gate can now use
+capital after at least 12 current-policy independent events produce a net-of-cost
+six-hour lower confidence bound above 1% for every required cohort feature.
+The corresponding 500-market, 1,920-rule chronological audit selected zero
+rules in validation at 6, 24, or 72 hours. No directional rule is preapproved;
+probation and full sizing must be earned from new event-deduplicated forward
+observations. Probation uses at most 0.5% of equity per position, 1% per-agent
+total capital, one new
+position per agent cycle, and one owner per Polymarket event across all agents.
+Every probation position exits at the matching six-hour executable bid and keeps
+the 18% stop policy active. Normal directional sizing remains locked until the
+same cohort independently passes both the 24-hour and 72-hour promotion gates.
+
+An August 23 exact-fee settlement calibration independently checked 5,000
+resolved markets, 4,807 usable histories, and 7,854 observations across 1,400
+fixed side, category, price-band, and 1/3/7/14/30-day rules. Zero rules cleared
+even the event-clustered 95% training lower-bound gate. The three-day Sports NO
+target fell to -44.14% in validation and remained negative in holdout, so it
+cannot authorize capital. The reproducible result is stored in
+`research/settlement-calibration-exact-fee-5000-audit.json`.
+
+Build 124 retains Build 100's retirement of the old 3-6 day resolution-window
+capital permission. That audit clustered confidence by event but still averaged
+several correlated contracts inside each event, while production could choose
+only one. The corrected replay chooses the highest-volume eligible contract per event and
+rule. In the recent 3,000-market discovery sample, only the safe non-Sports
+50%-55% NO rule four days before settlement survived every chronological gate:
+145 events, a 38.42% mean, and a 26.12% lower 90% bound after one cent of cost.
+The next disjoint 3,000-market block did not confirm it: the safe cohort's
+holdout lower bound was -4.73%, and two chronological-third lower bounds were
+negative. No 3-6 day rule is therefore approved for capital.
+
+The remaining four-day candidate is a zero-capital forward learner. It accepts
+only fixed-date, non-Sports contracts with a 50%-55% NO midpoint, at least
+$15,000 total volume, $1,400 liquidity, and no more than a three-cent spread.
+The modeled entry uses the executable NO ask plus 0.25 cents of slippage and
+rejects more than one cent of friction. One observation is recorded per event
+and graded only after Polymarket marks the market closed; offline snapshots
+cannot invent settlement. Forty independent settled observations with a lower
+90% confidence bound above 1% are required before 0.5%-of-equity paper
+positions can begin. Existing positions from the retired version still follow
+their precommitted settlement-only exit.
+
+Build 94 also closes the contract-safety hole exposed by the first Strategy 3
+paper positions. Shock Strategy 4 keeps the same audited accelerating
+three-hour fade and fixed 12-hour executable exit, but it will not enter a
+path-dependent barrier, an exact numeric range, or a market without at least
+the full 12-hour holding period plus its two-hour grading tolerance remaining.
+Older unsafe shock positions are unwound at an executable bid; older valid
+positions continue to their recorded target and still reserve their underlying
+risk so the new strategy cannot overlap them. Strategy 4 starts a fresh shared
+forward ledger because its eligible contract universe is materially different.
+
+Build 95 removes Strategy 4's initial capital permission after replaying the
+production contract gate over 2,000 primary and 1,000 untouched active markets
+at a two-cent modeled cost. The primary train, validation, chronological, and
+event-holdout lower bounds remained positive, but the untouched chronological
+event mean was negative and both its chronological and event-holdout confidence
+bounds crossed zero. No category or entry-price refinement survived every
+independent partition. Strategy 4 therefore starts shadow-only: 40 positive
+event-deduplicated forward outcomes with a lower bound above 1% can qualify 1%
+paper positions; 80 outcomes with a lower bound above 1.5% can raise size to
+1.5%. Twenty convincingly losing events keep capital disabled.
 
 Build 73 distinguishes a temporary order-book pause from settlement. Exact
 market refreshes still mark paused positions to the latest published price, but
@@ -107,20 +273,26 @@ and validation at either 24 or 72 hours. Strategy 55 therefore keeps directional
 signals in the walk-forward observation ledger until current, independent-event
 evidence proves an edge.
 
-Run `npm run evaluate:sports-favorites` for the separate pregame favorite audit.
-It anchors decisions to the published game start, rejects stale prices, takes only
-the highest-priced eligible favorite per event, and uses a chronological 60/20/20
-split. The refreshed August 20 run loaded all 3,000 histories with no failures and
-found zero train-pass rules. The Strategy 57 24-hour, 60%-85% capital rule was
-negative even with zero modeled execution cost, so Strategy 58 retired it. The
-narrower 12-hour, 60%-75% cohort stayed positive by point estimate in train,
-validation, and holdout at a one-cent cost, but the train and holdout confidence
-bounds still crossed zero; its holdout point estimate also turned negative near a
-two-cent cost. Build 74 therefore records only zero-capital observations whose
-executable ask plus a 0.25-cent slippage buffer is no more than one cent above the
-midpoint. It persists the pending and completed forward ledger offline, grades
-only closed markets, and requires 30 new independent closed events with a positive
-90% lower confidence bound before 1.25% positions can begin.
+Run `npm run evaluate:sports-favorites` for the retired pregame favorite audit.
+Its 12-hour, 60%-75% cohort had positive point estimates but did not establish a
+reliable confidence bound, so Build 124 no longer allocates capital to that rule.
+
+Strategy 65 also tracks the exact-fee settlement calibration's three-day Sports
+NO cohort as a zero-capital forward lane. The corrected 5,000-market run
+groups every prop with the same dated contest slug, anchors the decision to the
+published game start, and keeps only the highest-priced eligible NO contract per
+real contest. Its 76 contests had positive point estimates in all four
+chronological quarters; train and holdout 95% lower bounds were positive, but
+validation returned only +1.78% with a wide negative lower bound. This is not a
+proven edge. A follow-up search tested 60 rules on the most recent 5,000 eligible
+resolved sports markets and again on the next older disjoint 5,000. No rule passed
+train, validation, and untouched holdout in both archives. Favorite Backer therefore
+opens no sports capital initially and records at most one contest-level observation
+per cycle using the executable NO ask, exact Gamma taker fee, and 0.25-cent slippage.
+Twenty independent forward settlements with a lower 90% confidence bound above
+0.5% can promote 0.75% positions; 40 stronger outcomes can raise size to 1%. The
+same ledger persists offline, but stale cache policy and verified settlement rules
+still apply.
 
 Run `npm run evaluate:settlement-calibration` for the stricter settlement-bias
 search across up to 5,000 resolved markets. It uses a 60/20/20 chronological
@@ -233,8 +405,8 @@ Strategy 54 gives previously opened Politics trend positions that 72-hour observ
 ordinary signal exits. Stops, profit locks, settlement handling, and risk-budget
 reductions remain immediate.
 
-Strategy 54 also subtracts a half-cent round-trip cost when grading each live
-walk-forward signal. Confidence uses the largest independent matching bucket,
+Strategy 65 retains exact Gamma entry and exit taker fees plus a half-cent
+slippage allowance when grading each live walk-forward signal. Confidence uses the largest independent matching bucket,
 not the sum of five overlapping feature buckets, and evidence from older engine
 versions is down-weighted. This prevents a handful of duplicated observations
 from authorizing larger positions or hiding a modest negative regime.

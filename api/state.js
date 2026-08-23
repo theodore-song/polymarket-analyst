@@ -6,13 +6,15 @@ const STATE_VERSION_PREFIX = process.env.PMA_STATE_VERSION_PREFIX || "shared/sta
 const DATABASE_STATE_KEY = process.env.PMA_DATABASE_STATE_KEY || "polymarket-arena";
 const GITHUB_RUNTIME_STATE_URL = process.env.PMA_GITHUB_RUNTIME_STATE_URL
   || "https://raw.githubusercontent.com/theodore-song/polymarket-analyst/runtime-state/runtime/state.json";
+const GITHUB_RUNTIME_CONTENTS_URL = process.env.PMA_GITHUB_RUNTIME_CONTENTS_URL
+  || "https://api.github.com/repos/theodore-song/polymarket-analyst/contents/runtime/state.json?ref=runtime-state";
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
 const PAPER_KEY = "pma_paper_accounts_v1";
 const LIVE_KEY = "pma_live_readiness_v1";
 const AGENT_IDS = ["value", "momentum", "favorite", "longshot", "diversifier", "catalyst", "reversal", "breakout", "tailalpha", "conviction"];
 const LIMITS = { closed: 80, history: 160, snapshots: 240, suggestions: 900, paperHistory: 120, paperSnapshots: 120, audit: 120 };
-const SIGNAL_LEDGER_LIMITS = { pending: 300, outcomes: 500 };
+const SIGNAL_LEDGER_LIMITS = { pending: 600, outcomes: 1000 };
 const RUNTIME_ALLOWED_KEYS = new Set([AGENTS_KEY, SUG_KEY]);
 
 function withBlobAuth(options = {}) {
@@ -106,20 +108,39 @@ async function readJsonBlob() {
 }
 
 async function readGithubRuntimeState() {
-  if (!GITHUB_RUNTIME_STATE_URL) return null;
+  if (!GITHUB_RUNTIME_CONTENTS_URL && !GITHUB_RUNTIME_STATE_URL) return null;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
   try {
-    const url = new URL(GITHUB_RUNTIME_STATE_URL);
-    url.searchParams.set("minute", String(Math.floor(Date.now() / 60000)));
-    const response = await fetch(url, {
+    if (GITHUB_RUNTIME_CONTENTS_URL) {
+      const contentsUrl = new URL(GITHUB_RUNTIME_CONTENTS_URL);
+      contentsUrl.searchParams.set("runtime", `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+      const contentsResponse = await fetch(contentsUrl, {
+        cache: "no-store",
+        headers: { Accept: "application/vnd.github+json", "Cache-Control": "no-cache", "User-Agent": "polymarket-arena-state" },
+        signal: controller.signal,
+      });
+      if (contentsResponse.ok) {
+        const file = await contentsResponse.json();
+        if (!file || typeof file.content !== "string") throw new Error("GitHub runtime contents response is missing file data");
+        const decoded = Buffer.from(file.content.replace(/\s/g, ""), "base64").toString("utf8");
+        return sanitizeGithubRuntimeState(JSON.parse(decoded));
+      }
+      if (contentsResponse.status !== 403 && contentsResponse.status !== 429 && contentsResponse.status !== 404) {
+        throw new Error(`GitHub runtime contents returned HTTP ${contentsResponse.status}`);
+      }
+    }
+    if (!GITHUB_RUNTIME_STATE_URL) return null;
+    const rawUrl = new URL(GITHUB_RUNTIME_STATE_URL);
+    rawUrl.searchParams.set("runtime", `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    const rawResponse = await fetch(rawUrl, {
       cache: "no-store",
       headers: { Accept: "application/json", "Cache-Control": "no-cache" },
       signal: controller.signal,
     });
-    if (response.status === 404) return null;
-    if (!response.ok) throw new Error(`GitHub runtime state returned HTTP ${response.status}`);
-    return sanitizeGithubRuntimeState(await response.json());
+    if (rawResponse.status === 404) return null;
+    if (!rawResponse.ok) throw new Error(`GitHub runtime state returned HTTP ${rawResponse.status}`);
+    return sanitizeGithubRuntimeState(await rawResponse.json());
   } finally {
     clearTimeout(timeout);
   }
@@ -179,8 +200,8 @@ async function latestVersionedStateBlob() {
   return readBlobJson(newest.pathname);
 }
 
-function cycleVersion(cycle = "") {
-  const m = String(cycle).match(/\|v(\d+)$/);
+export function cycleVersion(cycle = "") {
+  const m = String(cycle).match(/\|[vs](\d+)$/);
   return m ? Number(m[1]) : 0;
 }
 
@@ -240,7 +261,7 @@ export function compactAgentState(st) {
   }
   if (st.signal_ledger && typeof st.signal_ledger === "object") {
     out.signal_ledger = {
-      pending: Array.isArray(st.signal_ledger.pending) ? st.signal_ledger.pending.slice(-SIGNAL_LEDGER_LIMITS.pending) : [],
+      pending: Array.isArray(st.signal_ledger.pending) ? st.signal_ledger.pending.slice(0, SIGNAL_LEDGER_LIMITS.pending) : [],
       outcomes: Array.isArray(st.signal_ledger.outcomes) ? st.signal_ledger.outcomes.slice(-SIGNAL_LEDGER_LIMITS.outcomes) : [],
       expired_ungraded: Number(st.signal_ledger.expired_ungraded || 0),
     };
@@ -259,15 +280,32 @@ export function compactSuggestion(s) {
     net_edge: s.net_edge, friction: s.friction, chase_penalty: s.chase_penalty,
     evidence_score: s.evidence_score, evidence_source_count: s.evidence_source_count, quality: s.quality,
     conviction: s.conviction, volume: s.volume, volume_24hr: s.volume_24hr, liquidity: s.liquidity,
+    fees_enabled: s.fees_enabled, fee_schedule: s.fee_schedule,
     spread: s.spread, price_change_1h: s.price_change_1h, price_change_1d: s.price_change_1d, price_change_1w: s.price_change_1w,
     momentum_strength: s.momentum_strength, signal_strength: s.signal_strength, signal_confidence: s.signal_confidence,
     signal_type: s.signal_type, trade_ready: s.trade_ready, entry_candidate: s.entry_candidate,
     audited_observation_only: s.audited_observation_only, adaptive_promotion: s.adaptive_promotion,
+    adaptive_probation: s.adaptive_probation, probation_exit_hours: s.probation_exit_hours,
+    promoted_for_agents: s.promoted_for_agents,
     watch_only: s.watch_only, jump_risk: s.jump_risk, requires_live: s.requires_live,
-    bundle_id: s.bundle_id, bundle_side: s.bundle_side, bundle_logic: s.bundle_logic, bundle_cost_per_unit: s.bundle_cost_per_unit,
-    bundle_payout_per_unit: s.bundle_payout_per_unit, bundle_net_profit_per_unit: s.bundle_net_profit_per_unit,
-    bundle_legs: s.bundle_legs,
-    days_to_resolution: s.days_to_resolution, pilot_prior: s.pilot_prior,
+    bundle_id: s.bundle_id, bundle_event_id: s.bundle_event_id, bundle_side: s.bundle_side, bundle_logic: s.bundle_logic,
+    bundle_immediate_merge: s.bundle_immediate_merge, bundle_conversion_candidate: s.bundle_conversion_candidate,
+    bundle_conversion_terms_verified: s.bundle_conversion_terms_verified, bundle_immediate_convert: s.bundle_immediate_convert,
+    neg_risk_market_id: s.neg_risk_market_id, neg_risk_fee_bips: s.neg_risk_fee_bips, neg_risk_metadata_fee_bips: s.neg_risk_metadata_fee_bips,
+    neg_risk_question_count: s.neg_risk_question_count,
+    conversion_verification_status: s.conversion_verification_status,
+    bundle_cost_per_unit: s.bundle_cost_per_unit, bundle_payout_per_unit: s.bundle_payout_per_unit,
+    bundle_settlement_payout_per_unit: s.bundle_settlement_payout_per_unit,
+    bundle_net_profit_per_unit: s.bundle_net_profit_per_unit,
+    bundle_capital_efficiency: s.bundle_capital_efficiency,
+    bundle_legs: s.bundle_legs, depth_verified: s.depth_verified, fees_verified: s.fees_verified,
+    fee_model: s.fee_model, execution_model: s.execution_model, execution_units: s.execution_units,
+    execution_notional: s.execution_notional, verification_status: s.verification_status,
+    days_to_resolution: s.days_to_resolution, end_date: s.end_date, game_start: s.game_start,
+    hours_to_start: s.hours_to_start, target_horizon_days: s.target_horizon_days,
+    resolution_week_strategy_version: s.resolution_week_strategy_version,
+    sports_contest_strategy_version: s.sports_contest_strategy_version, entry_fee: s.entry_fee,
+    pilot_prior: s.pilot_prior,
     shock_move_1h: s.shock_move_1h, shock_prior_move_1h: s.shock_prior_move_1h, shock_move_3h: s.shock_move_3h,
     shock_observed_at: s.shock_observed_at, shock_strategy_version: s.shock_strategy_version,
     drivers: s.drivers, rationale: s.rationale,

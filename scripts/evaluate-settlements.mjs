@@ -1,10 +1,13 @@
 const GAMMA = "https://gamma-api.polymarket.com";
 const CLOB = "https://clob.polymarket.com";
 const MARKET_LIMIT = Math.max(20, Math.min(3000, Number(process.env.SETTLEMENT_MARKETS || 200)));
+const MARKET_SKIP = Math.max(0, Math.min(10000, Number(process.env.SETTLEMENT_SKIP || 0)));
 const CONCURRENCY = Math.max(1, Math.min(12, Number(process.env.SETTLEMENT_CONCURRENCY || 6)));
 const HORIZON_DAYS = [...new Set(String(process.env.SETTLEMENT_HORIZONS || "1,3,7,14,30,90").split(",")
   .map(Number).filter((value) => Number.isFinite(value) && value >= 1 && value <= 365))].sort((a, b) => a - b);
 const COST_CENTS = Math.max(0, Math.min(5, Number(process.env.SETTLEMENT_COST_CENTS || 0.5)));
+const EXACT_GAMMA_FEES = process.env.SETTLEMENT_EXACT_GAMMA_FEES === "1";
+const FINE_GRID = String(process.env.SETTLEMENT_FINE_GRID || "false").toLowerCase() === "true";
 const SELECTION_ORDER = ["volumeNum", "closedTime", "createdAt", "id"].includes(process.env.SETTLEMENT_ORDER)
   ? process.env.SETTLEMENT_ORDER : "volumeNum";
 const SELECTION_ASCENDING = String(process.env.SETTLEMENT_ASCENDING || "false").toLowerCase() === "true";
@@ -29,6 +32,28 @@ function categoryOf(raw) {
   if (/\b(fed|inflation|gdp|recession|stock|company|economy|tariff|interest rate|unemployment|earnings)\b/.test(text)) return "Economy";
   if (/\b(movie|music|album|box office|television|celebrity|award|gaming|youtube|stream)\b/.test(text)) return "Pop Culture";
   return "Other";
+}
+
+function feeScheduleOf(raw) {
+  const rate = Number(raw?.feeSchedule?.rate), exponent = Number(raw?.feeSchedule?.exponent);
+  return Number.isFinite(rate) && rate >= 0 && Number.isFinite(exponent) && exponent > 0
+    ? { rate, exponent } : null;
+}
+
+function takerFeePerShare(schedule, price) {
+  const p = Number(price), rate = Number(schedule?.rate), exponent = Number(schedule?.exponent);
+  if (!(p > 0 && p < 1) || !Number.isFinite(rate) || rate < 0 || !Number.isFinite(exponent) || exponent <= 0) return null;
+  return rate * Math.pow(p * (1 - p), exponent);
+}
+
+function hardSettlementJumpRisk(raw) {
+  const text = `${raw?.question || ""} ${raw?.events?.[0]?.title || ""}`.toLowerCase();
+  const numericRange = /\b\d+(?:\.\d+)?\s*(?:%|percent)?\s*(?:-|–|—|to)\s*\d+(?:\.\d+)?\s*(?:%|percent|votes?|points?|seats?|bps|basis points?|tweets?|posts?|goals?)(?![a-z])/;
+  const currencyRange = /[$€£]\d+(?:\.\d+)?\s*(?:-|–|—|to)\s*[$€£]?\d+(?:\.\d+)?/;
+  const betweenRange = /\bbetween\s+[$€£]?\d+(?:\.\d+)?\s*(?:%|percent)?\s+(?:and|to)\s+[$€£]?\d+(?:\.\d+)?/;
+  const pathDependentBarrier = /\b(?:reach|hit|touch|dip(?:\s+(?:to|below))?|rise\s+(?:to|above)|fall\s+(?:to|below))\b[^?]{0,45}(?:[$€£]\s*)?\d[\d,]*(?:\.\d+)?\s*(?:%|percent|k|m|b|points?|bps|basis points?)?/;
+  return numericRange.test(text) || currencyRange.test(text) || betweenRange.test(text) || pathDependentBarrier.test(text)
+    || /\bexact score\b|\bscore:\s*\d|\bposts? \d+-\d+|\bnumber of (tweets|posts)\b/.test(text);
 }
 
 async function fetchJson(url, options = {}, attempts = 3) {
@@ -90,10 +115,11 @@ function confirmedTrendAt(points, target, current) {
     moderate: Math.abs(dayMove) <= 0.03 && Math.abs(weekMove) <= 0.10 };
 }
 
-async function fetchResolvedMarkets(limit) {
+async function fetchResolvedMarkets(limit, skip = 0) {
   const raw = [], seen = new Set(), pageSize = 100;
+  const targetCount = limit + skip;
   let cursor = "";
-  while (raw.length < limit) {
+  while (raw.length < targetCount) {
     const params = new URLSearchParams({ closed: "true", order: SELECTION_ORDER, ascending: String(SELECTION_ASCENDING),
       limit: String(pageSize) });
     if (cursor) params.set("after_cursor", cursor);
@@ -109,13 +135,14 @@ async function fetchResolvedMarkets(limit) {
       seen.add(id); raw.push({ id, question: market.question || "", category: categoryOf(market),
         eventId: String(market.events?.[0]?.id || id),
         tokenId: String(tokens[0]), finalYes: outcomes[0] >= 0.99 ? 1 : 0, closedAt,
+        safeContract: !hardSettlementJumpRisk(market), feeSchedule: feeScheduleOf(market),
         volume: Number(market.volumeNum || market.volume || 0) });
-      if (raw.length >= limit) break;
+      if (raw.length >= targetCount) break;
     }
     if (page.length < pageSize || !payload.next_cursor || payload.next_cursor === cursor) break;
     cursor = payload.next_cursor;
   }
-  return raw;
+  return raw.slice(skip, skip + limit);
 }
 
 function evaluateMarket(market, points) {
@@ -128,13 +155,16 @@ function evaluateMarket(market, points) {
     const winningSide = market.finalYes ? "YES" : "NO", trend = confirmedTrendAt(points, target, point);
     for (const side of ["YES", "NO"]) {
       const entry = side === "YES" ? yesEntry : noEntry, final = side === winningSide ? 1 : 0;
-      const netReturn = final / entry - 1 - (COST_CENTS / 100) / entry;
-      rows.push({ marketId: market.id, eventId: market.eventId, question: market.question, category: market.category, closedAt: market.closedAt,
+      const fee = EXACT_GAMMA_FEES ? takerFeePerShare(market.feeSchedule, entry) : null;
+      const entryCost = COST_CENTS / 100 + (EXACT_GAMMA_FEES && Number.isFinite(fee) ? fee : 0);
+      const netReturn = final / entry - 1 - entryCost / entry;
+      rows.push({ marketId: market.id, eventId: market.eventId, question: market.question, category: market.category,
+        safeContract: market.safeContract, closedAt: market.closedAt, volume: market.volume,
         horizonDays, side, favorite: side === favoriteSide, winner: side === winningSide,
         trend: Boolean(trend && trend.side === side), trendSide: trend?.side || null,
         dayMove: trend?.dayMove || 0, weekMove: trend?.weekMove || 0,
         strongTrend: Boolean(trend?.strong), moderateTrend: Boolean(trend?.moderate),
-        entry, band: priceBand(entry), netReturn });
+        entry, band: priceBand(entry), entryCost, exactFeeSchedule: EXACT_GAMMA_FEES && market.feeSchedule != null, netReturn });
     }
   }
   return rows;
@@ -167,6 +197,36 @@ function summarize(rows) {
     worst: Math.min(...values), best: Math.max(...values) };
 }
 
+const SAFE_PRICE_BANDS = Object.freeze([
+  { label: "50_55", min: 0.50, max: 0.55 },
+  { label: "55_60", min: 0.55, max: 0.60 },
+  { label: "60_70", min: 0.60, max: 0.70 },
+  { label: "70_80", min: 0.70, max: 0.80 },
+  { label: "80_90", min: 0.80, max: 0.90 },
+  { label: "90_95", min: 0.90, max: 0.95 },
+  { label: "95_97", min: 0.95, max: 0.97 },
+]);
+
+const FINE_PRICE_BANDS = Object.freeze(Array.from({ length: 18 }, (_, index) => {
+  const min = 0.05 + index * 0.05, max = min + 0.05;
+  return { label: `${Math.round(min * 100)}_${Math.round(max * 100)}`, min, max };
+}));
+const FINE_CATEGORIES = Object.freeze(["Politics", "Crypto", "Economy", "Pop Culture", "Other"]);
+const FINE_RULES = FINE_GRID ? FINE_PRICE_BANDS.flatMap((band) => [
+  { name: `grid_safe_yes_${band.label}`, test: (row) => row.side === "YES" && row.entry >= band.min && row.entry < band.max
+    && row.category !== "Sports" && row.safeContract },
+  { name: `grid_safe_no_${band.label}`, test: (row) => row.side === "NO" && row.entry >= band.min && row.entry < band.max
+    && row.category !== "Sports" && row.safeContract },
+  { name: `grid_safe_favorite_${band.label}`, test: (row) => row.favorite && row.entry >= band.min && row.entry < band.max
+    && row.category !== "Sports" && row.safeContract },
+  ...FINE_CATEGORIES.flatMap((category) => [
+    { name: `grid_safe_yes_${band.label}_${category.toLowerCase().replace(/\s+/g, "_")}`,
+      test: (row) => row.side === "YES" && row.entry >= band.min && row.entry < band.max && row.category === category && row.safeContract },
+    { name: `grid_safe_no_${band.label}_${category.toLowerCase().replace(/\s+/g, "_")}`,
+      test: (row) => row.side === "NO" && row.entry >= band.min && row.entry < band.max && row.category === category && row.safeContract },
+  ]),
+]) : [];
+
 const RULES = [
   { name: "buy_favorite", test: (row) => row.favorite },
   { name: "buy_heavy_favorite", test: (row) => row.favorite && row.entry >= 0.78 },
@@ -175,6 +235,18 @@ const RULES = [
   { name: "buy_underdog", test: (row) => !row.favorite },
   { name: "buy_yes", test: (row) => row.side === "YES" },
   { name: "buy_no", test: (row) => row.side === "NO" },
+  { name: "buy_no_favorite", test: (row) => row.side === "NO" && row.favorite },
+  { name: "buy_no_45_50", test: (row) => row.side === "NO" && row.entry >= 0.45 && row.entry < 0.50 },
+  { name: "buy_no_55_90", test: (row) => row.side === "NO" && row.entry >= 0.55 && row.entry < 0.90 },
+  { name: "buy_no_50_55", test: (row) => row.side === "NO" && row.entry >= 0.50 && row.entry < 0.55 },
+  { name: "buy_no_50_55_non_sports", test: (row) => row.side === "NO" && row.entry >= 0.50 && row.entry < 0.55 && row.category !== "Sports" },
+  { name: "buy_no_50_55_safe_non_sports", test: (row) => row.side === "NO" && row.entry >= 0.50 && row.entry < 0.55
+    && row.category !== "Sports" && row.safeContract },
+  { name: "buy_no_55_60", test: (row) => row.side === "NO" && row.entry >= 0.55 && row.entry < 0.60 },
+  { name: "buy_no_60_90", test: (row) => row.side === "NO" && row.entry >= 0.60 && row.entry < 0.90 },
+  { name: "buy_no_90_95", test: (row) => row.side === "NO" && row.entry >= 0.90 && row.entry < 0.95 },
+  { name: "buy_no_95_99", test: (row) => row.side === "NO" && row.entry >= 0.95 && row.entry < 0.99 },
+  { name: "buy_no_90_99", test: (row) => row.side === "NO" && row.entry >= 0.90 && row.entry < 0.99 },
   { name: "follow_trend", test: (row) => row.trend },
   { name: "follow_trend_yes", test: (row) => row.trend && row.side === "YES" },
   { name: "follow_trend_no", test: (row) => row.trend && row.side === "NO" },
@@ -182,15 +254,37 @@ const RULES = [
   { name: "follow_trend_underdog", test: (row) => row.trend && !row.favorite },
   { name: "follow_strong_trend", test: (row) => row.trend && row.strongTrend },
   { name: "follow_moderate_trend", test: (row) => row.trend && row.moderateTrend },
+  ...SAFE_PRICE_BANDS.flatMap((band) => [
+    { name: `buy_safe_favorite_${band.label}`, test: (row) => row.favorite && row.entry >= band.min && row.entry < band.max
+      && row.category !== "Sports" && row.safeContract },
+    { name: `buy_safe_no_${band.label}`, test: (row) => row.side === "NO" && row.entry >= band.min && row.entry < band.max
+      && row.category !== "Sports" && row.safeContract },
+  ]),
   ...["Politics", "Sports", "Crypto", "Economy", "Pop Culture", "Other"].flatMap((category) => [
     { name: `buy_favorite_${category.toLowerCase().replace(/\s+/g, "_")}`, test: (row) => row.favorite && row.category === category },
     { name: `buy_underdog_${category.toLowerCase().replace(/\s+/g, "_")}`, test: (row) => !row.favorite && row.category === category },
+    { name: `buy_no_50_55_${category.toLowerCase().replace(/\s+/g, "_")}`,
+      test: (row) => row.side === "NO" && row.entry >= 0.50 && row.entry < 0.55 && row.category === category },
     { name: `follow_trend_${category.toLowerCase().replace(/\s+/g, "_")}`, test: (row) => row.trend && row.category === category },
   ]),
+  ...FINE_RULES,
 ];
 
+function selectEventDecisions(rows, rule) {
+  const selected = new Map();
+  for (const row of rows) {
+    if (!rule.test(row)) continue;
+    const current = selected.get(row.eventId);
+    if (!current || row.volume > current.volume
+      || (row.volume === current.volume && row.marketId.localeCompare(current.marketId) < 0)) {
+      selected.set(row.eventId, row);
+    }
+  }
+  return [...selected.values()];
+}
+
 function evaluateRules(rows) {
-  return Object.fromEntries(RULES.map((rule) => [rule.name, summarize(rows.filter(rule.test))]));
+  return Object.fromEntries(RULES.map((rule) => [rule.name, summarize(selectEventDecisions(rows, rule))]));
 }
 
 function chronologicalEvaluation(rows) {
@@ -209,16 +303,16 @@ function chronologicalEvaluation(rows) {
       && trainRules[rule.name].count >= 30 && trainRules[rule.name].events >= 10
       && testRules[rule.name].count >= 15 && testRules[rule.name].events >= 5;
     const allPositive = enoughData && all.eventLower90 > 0 && trainRules[rule.name].eventLower90 > 0
-      && testRules[rule.name].eventLower90 > 0 && segments.every((segment) => segment.mean > 0 && segment.eventMean > 0);
+      && testRules[rule.name].eventLower90 > 0 && segments.every((segment) => segment.eventLower90 > 0);
     const allNegative = enoughData && all.eventUpper90 < 0 && trainRules[rule.name].eventUpper90 < 0
-      && testRules[rule.name].eventUpper90 < 0 && segments.every((segment) => segment.mean < 0 && segment.eventMean < 0);
+      && testRules[rule.name].eventUpper90 < 0 && segments.every((segment) => segment.eventUpper90 < 0);
     return [rule.name, { enoughData, allPositive, allNegative, pooled: all, train: trainRules[rule.name], test: testRules[rule.name], segments }];
   }));
   return { splitTime: splitTime ? new Date(splitTime * 1000).toISOString() : null, trainCount: train.length,
     testCount: test.length, train: trainRules, test: testRules, thirds: thirdRules, robustRules };
 }
 
-const markets = await fetchResolvedMarkets(MARKET_LIMIT);
+const markets = await fetchResolvedMarkets(MARKET_LIMIT, MARKET_SKIP);
 const histories = await mapLimit(markets, CONCURRENCY, async (market) => {
   const data = await fetchJson(`${CLOB}/prices-history?market=${encodeURIComponent(market.tokenId)}&interval=max&fidelity=1440`);
   const points = (data.history || []).map((point) => ({ t: Number(point.t), p: Number(point.p) }))
@@ -230,11 +324,15 @@ const rows = successful.flatMap((result) => result.rows);
 const report = {
   generatedAt: new Date().toISOString(), requestedMarkets: MARKET_LIMIT, resolvedMarkets: markets.length,
   marketsWithHistory: successful.length, failures: histories.filter((result) => result?.error).length,
-  methodology: { horizonDays: HORIZON_DAYS, estimatedRoundTripCostCents: COST_CENTS,
+  methodology: { horizonDays: HORIZON_DAYS, estimatedEntrySlippageCents: COST_CENTS,
+    exactGammaFeeSchedules: EXACT_GAMMA_FEES, settlementRedemptionExitFeeCents: 0,
     historyFidelityMinutes: 1440,
+    fineGrid:FINE_GRID,
+    testedRules:RULES.length,
     marketSelection: `${SELECTION_ORDER} ${SELECTION_ASCENDING ? "ascending" : "descending"}`,
-    clusterUnit: "event",
-    note: "Each rule uses only daily prices available at or before the decision horizon and a subsequently published binary settlement. Trend replays require aligned one-day and one-week direction under the production move bounds. Confidence bounds cluster related markets by event. Markets are selected by resolved volume, so results still carry historical-selection and execution-model limitations." },
+    marketSelectionOffset: MARKET_SKIP,
+    clusterUnit: "one highest-volume eligible contract per event and rule",
+    note: "Each rule uses only daily prices available at or before the decision horizon and a subsequently published binary settlement. Trend replays require aligned one-day and one-week direction under the production move bounds. Each rule makes at most one capital decision per event, choosing the highest-volume eligible contract with a stable market-ID tie-breaker. Strict robust rules require positive or negative event-level 90% bounds in pooled data, chronological train, chronological holdout, and every chronological third. Markets are selected by resolved volume, so results still carry historical-selection and execution-model limitations." },
   horizons: Object.fromEntries(HORIZON_DAYS.map((horizon) => {
     const horizonRows = rows.filter((row) => row.horizonDays === horizon);
     return [horizon, { observations: horizonRows.length / 2, chronological: chronologicalEvaluation(horizonRows) }];
@@ -247,7 +345,16 @@ const compactStats = (stats = {}) => ({ count: stats.count || 0, events: stats.e
 const compactRules = (rules = {}) => Object.fromEntries(Object.entries(rules)
   .filter(([, result]) => result.enoughData && (result.allPositive || result.allNegative))
   .map(([name, result]) => [name, { direction: result.allPositive ? "positive" : "negative",
-    pooled: compactStats(result.pooled), train: compactStats(result.train), test: compactStats(result.test) }]));
+    pooled: compactStats(result.pooled), train: compactStats(result.train), test: compactStats(result.test),
+    segments: (result.segments || []).map(compactStats) }]));
+const TARGET_RULE_NAMES = String(process.env.SETTLEMENT_TARGET_RULES || "buy_no_favorite,buy_no_50_55,buy_no_55_90,buy_no_60_90,buy_no_90_95,buy_no_95_99,buy_no_90_99")
+  .split(",").map((name) => name.trim()).filter(Boolean);
+const targetRuleStats = (chronological, names = TARGET_RULE_NAMES) => Object.fromEntries(names.map((name) => {
+  const result = chronological.robustRules[name] || {};
+  return [name, { enoughData: Boolean(result.enoughData), allPositive: Boolean(result.allPositive), allNegative: Boolean(result.allNegative),
+    pooled: compactStats(result.pooled), train: compactStats(result.train), test: compactStats(result.test),
+    segments: (result.segments || []).map(compactStats) }];
+}));
 const summary = {
   generatedAt: report.generatedAt, requestedMarkets: report.requestedMarkets, resolvedMarkets: report.resolvedMarkets,
   marketsWithHistory: report.marketsWithHistory, failures: report.failures,
@@ -263,7 +370,19 @@ const summary = {
     noTest: compactStats(value.chronological.test.buy_no),
     trend: compactStats(value.chronological.train.follow_trend),
     trendTest: compactStats(value.chronological.test.follow_trend),
+    targetRules: targetRuleStats(value.chronological),
     robustRules: compactRules(value.chronological.robustRules),
   }])),
 };
-console.log(JSON.stringify(compact ? summary : report, null, 2));
+const targetOnly = process.env.SETTLEMENT_TARGET_ONLY === "1";
+const targetSummary = { generatedAt: summary.generatedAt, requestedMarkets: summary.requestedMarkets,
+  resolvedMarkets: summary.resolvedMarkets, marketsWithHistory: summary.marketsWithHistory, failures: summary.failures,
+  horizons: Object.fromEntries(Object.entries(summary.horizons).map(([days, value]) => [days, { observations: value.observations, targetRules: value.targetRules }])) };
+const survivorsOnly = process.env.SETTLEMENT_SURVIVORS_ONLY === "1";
+const survivorsSummary = { generatedAt: report.generatedAt, requestedMarkets: report.requestedMarkets,
+  resolvedMarkets: report.resolvedMarkets, marketsWithHistory: report.marketsWithHistory, failures: report.failures,
+  methodology: report.methodology,
+  horizons: Object.fromEntries(Object.entries(summary.horizons).map(([days, value]) => [days, {
+    observations: value.observations, robustRules: value.robustRules,
+  }])) };
+console.log(JSON.stringify(survivorsOnly ? survivorsSummary : (targetOnly ? targetSummary : (compact ? summary : report)), null, 2));

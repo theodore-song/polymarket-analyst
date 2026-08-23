@@ -1,0 +1,70 @@
+{
+  "generated_at": "2026-08-21T23:44:53.304Z",
+  "strategy": "resolution-window-no-50-55-forward-shadow-v3",
+  "selection": {
+    "discovery_markets_requested": 3000,
+    "discovery_markets_with_history": 2918,
+    "disjoint_holdout_markets_requested": 3000,
+    "disjoint_holdout_markets_with_history": 2394,
+    "disjoint_holdout_offset": 3000,
+    "order": "closedTime descending",
+    "horizon_days_tested": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 14, 21, 30],
+    "horizon_days_enabled": [],
+    "horizon_days_observed": [4],
+    "modeled_round_trip_cost_cents": 1,
+    "history_fidelity_minutes": 1440,
+    "decision_unit": "one highest-volume eligible contract per Polymarket event and rule",
+    "production_contract_filter": "non-Sports and no path-dependent barrier, numeric range, currency range, exact score, or post-count contract"
+  },
+  "discovery_rule": {
+    "side": "NO",
+    "midpoint_min_inclusive": 0.5,
+    "midpoint_max_exclusive": 0.55,
+    "horizon_days": 4,
+    "events": 145,
+    "event_mean_return": 0.3842272785,
+    "event_lower_90": 0.2612426599,
+    "train_events": 102,
+    "train_event_lower_90": 0.290934746,
+    "holdout_events": 46,
+    "holdout_event_lower_90": 0.0382807805,
+    "chronological_thirds_event_lower_90": [0.2464004239, 0.1620997356, 0.1521274303]
+  },
+  "disjoint_holdout": {
+    "events": 65,
+    "event_mean_return": 0.3545949134,
+    "event_lower_90": 0.1660920142,
+    "train_events": 49,
+    "train_event_lower_90": 0.1409018264,
+    "holdout_events": 16,
+    "holdout_event_lower_90": -0.047341047,
+    "chronological_thirds_event_lower_90": [0.2174015607, -0.352501396, -0.0402576867],
+    "passed_strict_gate": false
+  },
+  "production_constraints": {
+    "capital_enabled": false,
+    "safe_contract_only": true,
+    "sports_excluded": true,
+    "minimum_total_volume_usd": 15000,
+    "minimum_live_liquidity_usd": 1400,
+    "maximum_spread": 0.03,
+    "modeled_entry": "executable NO ask plus 0.25 cents slippage",
+    "maximum_entry_friction_cents": 1,
+    "observation_window_days": [3.5, 4.5],
+    "one_observation_per_event": true,
+    "promotion_events": 40,
+    "promotion_lower_90_minimum": 0.01,
+    "promoted_position_pct": 0.5,
+    "promoted_total_cap_pct": 3,
+    "exit": "verified market settlement only"
+  },
+  "finding": "The prior 3-6 day capital permission was invalid because it averaged multiple correlated contracts inside an event. After selecting one decision per event, only the four-day safe rule survived the recent discovery sample, and it failed the strict all-segment gate in a disjoint older sample. Production therefore records zero-capital forward outcomes only.",
+  "limitations": [
+    "Final volume is used to select one contract per event and was not known at the historical decision time.",
+    "The resolved archive cannot reconstruct contemporaneous historical liquidity or order-book depth.",
+    "Published midpoint history is not a fill guarantee.",
+    "Forward promotion would authorize bounded paper trading only and would not guarantee profit."
+  ],
+  "reproduce_discovery": "SETTLEMENT_MARKETS=3000 SETTLEMENT_HORIZONS=1,2,3,4,5,6,7,8,9,10,14,21,30 SETTLEMENT_COST_CENTS=1 SETTLEMENT_ORDER=closedTime SETTLEMENT_ASCENDING=false SETTLEMENT_FINE_GRID=true SETTLEMENT_SURVIVORS_ONLY=1 node scripts/evaluate-settlements.mjs",
+  "reproduce_disjoint_holdout": "SETTLEMENT_MARKETS=3000 SETTLEMENT_SKIP=3000 SETTLEMENT_HORIZONS=4,5 SETTLEMENT_COST_CENTS=1 SETTLEMENT_ORDER=closedTime SETTLEMENT_ASCENDING=false SETTLEMENT_TARGET_ONLY=1 SETTLEMENT_TARGET_RULES=buy_no_50_55,buy_no_50_55_safe_non_sports,buy_safe_no_50_55 node scripts/evaluate-settlements.mjs"
+}

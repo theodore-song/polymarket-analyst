@@ -8,22 +8,41 @@ const EXTERNAL_MARKET_LIMIT = Math.max(100, Math.min(2000, Number(process.env.SH
 const HISTORY_DAYS = Math.max(14, Math.min(30, Number(process.env.SHOCK_HISTORY_DAYS || 30)));
 const CONCURRENCY = Math.max(1, Math.min(8, Number(process.env.SHOCK_CONCURRENCY || 6)));
 const COST = Math.max(0, Math.min(0.05, Number(process.env.SHOCK_COST_CENTS || 0.5) / 100));
+const EXACT_GAMMA_FEES = process.env.SHOCK_EXACT_GAMMA_FEES === "1";
 const MIN_ENTRY_PRICE = Math.max(0.02, Math.min(0.40, Number(process.env.SHOCK_MIN_ENTRY_PRICE || 0.08)));
 const MAX_ENTRY_PRICE = Math.max(0.60, Math.min(0.98, Number(process.env.SHOCK_MAX_ENTRY_PRICE || 0.92)));
 const CACHE_FILE = String(process.env.SHOCK_CACHE_FILE || "").trim();
 const OUTPUT_FILE = String(process.env.SHOCK_OUTPUT_FILE || "").trim();
 const SUMMARY_ONLY = process.env.SHOCK_SUMMARY === "1";
 const SUMMARY_CANDIDATES = Math.max(0, Math.min(10, Number(process.env.SHOCK_SUMMARY_CANDIDATES || 10)));
+const CLOSED_ORDER = String(process.env.SHOCK_CLOSED_ORDER || "closedTime").trim() || "closedTime";
+const CLOSED_ASCENDING = process.env.SHOCK_CLOSED_ASCENDING === "true";
 const HOUR = 3600;
+const STRATEGY4_MINIMUM_RUNWAY_HOURS = 14;
 const HORIZONS = [3, 6, 12, 24];
 const WINDOWS = [1, 3, 6, 24];
 const MIN_MOVES = [0.005, 0.01, 0.02, 0.04, 0.08];
 const CONFIRMATIONS = ["any", "aligned", "opposed", "accelerating"];
 const MAX_VOLS = [0.01, 0.02, 0.04, 1];
+const CATEGORIES = ["All", "Politics", "Sports", "Crypto", "Economy", "Pop Culture", "Other"];
+const PRICE_BANDS = ["All", "longshot", "lower-mid", "center", "upper-mid", "favorite"];
 
 function parseJson(value) {
   if (Array.isArray(value)) return value;
   try { return JSON.parse(value || "[]"); } catch { return []; }
+}
+
+function feeScheduleOf(raw) {
+  if (raw?.feesEnabled === false) return { rate: 0, exponent: 1, takerOnly: true };
+  const rate = Number(raw?.feeSchedule?.rate), exponent = Number(raw?.feeSchedule?.exponent);
+  return raw?.feesEnabled === true && Number.isFinite(rate) && rate >= 0 && Number.isFinite(exponent) && exponent > 0
+    ? { rate, exponent, takerOnly: raw.feeSchedule.takerOnly !== false } : null;
+}
+
+function takerFeePerShare(schedule, price) {
+  const p = Number(price);
+  return schedule && Number.isFinite(p) && p > 0 && p < 1
+    ? Number(schedule.rate) * Math.pow(p * (1 - p), Number(schedule.exponent || 1)) : null;
 }
 
 async function fetchJson(url, options = {}, attempts = 3) {
@@ -65,12 +84,27 @@ function categoryOf(raw) {
   return "Other";
 }
 
+function hardSettlementJumpRisk(row) {
+  const text = `${row?.question || ""} ${row?.eventTitle || ""}`.toLowerCase();
+  const numericRange = /\b\d+(?:\.\d+)?\s*(?:%|percent)?\s*(?:-|\u2013|\u2014|to)\s*\d+(?:\.\d+)?\s*(?:%|percent|votes?|points?|seats?|bps|basis points?|tweets?|posts?|goals?)(?![a-z])/;
+  const currencyRange = /[$\u20ac\u00a3]\d+(?:\.\d+)?\s*(?:-|\u2013|\u2014|to)\s*[$\u20ac\u00a3]?\d+(?:\.\d+)?/;
+  const betweenRange = /\bbetween\s+[$\u20ac\u00a3]?\d+(?:\.\d+)?\s*(?:%|percent)?\s+(?:and|to)\s+[$\u20ac\u00a3]?\d+(?:\.\d+)?/;
+  const pathBarrier = /\b(?:reach|hit|touch|dip(?:\s+(?:to|below))?|rise\s+(?:to|above)|fall\s+(?:to|below))\b[^?]{0,45}(?:[$\u20ac\u00a3]\s*)?\d[\d,]*(?:\.\d+)?\s*(?:%|percent|k|m|b|points?|bps|basis points?)?/;
+  return numericRange.test(text) || currencyRange.test(text) || betweenRange.test(text) || pathBarrier.test(text)
+    || /\bexact score\b|\bscore:\s*\d|\bposts? \d+-\d+|\bnumber of (tweets|posts)\b/.test(text);
+}
+
+function contractSafeEligible(row, horizonHours) {
+  return !row.hardSettlementJumpRisk && Number.isFinite(row.endTs)
+    && row.endTs - row.observedAt >= (Number(horizonHours) + 2) * HOUR;
+}
+
 async function fetchMarkets(limit, universe = "active") {
   const markets = [], seen = new Set();
   if (universe === "closed") {
     let cursor = "";
     while (markets.length < limit) {
-      const params = new URLSearchParams({ closed: "true", order: "volumeNum", ascending: "false", limit: "100", include_tag: "true" });
+      const params = new URLSearchParams({ closed: "true", order: CLOSED_ORDER, ascending: String(CLOSED_ASCENDING), limit: "100", include_tag: "true" });
       if (cursor) params.set("after_cursor", cursor);
       const payload = await fetchJson(`${GAMMA}/markets/keyset?${params}`), page = payload?.markets;
       if (!Array.isArray(page) || !page.length) break;
@@ -81,7 +115,9 @@ async function fetchMarkets(limit, universe = "active") {
           && ((outcomes[0] >= 0.99 && outcomes[1] <= 0.01) || (outcomes[1] >= 0.99 && outcomes[0] <= 0.01));
         if (!id || seen.has(id) || !resolved || labels[0] !== "yes" || labels[1] !== "no" || tokens.length !== 2) continue;
         seen.add(id);
-        markets.push({ id, token: tokens[0], category: categoryOf(raw), question: raw.question || "",
+        const endTs = Date.parse(raw.endDate || raw.events?.[0]?.endDate || "") / 1000;
+        markets.push({ id, token: tokens[0], category: categoryOf(raw), question: raw.question || "", feeSchedule: feeScheduleOf(raw),
+          eventTitle: raw.events?.[0]?.title || "", endTs: Number.isFinite(endTs) ? endTs : null,
           eventKey: String(raw.events?.[0]?.id || raw.events?.[0]?.slug || raw.eventId || id) });
         if (markets.length >= limit) break;
       }
@@ -103,7 +139,9 @@ async function fetchMarkets(limit, universe = "active") {
       if (!id || seen.has(id) || labels[0] !== "yes" || labels[1] !== "no" || tokens.length !== 2) continue;
       if (skipped < ACTIVE_SKIP) { skipped++; continue; }
       seen.add(id);
-      markets.push({ id, token: tokens[0], category: categoryOf(raw), question: raw.question || "",
+      const endTs = Date.parse(raw.endDate || raw.events?.[0]?.endDate || "") / 1000;
+      markets.push({ id, token: tokens[0], category: categoryOf(raw), question: raw.question || "", feeSchedule: feeScheduleOf(raw),
+        eventTitle: raw.events?.[0]?.title || "", endTs: Number.isFinite(endTs) ? endTs : null,
         eventKey: String(raw.events?.[0]?.id || raw.events?.[0]?.slug || raw.eventId || id) });
       if (markets.length >= limit) break;
     }
@@ -203,7 +241,9 @@ function observations(market, points) {
     for (const horizon of HORIZONS) {
       const future = atOrAfter(points, current.t + horizon * HOUR);
       if (!future || future.t - (current.t + horizon * HOUR) > 2 * HOUR) continue;
-      rows.push({ marketId: market.id, eventKey: market.eventKey, category: market.category, observedAt: current.t,
+      rows.push({ marketId: market.id, eventKey: market.eventKey, category: market.category, question: market.question,
+        feeSchedule: market.feeSchedule,
+        endTs: Number(market.endTs), hardSettlementJumpRisk: hardSettlementJumpRisk(market), observedAt: current.t,
         evaluatedAt: future.t, horizon, price: current.p, futurePrice: future.p, ...features });
       captured = true;
     }
@@ -222,6 +262,7 @@ function confirmationPass(row, move, confirmation) {
 
 function simulate(row, rule) {
   if (row.horizon !== rule.horizon || row.volatility > rule.maxVol) return null;
+  if (rule.contractGate === "strategy4" && !contractSafeEligible(row, rule.horizon)) return null;
   if (rule.category !== "All" && row.category !== rule.category) return null;
   const move = row.moves[rule.window];
   if (Math.abs(move) < rule.minMove || !confirmationPass(row, move, rule.confirmation)) return null;
@@ -231,10 +272,13 @@ function simulate(row, rule) {
   if (entry < MIN_ENTRY_PRICE || entry > MAX_ENTRY_PRICE) return null;
   const band = priceBand(entry);
   if (rule.band !== "All" && band !== rule.band) return null;
-  const rawNetReturn = exit / entry - 1 - COST / entry;
+  const entryFee = EXACT_GAMMA_FEES ? takerFeePerShare(row.feeSchedule, entry) : null;
+  const exitFee = EXACT_GAMMA_FEES ? takerFeePerShare(row.feeSchedule, exit) : null;
+  const roundTripCost = EXACT_GAMMA_FEES && Number.isFinite(entryFee) && Number.isFinite(exitFee) ? entryFee + exitFee : COST;
+  const rawNetReturn = (exit - entry - roundTripCost) / entry;
   const netReturn = Math.max(-1, Math.min(2, rawNetReturn));
   return { marketId: row.marketId, eventKey: row.eventKey, observedAt: row.observedAt, evaluatedAt: row.evaluatedAt,
-    category: row.category, band, side, entry, exit, netReturn };
+    category: row.category, band, side, entry, exit, roundTripCost, exactFeeSchedule: EXACT_GAMMA_FEES && Number.isFinite(entryFee) && Number.isFinite(exitFee), netReturn };
 }
 
 function summary(rows) {
@@ -279,7 +323,7 @@ const partitionByHorizon = Object.fromEntries(Object.entries(partitions).map(([n
   Object.fromEntries(HORIZONS.map((horizon) => [horizon, partitionRows.filter((row) => row.horizon === horizon)]))]));
 const simulationCache = Object.fromEntries(Object.keys(partitions).map((name) => [name, new Map()]));
 function simulatedRows(rule, partition) {
-  const key = rule.baseId || rule.id;
+  const key = `${rule.baseId || rule.id}|${rule.contractGate || "all"}`;
   if (!simulationCache[partition].has(key)) {
     const baseRule = { ...rule, category: "All", band: "All" };
     simulationCache[partition].set(key, (partitionByHorizon[partition][rule.horizon] || []).map((row) => simulate(row, baseRule)).filter(Boolean));
@@ -293,8 +337,8 @@ const trainWinners = baseRules.map((rule) => ({ rule, train: evaluate(rule, "tra
   .filter((candidate) => candidate.train.attempts >= 100 && candidate.train.events >= 20 && candidate.train.lower > 0);
 const refinedRules = [];
 for (const candidate of trainWinners) {
-  for (const category of ["All", "Politics", "Sports", "Crypto", "Economy", "Pop Culture", "Other"])
-    for (const band of ["All", "longshot", "lower-mid", "center", "upper-mid", "favorite"])
+  for (const category of CATEGORIES)
+    for (const band of PRICE_BANDS)
       refinedRules.push({ ...candidate.rule, id: `${candidate.rule.id}_${category}_${band}`, category, band });
 }
 const uniqueRefined = [...new Map(refinedRules.map((rule) => [rule.id, rule])).values()];
@@ -333,6 +377,29 @@ const exactStrategy3 = { rule: exactStrategy3Rule,
   train: compact(evaluate(exactStrategy3Rule, "train")), validation: compact(evaluate(exactStrategy3Rule, "validation")),
   holdout: compact(evaluate(exactStrategy3Rule, "holdout")),
   eventHoldout: compact(summary(eventHoldoutRows.map((row) => simulate(row, exactStrategy3Rule)).filter(Boolean))) };
+const exactStrategy4Rule = { ...exactStrategy3Rule, id: "fade_h12_w3_m0.08_accelerating_v1_contract_safe_v4", contractGate: "strategy4" };
+const exactStrategy4 = { rule: exactStrategy4Rule,
+  train: compact(evaluate(exactStrategy4Rule, "train")), validation: compact(evaluate(exactStrategy4Rule, "validation")),
+  holdout: compact(evaluate(exactStrategy4Rule, "holdout")),
+  eventHoldout: compact(summary(eventHoldoutRows.map((row) => simulate(row, exactStrategy4Rule)).filter(Boolean))) };
+const strategy4Refinements = CATEGORIES.flatMap((category) => PRICE_BANDS.map((band) => {
+  const rule = { ...exactStrategy4Rule, id: `${exactStrategy4Rule.id}_${category}_${band}`, category, band };
+  return { rule, train: compact(evaluate(rule, "train")), validation: compact(evaluate(rule, "validation")),
+    holdout: compact(evaluate(rule, "holdout")),
+    eventHoldout: compact(summary(eventHoldoutRows.map((row) => simulate(row, rule)).filter(Boolean))) };
+}));
+const exactPrimaryWinner24Rule = { ...exactStrategy3Rule, id: "fade_h24_w3_m0.08_accelerating_v1_All_All",
+  baseId: "fade_h24_w3_m0.08_accelerating_v1", horizon: 24 };
+const exactPrimaryWinner24 = { rule: exactPrimaryWinner24Rule,
+  train: compact(evaluate(exactPrimaryWinner24Rule, "train")), validation: compact(evaluate(exactPrimaryWinner24Rule, "validation")),
+  holdout: compact(evaluate(exactPrimaryWinner24Rule, "holdout")),
+  eventHoldout: compact(summary(eventHoldoutRows.map((row) => simulate(row, exactPrimaryWinner24Rule)).filter(Boolean))) };
+const exactContractSafe24Rule = { ...exactPrimaryWinner24Rule,
+  id: "fade_h24_w3_m0.08_accelerating_v1_contract_safe", contractGate: "strategy4" };
+const exactContractSafe24 = { rule: exactContractSafe24Rule,
+  train: compact(evaluate(exactContractSafe24Rule, "train")), validation: compact(evaluate(exactContractSafe24Rule, "validation")),
+  holdout: compact(evaluate(exactContractSafe24Rule, "holdout")),
+  eventHoldout: compact(summary(eventHoldoutRows.map((row) => simulate(row, exactContractSafe24Rule)).filter(Boolean))) };
 const coverageDays = Object.values(fetched.history).map((points) => points.length > 1 ? (points.at(-1).t - points[0].t) / 86400 : 0).sort((a, b) => a - b);
 const medianCoverageDays = coverageDays.length ? coverageDays[Math.floor(coverageDays.length / 2)] : 0;
 const candidateRow = (candidate) => ({ rule: candidate.rule, passesHoldout: candidate.passesHoldout,
@@ -352,12 +419,16 @@ const report = { generatedAt: new Date().toISOString(), requestedMarkets: MARKET
   archivePassed: finalists.filter((candidate) => candidate.passesArchive).length,
   methodology: { requestedHistoryDays: HISTORY_DAYS, medianHistoryCoverageDays: +medianCoverageDays.toFixed(2),
     maximumHistoryCoverageDays: +(coverageDays.at(-1) || 0).toFixed(2), observationSpacingHours: 3, horizons: HORIZONS, windows: WINDOWS,
-    costCents: COST * 100, entryPriceRange: [MIN_ENTRY_PRICE, MAX_ENTRY_PRICE], returnWinsorization: [-1, 2],
+    costCents: COST * 100, exactGammaFeeSchedules: EXACT_GAMMA_FEES, feeFallbackCents: COST * 100,
+    entryPriceRange: [MIN_ENTRY_PRICE, MAX_ENTRY_PRICE], returnWinsorization: [-1, 2],
     eventSplit: "25% deterministic event-disjoint holdout reserved before search",
     split: "Remaining events use 60% train / 20% validation / 20% untouched chronological holdout with future-mark purge",
     clusterUnit: "Polymarket event", refinementSource: "Only base rules with a positive train lower bound are refined by category and entry band",
+    closedArchiveOrder: `${CLOSED_ORDER} ${CLOSED_ASCENDING ? "ascending" : "descending"}`,
+    strategy4ContractGate: `Reject path barriers and exact numeric ranges; require ${STRATEGY4_MINIMUM_RUNWAY_HOURS} hours to market end at entry`,
     limitation: "Current active-market selection is survivorship biased; any holdout winner still requires resolved-market external validation" },
-  partitions: Object.fromEntries(Object.entries(partitions).map(([key, value]) => [key, value.length])), exactStrategy3,
+  partitions: Object.fromEntries(Object.entries(partitions).map(([key, value]) => [key, value.length])), exactStrategy3, exactStrategy4,
+  strategy4Refinements, exactPrimaryWinner24, exactContractSafe24,
   candidates: holdout.slice(0, 30).map(candidateRow) };
 
 const output = SUMMARY_ONLY ? { generatedAt: report.generatedAt, activeMarketsSkipped: report.activeMarketsSkipped, markets: report.markets,
@@ -369,7 +440,9 @@ const output = SUMMARY_ONLY ? { generatedAt: report.generatedAt, activeMarketsSk
   eventHoldoutPassed: report.eventHoldoutPassed, externalRequestedMarkets: report.externalRequestedMarkets,
   externalMarkets: report.externalMarkets, externalMarketsWithHistory: report.externalMarketsWithHistory,
   externalFetchFailures: report.externalFetchFailures, externalObservations: report.externalObservations,
-  archivePassed: report.archivePassed, partitions: report.partitions, exactStrategy3: report.exactStrategy3,
+  archivePassed: report.archivePassed, partitions: report.partitions, exactStrategy3: report.exactStrategy3, exactStrategy4: report.exactStrategy4,
+  strategy4Refinements: report.strategy4Refinements,
+  exactPrimaryWinner24: report.exactPrimaryWinner24, exactContractSafe24: report.exactContractSafe24,
   candidates: report.candidates.slice(0, SUMMARY_CANDIDATES) } : report;
 const serialized = JSON.stringify(output, null, 2);
 if (OUTPUT_FILE) fs.writeFileSync(OUTPUT_FILE, serialized + "\n");

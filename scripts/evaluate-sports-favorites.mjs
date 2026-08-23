@@ -1,6 +1,7 @@
 const GAMMA = "https://gamma-api.polymarket.com";
 const CLOB = "https://clob.polymarket.com";
 const MARKET_LIMIT = Math.max(500, Math.min(5000, Number(process.env.SPORTS_FAVORITE_MARKETS || 3000)));
+const MARKET_SKIP = Math.max(0, Math.min(20000, Number(process.env.SPORTS_FAVORITE_SKIP || 0)));
 const CONCURRENCY = Math.max(1, Math.min(12, Number(process.env.SPORTS_FAVORITE_CONCURRENCY || 10)));
 const COST = Math.max(0, Math.min(0.10, Number(process.env.SPORTS_FAVORITE_COST_CENTS || 5) / 100));
 const MAX_STALENESS_HOURS = Math.max(1, Math.min(12, Number(process.env.SPORTS_FAVORITE_MAX_STALENESS_HOURS || 3)));
@@ -59,8 +60,9 @@ function gameStart(raw) {
   return timestamp(raw.gameStartTime || raw.eventStartTime || event.startTime || event.eventDate);
 }
 
-async function fetchMarkets(limit) {
+async function fetchMarkets(limit, skip = 0) {
   const markets = [], seen = new Set();
+  let eligibleSeen = 0;
   let cursor = "";
   while (markets.length < limit) {
     const params = new URLSearchParams({ closed: "true", order: "closedTime", ascending: "false", limit: "100", include_tag: "true" });
@@ -75,6 +77,7 @@ async function fetchMarkets(limit) {
       if (!id || seen.has(id) || labels[0] !== "yes" || labels[1] !== "no" || tokens.length !== 2 || finalYes == null
         || !startsAt || !closedAt || !sportsMarket(raw)) continue;
       seen.add(id);
+      if (eligibleSeen++ < skip) continue;
       markets.push({ id, question: raw.question || "", eventKey: String(raw.events?.[0]?.id || id), event: raw.events?.[0]?.title || "",
         tokenId: tokens[0], finalYes, startsAt, closedAt, marketType: String(raw.sportsMarketType || "unknown") });
       if (markets.length >= limit) break;
@@ -126,7 +129,7 @@ for (const leadHours of [12, 18, 24, 30, 36]) {
   }
 }
 
-const markets = await fetchMarkets(MARKET_LIMIT);
+const markets = await fetchMarkets(MARKET_LIMIT, MARKET_SKIP);
 const histories = await mapLimit(markets, CONCURRENCY, async (market) => {
   const data = await fetchJson(`${CLOB}/prices-history?market=${encodeURIComponent(market.tokenId)}&interval=max&fidelity=60`);
   const points = (data.history || []).map((point) => ({ t: Number(point.t), p: Number(point.p) }))
@@ -177,7 +180,7 @@ const closest = evaluated.filter((row) => row.train.events >= 25 && row.validati
   .sort((a, b) => Math.min(b.train.lower, b.validation.lower, b.holdout.lower)
     - Math.min(a.train.lower, a.validation.lower, a.holdout.lower));
 
-console.log(JSON.stringify({ generatedAt: new Date().toISOString(), requestedMarkets: MARKET_LIMIT, sportsMarkets: markets.length,
+console.log(JSON.stringify({ generatedAt: new Date().toISOString(), requestedMarkets: MARKET_LIMIT, skippedEligibleMarkets: MARKET_SKIP, sportsMarkets: markets.length,
   historiesWithData: usable.length, failures: histories.filter((row) => row?.error).length,
   methodology: { selection: "most recently closed eligible Yes/No sports markets", decisionAnchor: "published game start",
     historyFidelityMinutes: 60, maxPriceStalenessHours: MAX_STALENESS_HOURS, modeledCostCents: COST * 100,
