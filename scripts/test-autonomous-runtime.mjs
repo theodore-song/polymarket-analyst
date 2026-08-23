@@ -6,6 +6,7 @@ const index = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8")
 const api = fs.readFileSync(new URL("../api/state.js", import.meta.url), "utf8");
 const workflow = fs.readFileSync(new URL("../.github/workflows/autonomous-cycle.yml", import.meta.url), "utf8");
 const releaseWorkflow = fs.readFileSync(new URL("../.github/workflows/release-build-124.yml", import.meta.url), "utf8");
+const vercelConfig = JSON.parse(fs.readFileSync(new URL("../vercel.json", import.meta.url), "utf8"));
 const runner = fs.readFileSync(new URL("./run-autonomous-cycle.mjs", import.meta.url), "utf8");
 const resolutionAudit = JSON.parse(fs.readFileSync(new URL("../research/resolution-week-no-audit.json", import.meta.url), "utf8"));
 const sportsContestAudit = JSON.parse(fs.readFileSync(new URL("../research/sports-contest-no-exploration-audit.json", import.meta.url), "utf8"));
@@ -16,6 +17,7 @@ const sportsEvaluator = fs.readFileSync(new URL("./evaluate-sports-favorites.mjs
 const build = Number(index.match(/const BUILD_VERSION = (\d+);/)?.[1]);
 
 assert.equal(build, 124);
+assert.equal(vercelConfig.git?.deploymentEnabled?.["runtime-state"], false);
 assert.equal(settlementCalibrationAudit.requested_markets, 5000);
 assert.equal(settlementCalibrationAudit.train_passed, 0);
 assert.equal(settlementCalibrationAudit.validation_selected, 0);

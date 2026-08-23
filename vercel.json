@@ -1,4 +1,10 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "git": {
+    "deploymentEnabled": {
+      "runtime-state": false
+    }
+  },
   "rewrites": [
     {
       "source": "/api/liquidity",

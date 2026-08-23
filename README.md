@@ -24,6 +24,11 @@ the evidence ledger is read-only: cached prices cannot grade pending signals,
 expire horizons, or create new observations.
 
 Build 124 targets five-minute slots with a serialized, self-chained GitHub Actions runtime.
+The mutable snapshot stays on the dedicated `runtime-state` branch, which is
+explicitly excluded from Vercel Git deployments through
+`git.deploymentEnabled`. This prevents high-frequency state commits from
+consuming Preview deployment quota while ordinary `main` source commits still
+produce Production deployments.
 It continues from the previous agent snapshot and runs the next due paper cycle
 even when no browser is open. After each successful cycle, one repo-scoped
 workflow dispatch waits for the next five-minute boundary; one concurrency group
