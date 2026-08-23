@@ -79,6 +79,10 @@ count, all asks and CLOB fee schedules must verify, and the post-conversion proc
 must remain profitable. Missing or inconsistent adapter data cannot produce paper
 P&L. Complete YES sets and logical dominance pairs are not convertible and continue
 to use settlement or verified live-bid exits.
+Bundle capital is split between two independent agents instead of bottlenecking one
+portfolio: Value Hunter owns complete-set merge/conversion opportunities, while The
+Diversifier owns threshold and deadline dominance spreads. A global underlying-event
+claim prevents either book from duplicating exposure already held by the other.
 Gasless CTF operations include merge transactions; see
 [Positions & Tokens](https://docs.polymarket.com/concepts/positions-tokens) and
 [Gasless Transactions](https://docs.polymarket.com/trading/gasless).

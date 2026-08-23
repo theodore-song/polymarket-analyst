@@ -893,8 +893,13 @@ const AGENTS = [
    rank:(s)=>[...s].filter(x=>x.entry_price<=0.48).sort((a,b)=>(Math.abs(b.net_edge||b.edge||0)*100+b.conviction+Number(b.evidence_score||0)*22-b.entry_price*12)-(Math.abs(a.net_edge||a.edge||0)*100+a.conviction+Number(a.evidence_score||0)*22-a.entry_price*12)),
    maxNew:6, maxFrac:0.07, minConv:57, kelly:0.25, allocationFrac:0.065, targetExposure:0.50, drawdownExposure:0.38},
   {id:"diversifier", name:"The Diversifier", emoji:"🌐", color:"#c77dff", kind:"strategy",
-   blurb:"Builds a broad basket instead of making a few concentrated bets. It spreads smaller, flatter positions across high-conviction, evidence-backed ideas while avoiding crowded overlap and weak net-edge fillers.",
-   rank:(s)=>[...s].sort((a,b)=>(b.conviction+Number(b.evidence_score||0)*15+Math.abs(b.net_edge||b.edge||0)*55)-(a.conviction+Number(a.evidence_score||0)*15+Math.abs(a.net_edge||a.edge||0)*55)),
+   blurb:"Runs the arena's logical-spread book across independent events. It specializes in threshold and deadline dominance pairs whose joint payout is protected by the wording itself, requires live depth and exact fee verification, ranks them by return per locked day, and refuses events already owned by another agent. When no protected spread exists, it keeps its smaller cross-category directional mandate in observation mode.",
+   rank:(s)=>[...s].sort((a,b)=>{
+     const bundleOrder=Number(b.quality==="bundle-arb")-Number(a.quality==="bundle-arb");
+     if(bundleOrder)return bundleOrder;
+     if(a.quality==="bundle-arb")return compareBundleOpportunities(a,b);
+     return (b.conviction+Number(b.evidence_score||0)*15+Math.abs(b.net_edge||b.edge||0)*55)-(a.conviction+Number(a.evidence_score||0)*15+Math.abs(a.net_edge||a.edge||0)*55);
+   }),
    maxNew:6, maxFrac:0.03, minConv:56, kelly:0.15, flat:true, targetExposure:0.70, drawdownExposure:0.48},
   {id:"catalyst", name:"Catalyst Strike", emoji:"⚡", color:"#ff8a4c", kind:"strategy", aggressive:true,
    blurb:"An aggressive event-driven strategy that concentrates on markets with fresh outside context, multiple evidence signals, and enough activity for a fast repricing. It is willing to enter earlier than the core agents when a measurable catalyst and positive post-cost edge agree, while accepting larger swings to capture the move.",
@@ -4342,6 +4347,15 @@ function occupiedStrategyMarkets(st,selfId=null){
   });
   return ids;
 }
+function currentBundleEventKeys(st){
+  const keys=new Set();
+  AGENTS.filter(agent=>agent.kind==="strategy").forEach(agent=>{
+    const p=st&&st.agents&&st.agents[agent.id];
+    (p&&p.positions||[]).filter(pos=>pos.requires_complete_bundle&&pos.bundle_id)
+      .forEach(pos=>{const key=bundleEventKey(pos);if(key)keys.add(key);});
+  });
+  return keys;
+}
 function strategyExecutionOrder(st){
   return [...AGENTS].sort((a,b)=>{
     const score=cfg=>{
@@ -4380,7 +4394,9 @@ function reduceStrategyOverlap(st){
   });
 }
 function agentObservesSuggestion(cfg,s){
-  if(!cfg||!s||s.jump_risk||!["trend","reversal"].includes(s.signal_type))return false;
+  if(!cfg||!s||s.jump_risk)return false;
+  if(s.quality==="bundle-arb")return bundleAgentOwnerId(s)===cfg.id;
+  if(!["trend","reversal"].includes(s.signal_type))return false;
   const entry=Number(s.entry_price||0),confidence=Number(s.signal_confidence||0),strength=Number(s.signal_strength||0);
   const evidence=Number(s.evidence_score||0),sources=Number(s.evidence_source_count||0),change=Math.abs(Number(s.price_change_1d||0));
   const days=Number(s.days_to_resolution||0),conviction=Number(s.conviction||0);
@@ -4397,10 +4413,13 @@ function agentObservesSuggestion(cfg,s){
   if(cfg.id==="conviction")return conviction>=65&&confidence>=0.58;
   return false;
 }
+function bundleAgentOwnerId(s){
+  return ["threshold-dominance","deadline-dominance"].includes(String(s&&s.bundle_logic||""))?"diversifier":"value";
+}
 function agentAcceptsSuggestion(cfg,s){
   const quality=s.quality||"watch",edge=effectiveEntryEdge(s),evidence=Number(s.evidence_score||0);
   if(quality==="watch")return false;
-  if(quality==="bundle-arb")return cfg.id==="value";
+  if(quality==="bundle-arb")return cfg.id===bundleAgentOwnerId(s);
   if(quality==="sports-contest-no-pilot")return cfg.id==="favorite"&&s.signal_type==="sports-contest-no-pilot";
   if(quality==="shock-fade-pilot")return SHOCK_FADE_ADOPTER_IDS.has(cfg.id)&&s.signal_type==="shock-fade-pilot";
   if(quality==="resolution-week-no-pilot")return RESOLUTION_WEEK_NO_ADOPTER_IDS.has(cfg.id)&&s.signal_type==="resolution-week-no-pilot";
@@ -4924,6 +4943,7 @@ async function runDailyCycle(){
     const entriesAllowed=runMode==="live"||cachePolicy.entriesAllowed;
     const cycleSuggestions=prepareCycleSuggestions(sugs,runMode,entriesAllowed);
     const claimedMarkets=new Set();
+    const claimedBundleEvents=currentBundleEventKeys(st);
     const claimedShockEvents=currentShockClaimKeys(st);
     const claimedResolutionWeekEvents=currentResolutionWeekEventKeys(st);
     const claimedProbationEvents=new Set(AGENTS.flatMap(agent=>[
@@ -4953,7 +4973,10 @@ async function runDailyCycle(){
         ||!claimedResolutionWeekEvents.has(String(s.event_key||s.market_id)));
       agentCycleSuggestions=agentCycleSuggestions.filter(s=>!s.adaptive_probation
         ||!claimedProbationEvents.has(String(s.event_key||s.market_id)));
+      agentCycleSuggestions=agentCycleSuggestions.filter(s=>s.quality!=="bundle-arb"||!claimedBundleEvents.has(bundleEventKey(s)));
       openPositions(p,cfg,rankSuggestionsForAgent(cfg,agentCycleSuggestions),focus,decision,occupied,peerMarketStats(st,cfg.id)).forEach(id=>claimedMarkets.add(id));
+      (p.positions||[]).filter(pos=>pos.requires_complete_bundle&&pos.bundle_id)
+        .forEach(pos=>{const key=bundleEventKey(pos);if(key)claimedBundleEvents.add(key);});
       (p.positions||[]).filter(row=>row.adaptive_probation)
         .forEach(row=>claimedProbationEvents.add(String(row.event_key||row.market_id)));
       (p.positions||[]).filter(row=>row.signal_type==="resolution-week-no-pilot"
@@ -7674,6 +7697,10 @@ function runEngineSelfTest(){
   openPositions(eventCapBook,AGENTS.find(a=>a.id==="value"),[dominanceSuggestion],"All",{
     minConv:0,maxNew:1,maxFrac:0.04,reserve:0.10,targetExposure:0.60,learning:buildAdaptiveProfile(eventCapBook),marketLearning:{samples:0,pending:0,buckets:{}},
   },new Set(),{});
+  const diversifierBundleBook=defaultPortfolio();
+  openPositions(diversifierBundleBook,agentById("diversifier"),rankSuggestionsForAgent(agentById("diversifier"),[dominanceSuggestion]),"All",{
+    minConv:0,maxNew:1,maxFrac:0.04,reserve:0.10,targetExposure:0.70,learning:buildAdaptiveProfile(diversifierBundleBook),marketLearning:{samples:0,pending:0,buckets:{}},
+  },new Set(),{});
   const slowCapitalBook=defaultPortfolio(),slowCapitalSuggestion=Object.assign({},dominanceSuggestion,{
     bundle_id:"dominance:slow-capital-event:a:b",bundle_event_id:"slow-capital-event",bundle_capital_efficiency:BUNDLE_MIN_DAILY_RETURN/2,
   });
@@ -8214,6 +8241,15 @@ function runEngineSelfTest(){
         &&binaryReserveOrder.filter(row=>row.bundle_logic==="binary-complement").length===BINARY_COMPLEMENT_DEPTH_RESERVE,
       reservesExactConversionDepthChecks:binaryReserveOrder.length===BUNDLE_DEPTH_CANDIDATE_LIMIT
         &&binaryReserveOrder.filter(row=>row.bundle_conversion_candidate).length===NEG_RISK_CONVERSION_DEPTH_RESERVE,
+      routesCompleteSetsToValue:agentAcceptsSuggestion(agentById("value"),convertibleNoBundleSuggestion)
+        &&!agentAcceptsSuggestion(agentById("diversifier"),convertibleNoBundleSuggestion),
+      routesDominanceSpreadsToDiversifier:agentAcceptsSuggestion(agentById("diversifier"),dominanceSuggestion)
+        &&!agentAcceptsSuggestion(agentById("value"),dominanceSuggestion),
+      bundleResearchOwnershipMatchesCapital:agentObservesSuggestion(agentById("diversifier"),dominanceSuggestion)
+        &&!agentObservesSuggestion(agentById("value"),dominanceSuggestion),
+      tracksGlobalBundleEventOwnership:currentBundleEventKeys({agents:{value:eventCapBook}}).has("dominance-test"),
+      diversifierExecutesVerifiedDominanceSpread:diversifierBundleBook.positions.length===2
+        &&diversifierBundleBook.positions.every(pos=>pos.bundle_logic==="threshold-dominance"),
       prioritizesReturnPerLockedDay:capitalEfficiencyOrder[0].bundle_event_id==="fast-event",
       prioritizesIndependentEventsBeforeAlternates:independentBundleOrder.map(row=>row.bundle_event_id).join(",")==="event-a,event-b,event-a",
       derivesLegacyBundleEventKey:bundleEventKey({bundle_id:"dominance:legacy-event:market-a:market-b"})==="legacy-event",
