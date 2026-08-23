@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 65 · independent adaptive research · build 131</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 65 · enforced research cooldown · build 132</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 131 active:</b> Maker Research 4 now lets three independent current events influence zero-capital candidate ranking and places recently completed events on a 24-hour shared cooldown, so agents gather broader evidence instead of repeatedly testing the same loss. Capital still requires 20 independent events, three profitable locks, a positive lower bound, and the retired backtest gate. Two-pass execution, duration-aware protected recycling, exact fees, and offline-safe shared state remain active. Profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 132 active:</b> Maker Research 4 now enforces its shared 24-hour event cooldown against both new and inherited zero-capital quotes, retiring duplicate shadow observations without changing cash or P&L. Three independent current events can influence research ranking, while capital still requires 20 independent events, three profitable locks, a positive lower bound, and a separately approved backtest. Two-pass execution, protected recycling, exact fees, and offline-safe shared state remain active. Profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 131 · Adaptive strategy 65 · Early evidence-weighted independent maker research · 24-hour shared event cooldown · Two-pass bounded live execution · Duration-aware atomic profit recycling · Feature-aware diversified maker research · Expanded independent-event executable search · Exact-fee complete-NO conversion · Evidence-first bounded snapshots · Six-hour bounded probation with matched executable exits · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Duration-aware, event-capped verified bundles · Scale-aware executable-profit floor · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 4 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 132 · Adaptive strategy 65 · Enforced inherited-quote research cooldown · Early evidence-weighted independent maker research · 24-hour shared event cooldown · Two-pass bounded live execution · Duration-aware atomic profit recycling · Feature-aware diversified maker research · Expanded independent-event executable search · Exact-fee complete-NO conversion · Evidence-first bounded snapshots · Six-hour bounded probation with matched executable exits · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Duration-aware, event-capped verified bundles · Scale-aware executable-profit floor · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 4 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 131;
+const BUILD_VERSION = 132;
 const AGENT_LEARNING_VERSION = 3;
 const SUGGESTION_ENGINE_VERSION = 65;
 const MAKER_STRATEGY_VERSION = 4;
@@ -4191,17 +4191,42 @@ function buildSharedMakerProfile(st){
   const outcomes=AGENTS.flatMap(agent=>(st.agents[agent.id].maker_outcomes||[])).slice(-MAKER_OUTCOME_LIMIT*AGENTS.length);
   return buildMakerProfile({maker_outcomes:outcomes},MAKER_OUTCOME_LIMIT*AGENTS.length);
 }
-function recentMakerResearchEventKeys(st,now=Date.now()){
+function recentMakerCompletedEventKeys(st,now=Date.now()){
   const keys=new Set(),cutoff=Number(now)-MAKER_EVENT_RESEARCH_COOLDOWN_HOURS*3600000;
   AGENTS.forEach(agent=>{
     const portfolio=st&&st.agents&&st.agents[agent.id]||{};
-    (portfolio.maker_quotes||[]).forEach(quote=>{const key=String(quote.event_key||"");if(key)keys.add(key);});
     (portfolio.maker_outcomes||[]).filter(row=>Number(row.maker_strategy_version||1)===MAKER_STRATEGY_VERSION).forEach(row=>{
       const completed=new Date(row.completed_at||row.created_at||0).getTime(),key=String(row.event_key||"");
       if(key&&Number.isFinite(completed)&&completed>=cutoff)keys.add(key);
     });
   });
   return keys;
+}
+function recentMakerResearchEventKeys(st,now=Date.now()){
+  const keys=recentMakerCompletedEventKeys(st,now);
+  AGENTS.forEach(agent=>{
+    const portfolio=st&&st.agents&&st.agents[agent.id]||{};
+    (portfolio.maker_quotes||[]).forEach(quote=>{const key=String(quote.event_key||"");if(key)keys.add(key);});
+  });
+  return keys;
+}
+function retireCooldownShadowQuotes(st,completedKeys=recentMakerCompletedEventKeys(st)){
+  const byAgent={},keys=completedKeys instanceof Set?completedKeys:new Set(completedKeys||[]);let total=0;
+  AGENTS.forEach(agent=>{
+    const portfolio=st&&st.agents&&st.agents[agent.id];if(!portfolio)return;
+    const keep=[];let retired=0;
+    (portfolio.maker_quotes||[]).forEach(quote=>{
+      const eventKey=String(quote.event_key||"");
+      if(quote.shadow_only&&eventKey&&keys.has(eventKey)){
+        portfolio.history.push({date:logDay(),action:"SHADOW_RETIRE",question:quote.question||"Maker research quote",side:"PAIR",
+          detail:`Canceled a duplicate zero-capital maker observation because event ${eventKey} already completed within the shared ${MAKER_EVENT_RESEARCH_COOLDOWN_HOURS}-hour research cooldown; cash and P&L were unchanged`});
+        retired++;total++;return;
+      }
+      keep.push(quote);
+    });
+    portfolio.maker_quotes=keep;byAgent[agent.id]=retired;
+  });
+  return {total,byAgent};
 }
 function makerCandidateLearning(candidate,profile){
   const bands={price_balance_band:makerPriceBalanceBand(candidate),day_move_band:makerDayMoveBand(candidate),
@@ -5119,6 +5144,7 @@ async function runDailyCycle(){
     const preBoard=AGENTS.map(a=>({id:a.id,eq:equity(st.agents[a.id])})).sort((x,y)=>y.eq-x.eq);
     const leaderEq=preBoard[0]?preBoard[0].eq:STARTING_BALANCE;
     const quoteMarketMap=Object.assign({},cachedById,freshById);
+    const makerCooldownActivity=retireCooldownShadowQuotes(st);
     const allMakerQuotes=AGENTS.flatMap(agent=>st.agents[agent.id].maker_quotes||[]);
     if(runMode==="live"&&allMakerQuotes.length)setStatus("verifying resting quote touches…",true);
     const makerTouchHistory=runMode==="live"?await fetchMakerTouchHistory(allMakerQuotes,quoteMarketMap):{};
@@ -5201,10 +5227,10 @@ async function runDailyCycle(){
         p.lastDecision=Object.assign({},p.lastDecision,{makerQuotes:p.maker_quotes.length,makerCandidates:staged.candidates,makerStaged:staged.staged,
           makerShadowStaged:staged.shadowStaged,makerCapitalStaged:staged.capitalStaged,makerShadowActive:staged.shadowActive,makerCapitalActive:staged.capitalActive,
           makerFills:makerActivity.fills,makerLocked:makerActivity.locked,makerExpired:makerActivity.expired,makerHistoryTouches:makerActivity.historyTouches,
-          makerShadowCompleted:makerActivity.shadowCompleted,
+          makerShadowCompleted:makerActivity.shadowCompleted,makerCooldownRetired:makerCooldownActivity.byAgent[cfg.id]||0,
           makerReserved:staged.reserved,makerProfile:sharedMakerProfile});
-        if(staged.staged||makerActivity.fills||makerActivity.locked||makerActivity.expired){
-          p.lastDecision.allocationStatus=`${p.lastDecision.allocationStatus||""} Maker research: ${staged.shadowActive} zero-capital lock-or-exit observation${staged.shadowActive===1?"":"s"}, ${makerActivity.shadowCompleted||0} outcome${makerActivity.shadowCompleted===1?"":"s"} graded this cycle; capital remains disabled after the chronological holdout failure, and displayed reward estimates are never credited as P&L.`.trim();
+        if(staged.staged||makerActivity.fills||makerActivity.locked||makerActivity.expired||(makerCooldownActivity.byAgent[cfg.id]||0)){
+          p.lastDecision.allocationStatus=`${p.lastDecision.allocationStatus||""} Maker research: ${staged.shadowActive} zero-capital lock-or-exit observation${staged.shadowActive===1?"":"s"}, ${makerActivity.shadowCompleted||0} outcome${makerActivity.shadowCompleted===1?"":"s"} graded and ${makerCooldownActivity.byAgent[cfg.id]||0} inherited duplicate${(makerCooldownActivity.byAgent[cfg.id]||0)===1?"":"s"} retired this cycle; capital remains disabled after the chronological holdout failure, and displayed reward estimates are never credited as P&L.`.trim();
         }
       }
     }
@@ -7129,7 +7155,7 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
     makerCompetitionSource:"shared public CLOB order-book audit",makerResearchSharedAcrossAgents:true,makerMarketsPartitionedAcrossAgents:true,
     makerHistoryRequestsBatched:true,makerPromotionCohorts:["category","spread","reward-yield","price-balance","day-move","locked-margin","competition"],
     makerResearchPrioritizesUnderSampledCohorts:true,makerResearchRankingMinEvents:MAKER_RESEARCH_RANKING_MIN_EVENTS,
-    makerEventResearchCooldownHours:MAKER_EVENT_RESEARCH_COOLDOWN_HOURS,makerRewardPayoutMinimum:1,
+    makerEventResearchCooldownHours:MAKER_EVENT_RESEARCH_COOLDOWN_HOURS,makerCooldownRetiresInheritedShadowQuotes:true,makerRewardPayoutMinimum:1,
     emotionCanIncreaseSize:false,dualPromotionPeerBoostPct:5,currentStrategyOnlyCapitalAdaptation:true,
     directionalProbation:{horizonHours:DIRECTIONAL_PROBATION_HORIZON_HOURS,minIndependentEvents:DIRECTIONAL_PROBATION_MIN_EVENTS,
       minimumLowerBoundPct:DIRECTIONAL_PROBATION_MIN_LOWER_BOUND*100,positionPct:DIRECTIONAL_PROBATION_POSITION_PCT*100,
@@ -7754,7 +7780,9 @@ function runEngineSelfTest(){
     status:"unfilled",pnl:0,shadow_only:true,completed_at:hoursAgo(2),maker_strategy_version:MAKER_STRATEGY_VERSION});
   makerCooldownState.agents.value.maker_outcomes.push({quote_id:"stale-maker",market_id:"stale-maker",event_key:"Stale maker event",
     status:"unfilled",pnl:0,shadow_only:true,completed_at:hoursAgo(MAKER_EVENT_RESEARCH_COOLDOWN_HOURS+2),maker_strategy_version:MAKER_STRATEGY_VERSION});
-  makerCooldownState.agents.momentum.maker_quotes.push({event_key:"Active maker event"});
+  makerCooldownState.agents.momentum.maker_quotes.push({event_key:"Active maker event",shadow_only:true});
+  makerCooldownState.agents.favorite.maker_quotes.push({event_key:"Recent maker event",shadow_only:true,question:"Inherited duplicate"});
+  const makerCompletedKeys=recentMakerCompletedEventKeys(makerCooldownState),makerCooldownRetirement=retireCooldownShadowQuotes(makerCooldownState,makerCompletedKeys);
   const makerCooldownKeys=recentMakerResearchEventKeys(makerCooldownState),makerCooldownBook=defaultPortfolio();
   const makerCooldownMarkets=[Object.assign({},makerMarket,{id:"cooldown-recent",event:"Recent maker event"}),
     Object.assign({},makerMarket,{id:"cooldown-fresh",event:"Fresh maker event"})];
@@ -8488,6 +8516,9 @@ function runEngineSelfTest(){
       recentMakerEventsEnterSharedCooldown:makerCooldownKeys.has("Recent maker event")&&makerCooldownKeys.has("Active maker event")
         &&!makerCooldownKeys.has("Stale maker event")&&makerCooldownBook.maker_quotes.length===1
         &&makerCooldownBook.maker_quotes[0].event_key==="Fresh maker event",
+      inheritedDuplicateShadowQuotesRetireWithoutPnl:makerCooldownRetirement.total===1
+        &&makerCooldownRetirement.byAgent.favorite===1&&makerCooldownState.agents.favorite.maker_quotes.length===0
+        &&makerCooldownState.agents.favorite.cash===STARTING_BALANCE&&makerCooldownState.agents.favorite.closed.length===0,
       noHypotheticalRewardCredited:makerStage.staged===1&&Math.abs(makerBook.cash-(10000+makerExpectedProfit))<=0.02,
       rejectsUnrewardedMarket:makerPairCandidate(Object.assign({},makerMarket,{rewards_daily_rate:0}))===null,
       rejectsVolatileMarket:makerPairCandidate(Object.assign({},makerMarket,{price_change_1d:0.12}))===null,
