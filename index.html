@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 65 · enforced research cooldown · build 132</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 65 · protected maker-assist audit · build 133</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 132 active:</b> Maker Research 4 now enforces its shared 24-hour event cooldown against both new and inherited zero-capital quotes, retiring duplicate shadow observations without changing cash or P&L. Three independent current events can influence research ranking, while capital still requires 20 independent events, three profitable locks, a positive lower bound, and a separately approved backtest. Two-pass execution, protected recycling, exact fees, and offline-safe shared state remain active. Profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 133 active:</b> Every live protected-bundle scan now audits whether one passive bid plus an immediate full-depth hedge could turn a near-miss into a complete contractual payout. These maker-assisted paths are telemetry only and cannot change cash or open positions. Two-pass execution, protected recycling, exact fees, enforced research cooldowns, and offline-safe shared state remain active. Profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 132 · Adaptive strategy 65 · Enforced inherited-quote research cooldown · Early evidence-weighted independent maker research · 24-hour shared event cooldown · Two-pass bounded live execution · Duration-aware atomic profit recycling · Feature-aware diversified maker research · Expanded independent-event executable search · Exact-fee complete-NO conversion · Evidence-first bounded snapshots · Six-hour bounded probation with matched executable exits · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Duration-aware, event-capped verified bundles · Scale-aware executable-profit floor · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 4 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 133 · Adaptive strategy 65 · Zero-capital protected maker-assist audit · Enforced inherited-quote research cooldown · Early evidence-weighted independent maker research · 24-hour shared event cooldown · Two-pass bounded live execution · Duration-aware atomic profit recycling · Feature-aware diversified maker research · Expanded independent-event executable search · Exact-fee complete-NO conversion · Evidence-first bounded snapshots · Six-hour bounded probation with matched executable exits · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Duration-aware, event-capped verified bundles · Scale-aware executable-profit floor · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 4 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 132;
+const BUILD_VERSION = 133;
 const AGENT_LEARNING_VERSION = 3;
 const SUGGESTION_ENGINE_VERSION = 65;
 const MAKER_STRATEGY_VERSION = 4;
@@ -1560,6 +1560,34 @@ function maximizeBundleExecution(candidate,books,minimumUnits){
   }
   return best;
 }
+function bundleMakerAssistQuote(candidate,quote,books){
+  if(!candidate||!quote||!quote.depth_verified||!Array.isArray(quote.legs)||quote.legs.length<2)return null;
+  const units=Number(quote.units),payout=Number(candidate.bundle_payout_per_unit);
+  if(!(units>0)||!(payout>0))return null;
+  const choices=quote.legs.map((leg,index)=>{
+    const book=books.get(String(leg.token_id||"")),bids=bundleBookBidLevels(book),asks=bundleBookAskLevels(book);
+    const bestBid=Number(bids[0]&&bids[0].price),bestAsk=Number(asks[0]&&asks[0].price);
+    const tick=Math.max(0.001,Number(book&&book.tick_size||0.01));
+    if(!Number.isFinite(bestBid)||!Number.isFinite(bestAsk)||bestAsk<=bestBid+tick*0.5)return null;
+    const makerPrice=Math.min(bestAsk-tick,bestBid+tick);
+    if(!(makerPrice>bestBid&&makerPrice<bestAsk))return null;
+    const makerFee=leg.fee_schedule&&leg.fee_schedule.takerOnly===false?bundleFeePerShare(leg.fee_schedule,makerPrice):0;
+    if(!Number.isFinite(makerFee))return null;
+    const otherCost=quote.legs.reduce((sum,row,rowIndex)=>sum+(rowIndex===index?0:Number(row.entry_price)),0);
+    const cost=otherCost+makerPrice+makerFee,profit=payout-cost,netReturn=cost>0?profit/cost:-Infinity,totalProfit=profit*units;
+    return {leg_index:index,market_id:leg.market_id,token_id:leg.token_id,side:leg.side,question:leg.question,
+      maker_price:+makerPrice.toFixed(6),best_bid:+bestBid.toFixed(6),best_ask:+bestAsk.toFixed(6),tick_size:tick,
+      all_taker_cost:+Number(quote.cost).toFixed(6),protected_cost:+cost.toFixed(6),profit_per_unit:+profit.toFixed(6),
+      net_return:+netReturn.toFixed(6),total_profit:+totalProfit.toFixed(4),execution_units:units};
+  }).filter(Boolean).sort((a,b)=>b.total_profit-a.total_profit||b.net_return-a.net_return);
+  const best=choices[0];if(!best)return null;
+  const capitalEfficiency=bundleCapitalEfficiency(Object.assign({},candidate,{net_edge:best.net_return}));
+  const shadowEligible=best.profit_per_unit>=NEG_RISK_MIN_NET_PROFIT&&best.net_return>=NEG_RISK_MIN_NET_RETURN
+    &&best.total_profit>=BUNDLE_MIN_EXECUTION_PROFIT&&capitalEfficiency>=bundleMinimumDailyReturn(candidate)
+    &&quote.legs.every(leg=>leg.fee_config_valid);
+  return Object.assign({},best,{capital_efficiency:+capitalEfficiency.toFixed(8),minimum_daily_return:+bundleMinimumDailyReturn(candidate).toFixed(8),
+    shadow_eligible:shadowEligible,capital_enabled:false,execution_model:"one resting bid then full live-depth taker hedge"});
+}
 async function fetchBundleBooks(tokenIds){
   const books=new Map(),unique=[...new Set((tokenIds||[]).map(String).filter(Boolean))];
   for(let index=0;index<unique.length;index+=BUNDLE_BOOK_BATCH_SIZE){
@@ -1661,6 +1689,7 @@ async function verifyExecutableBundles(candidates){
     const estimatedCost=Number(candidate.bundle_cost_per_unit),requiredUnits=bundleMinimumExecutionUnits(Math.max(estimatedCost,0.01));
     const minimumUnits=Math.max(requiredUnits,...(candidate.bundle_legs||[]).map(leg=>Number(books.get(String(leg.token_id||""))&&books.get(String(leg.token_id||"")).min_order_size||0)));
     const quote=maximizeBundleExecution(candidate,books,minimumUnits),cost=quote.cost,profit=quote.profit,netReturn=quote.net_return;
+    const makerAssist=bundleMakerAssistQuote(candidate,quote,books);
     const executionTotalProfit=Number.isFinite(profit)?profit*quote.units:0;
     return Object.assign({},candidate,{bundle_legs:quote.legs,execution_units:quote.units,execution_notional:Number.isFinite(quote.notional)?+quote.notional.toFixed(2):null,
       execution_total_profit:+executionTotalProfit.toFixed(4),
@@ -1668,6 +1697,7 @@ async function verifyExecutableBundles(candidates){
       edge:Number.isFinite(netReturn)?+netReturn.toFixed(6):null,net_edge:Number.isFinite(netReturn)?+netReturn.toFixed(6):null,
       bundle_capital_efficiency:Number.isFinite(netReturn)?+bundleCapitalEfficiency(Object.assign({},candidate,{net_edge:netReturn})).toFixed(8):0,
       bundle_min_daily_return:+bundleMinimumDailyReturn(candidate).toFixed(8),
+      maker_assist:makerAssist,maker_assist_shadow_eligible:Boolean(makerAssist&&makerAssist.shadow_eligible),
       depth_verified:quote.depth_verified,fees_verified:false,trade_ready:false,entry_candidate:false,opportunity_actionable:false,watch_only:true,audited_observation_only:true,
       execution_model:"live-order-book-vwap",verification_status:quote.depth_verified?"depth-verified":"insufficient-depth"});
   });
@@ -1725,6 +1755,10 @@ async function fetchNegativeRiskBundles(limit=NEG_RISK_EVENT_SCAN_LIMIT){
   const closestConversion=conversions.find(candidate=>candidate.depth_verified)||conversions[0]||null;
   const exclusivePairs=executableAudit.filter(candidate=>candidate.bundle_logic==="neg-risk-exclusive-no-pair");
   const closestExclusivePair=exclusivePairs.find(candidate=>candidate.depth_verified)||exclusivePairs[0]||null;
+  const makerAssist=executableAudit.filter(candidate=>candidate.maker_assist_shadow_eligible)
+    .sort((a,b)=>Number(b.maker_assist&&b.maker_assist.total_profit||0)-Number(a.maker_assist&&a.maker_assist.total_profit||0));
+  const closestMakerAssist=makerAssist[0]||executableAudit.filter(candidate=>candidate.maker_assist)
+    .sort((a,b)=>Number(b.maker_assist&&b.maker_assist.total_profit||-Infinity)-Number(a.maker_assist&&a.maker_assist.total_profit||-Infinity))[0]||null;
   return {candidates:prioritized,audit:{status:"ok",scanned_at:nowIso(),event_scan_limit:limit,events_scanned:events.length,
     evaluated_structures:audited.length,depth_checked_structures:executableAudit.length,depth_verified_structures:executableAudit.filter(candidate=>candidate.depth_verified).length,
     fee_check_eligible_structures:executableAudit.filter(candidate=>candidate.fee_check_attempted).length,
@@ -1741,6 +1775,19 @@ async function fetchNegativeRiskBundles(limit=NEG_RISK_EVENT_SCAN_LIMIT){
     actionable_exclusive_pairs:unique.filter(candidate=>candidate.bundle_logic==="neg-risk-exclusive-no-pair").length,
     closest_exclusive_pair_margin_cents:closestExclusivePair?+(Number(closestExclusivePair.bundle_net_profit_per_unit)*100).toFixed(2):null,
     closest_exclusive_pair_return_pct:closestExclusivePair?+(Number(closestExclusivePair.net_edge)*100).toFixed(3):null,
+    maker_assist_shadow_candidates:makerAssist.length,
+    closest_maker_assist_title:closestMakerAssist?closestMakerAssist.question:null,
+    closest_maker_assist_url:closestMakerAssist?closestMakerAssist.url:null,
+    closest_maker_assist_bundle_id:closestMakerAssist?closestMakerAssist.bundle_id:null,
+    closest_maker_assist_logic:closestMakerAssist?closestMakerAssist.bundle_logic:null,
+    closest_maker_assist_leg:closestMakerAssist&&closestMakerAssist.maker_assist?{
+      market_id:closestMakerAssist.maker_assist.market_id,question:closestMakerAssist.maker_assist.question,
+      side:closestMakerAssist.maker_assist.side,maker_price:closestMakerAssist.maker_assist.maker_price,
+      best_bid:closestMakerAssist.maker_assist.best_bid,best_ask:closestMakerAssist.maker_assist.best_ask,
+      execution_units:closestMakerAssist.maker_assist.execution_units,protected_cost:closestMakerAssist.maker_assist.protected_cost,
+      profit_per_unit:closestMakerAssist.maker_assist.profit_per_unit}:null,
+    closest_maker_assist_total_profit:closestMakerAssist?+Number(closestMakerAssist.maker_assist.total_profit).toFixed(2):null,
+    closest_maker_assist_return_pct:closestMakerAssist?+(Number(closestMakerAssist.maker_assist.net_return)*100).toFixed(3):null,
     actionable_events:new Set(unique.map(bundleEventKey).filter(Boolean)).size,returned_events:new Set(prioritized.map(bundleEventKey).filter(Boolean)).size,
     closest_margin_cents:closest?+(Number(closest.bundle_net_profit_per_unit)*100).toFixed(2):null,
     closest_return_pct:closest?+(Number(closest.net_edge)*100).toFixed(3):null,
@@ -7873,6 +7920,11 @@ function runEngineSelfTest(){
   const scalableBundleBooks=new Map((zeroFeeBundleSuggestion.bundle_legs||[]).map((leg,index)=>[String(leg.token_id),
     {min_order_size:"5",asks:[{price:String(scalableBundlePrices[index]),size:"2000"}]}]));
   const scalableBundleQuote=maximizeBundleExecution(zeroFeeBundleSuggestion,scalableBundleBooks,bundleMinimumExecutionUnits(0.95));
+  const makerAssistBooks=new Map((zeroFeeBundleSuggestion.bundle_legs||[]).map((leg,index)=>[String(leg.token_id),
+    {tick_size:"0.01",min_order_size:"5",bids:[{price:String(index===0?0.29:0.32),size:"100"}],asks:[{price:"0.34",size:"100"}]}]));
+  const makerAssistCandidate=Object.assign({},zeroFeeBundleSuggestion,{days_to_resolution:2});
+  const makerAssistTakerQuote=bundleQuoteAtUnits(makerAssistCandidate,makerAssistBooks,50);
+  const makerAssistFixture=bundleMakerAssistQuote(makerAssistCandidate,makerAssistTakerQuote,makerAssistBooks);
   const depthLimitedBundleBooks=new Map((zeroFeeBundleSuggestion.bundle_legs||[]).map((leg,index)=>[String(leg.token_id),
     {min_order_size:"5",asks:[{price:String(scalableBundlePrices[index]),size:String(index===2?120:500)}]}]));
   const depthLimitedBundleQuote=maximizeBundleExecution(zeroFeeBundleSuggestion,depthLimitedBundleBooks,bundleMinimumExecutionUnits(0.95));
@@ -8619,6 +8671,10 @@ function runEngineSelfTest(){
         &&scalableBundleQuote.net_return>0.05,
       stopsSizingAtShallowestBundleLeg:depthLimitedBundleQuote.units>=119.9&&depthLimitedBundleQuote.units<=120
         &&depthLimitedBundleQuote.notional<=BUNDLE_MAX_VERIFIED_NOTIONAL,
+      makerAssistRequiresProtectedPostFillHedge:Boolean(makerAssistFixture&&makerAssistFixture.shadow_eligible
+        &&makerAssistFixture.protected_cost===0.98&&makerAssistFixture.total_profit===1
+        &&makerAssistFixture.execution_model==="one resting bid then full live-depth taker hedge"
+        &&makerAssistFixture.capital_enabled===false),
       liveRepricingRoundsUpToMinimumNotional:repricedBoundaryUnits===50.52&&repricedBoundaryUnits*0.99>=BUNDLE_MIN_NOTIONAL+0.009,
       repricedMinimumNotionalOpensAtomically:Boolean(repricedBoundaryOpen&&repricedBoundaryBook.positions.length===2
         &&repricedBoundaryOpen.cost>=BUNDLE_MIN_NOTIONAL),
