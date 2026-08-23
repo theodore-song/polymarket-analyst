@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 65 · calibrated maker pilots · build 138</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 65 · settlement-gap-safe maker pilots · build 139</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 138 active:</b> Protected maker pilots now use a $0.25 absolute profit floor sized for their bounded allocation, while retaining exact depth and fees, duration-adjusted return, a 3% current-unwind cap, and lock profit at least as large as unwind loss. Verified complete-NO fills still convert immediately. New policy evidence starts clean; offline cycles preserve it but never invent fills. Profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 139 active:</b> Protected maker pilots require at least 12 hours before scheduled resolution, preventing ended and near-settlement books from entering the fill learner. The $0.25 bounded-pilot floor still requires exact depth and fees, duration-adjusted return, a 3% current-unwind cap, and lock profit at least as large as unwind loss. Superseded quotes retire before touch checks. Profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 138 · Adaptive strategy 65 · Pilot-calibrated protected maker floor · Explicit maker rejection diagnostics · Risk-budgeted maker fill priority · Immediate protected maker conversion · Cohort-specific protected maker adaptation · Persistent protected maker-assist learner · Exact post-touch hedge-or-unwind grading · Zero-capital forward evidence before bounded paper promotion · Enforced inherited-quote research cooldown · Early evidence-weighted independent maker research · 24-hour shared event cooldown · Two-pass bounded live execution · Duration-aware atomic profit recycling · Feature-aware diversified maker research · Expanded independent-event executable search · Exact-fee complete-NO conversion · Evidence-first bounded snapshots · Six-hour bounded probation with matched executable exits · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Duration-aware, event-capped verified bundles · Scale-aware executable-profit floor · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 4 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 139 · Adaptive strategy 65 · 12-hour protected-maker resolution buffer · Automatic superseded-quote retirement · Pilot-calibrated protected maker floor · Explicit maker rejection diagnostics · Risk-budgeted maker fill priority · Immediate protected maker conversion · Cohort-specific protected maker adaptation · Persistent protected maker-assist learner · Exact post-touch hedge-or-unwind grading · Zero-capital forward evidence before bounded paper promotion · Enforced inherited-quote research cooldown · Early evidence-weighted independent maker research · 24-hour shared event cooldown · Two-pass bounded live execution · Duration-aware atomic profit recycling · Feature-aware diversified maker research · Expanded independent-event executable search · Exact-fee complete-NO conversion · Evidence-first bounded snapshots · Six-hour bounded probation with matched executable exits · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Duration-aware, event-capped verified bundles · Scale-aware executable-profit floor · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 4 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,11 +774,11 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 138;
+const BUILD_VERSION = 139;
 const AGENT_LEARNING_VERSION = 3;
 const SUGGESTION_ENGINE_VERSION = 65;
 const MAKER_STRATEGY_VERSION = 4;
-const BUNDLE_MAKER_STRATEGY_VERSION = 3;
+const BUNDLE_MAKER_STRATEGY_VERSION = 4;
 const SHOCK_FADE_STRATEGY_VERSION = 4;
 const RESOLUTION_WEEK_NO_STRATEGY_VERSION = 3;
 const SPORTS_CONTEST_NO_STRATEGY_VERSION = 1;
@@ -1590,6 +1590,8 @@ function bundleMakerAssistQuote(candidate,quote,books){
       const totalProfitSafe=totalProfit>=BUNDLE_MAKER_MIN_EXECUTION_PROFIT;
       const capitalEfficiencySafe=capitalEfficiency>=bundleMinimumDailyReturn(candidate);
       const economicSafe=unitProfitSafe&&returnSafe&&totalProfitSafe&&capitalEfficiencySafe&&feeConfigValid;
+      const resolutionHours=Number(candidate.days_to_resolution)*24;
+      const resolutionSafe=Number.isFinite(resolutionHours)&&resolutionHours>=BUNDLE_MAKER_MIN_RESOLUTION_HOURS;
       const riskSafe=Boolean(executableSale)&&unwindPct<=BUNDLE_MAKER_MAX_CURRENT_UNWIND_PCT+1e-9
         &&lockToUnwind+1e-9>=BUNDLE_MAKER_MIN_LOCK_TO_UNWIND_RATIO;
       const rejectionReasons=[];
@@ -1598,6 +1600,7 @@ function bundleMakerAssistQuote(candidate,quote,books){
       if(!totalProfitSafe)rejectionReasons.push("maker-total-profit-below-floor");
       if(!capitalEfficiencySafe)rejectionReasons.push("duration-adjusted-return-below-floor");
       if(!feeConfigValid)rejectionReasons.push("fee-schedule-unavailable");
+      if(!resolutionSafe)rejectionReasons.push("resolution-buffer-too-short");
       if(!executableSale)rejectionReasons.push("current-unwind-depth-unavailable");
       else{
         if(unwindPct>BUNDLE_MAKER_MAX_CURRENT_UNWIND_PCT+1e-9)rejectionReasons.push("current-unwind-risk-too-high");
@@ -1612,8 +1615,10 @@ function bundleMakerAssistQuote(candidate,quote,books){
         current_unwind_price:executableSale?+executableSale.net_price.toFixed(6):null,current_unwind_loss:Number.isFinite(unwindLoss)?+unwindLoss.toFixed(4):null,
         current_unwind_pct:Number.isFinite(unwindPct)?+unwindPct.toFixed(6):null,lock_to_unwind_ratio:Number.isFinite(lockToUnwind)?+lockToUnwind.toFixed(4):null,
         capital_efficiency:+capitalEfficiency.toFixed(8),minimum_daily_return:+bundleMinimumDailyReturn(candidate).toFixed(8),
-        minimum_total_profit:BUNDLE_MAKER_MIN_EXECUTION_PROFIT,economics_safe:economicSafe,risk_safe:riskSafe,rejection_reasons:rejectionReasons,
-        shadow_eligible:economicSafe&&riskSafe,capital_enabled:false,quote_policy:"risk-budgeted-fill-priority",
+        minimum_total_profit:BUNDLE_MAKER_MIN_EXECUTION_PROFIT,minimum_resolution_hours:BUNDLE_MAKER_MIN_RESOLUTION_HOURS,
+        resolution_hours:Number.isFinite(resolutionHours)?+resolutionHours.toFixed(3):null,economics_safe:economicSafe,resolution_safe:resolutionSafe,
+        risk_safe:riskSafe,rejection_reasons:rejectionReasons,
+        shadow_eligible:economicSafe&&resolutionSafe&&riskSafe,capital_enabled:false,quote_policy:"risk-budgeted-fill-priority",
         execution_model:"highest protected resting bid then exact live-depth taker hedge"};
     };
     const baseline=atStep(0);if(!baseline||!baseline.shadow_eligible)return baseline;
@@ -1818,7 +1823,8 @@ async function fetchNegativeRiskBundles(limit=NEG_RISK_EVENT_SCAN_LIMIT){
     closest_exclusive_pair_margin_cents:closestExclusivePair?+(Number(closestExclusivePair.bundle_net_profit_per_unit)*100).toFixed(2):null,
     closest_exclusive_pair_return_pct:closestExclusivePair?+(Number(closestExclusivePair.net_edge)*100).toFixed(3):null,
     maker_assist_evaluated_structures:makerAssistEvaluated.length,maker_assist_shadow_candidates:makerAssist.length,
-    maker_assist_min_total_profit:BUNDLE_MAKER_MIN_EXECUTION_PROFIT,maker_assist_rejections:makerAssistRejections,
+    maker_assist_min_total_profit:BUNDLE_MAKER_MIN_EXECUTION_PROFIT,maker_assist_min_resolution_hours:BUNDLE_MAKER_MIN_RESOLUTION_HOURS,
+    maker_assist_rejections:makerAssistRejections,
     closest_maker_assist_title:closestMakerAssist?closestMakerAssist.question:null,
     closest_maker_assist_url:closestMakerAssist?closestMakerAssist.url:null,
     closest_maker_assist_bundle_id:closestMakerAssist?closestMakerAssist.bundle_id:null,
@@ -1832,6 +1838,7 @@ async function fetchNegativeRiskBundles(limit=NEG_RISK_EVENT_SCAN_LIMIT){
       lock_to_unwind_ratio:closestMakerAssist.maker_assist.lock_to_unwind_ratio,
       capital_efficiency:closestMakerAssist.maker_assist.capital_efficiency,
       minimum_daily_return:closestMakerAssist.maker_assist.minimum_daily_return,
+      resolution_hours:closestMakerAssist.maker_assist.resolution_hours,resolution_safe:closestMakerAssist.maker_assist.resolution_safe,
       rejection_reasons:closestMakerAssist.maker_assist.rejection_reasons||[]}:null,
     closest_maker_assist_total_profit:closestMakerAssist?+Number(closestMakerAssist.maker_assist.total_profit).toFixed(2):null,
     closest_maker_assist_return_pct:closestMakerAssist?+(Number(closestMakerAssist.maker_assist.net_return)*100).toFixed(3):null,
@@ -1928,6 +1935,7 @@ const BUNDLE_EXIT_CAPTURE_EXTENDED=0.20;
 const BUNDLE_EXIT_MIN_REALIZED_PROFIT=0.50;
 const BUNDLE_MAKER_MAX_ACTIVE=2;
 const BUNDLE_MAKER_HORIZON_HOURS=1;
+const BUNDLE_MAKER_MIN_RESOLUTION_HOURS=12;
 const BUNDLE_MAKER_RETRY_HOURS=6;
 const BUNDLE_MAKER_OUTCOME_LIMIT=120;
 const BUNDLE_MAKER_EVENT_COOLDOWN_HOURS=24;
@@ -4706,6 +4714,7 @@ function recentBundleMakerEventKeys(st,now=Date.now()){
     const p=st&&st.agents&&st.agents[agent.id]||{};
     (p.bundle_maker_quotes||[]).forEach(row=>{const key=String(row.event_key||"");if(key)keys.add(key);});
     (p.bundle_maker_outcomes||[]).forEach(row=>{const completed=new Date(row.completed_at||0).getTime(),key=String(row.event_key||"");
+      if(String(row.status||"")==="superseded-policy")return;
       if(key&&Number.isFinite(completed)&&completed>=cutoff)keys.add(key);});
   });
   return keys;
@@ -4826,6 +4835,12 @@ async function manageBundleMakerQuotes(st,{executeTrades=false,touchHistory={},b
   for(const agent of AGENTS){
     const p=st.agents[agent.id],keep=[];activity.byAgent[agent.id]={completed:0,locked:0,unwound:0};
     for(const quote of p.bundle_maker_quotes||[]){
+      if(Number(quote.bundle_maker_strategy_version||0)!==BUNDLE_MAKER_STRATEGY_VERSION){
+        recordBundleMakerOutcome(p,quote,"superseded-policy",0,0);
+        p.history.push({date:logDay(),action:"BUNDLE_MAKER_SUPERSEDE",question:quote.question,side:"BUNDLE",
+          detail:"Retired the resting observation before touch checks because its maker policy was superseded; no fill, cooldown, cash change, or promotion evidence was recorded."});
+        activity.expired++;activity.byAgent[agent.id].completed++;continue;
+      }
       if(ownedEvents.has(String(quote.event_key||""))){
         recordBundleMakerOutcome(p,quote,"canceled-owned",0,0);
         p.history.push({date:logDay(),action:"BUNDLE_MAKER_CANCEL",question:quote.question,side:"BUNDLE",
@@ -7534,7 +7549,8 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
       long:BUNDLE_EXIT_CAPTURE_LONG*100,extended:BUNDLE_EXIT_CAPTURE_EXTENDED*100},
     bundleExitMinimumRealizedProfit:BUNDLE_EXIT_MIN_REALIZED_PROFIT,
     bundleRanking:"net return per locked day, then raw executable edge",
-    bundleMakerStrategyVersion:BUNDLE_MAKER_STRATEGY_VERSION,bundleMakerShadowHours:BUNDLE_MAKER_HORIZON_HOURS,bundleMakerRetryHours:BUNDLE_MAKER_RETRY_HOURS,
+    bundleMakerStrategyVersion:BUNDLE_MAKER_STRATEGY_VERSION,bundleMakerShadowHours:BUNDLE_MAKER_HORIZON_HOURS,
+    bundleMakerMinimumResolutionHours:BUNDLE_MAKER_MIN_RESOLUTION_HOURS,bundleMakerRetryHours:BUNDLE_MAKER_RETRY_HOURS,
     bundleMakerMaxActive:BUNDLE_MAKER_MAX_ACTIVE,bundleMakerPromotionEvents:BUNDLE_MAKER_PROMOTION_EVENTS,
     bundleMakerPromotionLocks:BUNDLE_MAKER_PROMOTION_LOCKS,bundleMakerPromotionLowerPct:BUNDLE_MAKER_PROMOTION_LOWER*100,
     bundleMakerCohortPromotionEvents:BUNDLE_MAKER_COHORT_PROMOTION_EVENTS,bundleMakerCohortPromotionLocks:BUNDLE_MAKER_COHORT_PROMOTION_LOCKS,
@@ -8289,6 +8305,8 @@ function runEngineSelfTest(){
   const calibratedPilotCandidate=Object.assign({},zeroFeeBundleSuggestion,{days_to_resolution:4});
   const calibratedPilotTakerQuote=bundleQuoteAtUnits(calibratedPilotCandidate,calibratedPilotBooks,50);
   const calibratedPilotAssist=bundleMakerAssistQuote(calibratedPilotCandidate,calibratedPilotTakerQuote,calibratedPilotBooks);
+  const endedPilotCandidate=Object.assign({},calibratedPilotCandidate,{days_to_resolution:-0.1});
+  const endedPilotAssist=bundleMakerAssistQuote(endedPilotCandidate,bundleQuoteAtUnits(endedPilotCandidate,calibratedPilotBooks,50),calibratedPilotBooks);
   const calibratedPilotVerifiedCandidate=Object.assign({},calibratedPilotCandidate,{bundle_legs:calibratedPilotTakerQuote.legs,maker_assist:calibratedPilotAssist});
   const calibratedPilotState=defaultState();
   const calibratedPilotStage=stageBundleMakerQuotes(calibratedPilotState,[calibratedPilotVerifiedCandidate],buildSharedBundleMakerProfile(calibratedPilotState),
@@ -8300,9 +8318,10 @@ function runEngineSelfTest(){
     const ask=Number(leg.top_ask_price),bid=Math.max(0.001,ask-0.02);
     return [String(leg.token_id),{tick_size:"0.01",min_order_size:"5",bids:[{price:String(bid),size:"100"}],asks:[{price:String(ask),size:"100"}]}];
   }));
-  const immediateMakerTakerQuote=bundleQuoteAtUnits(convertibleNoBundleSuggestion,immediateMakerBooks,30);
-  const immediateMakerAssist=bundleMakerAssistQuote(convertibleNoBundleSuggestion,immediateMakerTakerQuote,immediateMakerBooks);
-  const immediateMakerCandidate=Object.assign({},convertibleNoBundleSuggestion,{bundle_legs:immediateMakerTakerQuote.legs,maker_assist:immediateMakerAssist});
+  const immediateMakerSource=Object.assign({},convertibleNoBundleSuggestion,{days_to_resolution:2});
+  const immediateMakerTakerQuote=bundleQuoteAtUnits(immediateMakerSource,immediateMakerBooks,30);
+  const immediateMakerAssist=bundleMakerAssistQuote(immediateMakerSource,immediateMakerTakerQuote,immediateMakerBooks);
+  const immediateMakerCandidate=Object.assign({},immediateMakerSource,{bundle_legs:immediateMakerTakerQuote.legs,maker_assist:immediateMakerAssist});
   const immediateMakerCohort=bundleMakerCohortKey(immediateMakerCandidate),immediateMakerProfileState=defaultState();
   immediateMakerProfileState.agents.momentum.bundle_maker_outcomes=Array.from({length:BUNDLE_MAKER_COHORT_PROMOTION_EVENTS},(_,index)=>({
     quote_id:`immediate-proof-${index}`,event_key:`immediate-proof-event-${index}`,bundle_id:`immediate-proof-bundle-${index}`,
@@ -8333,6 +8352,12 @@ function runEngineSelfTest(){
     bundle_maker_strategy_version:1,build_version:136});
   recordBundleMakerOutcome(legacyBundleMakerState.agents.value,legacyBundleMakerQuote,"unfilled",0,legacyBundleMakerQuote.reserved_capital);
   const legacyBundleMakerOutcome=legacyBundleMakerState.agents.value.bundle_maker_outcomes[0],legacyBundleMakerProfile=buildSharedBundleMakerProfile(legacyBundleMakerState);
+  const supersededQuoteState=defaultState(),supersededCash=supersededQuoteState.agents.value.cash;
+  const supersededQuote=Object.assign({},bundleMakerQuote,{id:"superseded-active-policy",event_key:"superseded-active-event",
+    bundle_maker_strategy_version:BUNDLE_MAKER_STRATEGY_VERSION-1,build_version:BUILD_VERSION-1});
+  supersededQuoteState.agents.value.bundle_maker_quotes=[supersededQuote];
+  manageBundleMakerQuotes(supersededQuoteState,{executeTrades:true,booksOverride:makerAssistBooks,reportedFeesOverride:bundleMakerFees});
+  const supersededOutcome=supersededQuoteState.agents.value.bundle_maker_outcomes[0];
   const promotedBundleMakerState=defaultState();
   promotedBundleMakerState.agents.value.bundle_maker_outcomes=Array.from({length:BUNDLE_MAKER_PROMOTION_EVENTS},(_,index)=>({
     quote_id:`promoted-${index}`,event_key:`promoted-event-${index}`,bundle_id:`promoted-bundle-${index}`,logic:"fixture",owner_id:"value",
@@ -9124,6 +9149,8 @@ function runEngineSelfTest(){
         &&calibratedPilotAssist.total_profit<BUNDLE_MIN_EXECUTION_PROFIT
         &&calibratedPilotAssist.rejection_reasons.length===0&&calibratedPilotStage.shadowStaged===1
         &&calibratedPilotHedge.actionable&&calibratedPilotHedge.total_profit<BUNDLE_MIN_EXECUTION_PROFIT),
+      makerPilotRejectsEndedAndNearSettlementBooks:Boolean(endedPilotAssist&&!endedPilotAssist.shadow_eligible
+        &&endedPilotAssist.resolution_safe===false&&endedPilotAssist.rejection_reasons.includes("resolution-buffer-too-short")),
       makerAssistPersistsAsZeroCapitalQuote:bundleMakerStage.staged===1&&bundleMakerStage.shadowStaged===1
         &&bundleMakerState.agents.value.cash===bundleMakerCash&&bundleMakerQuote.shadow_only,
       makerAssistPostTouchRepricesEveryLeg:Boolean(bundleMakerHedge.actionable&&bundleMakerHedge.legs.length===3
@@ -9138,6 +9165,9 @@ function runEngineSelfTest(){
       offlineBundleMakerCannotInventFill:offlineBundleMakerUnchanged&&bundleMakerState.agents.value.bundle_maker_outcomes.length===0,
       legacyBundleMakerPolicyCannotContaminateCurrentEvidence:legacyBundleMakerOutcome.bundle_maker_strategy_version===1
         &&legacyBundleMakerProfile.events===0&&!legacyBundleMakerProfile.capital_enabled,
+      supersededBundleMakerQuoteRetiresBeforeTouch:Boolean(supersededQuoteState.agents.value.bundle_maker_quotes.length===0
+        &&supersededOutcome&&supersededOutcome.status==="superseded-policy"&&supersededQuoteState.agents.value.cash===supersededCash
+        &&!recentBundleMakerEventKeys(supersededQuoteState).has("superseded-active-event")),
       bundleMakerPromotionNeedsPositiveIndependentEvidence:!weakBundleMakerProfile.capital_enabled
         &&promotedBundleMakerProfile.capital_enabled&&promotedBundleMakerProfile.events===BUNDLE_MAKER_PROMOTION_EVENTS
         &&promotedBundleMakerProfile.locks===BUNDLE_MAKER_PROMOTION_EVENTS&&promotedBundleMakerProfile.lower>BUNDLE_MAKER_PROMOTION_LOWER

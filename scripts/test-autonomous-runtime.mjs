@@ -16,13 +16,13 @@ const settlementCalibrationAudit = JSON.parse(fs.readFileSync(new URL("../resear
 const sportsEvaluator = fs.readFileSync(new URL("./evaluate-sports-favorites.mjs", import.meta.url), "utf8");
 const build = Number(index.match(/const BUILD_VERSION = (\d+);/)?.[1]);
 
-assert.equal(build, 138);
+assert.equal(build, 139);
 assert.equal(vercelConfig.git?.deploymentEnabled?.["runtime-state"], false);
 assert.equal(settlementCalibrationAudit.requested_markets, 5000);
 assert.equal(settlementCalibrationAudit.train_passed, 0);
 assert.equal(settlementCalibrationAudit.validation_selected, 0);
 assert.equal(settlementCalibrationAudit.holdout_passed, 0);
-assert.match(index, /Adaptive strategy 65 · calibrated maker pilots · build 138/);
+assert.match(index, /Adaptive strategy 65 · settlement-gap-safe maker pilots · build 139/);
 assert.deepEqual([...ALLOWED_RUNTIME_KEYS].sort(), ["pma_agents_v2", "pma_suggestions_v5"]);
 assert.match(index, /function collectPublicRuntimeItems\(\)/);
 assert.match(index, /const PUBLIC_RUNTIME_KEYS=Object\.freeze\(\[AGENTS_KEY,SUG_KEY\]\)/);
@@ -72,7 +72,7 @@ assert.match(api, /Buffer\.from\(file\.content/);
 assert.match(api, /searchParams\.set\("runtime", `\$\{Date\.now\(\)\}/);
 assert.match(workflow, /cron: "2,7,12,17,22,27,32,37,42,47,52,57 \* \* \* \*"/);
 assert.match(workflow, /contents: write/);
-assert.match(workflow, /EXPECTED_BUILD: "138"/);
+assert.match(workflow, /EXPECTED_BUILD: "139"/);
 assert.equal((workflow.match(/if: always\(\)/g) || []).length, 2);
 assert.match(routingReleaseWorkflow, /name: Release expanded executable search after Vercel quota reset/);
 assert.match(routingReleaseWorkflow, /BUNDLE_DEPTH_CANDIDATE_LIMIT=200/);
@@ -92,9 +92,12 @@ assert.match(index, /additional settlement profit is secured by intact verified 
 assert.match(index, /bundle_logic:quote\.logic\|\|null/);
 assert.match(index, /bundle_immediate_convert:Boolean\(quote\.bundle_immediate_convert&&quote\.bundle_conversion_terms_verified\)/);
 assert.match(index, /makerAssistedCompleteNoConvertsImmediately:/);
-assert.match(index, /const BUNDLE_MAKER_STRATEGY_VERSION = 3;/);
+assert.match(index, /const BUNDLE_MAKER_STRATEGY_VERSION = 4;/);
 assert.match(index, /const BUNDLE_MAKER_MIN_EXECUTION_PROFIT=0\.25;/);
+assert.match(index, /const BUNDLE_MAKER_MIN_RESOLUTION_HOURS=12;/);
 assert.match(index, /makerPilotUsesAllocationCalibratedProfitFloor:/);
+assert.match(index, /makerPilotRejectsEndedAndNearSettlementBooks:/);
+assert.match(index, /supersededBundleMakerQuoteRetiresBeforeTouch:/);
 assert.match(index, /const BUNDLE_MAKER_MAX_CURRENT_UNWIND_PCT=0\.03;/);
 assert.match(index, /quote_policy:"risk-budgeted-fill-priority"/);
 assert.match(index, /makerAssistUsesHighestRiskBudgetedBid:/);

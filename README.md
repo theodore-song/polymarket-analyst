@@ -23,7 +23,7 @@ Offline cycles can apply calibration already earned from live observations, but
 the evidence ledger is read-only: cached prices cannot grade pending signals,
 expire horizons, or create new observations.
 
-Build 138 targets five-minute slots with a serialized, self-chained GitHub Actions runtime.
+Build 139 targets five-minute slots with a serialized, self-chained GitHub Actions runtime.
 The mutable snapshot stays on the dedicated `runtime-state` branch, which is
 explicitly excluded from Vercel Git deployments through
 `git.deploymentEnabled`. This prevents high-frequency state commits from
@@ -70,13 +70,13 @@ Polymarket event key. Related Ethereum or Bitcoin contracts cannot create
 several simultaneous copies of one move, and outcomes from the same underlying
 three-hour shock window count as one learner event.
 
-Each Build 138 job performs two bounded live passes, with the second beginning
+Each Build 139 job performs two bounded live passes, with the second beginning
 only after the wall-clock minute changes. This gives transient verified bundle
 exits and resting maker touches a second execution opportunity without creating
 parallel authorities or weakening any entry, fee, depth, overlap, or offline
 gate. The sanitized shared snapshot commits only after both passes complete.
 
-Each Build 138 cycle also scans the 1,000 most-active Polymarket events for
+Each Build 139 cycle also scans the 1,000 most-active Polymarket events for
 complete negative-risk bundles and logically nested threshold or deadline
 pairs, plus same-market YES/NO complements whose equal shares have a fixed
 $1 redemption value. Polymarket's documented complete-set merge converts equal
@@ -92,7 +92,7 @@ count, all asks and CLOB fee schedules must verify, and the post-conversion proc
 must remain profitable. Missing or inconsistent adapter data cannot produce paper
 P&L. Complete YES sets and logical dominance pairs are not convertible and continue
 to use settlement or verified live-bid exits.
-Build 138 persists up to two zero-capital maker-assisted observations discovered in
+Build 139 persists up to two zero-capital maker-assisted observations discovered in
 each depth-checked protected-structure scan. Each observation rests for one hour.
 If the public price trades at least half a tick through its bid, the learner treats
 that as a conservative paper touch, then re-fetches every leg's order book and exact CLOB fee
@@ -119,7 +119,7 @@ already verified negative-risk terms. The protected profit is realized and the
 collateral is returned in the same cycle instead of being stranded until settlement.
 Missing or mismatched conversion terms still block this path.
 
-Build 138 uses a risk-budgeted fill-priority
+Build 139 uses a risk-budgeted fill-priority
 quote. For each possible resting leg, it uses exact current bid depth and fee curves
 to find the highest bid that still clears every protected-profit and duration gate.
 The touched leg's immediately executable unwind must remain below 3% of protected
@@ -129,8 +129,12 @@ competitive quote without increasing position size or relaxing the immediate
 hedge-or-unwind requirement. Its $0.25 absolute profit floor is calibrated to the
 bounded maker pilot instead of borrowing the ordinary all-taker route's $0.50 floor;
 minimum return and duration-adjusted efficiency remain mandatory. The live audit
-records every maker rejection reason. Quote policy version 3 has its own independent
-evidence; version 1 and 2 outcomes remain stored but cannot promote the new rule.
+records every maker rejection reason. It also requires at least 12 hours before the
+scheduled resolution, blocking ended and near-settlement books after a live soccer
+shadow exposed a 12.1% adverse-selection unwind. Active quotes from older policy
+versions retire before touch checks and do not create cooldowns. Quote policy version
+4 has its own independent evidence; older outcomes remain stored but cannot promote
+the new rule.
 
 Build 133 first measured the zero-capital maker-assisted path for every depth-checked
 protected structure. It asks whether improving one resting bid by one tick and
@@ -141,7 +145,7 @@ That audit could not open a position or change cash. The first 1,000-event live 
 one shadow candidate: a complete YES shipping-count bundle with $0.67 modeled
 profit at 48.7 units, contingent on a 4.9-cent bid filling and the remaining
 hedge still being executable. Forward fill-and-hedge evidence is required before
-the Build 138 learner can now collect that evidence before this path receives any
+the Build 139 learner can now collect that evidence before this path receives any
 paper capital.
 Bundle capital is split between five independent owners instead of bottlenecking one
 portfolio: Value Hunter owns settlement complete sets, Momentum owns exact complete-NO
