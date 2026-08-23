@@ -23,7 +23,7 @@ Offline cycles can apply calibration already earned from live observations, but
 the evidence ledger is read-only: cached prices cannot grade pending signals,
 expire horizons, or create new observations.
 
-Build 142 targets five-minute slots with a serialized, self-chained GitHub Actions runtime.
+Build 143 targets five-minute slots with a serialized, self-chained GitHub Actions runtime.
 The mutable snapshot stays on the dedicated `runtime-state` branch, which is
 explicitly excluded from Vercel Git deployments through
 `git.deploymentEnabled`. This prevents high-frequency state commits from
@@ -127,6 +127,16 @@ protected locks and their lower 90% return bound exceeds 0.5%. Under-sampled coh
 receive observation priority. Unfilled quotes and failed hedges remain in each
 confidence calculation. Shadow returns never change portfolio cash, and no
 real-money order path is enabled.
+
+Build 143 lets an untouched zero-capital observation follow the current highest safe
+maker bid during that hour. A quote can move only when the complete CLOB price-history
+batch is available and proves the previous quote epoch had no touch. The learner then
+starts a new touch window while preserving the original expiry. It cannot reprice a
+capital-enabled quote, extend the research window, bypass the 3% unwind cap, or weaken
+the exact post-touch hedge-or-unwind checks. This addresses the live Build 142 case in
+which a protected complete-YES quote remained at 25 cents after the currently safe bid
+had moved to 27 cents, reducing fill probability despite the new bid retaining positive
+protected economics.
 
 Build 136 also preserves verified complete-NO conversion metadata after a
 maker-assisted touch. Once that cohort earns paper promotion, buying the remaining

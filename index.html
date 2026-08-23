@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 65 · faster protected learning · build 142</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 65 · adaptive protected quotes · build 143</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 142 active:</b> Protected maker research now keeps up to four independent zero-capital observations active, searches a 20-event diversified candidate queue, and learns complete-YES separately from complete-NO structures. The 300-structure depth audit and 500-market directional limit are unchanged. Every touched quote still requires exact post-touch fees and depth plus an immediate hedge-or-unwind. Profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 143 active:</b> Zero-capital protected quotes may now follow the highest currently safe bid every five-minute cycle, but only after complete CLOB history proves the previous quote was never touched. Capital quotes stay fixed. Four independent research lanes, direction-specific cohorts, exact post-touch fees and depth, and immediate hedge-or-unwind grading remain enforced. Profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 142 · Adaptive strategy 65 · Four-lane protected maker research · 20-event diversified candidate queue · Direction-specific protected-bundle cohorts · 300-structure protected depth shortlist · Direction-specific shock-fade confidence gates · Existing forward evidence preserved · 12-hour protected-maker resolution buffer · Automatic superseded-quote retirement · Pilot-calibrated protected maker floor · Explicit maker rejection diagnostics · Risk-budgeted maker fill priority · Immediate protected maker conversion · Cohort-specific protected maker adaptation · Persistent protected maker-assist learner · Exact post-touch hedge-or-unwind grading · Zero-capital forward evidence before bounded paper promotion · Enforced inherited-quote research cooldown · Early evidence-weighted independent maker research · 24-hour shared event cooldown · Two-pass bounded live execution · Duration-aware atomic profit recycling · Feature-aware diversified maker research · Expanded independent-event executable search · Exact-fee complete-NO conversion · Evidence-first bounded snapshots · Six-hour bounded probation with matched executable exits · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Duration-aware, event-capped verified bundles · Scale-aware executable-profit floor · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 4 · Agent learning 3 · Shock direction lanes 1 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 143 · Adaptive strategy 65 · History-confirmed protected quote repricing · Four-lane protected maker research · 20-event diversified candidate queue · Direction-specific protected-bundle cohorts · 300-structure protected depth shortlist · Direction-specific shock-fade confidence gates · Existing forward evidence preserved · 12-hour protected-maker resolution buffer · Automatic superseded-quote retirement · Pilot-calibrated protected maker floor · Explicit maker rejection diagnostics · Risk-budgeted maker fill priority · Immediate protected maker conversion · Cohort-specific protected maker adaptation · Persistent protected maker-assist learner · Exact post-touch hedge-or-unwind grading · Zero-capital forward evidence before bounded paper promotion · Enforced inherited-quote research cooldown · Early evidence-weighted independent maker research · 24-hour shared event cooldown · Two-pass bounded live execution · Duration-aware atomic profit recycling · Feature-aware diversified maker research · Expanded independent-event executable search · Exact-fee complete-NO conversion · Evidence-first bounded snapshots · Six-hour bounded probation with matched executable exits · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Duration-aware, event-capped verified bundles · Scale-aware executable-profit floor · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 4 · Agent learning 3 · Shock direction lanes 1 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 142;
+const BUILD_VERSION = 143;
 const AGENT_LEARNING_VERSION = 3;
 const SUGGESTION_ENGINE_VERSION = 65;
 const MAKER_STRATEGY_VERSION = 4;
@@ -4500,7 +4500,7 @@ async function fetchMakerTouchHistory(quotes,marketMap){
 }
 function bundleMakerTouchEvidence(quote,touchHistory){
   const token=String(quote&&quote.touch_token_id||"");if(!token)return null;
-  const created=new Date(quote.created_at).getTime()/1000+RUN_INTERVAL_MS/1000*0.8;
+  const created=new Date(quote.quote_updated_at||quote.created_at).getTime()/1000+RUN_INTERVAL_MS/1000*0.8;
   const threshold=Number(quote.maker_price)-Math.max(0.0005,Number(quote.tick_size||0.001)*0.5),points=(touchHistory&&touchHistory[token]||[])
     .filter(point=>Number(point.t)>=created&&Number.isFinite(Number(point.p)));
   const touched=points.filter(point=>Number(point.p)<=threshold+0.00001).sort((a,b)=>Number(a.t)-Number(b.t))[0];
@@ -4768,7 +4768,7 @@ function stageBundleMakerQuotes(st,candidates,profile,{execute=false,claimedEven
     const makerLeg=(candidate.bundle_legs||[])[Number(assist.leg_index)];if(!makerLeg)continue;
     const createdAt=cycleIso(),quote={id:`bundle-maker:${eventKey}:${Date.now()}:${staged}`,event_key:eventKey,bundle_id:candidate.bundle_id,
       logic:candidate.bundle_logic||null,cohort_key:cohortKey,owner_id:ownerId,question:candidate.question,event:candidate.event||candidate.question,url:candidate.url||"",category:candidate.category||"Other",
-      created_at:createdAt,expires_at:new Date(new Date(createdAt).getTime()+BUNDLE_MAKER_HORIZON_HOURS*3600000).toISOString(),
+      created_at:createdAt,quote_updated_at:createdAt,expires_at:new Date(new Date(createdAt).getTime()+BUNDLE_MAKER_HORIZON_HOURS*3600000).toISOString(),
       strategy_version:SUGGESTION_ENGINE_VERSION,bundle_maker_strategy_version:BUNDLE_MAKER_STRATEGY_VERSION,build_version:BUILD_VERSION,
       shadow_only:!capitalEnabled,capital_enabled:capitalEnabled,touch_token_id:String(assist.token_id),touch_market_id:String(assist.market_id),
       touch_condition_id:String(makerLeg.condition_id||""),touch_side:assist.side,maker_price:Number(assist.maker_price),best_bid:Number(assist.best_bid),best_ask:Number(assist.best_ask),
@@ -4791,6 +4791,33 @@ function stageBundleMakerQuotes(st,candidates,profile,{execute=false,claimedEven
   }
   return {active:active+staged,staged,shadowStaged,capitalStaged,candidates:(candidates||[]).length};
 }
+function refreshBundleMakerQuote(quote,candidate){
+  const assist=candidate&&candidate.maker_assist,makerLeg=(candidate&&candidate.bundle_legs||[])[Number(assist&&assist.leg_index)];
+  if(!quote||!quote.shadow_only||!assist||!assist.shadow_eligible||!makerLeg
+    ||String(candidate.bundle_id||"")!==String(quote.bundle_id||""))return false;
+  const nextToken=String(assist.token_id||""),nextPrice=Number(assist.maker_price),nextUnits=Number(assist.execution_units);
+  if(!nextToken||!(nextPrice>0&&nextPrice<1)||!(nextUnits>0))return false;
+  const changed=nextToken!==String(quote.touch_token_id||"")||Math.abs(nextPrice-Number(quote.maker_price))>0.000001
+    ||Math.abs(nextUnits-Number(quote.execution_units))>0.009;
+  if(!changed)return false;
+  const previousPrice=Number(quote.maker_price),previousToken=String(quote.touch_token_id||"");
+  Object.assign(quote,{quote_updated_at:cycleIso(),touch_token_id:nextToken,touch_market_id:String(assist.market_id||""),
+    touch_condition_id:String(makerLeg.condition_id||""),touch_side:assist.side,maker_price:nextPrice,best_bid:Number(assist.best_bid),best_ask:Number(assist.best_ask),
+    tick_size:Number(assist.tick_size||0.01),baseline_maker_price:Number(assist.baseline_maker_price||nextPrice),
+    bid_improvement_ticks:Number(assist.bid_improvement_ticks||1),remaining_spread_ticks:Number(assist.remaining_spread_ticks||1),spread_position:Number(assist.spread_position||0),
+    current_unwind_loss:assist.current_unwind_loss==null?null:Number(assist.current_unwind_loss),current_unwind_pct:assist.current_unwind_pct==null?null:Number(assist.current_unwind_pct),
+    lock_to_unwind_ratio:assist.lock_to_unwind_ratio==null?null:Number(assist.lock_to_unwind_ratio),quote_policy:assist.quote_policy||"risk-budgeted-fill-priority",
+    execution_units:+nextUnits.toFixed(2),reserved_capital:+(nextUnits*Number(assist.protected_cost)).toFixed(2),
+    expected_profit:+(nextUnits*Number(assist.profit_per_unit)).toFixed(4),bundle_payout_per_unit:Number(candidate.bundle_payout_per_unit),
+    bundle_settlement_payout_per_unit:Number(candidate.bundle_settlement_payout_per_unit||candidate.bundle_payout_per_unit),
+    bundle_immediate_merge:Boolean(candidate.bundle_immediate_merge),bundle_conversion_candidate:Boolean(candidate.bundle_conversion_candidate),
+    bundle_conversion_terms_verified:Boolean(candidate.bundle_conversion_terms_verified),bundle_immediate_convert:Boolean(candidate.bundle_immediate_convert),
+    neg_risk_market_id:candidate.neg_risk_market_id||null,neg_risk_fee_bips:candidate.neg_risk_fee_bips,
+    neg_risk_metadata_fee_bips:candidate.neg_risk_metadata_fee_bips,neg_risk_question_count:candidate.neg_risk_question_count,
+    days_to_resolution:candidate.days_to_resolution,bundle_legs:(candidate.bundle_legs||[]).map(compactBundleMakerLeg),
+    reprice_count:Number(quote.reprice_count||0)+1,last_reprice_from_price:previousPrice,last_reprice_from_token:previousToken});
+  return true;
+}
 function recordBundleMakerOutcome(p,quote,status,pnl,deployedCapital,details={}){
   p.bundle_maker_outcomes=Array.isArray(p.bundle_maker_outcomes)?p.bundle_maker_outcomes:[];
   if(p.bundle_maker_outcomes.some(row=>row.quote_id===quote.id))return null;
@@ -4802,7 +4829,7 @@ function recordBundleMakerOutcome(p,quote,status,pnl,deployedCapital,details={})
     maker_price:quote.maker_price,best_bid:quote.best_bid,best_ask:quote.best_ask,bid_improvement_ticks:quote.bid_improvement_ticks||1,
     spread_position:quote.spread_position,
     current_unwind_loss:quote.current_unwind_loss,current_unwind_pct:quote.current_unwind_pct,lock_to_unwind_ratio:quote.lock_to_unwind_ratio,
-    quote_policy:quote.quote_policy||"one-tick-protected",...details};
+    quote_policy:quote.quote_policy||"one-tick-protected",reprice_count:Number(quote.reprice_count||0),...details};
   p.bundle_maker_outcomes.push(row);p.bundle_maker_outcomes=p.bundle_maker_outcomes.slice(-BUNDLE_MAKER_OUTCOME_LIMIT);return row;
 }
 function bundleMakerPostTouchQuote(quote,books,reportedFees){
@@ -4839,7 +4866,7 @@ function bundleMakerImmediateUnwind(quote,books,reportedFees){
   const makerFee=leg.fee_schedule&&leg.fee_schedule.takerOnly===false?bundleFeePerShare(leg.fee_schedule,Number(quote.maker_price)):0;
   return {verified:true,status:"immediate-unwind",pnl:+(units*(sale.net_price-Number(quote.maker_price)-makerFee)).toFixed(4),sale};
 }
-async function manageBundleMakerQuotes(st,{executeTrades=false,touchHistory={},booksOverride=null,reportedFeesOverride=null}={}){
+async function manageBundleMakerQuotes(st,{executeTrades=false,touchHistory={},booksOverride=null,reportedFeesOverride=null,refreshCandidates=[]}={}){
   const all=AGENTS.flatMap(agent=>(st.agents[agent.id].bundle_maker_quotes||[]).map(quote=>({agent,quote})));
   if(!executeTrades)return {active:all.length,touched:0,locked:0,unwound:0,expired:0,shadowCompleted:0,capitalCompleted:0};
   const ownedEvents=currentBundleEventKeys(st);
@@ -4847,9 +4874,11 @@ async function manageBundleMakerQuotes(st,{executeTrades=false,touchHistory={},b
   if(!books){try{books=await fetchBundleBooks(all.flatMap(({quote})=>(quote.bundle_legs||[]).map(leg=>leg.token_id)));}catch(e){books=new Map();}}
   const conditionIds=all.flatMap(({quote})=>(quote.bundle_legs||[]).map(leg=>leg.condition_id));
   if(!reportedFees){try{reportedFees=await fetchBundleFeeSchedules(conditionIds);}catch(e){reportedFees=new Map();}}
-  const activity={active:0,touched:0,locked:0,unwound:0,expired:0,shadowCompleted:0,capitalCompleted:0,byAgent:{}};
+  const refreshByBundle=new Map((refreshCandidates||[]).filter(candidate=>candidate&&candidate.maker_assist&&candidate.maker_assist.shadow_eligible)
+    .map(candidate=>[String(candidate.bundle_id||""),candidate]));
+  const activity={active:0,touched:0,locked:0,unwound:0,expired:0,repriced:0,shadowCompleted:0,capitalCompleted:0,byAgent:{}};
   for(const agent of AGENTS){
-    const p=st.agents[agent.id],keep=[];activity.byAgent[agent.id]={completed:0,locked:0,unwound:0};
+    const p=st.agents[agent.id],keep=[];activity.byAgent[agent.id]={completed:0,locked:0,unwound:0,repriced:0};
     for(const quote of p.bundle_maker_quotes||[]){
       if(Number(quote.bundle_maker_strategy_version||0)!==BUNDLE_MAKER_STRATEGY_VERSION){
         recordBundleMakerOutcome(p,quote,"superseded-policy",0,0);
@@ -4867,7 +4896,14 @@ async function manageBundleMakerQuotes(st,{executeTrades=false,touchHistory={},b
       const book=books.get(String(quote.touch_token_id||"")),liveAsk=Number(bundleBookAskLevels(book)[0]&&bundleBookAskLevels(book)[0].price);
       const touchThreshold=Number(quote.maker_price)-Math.max(0.0005,Number(quote.tick_size||0.001)*0.5);
       const touched=Boolean(historyTouch||(Number.isFinite(liveAsk)&&liveAsk<=touchThreshold));
-      if(!touched&&age<BUNDLE_MAKER_HORIZON_HOURS){keep.push(quote);activity.active++;continue;}
+      if(!touched&&age<BUNDLE_MAKER_HORIZON_HOURS){
+        const refreshCandidate=refreshByBundle.get(String(quote.bundle_id||""));
+        if(age>=RUN_INTERVAL_MS/3600000*0.8&&touchHistory.__available&&refreshBundleMakerQuote(quote,refreshCandidate)){
+          activity.repriced++;activity.byAgent[agent.id].repriced++;p.history.push({date:logDay(),action:"BUNDLE_MAKER_REPRICE",question:quote.question,side:"BUNDLE",
+            detail:`After complete CLOB history confirmed no prior touch, moved the zero-capital resting bid from ${pct(quote.last_reprice_from_price)} to ${pct(quote.maker_price)} for ${quote.execution_units} units. The original one-hour expiry and every exact hedge-or-unwind gate remain unchanged.`});
+        }
+        keep.push(quote);activity.active++;continue;
+      }
       if(!touched&&!touchHistory.__available&&age<BUNDLE_MAKER_RETRY_HOURS){keep.push(quote);activity.active++;continue;}
       if(!touched&&!touchHistory.__available){recordBundleMakerOutcome(p,quote,"expired-ungraded",0,0,{touch_source:null});activity.expired++;activity.byAgent[agent.id].completed++;
         p.history.push({date:logDay(),action:"BUNDLE_MAKER_UNGRADED",question:quote.question,side:"BUNDLE",detail:`The resting-bid evidence window could not be reconstructed within ${BUNDLE_MAKER_RETRY_HOURS}h, so it expired without a return and cannot affect promotion.`});continue;}
@@ -5557,7 +5593,8 @@ async function runDailyCycle(){
     AGENTS.forEach(agent=>{makerActivityByAgent[agent.id]=manageMakerQuotes(st.agents[agent.id],quoteMarketMap,
       {executeTrades:runMode==="live"&&executeTrades,touchHistory:makerTouchHistory});});
     const sharedMakerProfile=buildSharedMakerProfile(st);
-    const bundleMakerActivity=await manageBundleMakerQuotes(st,{executeTrades:runMode==="live"&&executeTrades,touchHistory:makerTouchHistory});
+    const bundleMakerActivity=await manageBundleMakerQuotes(st,{executeTrades:runMode==="live"&&executeTrades,touchHistory:makerTouchHistory,
+      refreshCandidates:bundleMakerCandidates});
     const sharedBundleMakerProfile=buildSharedBundleMakerProfile(st);
     if(runMode==="live"&&executeTrades)setStatus("checking protected bundle profit exits…",true);
     const bundleRecycleActivity=await recycleVerifiedBundleCapital(st,priceMap,{execute:bundleRecyclingCanExecute(runMode,executeTrades)});
@@ -8391,6 +8428,20 @@ function runEngineSelfTest(){
   const bundleMakerFees=new Map((bundleMakerQuote.bundle_legs||[]).map(leg=>[String(leg.condition_id),leg.fee_schedule]));
   const bundleMakerHedge=bundleMakerPostTouchQuote(bundleMakerQuote,makerAssistBooks,bundleMakerFees);
   const bundleMakerUnwind=bundleMakerImmediateUnwind(bundleMakerQuote,makerAssistBooks,bundleMakerFees);
+  const adaptiveBundleMakerQuote=JSON.parse(JSON.stringify(bundleMakerQuote)),adaptiveCreatedAt=hoursAgo(0.25);
+  adaptiveBundleMakerQuote.created_at=adaptiveCreatedAt;adaptiveBundleMakerQuote.quote_updated_at=adaptiveCreatedAt;
+  const adaptiveAssist=Object.assign({},makerAssistFixture,{maker_price:+(Number(makerAssistFixture.maker_price)+Number(makerAssistFixture.tick_size)).toFixed(6),
+    protected_cost:+(Number(makerAssistFixture.protected_cost)+Number(makerAssistFixture.tick_size)).toFixed(6),
+    profit_per_unit:+(Number(makerAssistFixture.profit_per_unit)-Number(makerAssistFixture.tick_size)).toFixed(6),
+    total_profit:+((Number(makerAssistFixture.profit_per_unit)-Number(makerAssistFixture.tick_size))*Number(makerAssistFixture.execution_units)).toFixed(4)});
+  const adaptiveCandidate=Object.assign({},makerAssistVerifiedCandidate,{maker_assist:adaptiveAssist});
+  const adaptiveRepriced=refreshBundleMakerQuote(adaptiveBundleMakerQuote,adaptiveCandidate),adaptiveExpiry=bundleMakerQuote.expires_at;
+  const fundedRefreshQuote=Object.assign({},adaptiveBundleMakerQuote,{shadow_only:false}),fundedQuoteCannotReprice=!refreshBundleMakerQuote(fundedRefreshQuote,
+    Object.assign({},adaptiveCandidate,{maker_assist:Object.assign({},adaptiveAssist,{maker_price:+(adaptiveAssist.maker_price+adaptiveAssist.tick_size).toFixed(6)})}));
+  const touchBoundaryQuote={touch_token_id:"adaptive-touch",created_at:hoursAgo(1),quote_updated_at:hoursAgo(0.2),maker_price:0.4,tick_size:0.01};
+  const staleTouchHistory={"adaptive-touch":[{t:Math.floor((Date.now()-30*60000)/1000),p:0.39}]};
+  const freshTouchHistory={"adaptive-touch":[{t:Math.floor((Date.now()-5*60000)/1000),p:0.39}]};
+  const staleEpochTouch=bundleMakerTouchEvidence(touchBoundaryQuote,staleTouchHistory),freshEpochTouch=bundleMakerTouchEvidence(touchBoundaryQuote,freshTouchHistory);
   const offlineBundleMakerBefore=JSON.stringify(bundleMakerState.agents.value);
   manageBundleMakerQuotes(bundleMakerState,{executeTrades:false,touchHistory:{}});
   const offlineBundleMakerUnchanged=JSON.stringify(bundleMakerState.agents.value)===offlineBundleMakerBefore;
@@ -9209,6 +9260,12 @@ function runEngineSelfTest(){
         &&AGENTS.every(agent=>fourLaneMakerState.agents[agent.id].cash===STARTING_BALANCE),
       completeYesMakerEvidenceHasIndependentCohort:legacyYesCohort==="complete-yes:medium"
         &&independentNoCohort==="complete-no:medium"&&legacyYesCohort!==independentNoCohort,
+      adaptiveMakerQuoteRepricesOnlyAfterNoTouchCheck:Boolean(adaptiveRepriced
+        &&adaptiveBundleMakerQuote.maker_price===adaptiveAssist.maker_price&&adaptiveBundleMakerQuote.reprice_count===1
+        &&adaptiveBundleMakerQuote.created_at===adaptiveCreatedAt&&adaptiveBundleMakerQuote.expires_at===adaptiveExpiry
+        &&adaptiveBundleMakerQuote.quote_updated_at!==adaptiveCreatedAt),
+      adaptiveMakerTouchWindowStartsAtLastReprice:!staleEpochTouch&&freshEpochTouch&&freshEpochTouch.source==="clob-price-history",
+      adaptiveMakerRepricingCannotMoveCapitalQuote:fundedQuoteCannotReprice,
       makerAssistPersistsAsZeroCapitalQuote:bundleMakerStage.staged===1&&bundleMakerStage.shadowStaged===1
         &&bundleMakerState.agents.value.cash===bundleMakerCash&&bundleMakerQuote.shadow_only,
       makerAssistPostTouchRepricesEveryLeg:Boolean(bundleMakerHedge.actionable&&bundleMakerHedge.legs.length===3
