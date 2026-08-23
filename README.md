@@ -23,7 +23,7 @@ Offline cycles can apply calibration already earned from live observations, but
 the evidence ledger is read-only: cached prices cannot grade pending signals,
 expire horizons, or create new observations.
 
-Build 144 targets five-minute slots with a serialized, self-chained GitHub Actions runtime.
+Build 145 targets five-minute slots with a serialized, self-chained GitHub Actions runtime.
 The mutable snapshot stays on the dedicated `runtime-state` branch, which is
 explicitly excluded from Vercel Git deployments through
 `git.deploymentEnabled`. This prevents high-frequency state commits from
@@ -146,6 +146,14 @@ This removes deep wide-spread bids like the Sachsen observation, whose quote sat
 3.1% into the spread and never came within 13 cents of any trade during the inspected
 six-hour CLOB history, while retaining tighter quotes such as the adaptive deadline
 observation.
+
+Build 145 gives only the strongest zero-capital protected observations a longer evidence
+window. A quote must sit at least 15% into the live spread, keep exact immediate-unwind
+risk at or below 1.5%, and preserve at least twice as much protected lock profit as its
+modeled unwind loss to remain active for three hours. Weaker observations and every
+capital-backed quote still expire after one hour. The policy uses protected-maker evidence
+version 5 so the longer-window outcomes cannot silently mix with earlier one-hour cohorts;
+offline cycles still cannot create touches, fills, outcomes, cash changes, or P&L.
 
 Build 136 also preserves verified complete-NO conversion metadata after a
 maker-assisted touch. Once that cohort earns paper promotion, buying the remaining
