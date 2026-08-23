@@ -23,7 +23,7 @@ Offline cycles can apply calibration already earned from live observations, but
 the evidence ledger is read-only: cached prices cannot grade pending signals,
 expire horizons, or create new observations.
 
-Build 125 targets five-minute slots with a serialized, self-chained GitHub Actions runtime.
+Build 126 targets five-minute slots with a serialized, self-chained GitHub Actions runtime.
 The mutable snapshot stays on the dedicated `runtime-state` branch, which is
 explicitly excluded from Vercel Git deployments through
 `git.deploymentEnabled`. This prevents high-frequency state commits from
@@ -70,7 +70,7 @@ Polymarket event key. Related Ethereum or Bitcoin contracts cannot create
 several simultaneous copies of one move, and outcomes from the same underlying
 three-hour shock window count as one learner event.
 
-Each Build 125 cycle also scans the 1,000 most-active Polymarket events for
+Each Build 126 cycle also scans the 1,000 most-active Polymarket events for
 complete negative-risk bundles and logically nested threshold or deadline
 pairs, plus same-market YES/NO complements whose equal shares have a fixed
 $1 redemption value. Polymarket's documented complete-set merge converts equal
@@ -111,23 +111,27 @@ and immediate merge or conversion paths use at most 10%. Strategy 65 ranks verif
 structures by net return per expected locked day before raw edge, and caps active
 cost from one underlying event at 12% of the owning portfolio's equity. This prevents
 several related threshold pairs from monopolizing the non-directional book. New bundles must
-also clear a 0.05% daily locked-capital return floor, approximately 18.25% simple or 20% compounded annualized,
-so a tiny spread cannot immobilize capital for months. Existing paper bundles are
+clear a duration-aware daily hurdle: 0.03% through 7 days, 0.04% through 30 days,
+0.05% through 90 days, and 0.075% beyond 90 days. Immediate merge and conversion
+paths use a 0.01% hurdle. Exact executable sizing must also preserve at least a
+0.10-cent per-unit safety margin and $0.50 of total locked profit. This admits a
+small margin only when verified depth can scale it into meaningful profit, while
+demanding substantially more from positions that immobilize capital for months. Existing paper bundles are
 never retroactively enlarged against depth their original simulated fill would
 already have consumed. Each live cycle also prices an atomic exit across every bid
 level needed to sell every leg of each intact bundle. It verifies every condition's
 exact fee schedule again and exits only when net proceeds realize at least 85% of
 the remaining guaranteed settlement profit. Missing depth, mismatched fees, or a
 smaller profit capture leave the guarantee intact; cached offline cycles cannot
-execute this recycling path. A bundle can enter Value Discipline only when that fee check
-passes and the resulting worst-case payout clears both the three-tenths-cent
-profit floor and the 0.15% return floor. Top-of-book gaps, missing books,
+execute this recycling path. A bundle can enter its designated protected owner only when that fee check
+passes and the resulting worst-case payout clears the 0.10-cent per-unit buffer,
+$0.50 total executable-profit floor, and 0.15% return floor. Top-of-book gaps, missing books,
 incomplete fee schedules, and unavailable fee verification remain audit-only.
 The Suggestions view stores scan, depth, fee, actionable, and closest
 executable-margin counts so an empty lane is evidence rather than an ambiguous
 failure.
 
-Build 125 retains the directional learner's exact-fee policy, which replaced the blanket half-cent cost with
+Build 126 retains the directional learner's exact-fee policy, which replaced the blanket half-cent cost with
 the market's Gamma fee schedule at both the entry and future checkpoint, plus a
 separate half-cent round-trip slippage allowance. Fee-free markets pay only the
 slippage allowance; an unavailable fee schedule gets a conservative four-cent
@@ -160,7 +164,7 @@ target fell to -44.14% in validation and remained negative in holdout, so it
 cannot authorize capital. The reproducible result is stored in
 `research/settlement-calibration-exact-fee-5000-audit.json`.
 
-Build 125 retains Build 100's retirement of the old 3-6 day resolution-window
+Build 126 retains Build 100's retirement of the old 3-6 day resolution-window
 capital permission. That audit clustered confidence by event but still averaged
 several correlated contracts inside each event, while production could choose
 only one. The corrected replay chooses the highest-volume eligible contract per event and
@@ -280,7 +284,7 @@ evidence proves an edge.
 
 Run `npm run evaluate:sports-favorites` for the retired pregame favorite audit.
 Its 12-hour, 60%-75% cohort had positive point estimates but did not establish a
-reliable confidence bound, so Build 125 no longer allocates capital to that rule.
+reliable confidence bound, so Build 126 no longer allocates capital to that rule.
 
 Strategy 65 also tracks the exact-fee settlement calibration's three-day Sports
 NO cohort as a zero-capital forward lane. The corrected 5,000-market run

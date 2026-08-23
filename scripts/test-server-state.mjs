@@ -39,10 +39,12 @@ const compacted = compactSuggestion({
   neg_risk_market_id: "0xmarket", neg_risk_fee_bips: 25, neg_risk_metadata_fee_bips: 25,
   neg_risk_question_count: 3, conversion_verification_status: "verified-onchain", bundle_cost_per_unit: 1.95,
   bundle_payout_per_unit: 1.995, bundle_settlement_payout_per_unit: 2,
-  bundle_net_profit_per_unit: 0.05, bundle_capital_efficiency: 0.0025, bundle_legs: [{ market_id: "1", side: "YES" }],
+  bundle_net_profit_per_unit: 0.05, bundle_capital_efficiency: 0.0025, bundle_min_daily_return: 0.0001,
+  bundle_legs: [{ market_id: "1", side: "YES" }],
   fees_enabled: false, fee_schedule: { rate: 0, exponent: 1, takerOnly: true },
   depth_verified: true, fees_verified: true, fee_model: "verified-market-specific", execution_model: "live-order-book-vwap",
-  execution_units: 250, execution_notional: 237.5, verification_status: "executable", promoted_for_agents: ["value"],
+  execution_units: 250, execution_notional: 237.5, execution_total_profit: 12.5,
+  verification_status: "executable", promoted_for_agents: ["value"],
 });
 assert.equal(compacted.signal_type, "bundle-arb");
 assert.equal(compacted.entry_candidate, true);
@@ -60,9 +62,11 @@ assert.equal(compacted.neg_risk_question_count, 3);
 assert.equal(compacted.conversion_verification_status, "verified-onchain");
 assert.equal(compacted.bundle_settlement_payout_per_unit, 2);
 assert.equal(compacted.bundle_capital_efficiency, 0.0025);
+assert.equal(compacted.bundle_min_daily_return, 0.0001);
 assert.equal(compacted.bundle_legs.length, 1);
 assert.equal(compacted.fee_schedule.rate, 0);
 assert.equal(compacted.execution_units, 250);
+assert.equal(compacted.execution_total_profit, 12.5);
 assert.equal(compacted.verification_status, "executable");
 assert.deepEqual(compacted.promoted_for_agents, ["value"]);
 

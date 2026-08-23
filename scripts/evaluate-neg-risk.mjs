@@ -2,7 +2,7 @@ const GAMMA = "https://gamma-api.polymarket.com";
 const EVENT_LIMIT = Math.max(20, Math.min(1000, Number(process.env.NEG_RISK_EVENTS || 300)));
 const COST_CENTS = Math.max(0, Math.min(5, Number(process.env.NEG_RISK_COST_CENTS || 0.5)));
 const MIN_LIQUIDITY = Math.max(0, Number(process.env.NEG_RISK_MIN_LIQUIDITY || 1000));
-const MIN_NET_PROFIT = Math.max(0, Number(process.env.NEG_RISK_MIN_NET_PROFIT || 0.003));
+const MIN_NET_PROFIT = Math.max(0, Number(process.env.NEG_RISK_MIN_NET_PROFIT || 0.001));
 const MIN_NET_RETURN = Math.max(0, Number(process.env.NEG_RISK_MIN_NET_RETURN || 0.0015));
 
 async function fetchJson(url, attempts = 3) {
