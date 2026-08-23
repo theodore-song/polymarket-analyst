@@ -117,6 +117,9 @@ function compactBundleMakerOutcome(row) {
   return {
     quote_id: row.quote_id, event_key: row.event_key, bundle_id: row.bundle_id, logic: row.logic, cohort_key: row.cohort_key, owner_id: row.owner_id,
     status: row.status, pnl: row.pnl, shadow_only: row.shadow_only, deployed_capital: row.deployed_capital,
+    maker_price: row.maker_price, best_bid: row.best_bid, best_ask: row.best_ask, bid_improvement_ticks: row.bid_improvement_ticks, spread_position: row.spread_position,
+    current_unwind_loss: row.current_unwind_loss, current_unwind_pct: row.current_unwind_pct,
+    lock_to_unwind_ratio: row.lock_to_unwind_ratio, quote_policy: row.quote_policy,
     return_on_reserved: row.return_on_reserved, created_at: row.created_at, completed_at: row.completed_at,
     hours_to_outcome: row.hours_to_outcome, strategy_version: row.strategy_version,
     bundle_maker_strategy_version: row.bundle_maker_strategy_version, build_version: row.build_version,
