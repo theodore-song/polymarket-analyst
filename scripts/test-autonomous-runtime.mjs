@@ -73,6 +73,7 @@ assert.match(api, /searchParams\.set\("runtime", `\$\{Date\.now\(\)\}/);
 assert.match(workflow, /cron: "2,7,12,17,22,27,32,37,42,47,52,57 \* \* \* \*"/);
 assert.match(workflow, /contents: write/);
 assert.match(workflow, /EXPECTED_BUILD: "124"/);
+assert.equal((workflow.match(/if: always\(\)/g) || []).length, 2);
 assert.match(routingReleaseWorkflow, /name: Release protected agent routing after Vercel quota reset/);
 assert.match(routingReleaseWorkflow, /routesExclusiveNoPairToTailAlpha/);
 assert.match(routingReleaseWorkflow, /cron: "25 1-23\/2 23 8 \*"/);
@@ -177,7 +178,7 @@ assert.match(runner, /MAX_STATE_BYTES = 900_000/);
 assert.match(runner, /compactRuntimeTransportSnapshot\(rawSnapshot\)/);
 assert.match(runner, /localStorage\.getItem\(agentKey\)/);
 assert.match(runner, /localStorage\.getItem\(suggestionsKey\)/);
-assert.match(runner, /TRANSPORT_TARGET_BYTES = 875_000/);
+assert.match(runner, /TRANSPORT_TARGET_BYTES = 850_000/);
 assert.match(runner, /TRANSPORT_SUGGESTION_FLOOR = 240/);
 assert.match(runner, /Production already advanced to Build \$\{status\.build\}; retiring stale Build \$\{expectedBuild\} runner/);
 assert.equal(resolutionAudit.strategy, "resolution-window-no-50-55-forward-shadow-v3");
@@ -267,5 +268,40 @@ assert.equal(JSON.parse(transportOutput.items.pma_suggestions_v5).suggestions.le
 assert.equal(transportOutput.summary.signal_ledger.pending_retained, 50);
 assert.equal(transportOutput.summary.signal_ledger.outcomes_retained, 144);
 assert.ok(Buffer.byteLength(JSON.stringify(transportOutput)) < Buffer.byteLength(JSON.stringify(transportInput)));
+
+const stressState = structuredClone(transportState);
+stressState.signal_ledger = {
+  pending: Array.from({ length: 600 }, (_, index) => ({
+    key: `stress-pending-${index}`,
+    market_id: `pending-market-${index}`,
+    observed_at: new Date(1_700_000_000_000 + index * 1_000).toISOString(),
+    side: "YES",
+    learning_payload: "p".repeat(1_200),
+  })),
+  outcomes: Array.from({ length: 1_000 }, (_, index) => ({
+    key: `stress-outcome-${index}`,
+    market_id: `outcome-market-${index}`,
+    evaluated_at: new Date(1_700_000_000_000 + index * 1_000).toISOString(),
+    return: index / 10_000,
+    learning_payload: "o".repeat(1_200),
+  })),
+};
+const stressInput = {
+  ...transportInput,
+  summary: { signal_ledger: { pending_retained: 600, pending_total: 600, outcomes_retained: 1_000, outcomes_total: 1_000 } },
+  items: { ...transportInput.items, pma_agents_v2: JSON.stringify(stressState) },
+};
+const stressOutput = compactRuntimeTransportSnapshot(stressInput);
+const stressedState = JSON.parse(stressOutput.items.pma_agents_v2);
+assert.ok(Buffer.byteLength(JSON.stringify(stressOutput)) <= 850_000);
+assert.equal(stressedState.agents.value.positions[0].market_id, "position-0");
+assert.ok(stressedState.signal_ledger.pending.length > 0);
+assert.ok(stressedState.signal_ledger.outcomes.length > 0);
+assert.equal(stressedState.signal_ledger.pending[0].key, "stress-pending-0");
+assert.equal(stressedState.signal_ledger.outcomes.at(-1).key, "stress-outcome-999");
+assert.equal(stressOutput.summary.signal_ledger.pending_retained, stressedState.signal_ledger.pending.length);
+assert.equal(stressOutput.summary.signal_ledger.pending_total, 600);
+assert.equal(stressOutput.summary.signal_ledger.outcomes_retained, stressedState.signal_ledger.outcomes.length);
+assert.equal(stressOutput.summary.signal_ledger.outcomes_total, 1_000);
 
 console.log(`autonomous runtime verified for Build ${build}`);

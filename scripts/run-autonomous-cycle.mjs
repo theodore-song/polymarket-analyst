@@ -16,10 +16,12 @@ const MAX_STATE_BYTES = 900_000;
 const TRANSPORT_HISTORY_LIMIT = 24;
 const TRANSPORT_SNAPSHOT_LIMIT = 96;
 const TRANSPORT_MAKER_OUTCOME_LIMIT = 30;
-const TRANSPORT_TARGET_BYTES = 875_000;
+const TRANSPORT_TARGET_BYTES = 850_000;
 const TRANSPORT_HISTORY_FLOOR = 12;
 const TRANSPORT_MAKER_OUTCOME_FLOOR = 12;
 const TRANSPORT_SUGGESTION_FLOOR = 240;
+const TRANSPORT_SIGNAL_OUTCOME_RESERVE = 144;
+const TRANSPORT_SNAPSHOT_FALLBACKS = Object.freeze([72, 48, 24]);
 
 function sampleSnapshots(rows, limit = TRANSPORT_SNAPSHOT_LIMIT) {
   const list = Array.isArray(rows) ? rows : [];
@@ -113,24 +115,92 @@ export function compactRuntimeTransportSnapshot(snapshot) {
     portfolio.lastDecision = compactDecision(portfolio.lastDecision);
   }
   suggestions.suggestions = (suggestions.suggestions || []).slice(0, 300).map(compactPublicSuggestion);
-  out.items[AGENTS_KEY] = JSON.stringify(state);
-  out.items[SUGGESTIONS_KEY] = JSON.stringify(suggestions);
-  if (Buffer.byteLength(JSON.stringify(out)) > TRANSPORT_TARGET_BYTES) {
+  const writeItems = () => {
+    out.items[AGENTS_KEY] = JSON.stringify(state);
+    out.items[SUGGESTIONS_KEY] = JSON.stringify(suggestions);
+    return Buffer.byteLength(JSON.stringify(out));
+  };
+  let bytes = writeItems();
+  if (bytes > TRANSPORT_TARGET_BYTES) {
     for (const portfolio of Object.values(state.agents || {})) {
       portfolio.history = (portfolio.history || []).slice(-TRANSPORT_HISTORY_FLOOR);
       portfolio.maker_outcomes = (portfolio.maker_outcomes || []).slice(-TRANSPORT_MAKER_OUTCOME_FLOOR);
     }
     suggestions.suggestions = suggestions.suggestions.slice(0, TRANSPORT_SUGGESTION_FLOOR);
-    out.items[AGENTS_KEY] = JSON.stringify(state);
-    out.items[SUGGESTIONS_KEY] = JSON.stringify(suggestions);
+    bytes = writeItems();
   }
-  if (out.summary && out.summary.signal_ledger && state.signal_ledger) {
-    const pending = Array.isArray(state.signal_ledger.pending) ? state.signal_ledger.pending.length : 0;
-    const outcomes = Array.isArray(state.signal_ledger.outcomes) ? state.signal_ledger.outcomes.length : 0;
-    out.summary.signal_ledger.pending_retained = pending;
-    out.summary.signal_ledger.pending_total = Math.max(Number(out.summary.signal_ledger.pending_total || 0), pending);
-    out.summary.signal_ledger.outcomes_retained = outcomes;
-    out.summary.signal_ledger.outcomes_total = Math.max(Number(out.summary.signal_ledger.outcomes_total || 0), outcomes);
+  const ledger = state.signal_ledger && typeof state.signal_ledger === "object" ? state.signal_ledger : null;
+  const pending = Array.isArray(ledger?.pending) ? ledger.pending : [];
+  const outcomes = Array.isArray(ledger?.outcomes) ? ledger.outcomes : [];
+  if (bytes > TRANSPORT_TARGET_BYTES && ledger) {
+    ledger.pending = [];
+    ledger.outcomes = outcomes.slice(-Math.min(TRANSPORT_SIGNAL_OUTCOME_RESERVE, outcomes.length));
+    bytes = writeItems();
+
+    for (const limit of TRANSPORT_SNAPSHOT_FALLBACKS) {
+      if (bytes <= TRANSPORT_TARGET_BYTES) break;
+      for (const portfolio of Object.values(state.agents || {})) {
+        portfolio.snapshots = sampleSnapshots(portfolio.snapshots, limit);
+      }
+      bytes = writeItems();
+    }
+
+    if (bytes > TRANSPORT_TARGET_BYTES && ledger.outcomes.length) {
+      let low = 0;
+      let high = ledger.outcomes.length;
+      while (low < high) {
+        const mid = Math.ceil((low + high) / 2);
+        ledger.outcomes = outcomes.slice(-mid);
+        if (writeItems() <= TRANSPORT_TARGET_BYTES) low = mid;
+        else high = mid - 1;
+      }
+      ledger.outcomes = low ? outcomes.slice(-low) : [];
+      bytes = writeItems();
+    }
+
+    let pendingLow = 0;
+    let pendingHigh = pending.length;
+    while (pendingLow < pendingHigh) {
+      const mid = Math.ceil((pendingLow + pendingHigh) / 2);
+      ledger.pending = pending.slice(0, mid);
+      if (writeItems() <= TRANSPORT_TARGET_BYTES) pendingLow = mid;
+      else pendingHigh = mid - 1;
+    }
+    ledger.pending = pending.slice(0, pendingLow);
+    bytes = writeItems();
+
+    if (pendingLow === pending.length && ledger.outcomes.length < outcomes.length) {
+      let outcomeLow = ledger.outcomes.length;
+      let outcomeHigh = outcomes.length;
+      while (outcomeLow < outcomeHigh) {
+        const mid = Math.ceil((outcomeLow + outcomeHigh) / 2);
+        ledger.outcomes = outcomes.slice(-mid);
+        if (writeItems() <= TRANSPORT_TARGET_BYTES) outcomeLow = mid;
+        else outcomeHigh = mid - 1;
+      }
+      ledger.outcomes = outcomeLow ? outcomes.slice(-outcomeLow) : [];
+      writeItems();
+    }
+  }
+  const syncLedgerSummary = () => {
+    if (!out.summary?.signal_ledger || !ledger) return;
+    out.summary.signal_ledger.pending_retained = ledger.pending.length;
+    out.summary.signal_ledger.pending_total = Math.max(Number(out.summary.signal_ledger.pending_total || 0), pending.length);
+    out.summary.signal_ledger.outcomes_retained = ledger.outcomes.length;
+    out.summary.signal_ledger.outcomes_total = Math.max(Number(out.summary.signal_ledger.outcomes_total || 0), outcomes.length);
+    out.summary.signal_ledger.byte_budget = TRANSPORT_TARGET_BYTES;
+  };
+  syncLedgerSummary();
+  bytes = writeItems();
+  while (bytes > TRANSPORT_TARGET_BYTES && ledger?.pending.length) {
+    ledger.pending.pop();
+    syncLedgerSummary();
+    bytes = writeItems();
+  }
+  while (bytes > TRANSPORT_TARGET_BYTES && ledger?.outcomes.length) {
+    ledger.outcomes.shift();
+    syncLedgerSummary();
+    bytes = writeItems();
   }
   return out;
 }

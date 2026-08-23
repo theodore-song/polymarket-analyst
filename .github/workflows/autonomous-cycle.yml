@@ -40,7 +40,7 @@ jobs:
           RUNTIME_STATE_PATH: runtime/state.json
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Wait for the next five-minute slot
-        if: success()
+        if: always()
         shell: bash
         run: |
           now=$(date +%s)
@@ -49,7 +49,7 @@ jobs:
           echo "Next autonomous slot starts in ${delay}s"
           sleep "$delay"
       - name: Dispatch the next autonomous cycle
-        if: success()
+        if: always()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
