@@ -4,7 +4,7 @@ on:
   schedule:
     # Vercel's Hobby deployment quota is rolling. Retry across the reset
     # window, then remove this workflow as soon as Build 124 is live.
-    - cron: "15 13-23/2 23 8 *"
+    - cron: "15 1-23/2 23 8 *"
     - cron: "15 1-13/2 24 8 *"
   workflow_dispatch:
 

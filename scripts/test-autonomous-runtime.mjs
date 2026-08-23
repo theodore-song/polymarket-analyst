@@ -79,7 +79,7 @@ assert.match(workflow, /next=\$\(\( \(now \/ 300 \+ 1\) \* 300 \+ 15 \)\)/);
 assert.match(workflow, /actions\/workflows\/autonomous-cycle\.yml\/dispatches/);
 assert.match(workflow, /--data '\{"ref":"main"\}'/);
 assert.match(releaseWorkflow, /name: Release Build 124 after Vercel quota reset/);
-assert.match(releaseWorkflow, /cron: "15 13-23\/2 23 8 \*"/);
+assert.match(releaseWorkflow, /cron: "15 1-23\/2 23 8 \*"/);
 assert.match(releaseWorkflow, /cron: "15 1-13\/2 24 8 \*"/);
 assert.match(releaseWorkflow, /grep -q 'const BUILD_VERSION = 124;'/);
 assert.match(releaseWorkflow, /EXPECTED_BUILD: "124"/);
