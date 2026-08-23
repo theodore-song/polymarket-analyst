@@ -173,6 +173,20 @@ target fell to -44.14% in validation and remained negative in holdout, so it
 cannot authorize capital. The reproducible result is stored in
 `research/settlement-calibration-exact-fee-5000-audit.json`.
 
+The August 23 walk-forward calibration-model audit tested whether a nonlinear
+probability model could recover an edge missed by the static settlement grid.
+It reconstructed only pre-decision price, trend, range, age, category, and
+question-form features from 5,000 resolved markets, split underlying events
+chronologically 60%/20%/20%, and allowed one position per event. Flat placeholder
+histories are excluded, exact published fees or a conservative unknown-fee
+reserve are charged, and one cent of entry slippage is added. A configuration
+must have a positive event-level 90% lower bound in at least 80 training events,
+40 validation events, and 40 untouched holdout events. Zero configurations
+cleared the pre-holdout train-and-validation gate, so the model is rejected and
+does not receive paper capital. Reproduce it with
+`npm run evaluate:calibration-model`; the result is stored in
+`research/calibration-model-5000-audit.json`.
+
 Build 132 retains Build 100's retirement of the old 3-6 day resolution-window
 capital permission. That audit clustered confidence by event but still averaged
 several correlated contracts inside each event, while production could choose

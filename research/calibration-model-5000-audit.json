@@ -1,0 +1,88 @@
+{
+  "generatedAt": "2026-08-23T14:28:34.162Z",
+  "strategy": "walk-forward probability calibration model",
+  "requestedMarkets": 5000,
+  "skippedMarkets": 0,
+  "resolvedMarkets": 5000,
+  "historiesWithData": 4498,
+  "failures": 0,
+  "methodology": {
+    "entryData": "daily CLOB midpoint at or before the decision timestamp",
+    "horizonsDays": [
+      1,
+      3,
+      7,
+      14,
+      30
+    ],
+    "model": "event-weighted ridge logistic calibration using price, pre-entry trend/range, age, category, and question-form features",
+    "split": "event-disjoint chronological 60% train / 20% validation / 20% untouched holdout",
+    "execution": "settlement redemption after exact Gamma taker fee when published, otherwise 0.5 cent fee reserve, plus 1 cent slippage",
+    "selection": "one highest predicted net-edge position per underlying event or sports contest",
+    "promotionGate": "at least 80 train, 40 validation, and 40 holdout events with a positive event-level 90% lower bound in every partition",
+    "limitations": [
+      "Historical midpoint is not a fill guarantee.",
+      "Resolved-market closure cohorts can differ from future live markets.",
+      "No capital may be enabled unless the untouched holdout passes; forward paper evidence is still required."
+    ]
+  },
+  "holdoutPassed": 0,
+  "results": [
+    {
+      "horizonDays": 1,
+      "observations": 3005,
+      "partitionEvents": {
+        "train": 121,
+        "validation": 41,
+        "holdout": 41
+      },
+      "validationEligibleConfigurations": 0,
+      "selected": null
+    },
+    {
+      "horizonDays": 3,
+      "observations": 2809,
+      "partitionEvents": {
+        "train": 114,
+        "validation": 38,
+        "holdout": 39
+      },
+      "validationEligibleConfigurations": 0,
+      "selected": null
+    },
+    {
+      "horizonDays": 7,
+      "observations": 2464,
+      "partitionEvents": {
+        "train": 90,
+        "validation": 30,
+        "holdout": 30
+      },
+      "validationEligibleConfigurations": 0,
+      "selected": null
+    },
+    {
+      "horizonDays": 14,
+      "observations": 9,
+      "partitionEvents": {
+        "train": 4,
+        "validation": 2,
+        "holdout": 2
+      },
+      "validationEligibleConfigurations": 0,
+      "selected": null
+    },
+    {
+      "horizonDays": 30,
+      "observations": 10,
+      "partitionEvents": {
+        "train": 3,
+        "validation": 1,
+        "holdout": 2
+      },
+      "validationEligibleConfigurations": 0,
+      "selected": null
+    }
+  ],
+  "productionDecision": "Rejected: no configuration survived the untouched event-disjoint holdout."
+}
