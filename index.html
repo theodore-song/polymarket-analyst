@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 65 · expanded protected maker search · build 141</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 65 · faster protected learning · build 142</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 141 active:</b> Each cycle depth-checks 300 independently prioritized protected structures after a live audit found a second qualifying maker observation beyond the previous 200-structure cutoff. The 500-market directional limit is unchanged. Maker pilots still require a 12-hour resolution buffer, exact post-touch fees and depth, and an immediate hedge-or-unwind. Profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 142 active:</b> Protected maker research now keeps up to four independent zero-capital observations active, searches a 20-event diversified candidate queue, and learns complete-YES separately from complete-NO structures. The 300-structure depth audit and 500-market directional limit are unchanged. Every touched quote still requires exact post-touch fees and depth plus an immediate hedge-or-unwind. Profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 141 · Adaptive strategy 65 · 300-structure protected depth shortlist · Direction-specific shock-fade confidence gates · Existing forward evidence preserved · 12-hour protected-maker resolution buffer · Automatic superseded-quote retirement · Pilot-calibrated protected maker floor · Explicit maker rejection diagnostics · Risk-budgeted maker fill priority · Immediate protected maker conversion · Cohort-specific protected maker adaptation · Persistent protected maker-assist learner · Exact post-touch hedge-or-unwind grading · Zero-capital forward evidence before bounded paper promotion · Enforced inherited-quote research cooldown · Early evidence-weighted independent maker research · 24-hour shared event cooldown · Two-pass bounded live execution · Duration-aware atomic profit recycling · Feature-aware diversified maker research · Expanded independent-event executable search · Exact-fee complete-NO conversion · Evidence-first bounded snapshots · Six-hour bounded probation with matched executable exits · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Duration-aware, event-capped verified bundles · Scale-aware executable-profit floor · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 4 · Agent learning 3 · Shock direction lanes 1 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 142 · Adaptive strategy 65 · Four-lane protected maker research · 20-event diversified candidate queue · Direction-specific protected-bundle cohorts · 300-structure protected depth shortlist · Direction-specific shock-fade confidence gates · Existing forward evidence preserved · 12-hour protected-maker resolution buffer · Automatic superseded-quote retirement · Pilot-calibrated protected maker floor · Explicit maker rejection diagnostics · Risk-budgeted maker fill priority · Immediate protected maker conversion · Cohort-specific protected maker adaptation · Persistent protected maker-assist learner · Exact post-touch hedge-or-unwind grading · Zero-capital forward evidence before bounded paper promotion · Enforced inherited-quote research cooldown · Early evidence-weighted independent maker research · 24-hour shared event cooldown · Two-pass bounded live execution · Duration-aware atomic profit recycling · Feature-aware diversified maker research · Expanded independent-event executable search · Exact-fee complete-NO conversion · Evidence-first bounded snapshots · Six-hour bounded probation with matched executable exits · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Duration-aware, event-capped verified bundles · Scale-aware executable-profit floor · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 4 · Agent learning 3 · Shock direction lanes 1 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 141;
+const BUILD_VERSION = 142;
 const AGENT_LEARNING_VERSION = 3;
 const SUGGESTION_ENGINE_VERSION = 65;
 const MAKER_STRATEGY_VERSION = 4;
@@ -1806,7 +1806,8 @@ async function fetchNegativeRiskBundles(limit=NEG_RISK_EVENT_SCAN_LIMIT){
   const makerAssistRejections={};makerAssistEvaluated.forEach(candidate=>(candidate.maker_assist.rejection_reasons||[]).forEach(reason=>{
     makerAssistRejections[reason]=(makerAssistRejections[reason]||0)+1;
   }));
-  return {candidates:prioritized,maker_assist_candidates:makerAssist.slice(0,6),audit:{status:"ok",scanned_at:nowIso(),event_scan_limit:limit,events_scanned:events.length,
+  const makerAssistCandidates=prioritizeIndependentBundles(makerAssist,BUNDLE_MAKER_RESEARCH_CANDIDATE_LIMIT);
+  return {candidates:prioritized,maker_assist_candidates:makerAssistCandidates,audit:{status:"ok",scanned_at:nowIso(),event_scan_limit:limit,events_scanned:events.length,
     evaluated_structures:audited.length,depth_checked_structures:executableAudit.length,depth_verified_structures:executableAudit.filter(candidate=>candidate.depth_verified).length,
     fee_check_eligible_structures:executableAudit.filter(candidate=>candidate.fee_check_attempted).length,
     fee_verified_structures:executableAudit.filter(candidate=>candidate.fees_verified).length,actionable_bundles:unique.length,
@@ -1933,7 +1934,8 @@ const BUNDLE_EXIT_CAPTURE_MEDIUM=0.65;
 const BUNDLE_EXIT_CAPTURE_LONG=0.45;
 const BUNDLE_EXIT_CAPTURE_EXTENDED=0.20;
 const BUNDLE_EXIT_MIN_REALIZED_PROFIT=0.50;
-const BUNDLE_MAKER_MAX_ACTIVE=2;
+const BUNDLE_MAKER_MAX_ACTIVE=4;
+const BUNDLE_MAKER_RESEARCH_CANDIDATE_LIMIT=20;
 const BUNDLE_MAKER_HORIZON_HOURS=1;
 const BUNDLE_MAKER_MIN_RESOLUTION_HOURS=12;
 const BUNDLE_MAKER_RETRY_HOURS=6;
@@ -4678,12 +4680,17 @@ function bundleMakerLogicFamily(item={}){
   if(logic.includes("dominance"))return "dominance";
   if(logic.includes("binary"))return "binary";
   if(logic.includes("exclusive"))return "exclusive";
-  if(logic.includes("neg-risk")||logic.includes("complete-no"))return "complete-no";
+  if(logic.includes("complete-yes"))return "complete-yes";
+  if(logic.includes("complete-no")||logic.includes("neg-risk"))return "complete-no";
   return logic||"other";
 }
 function bundleMakerCohortKey(item={}){
   const stored=String(item.cohort_key||"").trim();
-  return stored||`${bundleMakerLogicFamily(item)}:${bundleMakerLockBand(item)}`;
+  const family=bundleMakerLogicFamily(item),band=bundleMakerLockBand(item);
+  // Build 141 stored complete-YES rows as complete-no. Recompute only that known
+  // legacy mismatch so existing forward observations survive the cohort fix.
+  if(stored&&!(family==="complete-yes"&&stored.startsWith("complete-no:")))return stored;
+  return `${family}:${band}`;
 }
 function summarizeBundleMakerEvidence(evidence,{requiredEvents=BUNDLE_MAKER_PROMOTION_EVENTS,requiredLocks=BUNDLE_MAKER_PROMOTION_LOCKS}={}){
   const returns=(evidence||[]).map(row=>Number(row.return_on_reserved||0)).filter(Number.isFinite),events=returns.length;
@@ -7489,6 +7496,7 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
   dominanceBundleSuggestions,
   buildAdaptiveProfile,
   buildSignalCalibration,
+  buildSharedBundleMakerProfile,
   agentObservesSuggestion,
   directionalReplayAudit:DIRECTIONAL_REPLAY_AUDIT,
   prepareSuggestionForAgent,
@@ -8316,6 +8324,19 @@ function runEngineSelfTest(){
   const makerAssistTakerQuote=bundleQuoteAtUnits(makerAssistCandidate,makerAssistBooks,50);
   const makerAssistFixture=bundleMakerAssistQuote(makerAssistCandidate,makerAssistTakerQuote,makerAssistBooks);
   const makerAssistVerifiedCandidate=Object.assign({},makerAssistCandidate,{bundle_legs:makerAssistTakerQuote.legs,maker_assist:makerAssistFixture});
+  const diversifiedMakerCandidates=Array.from({length:BUNDLE_MAKER_RESEARCH_CANDIDATE_LIMIT+4},(_,index)=>Object.assign({},makerAssistVerifiedCandidate,{
+    bundle_id:`bundle:maker-diverse-${index}:yes`,bundle_event_id:`maker-diverse-${index}`,question:`Maker diverse ${index}`,
+    maker_assist:Object.assign({},makerAssistFixture,{total_profit:100-index}),
+  }));
+  diversifiedMakerCandidates.splice(1,0,Object.assign({},diversifiedMakerCandidates[0],{
+    bundle_id:"bundle:maker-diverse-0:alternate",maker_assist:Object.assign({},makerAssistFixture,{total_profit:99.5}),
+  }));
+  const prioritizedMakerCandidates=prioritizeIndependentBundles(diversifiedMakerCandidates,BUNDLE_MAKER_RESEARCH_CANDIDATE_LIMIT);
+  const fourLaneMakerState=defaultState(),fourLaneMakerStage=stageBundleMakerQuotes(fourLaneMakerState,diversifiedMakerCandidates,
+    buildSharedBundleMakerProfile(fourLaneMakerState),{execute:true,claimedEvents:new Set()});
+  const fourLaneMakerQuotes=AGENTS.flatMap(agent=>fourLaneMakerState.agents[agent.id].bundle_maker_quotes||[]);
+  const legacyYesCohort=bundleMakerCohortKey({logic:"neg-risk-complete-yes",cohort_key:"complete-no:medium",days_to_resolution:14});
+  const independentNoCohort=bundleMakerCohortKey({logic:"neg-risk-complete-no",cohort_key:"complete-no:medium",days_to_resolution:14});
   const fillPriorityBooks=new Map((zeroFeeBundleSuggestion.bundle_legs||[]).map((leg,index)=>{
     const ask=scalableBundlePrices[index],bid=ask-0.05;return [String(leg.token_id),
       {tick_size:"0.01",min_order_size:"5",bids:[{price:String(bid),size:"100"}],asks:[{price:String(ask),size:"100"}]}];
@@ -9179,6 +9200,15 @@ function runEngineSelfTest(){
         &&calibratedPilotHedge.actionable&&calibratedPilotHedge.total_profit<BUNDLE_MIN_EXECUTION_PROFIT),
       makerPilotRejectsEndedAndNearSettlementBooks:Boolean(endedPilotAssist&&!endedPilotAssist.shadow_eligible
         &&endedPilotAssist.resolution_safe===false&&endedPilotAssist.rejection_reasons.includes("resolution-buffer-too-short")),
+      makerCandidateQueuePrioritizesIndependentEvents:prioritizedMakerCandidates.length===BUNDLE_MAKER_RESEARCH_CANDIDATE_LIMIT
+        &&new Set(prioritizedMakerCandidates.map(bundleEventKey)).size===BUNDLE_MAKER_RESEARCH_CANDIDATE_LIMIT,
+      makerResearchRunsFourIndependentZeroCapitalLanes:fourLaneMakerStage.staged===BUNDLE_MAKER_MAX_ACTIVE
+        &&fourLaneMakerStage.shadowStaged===BUNDLE_MAKER_MAX_ACTIVE&&fourLaneMakerStage.capitalStaged===0
+        &&fourLaneMakerQuotes.length===BUNDLE_MAKER_MAX_ACTIVE
+        &&new Set(fourLaneMakerQuotes.map(row=>row.event_key)).size===BUNDLE_MAKER_MAX_ACTIVE
+        &&AGENTS.every(agent=>fourLaneMakerState.agents[agent.id].cash===STARTING_BALANCE),
+      completeYesMakerEvidenceHasIndependentCohort:legacyYesCohort==="complete-yes:medium"
+        &&independentNoCohort==="complete-no:medium"&&legacyYesCohort!==independentNoCohort,
       makerAssistPersistsAsZeroCapitalQuote:bundleMakerStage.staged===1&&bundleMakerStage.shadowStaged===1
         &&bundleMakerState.agents.value.cash===bundleMakerCash&&bundleMakerQuote.shadow_only,
       makerAssistPostTouchRepricesEveryLeg:Boolean(bundleMakerHedge.actionable&&bundleMakerHedge.legs.length===3

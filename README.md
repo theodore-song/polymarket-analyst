@@ -23,7 +23,7 @@ Offline cycles can apply calibration already earned from live observations, but
 the evidence ledger is read-only: cached prices cannot grade pending signals,
 expire horizons, or create new observations.
 
-Build 141 targets five-minute slots with a serialized, self-chained GitHub Actions runtime.
+Build 142 targets five-minute slots with a serialized, self-chained GitHub Actions runtime.
 The mutable snapshot stays on the dedicated `runtime-state` branch, which is
 explicitly excluded from Vercel Git deployments through
 `git.deploymentEnabled`. This prevents high-frequency state commits from
@@ -69,19 +69,19 @@ Active shock positions use a second underlying-risk key in addition to the
 Polymarket event key. Related Ethereum or Bitcoin contracts cannot create
 several simultaneous copies of one move, and outcomes from the same underlying
 three-hour shock window count as one learner event.
-Build 141 also separates buy-NO fades after upward YES shocks from buy-YES fades
+Build 142 also separates buy-NO fades after upward YES shocks from buy-YES fades
 after downward YES shocks. Each direction keeps its own event-deduplicated mean,
 confidence interval, promotion state, and position cap. Existing Strategy 4
 observations remain valid, but a winning direction can no longer be blocked or
 promoted by the other direction's outcomes.
 
-Each Build 141 job performs two bounded live passes, with the second beginning
+Each Build 142 job performs two bounded live passes, with the second beginning
 only after the wall-clock minute changes. This gives transient verified bundle
 exits and resting maker touches a second execution opportunity without creating
 parallel authorities or weakening any entry, fee, depth, overlap, or offline
 gate. The sanitized shared snapshot commits only after both passes complete.
 
-Each Build 141 cycle also scans the 1,000 most-active Polymarket events for
+Each Build 142 cycle also scans the 1,000 most-active Polymarket events for
 complete negative-risk bundles and logically nested threshold or deadline
 pairs, plus same-market YES/NO complements whose equal shares have a fixed
 $1 redemption value. Polymarket's documented complete-set merge converts equal
@@ -105,8 +105,9 @@ at the 500 most-active eligible markets; this change spends additional exact dep
 checks only on protected structures and does not relax any fee, return, resolution,
 or hedge-or-unwind requirement.
 
-Build 141 persists up to two zero-capital maker-assisted observations discovered in
-each depth-checked protected-structure scan. Each observation rests for one hour.
+Build 142 persists up to four zero-capital maker-assisted observations selected from
+a 20-event independent-first candidate queue in each depth-checked protected-structure
+scan. Each observation rests for one hour.
 If the public price trades at least half a tick through its bid, the learner treats
 that as a conservative paper touch, then re-fetches every leg's order book and exact CLOB fee
 schedule. It grades a protected lock only when all remaining legs can be bought
@@ -117,8 +118,10 @@ an observation but cannot touch, grade, or fund it. Completed events enter a sha
 24-hour cooldown and survive the public runtime's bounded transport.
 
 Maker-assisted capital starts at zero. Outcomes are separated by protected-structure
-family and expected lock duration so a strong family cannot lend permission to an
-unrelated weak one. A cohort can reach only a 0.5% per-event and 2% total paper
+family, direction, and expected lock duration so a strong family cannot lend permission
+to an unrelated weak one. Build 142 specifically migrates the previously mislabeled
+complete-YES observations out of the complete-NO lane without deleting forward evidence.
+A cohort can reach only a 0.5% per-event and 2% total paper
 allocation after 15 independent current-version outcomes include at least four
 protected locks and their lower 90% return bound exceeds 0.5%. Under-sampled cohorts
 receive observation priority. Unfilled quotes and failed hedges remain in each
@@ -132,7 +135,7 @@ already verified negative-risk terms. The protected profit is realized and the
 collateral is returned in the same cycle instead of being stranded until settlement.
 Missing or mismatched conversion terms still block this path.
 
-Build 141 uses a risk-budgeted fill-priority
+Build 142 uses a risk-budgeted fill-priority
 quote. For each possible resting leg, it uses exact current bid depth and fee curves
 to find the highest bid that still clears every protected-profit and duration gate.
 The touched leg's immediately executable unwind must remain below 3% of protected
@@ -158,7 +161,7 @@ That audit could not open a position or change cash. The first 1,000-event live 
 one shadow candidate: a complete YES shipping-count bundle with $0.67 modeled
 profit at 48.7 units, contingent on a 4.9-cent bid filling and the remaining
 hedge still being executable. Forward fill-and-hedge evidence is required before
-the Build 141 learner can now collect that evidence before this path receives any
+the Build 142 learner can now collect that evidence before this path receives any
 paper capital.
 Bundle capital is split between five independent owners instead of bottlenecking one
 portfolio: Value Hunter owns settlement complete sets, Momentum owns exact complete-NO
