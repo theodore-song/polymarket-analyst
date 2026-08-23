@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { ALLOWED_RUNTIME_KEYS, compactRuntimeTransportSnapshot, validateRuntimeSnapshot } from "./run-autonomous-cycle.mjs";
+import { ALLOWED_RUNTIME_KEYS, compactRuntimeTransportSnapshot, followUpCycleDelay, validateRuntimeSnapshot } from "./run-autonomous-cycle.mjs";
 
 const index = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const api = fs.readFileSync(new URL("../api/state.js", import.meta.url), "utf8");
@@ -16,13 +16,13 @@ const settlementCalibrationAudit = JSON.parse(fs.readFileSync(new URL("../resear
 const sportsEvaluator = fs.readFileSync(new URL("./evaluate-sports-favorites.mjs", import.meta.url), "utf8");
 const build = Number(index.match(/const BUILD_VERSION = (\d+);/)?.[1]);
 
-assert.equal(build, 129);
+assert.equal(build, 130);
 assert.equal(vercelConfig.git?.deploymentEnabled?.["runtime-state"], false);
 assert.equal(settlementCalibrationAudit.requested_markets, 5000);
 assert.equal(settlementCalibrationAudit.train_passed, 0);
 assert.equal(settlementCalibrationAudit.validation_selected, 0);
 assert.equal(settlementCalibrationAudit.holdout_passed, 0);
-assert.match(index, /Adaptive strategy 65 · duration-aware profit recycling · build 129/);
+assert.match(index, /Adaptive strategy 65 · bounded follow-up execution · build 130/);
 assert.deepEqual([...ALLOWED_RUNTIME_KEYS].sort(), ["pma_agents_v2", "pma_suggestions_v5"]);
 assert.match(index, /function collectPublicRuntimeItems\(\)/);
 assert.match(index, /const PUBLIC_RUNTIME_KEYS=Object\.freeze\(\[AGENTS_KEY,SUG_KEY\]\)/);
@@ -72,7 +72,7 @@ assert.match(api, /Buffer\.from\(file\.content/);
 assert.match(api, /searchParams\.set\("runtime", `\$\{Date\.now\(\)\}/);
 assert.match(workflow, /cron: "2,7,12,17,22,27,32,37,42,47,52,57 \* \* \* \*"/);
 assert.match(workflow, /contents: write/);
-assert.match(workflow, /EXPECTED_BUILD: "129"/);
+assert.match(workflow, /EXPECTED_BUILD: "130"/);
 assert.equal((workflow.match(/if: always\(\)/g) || []).length, 2);
 assert.match(routingReleaseWorkflow, /name: Release expanded executable search after Vercel quota reset/);
 assert.match(routingReleaseWorkflow, /BUNDLE_DEPTH_CANDIDATE_LIMIT=200/);
@@ -206,6 +206,12 @@ assert.match(runner, /localStorage\.getItem\(suggestionsKey\)/);
 assert.match(runner, /TRANSPORT_TARGET_BYTES = 850_000/);
 assert.match(runner, /TRANSPORT_SUGGESTION_FLOOR = 240/);
 assert.match(runner, /Production already advanced to Build \$\{status\.build\}; retiring stale Build \$\{expectedBuild\} runner/);
+assert.equal((runner.match(/await runArenaCycle\(page\);/g) || []).length, 2);
+assert.match(runner, /await page\.waitForTimeout\(followUpCycleDelay\(\)\);/);
+assert.match(runner, /cycle_passes: 2/);
+assert.equal(followUpCycleDelay(0), 65_000);
+assert.equal(followUpCycleDelay(30_000), 35_000);
+assert.equal(followUpCycleDelay(59_000), 15_000);
 assert.equal(resolutionAudit.strategy, "resolution-window-no-50-55-forward-shadow-v3");
 assert.deepEqual(resolutionAudit.selection.horizon_days_enabled, []);
 assert.deepEqual(resolutionAudit.selection.horizon_days_observed, [4]);

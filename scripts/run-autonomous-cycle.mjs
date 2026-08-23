@@ -23,6 +23,16 @@ const TRANSPORT_SUGGESTION_FLOOR = 240;
 const TRANSPORT_SIGNAL_OUTCOME_RESERVE = 144;
 const TRANSPORT_SNAPSHOT_FALLBACKS = Object.freeze([72, 48, 24]);
 
+export function followUpCycleDelay(now = Date.now()) {
+  const offset = ((Number(now) % 60_000) + 60_000) % 60_000;
+  return Math.max(15_000, 65_000 - offset);
+}
+
+async function runArenaCycle(page) {
+  await page.evaluate(() => window.PMA_AUTOMATION.runCycle());
+  await page.waitForFunction(() => !window.PMA_AUTOMATION?.status?.().running, null, { timeout: 12 * 60_000 });
+}
+
 function sampleSnapshots(rows, limit = TRANSPORT_SNAPSHOT_LIMIT) {
   const list = Array.isArray(rows) ? rows : [];
   if (list.length <= limit) return list;
@@ -349,8 +359,9 @@ async function main() {
       const status = window.PMA_AUTOMATION?.status?.();
       return Boolean(status?.seeded && !status?.running);
     }, null, { timeout: 12 * 60_000 });
-    await page.evaluate(() => window.PMA_AUTOMATION.runCycle());
-    await page.waitForFunction(() => !window.PMA_AUTOMATION?.status?.().running, null, { timeout: 12 * 60_000 });
+    await runArenaCycle(page);
+    await page.waitForTimeout(followUpCycleDelay());
+    await runArenaCycle(page);
     const rawSnapshot = await page.evaluate(({ agentKey, suggestionsKey }) => {
       const snapshot = window.PMA_AUTOMATION.exportShared();
       const agents = localStorage.getItem(agentKey);
@@ -367,6 +378,7 @@ async function main() {
       ok: true,
       build: status.build,
       cycle: snapshot.last_cycle_hour,
+      cycle_passes: 2,
       suggestions: validated.suggestions.suggestions?.length || 0,
       bytes: validated.bytes,
       agent_summary: snapshot.summary?.agents || [],
