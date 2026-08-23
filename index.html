@@ -1292,6 +1292,52 @@ function negativeRiskBundleSuggestions(event,{includeUnprofitable=false,conversi
   });
 }
 function negativeRiskBundleSuggestion(event,options={}){return negativeRiskBundleSuggestions(event,options)[0]||null;}
+function negativeRiskExclusivePairSuggestion(event,{includeUnprofitable=false}={}){
+  if(!event||!event.negRisk||event.enableNegRisk===false)return null;
+  const rawMarkets=Array.isArray(event.markets)?event.markets:[];
+  if(rawMarkets.length<3)return null;
+  const groupIds=[event.negRiskMarketID,...rawMarkets.map(raw=>raw.negRiskMarketID)]
+    .filter(value=>String(value||"").trim()).map(String);
+  if(!groupIds.length||new Set(groupIds).size!==1)return null;
+  const eventTags=Array.isArray(event.tags)?event.tags:[],category=classifyCategory(eventTags);
+  const url=event.slug?`https://polymarket.com/event/${event.slug}`:"";
+  const candidates=rawMarkets.map(raw=>{
+    const outcomes=parseJsonField(raw.outcomes).map(outcome=>String(outcome||"").trim().toLowerCase());
+    const prices=parseJsonField(raw.outcomePrices).map(toNum),tokens=parseJsonField(raw.clobTokenIds).map(String);
+    const yesBid=toNum(raw.bestBid,NaN),yesAsk=toNum(raw.bestAsk,NaN),liquidity=toNum(raw.liquidityNum||raw.liquidity);
+    if(raw.closed||raw.active===false||raw.acceptingOrders===false||outcomes[0]!=="yes"||outcomes[1]!=="no"
+      ||!String(raw.id||"")||!String(raw.conditionId||"")||!tokens[1]||!Number.isFinite(yesBid)||!Number.isFinite(yesAsk)
+      ||yesBid<0||yesAsk>1||yesAsk<yesBid||!Number.isFinite(prices[1])||liquidity<NEG_RISK_MIN_LIQUIDITY)return null;
+    const topAsk=1-yesBid,feeSchedule=normalizeBundleFeeSchedule(raw),feesEnabled=raw.feesEnabled===false?false:true;
+    const feeReserve=bundleFeeReserve({feesEnabled,feeSchedule},topAsk),entry=topAsk+feeReserve;
+    if(!(entry>0&&entry<1))return null;
+    return {market_id:String(raw.id),condition_id:String(raw.conditionId),question:(raw.question||"").trim(),side:"NO",token_id:tokens[1],
+      top_ask_price:+topAsk.toFixed(4),fee_reserve:feeReserve,fees_enabled:feesEnabled,fee_schedule:feeSchedule,
+      entry_price:+entry.toFixed(4),current_price:+Number(prices[1]).toFixed(4),liquidity,url,
+      volume:toNum(raw.volumeNum||raw.volume),volume_24hr:toNum(raw.volume24hr),spread:toNum(raw.spread,yesAsk-yesBid)};
+  }).filter(Boolean).sort((a,b)=>a.entry_price-b.entry_price||b.liquidity-a.liquidity);
+  if(candidates.length<2)return null;
+  const legs=candidates.slice(0,2),cost=legs.reduce((sum,leg)=>sum+leg.entry_price,0),payout=1,profit=payout-cost;
+  const netReturn=cost>0?profit/cost:0,actionable=profit>=NEG_RISK_MIN_NET_PROFIT&&netReturn>=NEG_RISK_MIN_NET_RETURN;
+  if(!actionable&&!includeUnprofitable)return null;
+  const eventId=String(event.id||event.slug||groupIds[0]),bundleId=`neg-risk-pair:${eventId}:${legs.map(leg=>leg.market_id).join(":")}`;
+  return {market_id:bundleId,bundle_id:bundleId,bundle_event_id:eventId,bundle_side:"NO",bundle_logic:"neg-risk-exclusive-no-pair",
+    question:`Exclusive NO pair: ${event.title||"multi-outcome event"}`,event:event.title||"",url,category,
+    tags:eventTags.map(tag=>tag.label).filter(Boolean).slice(0,4),side:"NO",entry_price:+(cost/2).toFixed(4),yes_price:+(1-cost/2).toFixed(4),
+    no_price:+(cost/2).toFixed(4),fair_value:0.5,edge:+netReturn.toFixed(4),net_edge:+netReturn.toFixed(4),
+    friction:+legs.reduce((sum,leg)=>sum+leg.fee_reserve,0).toFixed(4),chase_penalty:0,evidence_score:1,evidence_source_count:0,
+    quality:"bundle-arb",conviction:+clamp(80+Math.max(0,netReturn)*1200,80,96).toFixed(1),
+    volume:legs.reduce((sum,leg)=>sum+leg.volume,0),volume_24hr:legs.reduce((sum,leg)=>sum+leg.volume_24hr,0),
+    liquidity:Math.min(...legs.map(leg=>leg.liquidity)),spread:Math.max(...legs.map(leg=>leg.spread)),
+    price_change_1h:0,price_change_1d:0,price_change_1w:0,momentum_strength:0,signal_strength:1,signal_confidence:1,signal_type:"bundle-arb",
+    trade_ready:actionable,entry_candidate:actionable,audited_observation_only:!actionable,adaptive_promotion:false,watch_only:!actionable,
+    jump_risk:false,requires_live:true,opportunity_actionable:actionable,days_to_resolution:daysUntil(event.endDate),neg_risk_market_id:groupIds[0],
+    bundle_cost_per_unit:+cost.toFixed(4),bundle_payout_per_unit:payout,bundle_settlement_payout_per_unit:payout,
+    bundle_net_profit_per_unit:+profit.toFixed(4),bundle_legs:legs.map(({volume,volume_24hr,spread,...leg})=>leg),
+    depth_verified:false,fees_verified:false,execution_model:"top-of-book-estimate",
+    drivers:["same negative-risk event","mutually exclusive YES outcomes","at least one NO pays at settlement","positive margin after estimated costs"],
+    rationale:`Negative-risk exclusivity: these two outcomes cannot both resolve YES, so at least one of the two NO legs pays $1.00 at settlement. The indicative all-in pair cost is ${cost.toFixed(4)}, leaving a guaranteed floor margin of ${profit.toFixed(4)} (${(netReturn*100).toFixed(2)}%). Entry remains blocked until both live order books, the shared negative-risk market ID, and each exact CLOB fee schedule verify.`};
+}
 function binaryComplementBundleSuggestions(event,{includeUnprofitable=false}={}){
   if(!event)return [];
   const eventTags=Array.isArray(event.tags)?event.tags:[],category=classifyCategory(eventTags),eventId=String(event.id||event.slug||"");
@@ -1583,23 +1629,27 @@ async function verifyExecutableBundles(candidates){
     &&Number(candidate.bundle_net_profit_per_unit)>=NEG_RISK_MIN_NET_PROFIT&&Number(candidate.net_edge)>=NEG_RISK_MIN_NET_RETURN
     &&Number(candidate.bundle_capital_efficiency)>=BUNDLE_MIN_DAILY_RETURN
     &&(candidate.bundle_legs||[]).every(leg=>leg.fee_config_valid));
+  const feeCheckIds=new Set(potentiallyActionable.map(candidate=>String(candidate.bundle_id||candidate.market_id||"")));
   const reportedFees=await fetchBundleFeeSchedules(potentiallyActionable.flatMap(candidate=>candidate.bundle_legs.map(leg=>leg.condition_id)));
   return depthChecked.map(candidate=>{
     const feeConfigValid=(candidate.bundle_legs||[]).every(leg=>leg.fee_config_valid);
-    const feesVerified=feeConfigValid&&(candidate.bundle_legs||[]).every(leg=>{
+    const feeCheckAttempted=feeCheckIds.has(String(candidate.bundle_id||candidate.market_id||""));
+    const feesVerified=feeConfigValid&&feeCheckAttempted&&(candidate.bundle_legs||[]).every(leg=>{
       const reported=reportedFees.get(String(leg.condition_id||""));return bundleFeeSchedulesMatch(leg.fee_schedule,reported);
     });
+    const profitClears=Number(candidate.bundle_net_profit_per_unit)>=NEG_RISK_MIN_NET_PROFIT;
+    const returnClears=Number(candidate.net_edge)>=NEG_RISK_MIN_NET_RETURN;
     const capitalEfficient=Number(candidate.bundle_capital_efficiency)>=BUNDLE_MIN_DAILY_RETURN;
-    const actionable=candidate.depth_verified&&feesVerified&&capitalEfficient
-      &&Number(candidate.bundle_net_profit_per_unit)>=NEG_RISK_MIN_NET_PROFIT&&Number(candidate.net_edge)>=NEG_RISK_MIN_NET_RETURN;
-    const feeState=!feeConfigValid?"fee-schedule-unavailable":(feesVerified?"verified-market-specific":"fee-verification-unavailable");
-    const blockState=!capitalEfficient?"capital-efficiency-too-low":feeState;
+    const actionable=candidate.depth_verified&&feesVerified&&capitalEfficient&&profitClears&&returnClears;
+    const feeState=!feeConfigValid?"fee-schedule-unavailable":(!feeCheckAttempted?"fee-check-not-required":(feesVerified?"verified-market-specific":"fee-verification-unavailable"));
+    const blockState=!feeConfigValid?"fee-schedule-unavailable":(!profitClears?"profit-below-floor":(!returnClears?"return-below-floor":(!capitalEfficient?"capital-efficiency-too-low":feeState)));
     const friction=(candidate.bundle_legs||[]).reduce((sum,leg)=>sum+Number(leg.fee_per_share||0),0);
-    return Object.assign({},candidate,{fees_verified:feesVerified,fee_model:feeState,trade_ready:actionable,entry_candidate:actionable,
+    return Object.assign({},candidate,{fees_verified:feesVerified,fee_check_attempted:feeCheckAttempted,fee_model:feeState,trade_ready:actionable,entry_candidate:actionable,
       opportunity_actionable:actionable,watch_only:!actionable,audited_observation_only:!actionable,
       verification_status:actionable?"executable":(candidate.depth_verified?blockState:candidate.verification_status),
       friction:+friction.toFixed(6),drivers:[...(candidate.drivers||[]).filter(driver=>driver!=="positive margin after estimated costs"),
-        "live order-book VWAP",capitalEfficient?"capital lock return clears floor":"capital lock return below floor",feesVerified?"CLOB-verified fee schedule":"fee check blocks entry"],
+        "live order-book VWAP",capitalEfficient?"capital lock return clears floor":"capital lock return below floor",
+        feesVerified?"CLOB-verified fee schedule":(feeCheckAttempted?"fee verification blocks entry":"economic gate blocks fee check")],
       rationale:`${candidate.rationale} Live verification modeled ${Number(candidate.execution_units||0).toFixed(2)} equal units (${candidate.execution_notional==null?"unavailable":fmtUSD(candidate.execution_notional)}) across every leg and applied the taker fee curve at each consumed ask. ${actionable?`All legs had sufficient depth, their CLOB fee state matched Gamma, and executable worst-case profit is ${Number(candidate.bundle_net_profit_per_unit).toFixed(4)} per unit after ${friction.toFixed(4)} in fees per unit, above the ${(BUNDLE_MIN_DAILY_RETURN*100).toFixed(2)}% daily locked-capital floor.`:`Entry is blocked: ${candidate.depth_verified?blockState:"one or more legs lacked sufficient ask depth"}.`}`});
   }).sort(compareBundleOpportunities);
 }
@@ -1614,7 +1664,8 @@ async function fetchNegativeRiskBundles(limit=NEG_RISK_EVENT_SCAN_LIMIT){
   }
   const audited=events.flatMap(event=>{
     const complete=negativeRiskBundleSuggestions(event,{includeUnprofitable:true});
-    return [...complete,...dominanceBundleSuggestions(event,{includeUnprofitable:true}),
+    const exclusivePair=negativeRiskExclusivePairSuggestion(event,{includeUnprofitable:true});
+    return [...complete,...(exclusivePair?[exclusivePair]:[]),...dominanceBundleSuggestions(event,{includeUnprofitable:true}),
       ...binaryComplementBundleSuggestions(event,{includeUnprofitable:true})];
   }).sort(compareBundleOpportunities);
   const executableAudit=await verifyExecutableBundles(audited);
@@ -1625,8 +1676,11 @@ async function fetchNegativeRiskBundles(limit=NEG_RISK_EVENT_SCAN_LIMIT){
   const closest=executableAudit.find(candidate=>candidate.depth_verified)||executableAudit[0]||null;
   const conversions=executableAudit.filter(candidate=>candidate.bundle_conversion_candidate);
   const closestConversion=conversions.find(candidate=>candidate.depth_verified)||conversions[0]||null;
+  const exclusivePairs=executableAudit.filter(candidate=>candidate.bundle_logic==="neg-risk-exclusive-no-pair");
+  const closestExclusivePair=exclusivePairs.find(candidate=>candidate.depth_verified)||exclusivePairs[0]||null;
   return {candidates:prioritized,audit:{status:"ok",scanned_at:nowIso(),event_scan_limit:limit,events_scanned:events.length,
     evaluated_structures:audited.length,depth_checked_structures:executableAudit.length,depth_verified_structures:executableAudit.filter(candidate=>candidate.depth_verified).length,
+    fee_check_eligible_structures:executableAudit.filter(candidate=>candidate.fee_check_attempted).length,
     fee_verified_structures:executableAudit.filter(candidate=>candidate.fees_verified).length,actionable_bundles:unique.length,
     conversion_candidates_scanned:audited.filter(candidate=>candidate.bundle_conversion_candidate).length,
     conversion_structures:conversions.length,conversion_depth_verified:conversions.filter(candidate=>candidate.depth_verified).length,
@@ -1636,6 +1690,10 @@ async function fetchNegativeRiskBundles(limit=NEG_RISK_EVENT_SCAN_LIMIT){
     closest_conversion_margin_cents:closestConversion?+(Number(closestConversion.bundle_net_profit_per_unit)*100).toFixed(2):null,
     closest_conversion_return_pct:closestConversion?+(Number(closestConversion.net_edge)*100).toFixed(3):null,
     closest_conversion_title:closestConversion?closestConversion.question:null,
+    exclusive_pair_structures:exclusivePairs.length,exclusive_pair_depth_verified:exclusivePairs.filter(candidate=>candidate.depth_verified).length,
+    actionable_exclusive_pairs:unique.filter(candidate=>candidate.bundle_logic==="neg-risk-exclusive-no-pair").length,
+    closest_exclusive_pair_margin_cents:closestExclusivePair?+(Number(closestExclusivePair.bundle_net_profit_per_unit)*100).toFixed(2):null,
+    closest_exclusive_pair_return_pct:closestExclusivePair?+(Number(closestExclusivePair.net_edge)*100).toFixed(3):null,
     actionable_events:new Set(unique.map(bundleEventKey).filter(Boolean)).size,returned_events:new Set(prioritized.map(bundleEventKey).filter(Boolean)).size,
     closest_margin_cents:closest?+(Number(closest.bundle_net_profit_per_unit)*100).toFixed(2):null,
     closest_return_pct:closest?+(Number(closest.net_edge)*100).toFixed(3):null,
@@ -1704,7 +1762,7 @@ const BUNDLE_MIN_NOTIONAL=50;
 const BUNDLE_MIN_UNITS=5;
 const BUNDLE_MAX_VERIFIED_NOTIONAL=400;
 const BUNDLE_EVENT_CAP_PCT=0.12;
-const BUNDLE_MIN_DAILY_RETURN=0.0002;
+const BUNDLE_MIN_DAILY_RETURN=0.00002;
 const BUNDLE_EXIT_PROFIT_CAPTURE=0.85;
 const BUNDLE_EXIT_MIN_REALIZED_PROFIT=0.01;
 const SPORTS_FAVORITE_MIN_ENTRY=0.03;
@@ -5458,7 +5516,7 @@ function renderSuggestions(){
   const analyzed=Number(data.analyzed_count||data.market_count||0).toLocaleString();
   const audit=data.opportunity_audit||null;
   const auditText=audit&&audit.status==="ok"
-    ?` Bundle scanner checked ${Number(audit.events_scanned||0).toLocaleString()} events and ${Number(audit.evaluated_structures||0).toLocaleString()} complete, dominance, and binary-complement structures, depth-tested ${Number(audit.depth_checked_structures||0)}, and found ${Number(audit.depth_verified_structures||0)} with $50 depth; ${Number(audit.actionable_bundles||0)} also cleared the market-specific fee and profit gates. Exact complete-NO conversion: ${Number(audit.conversion_candidates_scanned||0)} discovered, ${Number(audit.conversion_structures||0)} depth-tested in its reserved lane, ${Number(audit.conversion_terms_verified||0)} adapter-verified, ${Number(audit.conversion_depth_verified||0)} depth-verified, ${Number(audit.conversion_fee_verified||0)} CLOB-fee-verified, ${Number(audit.actionable_conversions||0)} actionable.${audit.closest_conversion_margin_cents!=null?` Closest conversion margin: ${Number(audit.closest_conversion_margin_cents)>=0?"+":""}${Number(audit.closest_conversion_margin_cents).toFixed(2)}c (${Number(audit.closest_conversion_return_pct)>=0?"+":""}${Number(audit.closest_conversion_return_pct).toFixed(2)}%).`:""}${audit.closest_margin_cents!=null?` Closest overall depth-tested margin: ${Number(audit.closest_margin_cents)>=0?"+":""}${Number(audit.closest_margin_cents).toFixed(2)}c per bundle.`:""}`
+    ?` Bundle scanner checked ${Number(audit.events_scanned||0).toLocaleString()} events and ${Number(audit.evaluated_structures||0).toLocaleString()} complete, exclusivity-pair, dominance, and binary-complement structures, depth-tested ${Number(audit.depth_checked_structures||0)}, and found ${Number(audit.depth_verified_structures||0)} with $50 depth; ${Number(audit.fee_check_eligible_structures||0)} reached exact fee verification and ${Number(audit.actionable_bundles||0)} cleared every profit gate. Exclusive NO pairs: ${Number(audit.exclusive_pair_structures||0)} depth-tested, ${Number(audit.exclusive_pair_depth_verified||0)} depth-verified, ${Number(audit.actionable_exclusive_pairs||0)} actionable.${audit.closest_exclusive_pair_margin_cents!=null?` Closest pair margin: ${Number(audit.closest_exclusive_pair_margin_cents)>=0?"+":""}${Number(audit.closest_exclusive_pair_margin_cents).toFixed(2)}c (${Number(audit.closest_exclusive_pair_return_pct)>=0?"+":""}${Number(audit.closest_exclusive_pair_return_pct).toFixed(2)}%).`:""} Exact complete-NO conversion: ${Number(audit.conversion_candidates_scanned||0)} discovered, ${Number(audit.conversion_structures||0)} depth-tested in its reserved lane, ${Number(audit.conversion_terms_verified||0)} adapter-verified, ${Number(audit.conversion_depth_verified||0)} depth-verified, ${Number(audit.conversion_fee_verified||0)} CLOB-fee-verified, ${Number(audit.actionable_conversions||0)} actionable.${audit.closest_conversion_margin_cents!=null?` Closest conversion margin: ${Number(audit.closest_conversion_margin_cents)>=0?"+":""}${Number(audit.closest_conversion_margin_cents).toFixed(2)}c (${Number(audit.closest_conversion_return_pct)>=0?"+":""}${Number(audit.closest_conversion_return_pct).toFixed(2)}%).`:""}${audit.closest_margin_cents!=null?` Closest overall depth-tested margin: ${Number(audit.closest_margin_cents)>=0?"+":""}${Number(audit.closest_margin_cents).toFixed(2)}c per bundle.`:""}`
     :(audit?" Bundle scanner was unavailable during this cycle; the site did not treat cached bundle prices as executable.":"");
   $("focusNote").textContent=focus==="All"
     ? `Loaded the ${scanned} most active markets, analyzed ${analyzed}, and kept ${all.length} ideas (${buyCount} TRADE READY, ${watchCount} WATCH). Showing ${filtered.length}; directional signals remain WATCH until their own event-clustered cohorts earn positive promotion. Complete bundles are trade ready only after every leg clears a live $50 order-book depth check and the CLOB fee state agrees with the market-specific taker curve while preserving a positive worst-case payout margin. Cash is retained when neither condition is met. Avg evidence ${evAvg}.${auditText}`
@@ -7551,6 +7609,24 @@ function runEngineSelfTest(){
     {id:"bundle-b",question:"B wins",outcomes:'["Yes","No"]',outcomePrices:'["0.315","0.685"]',clobTokenIds:'["b-yes","b-no"]',bestBid:0.31,bestAsk:0.32,liquidityNum:28000,volumeNum:100000,volume24hr:10000,acceptingOrders:true},
     {id:"bundle-draw",question:"Draw",outcomes:'["Yes","No"]',outcomePrices:'["0.305","0.695"]',clobTokenIds:'["d-yes","d-no"]',bestBid:0.30,bestAsk:0.31,liquidityNum:20000,volumeNum:100000,volume24hr:10000,acceptingOrders:true},
   ]});
+  const exclusivePairEvent={id:"exclusive-pair-test",title:"Exclusive outcome pair",slug:"exclusive-pair-test",negRisk:true,enableNegRisk:true,
+    negRiskMarketID:"0xexclusive-pair",endDate:new Date(Date.now()+5*86400000).toISOString(),markets:[
+      {id:"exclusive-a",conditionId:"exclusive-condition-a",question:"A wins",outcomes:'["Yes","No"]',outcomePrices:'["0.65","0.35"]',clobTokenIds:'["exclusive-a-yes","exclusive-a-no"]',bestBid:0.65,bestAsk:0.66,negRiskMarketID:"0xexclusive-pair",feesEnabled:false,liquidityNum:30000,volumeNum:100000,volume24hr:10000,acceptingOrders:true},
+      {id:"exclusive-b",conditionId:"exclusive-condition-b",question:"B wins",outcomes:'["Yes","No"]',outcomePrices:'["0.55","0.45"]',clobTokenIds:'["exclusive-b-yes","exclusive-b-no"]',bestBid:0.55,bestAsk:0.56,negRiskMarketID:"0xexclusive-pair",feesEnabled:false,liquidityNum:28000,volumeNum:90000,volume24hr:9000,acceptingOrders:true},
+      {id:"exclusive-c",conditionId:"exclusive-condition-c",question:"C wins",outcomes:'["Yes","No"]',outcomePrices:'["0.10","0.90"]',clobTokenIds:'["exclusive-c-yes","exclusive-c-no"]',bestBid:0.10,bestAsk:0.11,negRiskMarketID:"0xexclusive-pair",feesEnabled:false,liquidityNum:20000,volumeNum:80000,volume24hr:8000,acceptingOrders:true},
+    ]};
+  const exclusivePairSuggestion=negativeRiskExclusivePairSuggestion(exclusivePairEvent);
+  const unprofitableExclusivePairRejected=negativeRiskExclusivePairSuggestion(Object.assign({},exclusivePairEvent,{id:"exclusive-expensive",markets:exclusivePairEvent.markets.map((row,index)=>Object.assign({},row,{id:`exclusive-expensive-${index}`,conditionId:`exclusive-expensive-condition-${index}`,bestBid:[0.49,0.48,0.10][index]}))}))===null;
+  const unprofitableExclusivePairAudited=negativeRiskExclusivePairSuggestion(Object.assign({},exclusivePairEvent,{id:"exclusive-expensive-audit",markets:exclusivePairEvent.markets.map((row,index)=>Object.assign({},row,{id:`exclusive-expensive-audit-${index}`,conditionId:`exclusive-expensive-audit-condition-${index}`,bestBid:[0.49,0.48,0.10][index]}))}),{includeUnprofitable:true});
+  const mismatchedExclusivePairRejected=negativeRiskExclusivePairSuggestion(Object.assign({},exclusivePairEvent,{id:"exclusive-mismatch",markets:exclusivePairEvent.markets.map((row,index)=>Object.assign({},row,{negRiskMarketID:index===1?"0xwrong-pair":"0xexclusive-pair"}))}))===null;
+  const executableExclusivePair=Object.assign({},exclusivePairSuggestion,{depth_verified:true,fees_verified:true,fee_model:"verified-zero-fee",
+    execution_model:"fixture-vwap",verification_status:"executable",execution_units:100,bundle_capital_efficiency:BUNDLE_MIN_DAILY_RETURN*2});
+  const exclusivePairBook=defaultPortfolio(),exclusivePairOpen=openNegativeRiskBundle(exclusivePairBook,agentById("value"),executableExclusivePair,100,{mode:"Fixture"});
+  const exclusivePairUnits=exclusivePairBook.positions[0]&&exclusivePairBook.positions[0].shares;
+  markToMarket(exclusivePairBook,{
+    "exclusive-a":market({id:"exclusive-a",yes_price:1,no_price:0,closed:true,accepting_orders:false}),
+    "exclusive-b":market({id:"exclusive-b",yes_price:0,no_price:1,closed:true,accepting_orders:false}),
+  },agentById("value"),{policyExits:true,executeTrades:true});
   const binaryComplementSuggestion=binaryComplementBundleSuggestions({id:"binary-test",title:"Binary test",slug:"binary-test",endDate:"2026-09-01T00:00:00Z",markets:[
     {id:"binary-market",question:"Will binary pass?",outcomes:'["Yes","No"]',outcomePrices:'["0.5","0.5"]',clobTokenIds:'["binary-yes","binary-no"]',
       bestBid:0.49,bestAsk:0.50,feesEnabled:false,liquidityNum:30000,volumeNum:100000,volume24hr:10000,acceptingOrders:true},
@@ -7706,7 +7782,7 @@ function runEngineSelfTest(){
     {bundle_id:"dominance:dominance-test:held-a:held-b",bundle_event_id:"dominance-test",requires_complete_bundle:true,cost:600,value:600},
     {bundle_id:"dominance:dominance-test:held-c:held-d",bundle_event_id:"dominance-test",requires_complete_bundle:true,cost:600,value:600},
   ];
-  openPositions(eventCapBook,AGENTS.find(a=>a.id==="value"),[dominanceSuggestion],"All",{
+  openPositions(eventCapBook,agentById("diversifier"),[dominanceSuggestion],"All",{
     minConv:0,maxNew:1,maxFrac:0.04,reserve:0.10,targetExposure:0.60,learning:buildAdaptiveProfile(eventCapBook),marketLearning:{samples:0,pending:0,buckets:{}},
   },new Set(),{});
   const diversifierBundleBook=defaultPortfolio();
@@ -7716,7 +7792,7 @@ function runEngineSelfTest(){
   const slowCapitalBook=defaultPortfolio(),slowCapitalSuggestion=Object.assign({},dominanceSuggestion,{
     bundle_id:"dominance:slow-capital-event:a:b",bundle_event_id:"slow-capital-event",bundle_capital_efficiency:BUNDLE_MIN_DAILY_RETURN/2,
   });
-  openPositions(slowCapitalBook,AGENTS.find(a=>a.id==="value"),[slowCapitalSuggestion],"All",{
+  openPositions(slowCapitalBook,agentById("diversifier"),[slowCapitalSuggestion],"All",{
     minConv:0,maxNew:1,maxFrac:0.04,reserve:0.10,targetExposure:0.60,learning:buildAdaptiveProfile(slowCapitalBook),marketLearning:{samples:0,pending:0,buckets:{}},
   },new Set(),{});
   const unverifiedBundleBook=defaultPortfolio(),unverifiedBundleOpen=openNegativeRiskBundle(unverifiedBundleBook,AGENTS.find(a=>a.id==="value"),
@@ -7751,37 +7827,37 @@ function runEngineSelfTest(){
   applyCompleteBundleAccountingMarks(optimisticBundleMarkBook);
   const undersizedBoundaryCandidate=Object.assign({},repricedBoundaryCandidate,{execution_units:50.04});
   const undersizedBoundaryBook=defaultPortfolio();
-  openPositions(undersizedBoundaryBook,AGENTS.find(a=>a.id==="value"),[undersizedBoundaryCandidate],"All",{
+  openPositions(undersizedBoundaryBook,agentById("diversifier"),[undersizedBoundaryCandidate],"All",{
     minConv:0,maxNew:1,maxFrac:0.04,reserve:0.10,targetExposure:0.60,learning:buildAdaptiveProfile(undersizedBoundaryBook),marketLearning:{samples:0,pending:0,buckets:{}},
   },new Set(),{});
   const dominanceBook=defaultPortfolio(),offlineDominanceSuggestion=prepareCycleSuggestions([dominanceSuggestion],"offline-cache",true)[0];
-  openPositions(dominanceBook,AGENTS.find(a=>a.id==="value"),[dominanceSuggestion],"All",{
+  openPositions(dominanceBook,agentById("diversifier"),[dominanceSuggestion],"All",{
     minConv:0,maxNew:1,maxFrac:0.04,reserve:0.10,targetExposure:0.60,learning:buildAdaptiveProfile(dominanceBook),marketLearning:{samples:0,pending:0,buckets:{}},
   },new Set(),{});
   const dominanceOpenedPositions=dominanceBook.positions.length,dominanceUnits=dominanceBook.positions[0]&&dominanceBook.positions[0].shares;
   markToMarket(dominanceBook,{
     "dominance-low":market({id:"dominance-low",yes_price:1,no_price:0,closed:true,accepting_orders:false}),
     "dominance-high":market({id:"dominance-high",yes_price:1,no_price:0,closed:true,accepting_orders:false}),
-  },AGENTS.find(a=>a.id==="value"),{policyExits:true,executeTrades:true});
+  },agentById("diversifier"),{policyExits:true,executeTrades:true});
   const deadlineBook=defaultPortfolio(),offlineDeadlineSuggestion=prepareCycleSuggestions([deadlineSuggestion],"offline-cache",true)[0];
-  openPositions(deadlineBook,AGENTS.find(a=>a.id==="value"),[deadlineSuggestion],"All",{
+  openPositions(deadlineBook,agentById("diversifier"),[deadlineSuggestion],"All",{
     minConv:0,maxNew:1,maxFrac:0.04,reserve:0.10,targetExposure:0.60,learning:buildAdaptiveProfile(deadlineBook),marketLearning:{samples:0,pending:0,buckets:{}},
   },new Set(),{});
   const deadlineOpenedPositions=deadlineBook.positions.length,deadlineUnits=deadlineBook.positions[0]&&deadlineBook.positions[0].shares;
   markToMarket(deadlineBook,{
     "deadline-early":market({id:"deadline-early",yes_price:0,no_price:1,closed:true,accepting_orders:false}),
     "deadline-late":market({id:"deadline-late",yes_price:0,no_price:1,closed:true,accepting_orders:false}),
-  },AGENTS.find(a=>a.id==="value"),{policyExits:true,executeTrades:true});
+  },agentById("diversifier"),{policyExits:true,executeTrades:true});
   const settleDeadlineCase=(earlyYes,lateYes)=>{
     const book=defaultPortfolio();
-    openPositions(book,AGENTS.find(a=>a.id==="value"),[deadlineSuggestion],"All",{
+    openPositions(book,agentById("diversifier"),[deadlineSuggestion],"All",{
       minConv:0,maxNew:1,maxFrac:0.04,reserve:0.10,targetExposure:0.60,learning:buildAdaptiveProfile(book),marketLearning:{samples:0,pending:0,buckets:{}},
     },new Set(),{});
     const units=book.positions[0]&&book.positions[0].shares;
     markToMarket(book,{
       "deadline-early":market({id:"deadline-early",yes_price:earlyYes,no_price:1-earlyYes,closed:true,accepting_orders:false}),
       "deadline-late":market({id:"deadline-late",yes_price:lateYes,no_price:1-lateYes,closed:true,accepting_orders:false}),
-    },AGENTS.find(a=>a.id==="value"),{policyExits:true,executeTrades:true});
+    },agentById("diversifier"),{policyExits:true,executeTrades:true});
     return {book,units};
   };
   const deadlineEarlyCase=settleDeadlineCase(1,1),deadlineBetweenCase=settleDeadlineCase(0,1);
@@ -8240,6 +8316,17 @@ function runEngineSelfTest(){
       blocksImmediateConversionOnMetadataFeeMismatch:Boolean(mismatchedOnchainFeeCandidate
         &&!mismatchedOnchainFeeCandidate.bundle_immediate_convert&&mismatchedOnchainFeeCandidate.conversion_verification_status==="metadata-fee-mismatch"),
       doesNotInventConversionWithoutAdapterMetadata:Boolean(bundleSuggestion&&!bundleSuggestion.bundle_immediate_convert),
+      discoversExclusiveNoPair:Boolean(exclusivePairSuggestion&&exclusivePairSuggestion.bundle_logic==="neg-risk-exclusive-no-pair"
+        &&exclusivePairSuggestion.bundle_legs.map(leg=>leg.market_id).join(",")==="exclusive-a,exclusive-b"
+        &&exclusivePairSuggestion.bundle_cost_per_unit===0.8&&exclusivePairSuggestion.bundle_net_profit_per_unit===0.2),
+      rejectsUnprofitableExclusiveNoPair:unprofitableExclusivePairRejected,
+      retainsUnprofitableExclusiveNoPairForTelemetry:Boolean(unprofitableExclusivePairAudited
+        &&!unprofitableExclusivePairAudited.trade_ready&&unprofitableExclusivePairAudited.bundle_net_profit_per_unit<0),
+      rejectsMismatchedNegativeRiskPair:mismatchedExclusivePairRejected,
+      routesExclusiveNoPairToValue:agentAcceptsSuggestion(agentById("value"),executableExclusivePair)
+        &&!agentAcceptsSuggestion(agentById("diversifier"),executableExclusivePair),
+      exclusiveNoPairSettlesAtGuaranteedFloor:Boolean(exclusivePairOpen&&exclusivePairUnits===100
+        &&exclusivePairBook.positions.length===0&&exclusivePairBook.closed.length===2&&exclusivePairBook.cash===10020),
       discoversExecutableBinaryComplements:Boolean(binaryComplementSuggestion&&binaryComplementSuggestion.bundle_logic==="binary-complement"
         &&binaryComplementQuote.depth_verified&&bundleQuoteIsActionable(binaryComplementQuote)&&Math.abs(binaryComplementQuote.profit-0.02)<0.000001),
       immediatelyMergesBinaryCompleteSet:Boolean(binaryMergeOpen&&binaryMergeOpen.merge&&binaryMergeBook.positions.length===0
