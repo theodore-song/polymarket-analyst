@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 65 · protected maker-assist audit · build 133</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 65 · persistent protected maker learner · build 134</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 133 active:</b> Every live protected-bundle scan now audits whether one passive bid plus an immediate full-depth hedge could turn a near-miss into a complete contractual payout. These maker-assisted paths are telemetry only and cannot change cash or open positions. Two-pass execution, protected recycling, exact fees, enforced research cooldowns, and offline-safe shared state remain active. Profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 134 active:</b> Maker-assisted protected bundles now persist for one hour and learn from exact live outcomes. A touched bid must be completed immediately at verified depth and fees, or graded at an executable unwind; offline cycles never invent fills. Capital remains zero until 30 independent outcomes, five locks, and a positive lower confidence bound earn a tightly capped paper allocation. Profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 133 · Adaptive strategy 65 · Zero-capital protected maker-assist audit · Enforced inherited-quote research cooldown · Early evidence-weighted independent maker research · 24-hour shared event cooldown · Two-pass bounded live execution · Duration-aware atomic profit recycling · Feature-aware diversified maker research · Expanded independent-event executable search · Exact-fee complete-NO conversion · Evidence-first bounded snapshots · Six-hour bounded probation with matched executable exits · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Duration-aware, event-capped verified bundles · Scale-aware executable-profit floor · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 4 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 134 · Adaptive strategy 65 · Persistent protected maker-assist learner · Exact post-touch hedge-or-unwind grading · Zero-capital forward evidence before bounded paper promotion · Enforced inherited-quote research cooldown · Early evidence-weighted independent maker research · 24-hour shared event cooldown · Two-pass bounded live execution · Duration-aware atomic profit recycling · Feature-aware diversified maker research · Expanded independent-event executable search · Exact-fee complete-NO conversion · Evidence-first bounded snapshots · Six-hour bounded probation with matched executable exits · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Duration-aware, event-capped verified bundles · Scale-aware executable-profit floor · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 4 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,10 +774,11 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 133;
+const BUILD_VERSION = 134;
 const AGENT_LEARNING_VERSION = 3;
 const SUGGESTION_ENGINE_VERSION = 65;
 const MAKER_STRATEGY_VERSION = 4;
+const BUNDLE_MAKER_STRATEGY_VERSION = 1;
 const SHOCK_FADE_STRATEGY_VERSION = 4;
 const RESOLUTION_WEEK_NO_STRATEGY_VERSION = 3;
 const SPORTS_CONTEST_NO_STRATEGY_VERSION = 1;
@@ -965,6 +966,8 @@ const PUBLIC_SIGNAL_LEDGER_RESERVE_BYTES = 75000;
 const PUBLIC_RUNTIME_HISTORY_FLOOR = 24;
 const PUBLIC_RUNTIME_MAKER_OUTCOME_LIMIT = 30;
 const PUBLIC_RUNTIME_MAKER_OUTCOME_FLOOR = 12;
+const PUBLIC_RUNTIME_BUNDLE_MAKER_OUTCOME_LIMIT = 30;
+const PUBLIC_RUNTIME_BUNDLE_MAKER_OUTCOME_FLOOR = 12;
 const PUBLIC_RUNTIME_SUGGESTION_FLOOR = 240;
 const SIGNAL_LEDGER_RETRY_HOURS = SIGNAL_EVAL_HORIZONS[SIGNAL_EVAL_HORIZONS.length-1]+SIGNAL_EVAL_TOLERANCE_HOURS;
 const SIGNAL_LEDGER_DUE_FETCH_LIMIT = 80;
@@ -1759,7 +1762,7 @@ async function fetchNegativeRiskBundles(limit=NEG_RISK_EVENT_SCAN_LIMIT){
     .sort((a,b)=>Number(b.maker_assist&&b.maker_assist.total_profit||0)-Number(a.maker_assist&&a.maker_assist.total_profit||0));
   const closestMakerAssist=makerAssist[0]||executableAudit.filter(candidate=>candidate.maker_assist)
     .sort((a,b)=>Number(b.maker_assist&&b.maker_assist.total_profit||-Infinity)-Number(a.maker_assist&&a.maker_assist.total_profit||-Infinity))[0]||null;
-  return {candidates:prioritized,audit:{status:"ok",scanned_at:nowIso(),event_scan_limit:limit,events_scanned:events.length,
+  return {candidates:prioritized,maker_assist_candidates:makerAssist.slice(0,6),audit:{status:"ok",scanned_at:nowIso(),event_scan_limit:limit,events_scanned:events.length,
     evaluated_structures:audited.length,depth_checked_structures:executableAudit.length,depth_verified_structures:executableAudit.filter(candidate=>candidate.depth_verified).length,
     fee_check_eligible_structures:executableAudit.filter(candidate=>candidate.fee_check_attempted).length,
     fee_verified_structures:executableAudit.filter(candidate=>candidate.fees_verified).length,actionable_bundles:unique.length,
@@ -1878,6 +1881,17 @@ const BUNDLE_EXIT_CAPTURE_MEDIUM=0.65;
 const BUNDLE_EXIT_CAPTURE_LONG=0.45;
 const BUNDLE_EXIT_CAPTURE_EXTENDED=0.20;
 const BUNDLE_EXIT_MIN_REALIZED_PROFIT=0.50;
+const BUNDLE_MAKER_MAX_ACTIVE=2;
+const BUNDLE_MAKER_HORIZON_HOURS=1;
+const BUNDLE_MAKER_RETRY_HOURS=6;
+const BUNDLE_MAKER_OUTCOME_LIMIT=120;
+const BUNDLE_MAKER_EVENT_COOLDOWN_HOURS=24;
+const BUNDLE_MAKER_PROMOTION_EVENTS=30;
+const BUNDLE_MAKER_PROMOTION_LOCKS=5;
+const BUNDLE_MAKER_PROMOTION_LOWER=0.005;
+const BUNDLE_MAKER_POSITION_PCT=0.005;
+const BUNDLE_MAKER_TOTAL_CAPITAL_PCT=0.02;
+const BUNDLE_MAKER_MIN_NOTIONAL=25;
 const SPORTS_FAVORITE_MIN_ENTRY=0.03;
 const SPORTS_FAVORITE_MAX_ENTRY=0.97;
 const SPORTS_FAVORITE_TARGET_LEAD_HOURS=72;
@@ -2279,7 +2293,7 @@ function generateSuggestions(markets,total=SUGGESTION_TOTAL,perCategory=SUGGESTI
 }
 
 /* ---------- Multi-agent store ---------- */
-function defaultPortfolio(){return {cash:STARTING_BALANCE,starting_balance:STARTING_BALANCE,positions:[],maker_quotes:[],maker_outcomes:[],sports_favorite_shadows:[],sports_favorite_outcomes:[],shock_fade_shadows:[],shock_fade_outcomes:[],shock_fade_expired_ungraded:0,resolution_week_no_shadows:[],resolution_week_no_outcomes:[],closed:[],history:[],snapshots:[],stopped:{},lastDecision:null};}
+function defaultPortfolio(){return {cash:STARTING_BALANCE,starting_balance:STARTING_BALANCE,positions:[],maker_quotes:[],maker_outcomes:[],bundle_maker_quotes:[],bundle_maker_outcomes:[],sports_favorite_shadows:[],sports_favorite_outcomes:[],shock_fade_shadows:[],shock_fade_outcomes:[],shock_fade_expired_ungraded:0,resolution_week_no_shadows:[],resolution_week_no_outcomes:[],closed:[],history:[],snapshots:[],stopped:{},lastDecision:null};}
 function defaultState(){const agents={};AGENTS.forEach(a=>agents[a.id]=defaultPortfolio());return {date:null,last_run:null,last_cycle_hour:null,
   engine_version:BUILD_VERSION,strategy_version:SUGGESTION_ENGINE_VERSION,engine_started_at:nowIso(),build_started_at:nowIso(),agents,signal_ledger:defaultSignalLedger(),seeded:false};}
 function reconcileStateVersions(st){
@@ -2321,6 +2335,8 @@ function loadState(){
     if(!st.agents[a.id].stopped)st.agents[a.id].stopped={};
     if(!Array.isArray(st.agents[a.id].maker_quotes))st.agents[a.id].maker_quotes=[];
     if(!Array.isArray(st.agents[a.id].maker_outcomes))st.agents[a.id].maker_outcomes=[];
+    if(!Array.isArray(st.agents[a.id].bundle_maker_quotes))st.agents[a.id].bundle_maker_quotes=[];
+    if(!Array.isArray(st.agents[a.id].bundle_maker_outcomes))st.agents[a.id].bundle_maker_outcomes=[];
     if(!Array.isArray(st.agents[a.id].sports_favorite_shadows))st.agents[a.id].sports_favorite_shadows=[];
     if(!Array.isArray(st.agents[a.id].sports_favorite_outcomes))st.agents[a.id].sports_favorite_outcomes=[];
     if(!Array.isArray(st.agents[a.id].shock_fade_shadows))st.agents[a.id].shock_fade_shadows=[];
@@ -2341,6 +2357,8 @@ function compactPortfolioForSync(p,limits=SYNC_LIMITS){
   out.positions=Array.isArray(p.positions)?p.positions:[];
   out.maker_quotes=Array.isArray(p.maker_quotes)?p.maker_quotes.slice(-MAKER_MAX_QUOTES):[];
   out.maker_outcomes=Array.isArray(p.maker_outcomes)?p.maker_outcomes.slice(-MAKER_OUTCOME_LIMIT):[];
+  out.bundle_maker_quotes=Array.isArray(p.bundle_maker_quotes)?p.bundle_maker_quotes.slice(-BUNDLE_MAKER_MAX_ACTIVE):[];
+  out.bundle_maker_outcomes=Array.isArray(p.bundle_maker_outcomes)?p.bundle_maker_outcomes.slice(-BUNDLE_MAKER_OUTCOME_LIMIT):[];
   out.sports_favorite_shadows=Array.isArray(p.sports_favorite_shadows)?p.sports_favorite_shadows.slice(-SPORTS_FAVORITE_SHADOW_LIMIT):[];
   out.sports_favorite_outcomes=Array.isArray(p.sports_favorite_outcomes)?p.sports_favorite_outcomes.slice(-SPORTS_FAVORITE_OUTCOME_LIMIT):[];
   out.shock_fade_shadows=Array.isArray(p.shock_fade_shadows)?p.shock_fade_shadows.slice(-SHOCK_FADE_SHADOW_LIMIT):[];
@@ -2374,6 +2392,7 @@ function compactDecisionForPublic(decision){
   if(out.makerProfile&&typeof out.makerProfile==="object")out.makerProfile={
     version:out.makerProfile.version,outcomes:out.makerProfile.outcomes,global:out.makerProfile.global,
   };
+  if(out.bundleMakerProfile&&typeof out.bundleMakerProfile==="object")out.bundleMakerProfile={...out.bundleMakerProfile};
   if(out.learning&&typeof out.learning==="object"){
     out.learning=Object.assign({},out.learning);delete out.learning.buckets;delete out.learning.current_buckets;
   }
@@ -2407,6 +2426,14 @@ function compactMakerOutcomeForPublic(row){
     competition_band:row.competition_band,status:row.status,
     pnl:row.pnl,shadow_only:row.shadow_only,deployed_capital:row.deployed_capital,reserved_capital:row.reserved_capital,
     completed_at:row.completed_at,strategy_version:row.strategy_version,maker_strategy_version:row.maker_strategy_version};
+}
+function compactBundleMakerOutcomeForPublic(row){
+  if(!row||typeof row!=="object")return row;
+  return {quote_id:row.quote_id,event_key:row.event_key,bundle_id:row.bundle_id,logic:row.logic,owner_id:row.owner_id,
+    status:row.status,pnl:row.pnl,shadow_only:row.shadow_only,deployed_capital:row.deployed_capital,
+    return_on_reserved:row.return_on_reserved,created_at:row.created_at,completed_at:row.completed_at,
+    hours_to_outcome:row.hours_to_outcome,strategy_version:row.strategy_version,
+    bundle_maker_strategy_version:row.bundle_maker_strategy_version,build_version:row.build_version};
 }
 function compactSuggestionForSync(s){
   if(!s||typeof s!=="object")return s;
@@ -2586,6 +2613,8 @@ function collectPublicRuntimeItems(){
     p.snapshots=compactSnapshotsForPublic(p.snapshots,PUBLIC_RUNTIME_LIMITS.snapshots);
     p.lastDecision=compactDecisionForPublic(p.lastDecision);
     p.maker_outcomes=(p.maker_outcomes||[]).slice(-PUBLIC_RUNTIME_MAKER_OUTCOME_LIMIT).map(compactMakerOutcomeForPublic);
+    p.bundle_maker_quotes=(p.bundle_maker_quotes||[]).slice(-BUNDLE_MAKER_MAX_ACTIVE);
+    p.bundle_maker_outcomes=(p.bundle_maker_outcomes||[]).slice(-PUBLIC_RUNTIME_BUNDLE_MAKER_OUTCOME_LIMIT).map(compactBundleMakerOutcomeForPublic);
   }});
   st.pending_sync=false;
   st.runtime_managed=true;
@@ -2609,6 +2638,7 @@ function fitPublicRuntimeSnapshot(snapshot){
     AGENTS.forEach(agent=>{const p=st.agents&&st.agents[agent.id];if(!p)return;
       p.history=(p.history||[]).slice(-PUBLIC_RUNTIME_HISTORY_FLOOR);
       p.maker_outcomes=(p.maker_outcomes||[]).slice(-PUBLIC_RUNTIME_MAKER_OUTCOME_FLOOR);
+      p.bundle_maker_outcomes=(p.bundle_maker_outcomes||[]).slice(-PUBLIC_RUNTIME_BUNDLE_MAKER_OUTCOME_FLOOR);
     });
     writeState();
   }
@@ -4378,6 +4408,7 @@ async function fetchMakerTouchHistory(quotes,marketMap){
   if(!active.length)return {};
   const tokens=new Set(),created=[];
   active.forEach(quote=>{
+    if(quote.touch_token_id)tokens.add(String(quote.touch_token_id));
     const fresh=marketMap&&marketMap[String(quote.market_id)],ids=(quote.clob_token_ids&&quote.clob_token_ids.length===2)?quote.clob_token_ids:(fresh&&fresh.clob_token_ids||[]);
     if(ids.length===2){quote.clob_token_ids=ids.slice(0,2).map(String);ids.slice(0,2).forEach(id=>tokens.add(String(id)));}
     const ts=new Date(quote.created_at).getTime();if(Number.isFinite(ts))created.push(Math.floor(ts/1000));
@@ -4385,15 +4416,25 @@ async function fetchMakerTouchHistory(quotes,marketMap){
   if(!tokens.size||!created.length)return {};
   try{
     const endTs=Math.floor(Date.now()/1000),startTs=Math.max(endTs-(MAKER_QUOTE_EXPIRY_HOURS+1)*3600,Math.min(...created)-60);
-    const tokenList=[...tokens],history={};
+    const tokenList=[...tokens],history={};let successfulBatches=0;
     for(let index=0;index<tokenList.length;index+=20){
       const response=await fetchWithTimeout(`${CLOB}/batch-prices-history`,{method:"POST",headers:{"content-type":"application/json"},
         body:JSON.stringify({markets:tokenList.slice(index,index+20),start_ts:startTs,end_ts:endTs,fidelity:MAKER_TOUCH_FIDELITY_MINUTES})},PRICE_REQUEST_TIMEOUT_MS*2);
       if(!response.ok)continue;
       const payload=await response.json();if(payload&&payload.history&&typeof payload.history==="object")Object.assign(history,payload.history);
+      successfulBatches++;
     }
+    Object.defineProperty(history,"__available",{value:successfulBatches===Math.ceil(tokenList.length/20),enumerable:false});
     return history;
   }catch(e){return {};}
+}
+function bundleMakerTouchEvidence(quote,touchHistory){
+  const token=String(quote&&quote.touch_token_id||"");if(!token)return null;
+  const created=new Date(quote.created_at).getTime()/1000+RUN_INTERVAL_MS/1000*0.8;
+  const threshold=Number(quote.maker_price)-Math.max(0.0005,Number(quote.tick_size||0.001)*0.5),points=(touchHistory&&touchHistory[token]||[])
+    .filter(point=>Number(point.t)>=created&&Number.isFinite(Number(point.p)));
+  const touched=points.filter(point=>Number(point.p)<=threshold+0.00001).sort((a,b)=>Number(a.t)-Number(b.t))[0];
+  return touched?{source:"clob-price-history",timestamp:new Date(Number(touched.t)*1000).toISOString(),price:+Number(touched.p).toFixed(6)}:null;
 }
 function makerTouchEvidence(quote,side,touchHistory){
   const token=quote.clob_token_ids&&quote.clob_token_ids[side==="YES"?0:1];if(!token)return null;
@@ -4554,6 +4595,186 @@ function manageMakerQuotes(p,marketMap,{executeTrades=false,touchHistory={}}={})
   p.maker_quotes=keep;
   return {active:keep.length,shadowActive:keep.filter(quote=>quote.shadow_only).length,capitalActive:keep.filter(quote=>!quote.shadow_only).length,
     fills,locked,expired,historyTouches,shadowCompleted,profile:buildMakerProfile(p)};
+}
+function buildSharedBundleMakerProfile(st){
+  const latestByEvent=new Map();
+  AGENTS.forEach(agent=>(st&&st.agents&&st.agents[agent.id]&&st.agents[agent.id].bundle_maker_outcomes||[]).forEach(row=>{
+    if(Number(row.bundle_maker_strategy_version||0)!==BUNDLE_MAKER_STRATEGY_VERSION)return;
+    if(!["hedged-lock","immediate-unwind","conservative-loss","unfilled"].includes(String(row.status||"")))return;
+    const key=String(row.event_key||row.bundle_id||row.quote_id||"");if(!key)return;
+    const previous=latestByEvent.get(key),completed=new Date(row.completed_at||0).getTime();
+    if(!previous||completed>=new Date(previous.completed_at||0).getTime())latestByEvent.set(key,row);
+  }));
+  const evidence=[...latestByEvent.values()].sort((a,b)=>new Date(a.completed_at)-new Date(b.completed_at));
+  const returns=evidence.map(row=>Number(row.return_on_reserved||0)).filter(Number.isFinite),events=returns.length;
+  const mean=events?returns.reduce((sum,value)=>sum+value,0)/events:0;
+  const variance=events>1?returns.reduce((sum,value)=>sum+(value-mean)**2,0)/(events-1):0;
+  const margin=events>1?1.645*Math.sqrt(variance/events):1,lower=mean-margin,upper=mean+margin;
+  const locks=evidence.filter(row=>row.status==="hedged-lock").length;
+  const promoted=events>=BUNDLE_MAKER_PROMOTION_EVENTS&&locks>=BUNDLE_MAKER_PROMOTION_LOCKS&&lower>BUNDLE_MAKER_PROMOTION_LOWER;
+  const state=promoted?"promoted":(events>=BUNDLE_MAKER_PROMOTION_EVENTS?"rejected":"observing");
+  return {version:BUNDLE_MAKER_STRATEGY_VERSION,state,events,locks,
+    adverse:evidence.filter(row=>["immediate-unwind","conservative-loss"].includes(row.status)).length,
+    unfilled:evidence.filter(row=>row.status==="unfilled").length,mean:+mean.toFixed(6),lower:+lower.toFixed(6),upper:+upper.toFixed(6),
+    capital_enabled:promoted,position_pct:promoted?BUNDLE_MAKER_POSITION_PCT:0,total_capital_pct:promoted?BUNDLE_MAKER_TOTAL_CAPITAL_PCT:0,
+    required_events:BUNDLE_MAKER_PROMOTION_EVENTS,required_locks:BUNDLE_MAKER_PROMOTION_LOCKS,required_lower:BUNDLE_MAKER_PROMOTION_LOWER};
+}
+function recentBundleMakerEventKeys(st,now=Date.now()){
+  const keys=new Set(),cutoff=Number(now)-BUNDLE_MAKER_EVENT_COOLDOWN_HOURS*3600000;
+  AGENTS.forEach(agent=>{
+    const p=st&&st.agents&&st.agents[agent.id]||{};
+    (p.bundle_maker_quotes||[]).forEach(row=>{const key=String(row.event_key||"");if(key)keys.add(key);});
+    (p.bundle_maker_outcomes||[]).forEach(row=>{const completed=new Date(row.completed_at||0).getTime(),key=String(row.event_key||"");
+      if(key&&Number.isFinite(completed)&&completed>=cutoff)keys.add(key);});
+  });
+  return keys;
+}
+function compactBundleMakerLeg(leg={}){
+  return {market_id:String(leg.market_id||""),condition_id:String(leg.condition_id||""),token_id:String(leg.token_id||""),
+    question:leg.question||"",url:leg.url||"",side:leg.side||"YES",entry_price:Number(leg.entry_price),current_price:Number(leg.current_price),
+    fee_schedule:leg.fee_schedule||null,fee_config_valid:Boolean(leg.fee_config_valid)};
+}
+function stageBundleMakerQuotes(st,candidates,profile,{execute=false,claimedEvents=null}={}){
+  const active=AGENTS.reduce((sum,agent)=>sum+(st.agents[agent.id].bundle_maker_quotes||[]).length,0);
+  if(!execute||active>=BUNDLE_MAKER_MAX_ACTIVE)return {active,staged:0,shadowStaged:0,capitalStaged:0,candidates:(candidates||[]).length};
+  const cooldown=recentBundleMakerEventKeys(st),owned=claimedEvents||currentBundleEventKeys(st);let staged=0,shadowStaged=0,capitalStaged=0;
+  for(const candidate of candidates||[]){
+    if(active+staged>=BUNDLE_MAKER_MAX_ACTIVE)break;
+    const assist=candidate&&candidate.maker_assist,eventKey=bundleEventKey(candidate),ownerId=bundleAgentOwnerId(candidate),p=st.agents[ownerId];
+    if(!assist||!assist.shadow_eligible||!eventKey||!p||cooldown.has(eventKey)||owned.has(eventKey))continue;
+    const capitalEnabled=Boolean(profile&&profile.capital_enabled),protectedCost=Number(assist.protected_cost),availableUnits=Number(assist.execution_units);
+    const reserved=(p.bundle_maker_quotes||[]).filter(row=>!row.shadow_only).reduce((sum,row)=>sum+Number(row.reserved_capital||0),0);
+    let units=availableUnits;
+    if(capitalEnabled)units=Math.min(units,Math.floor((equity(p)*BUNDLE_MAKER_POSITION_PCT/Math.max(protectedCost,0.01))*100)/100);
+    const reservedCapital=units*protectedCost,totalProfit=units*Number(assist.profit_per_unit);
+    if(!(units>0)||reservedCapital<BUNDLE_MAKER_MIN_NOTIONAL||totalProfit<BUNDLE_MIN_EXECUTION_PROFIT)continue;
+    if(capitalEnabled&&(reservedCapital+reserved>Math.min(p.cash,equity(p)*BUNDLE_MAKER_TOTAL_CAPITAL_PCT)))continue;
+    const makerLeg=(candidate.bundle_legs||[])[Number(assist.leg_index)];if(!makerLeg)continue;
+    const createdAt=cycleIso(),quote={id:`bundle-maker:${eventKey}:${Date.now()}:${staged}`,event_key:eventKey,bundle_id:candidate.bundle_id,
+      logic:candidate.bundle_logic||null,owner_id:ownerId,question:candidate.question,event:candidate.event||candidate.question,url:candidate.url||"",category:candidate.category||"Other",
+      created_at:createdAt,expires_at:new Date(new Date(createdAt).getTime()+BUNDLE_MAKER_HORIZON_HOURS*3600000).toISOString(),
+      strategy_version:SUGGESTION_ENGINE_VERSION,bundle_maker_strategy_version:BUNDLE_MAKER_STRATEGY_VERSION,build_version:BUILD_VERSION,
+      shadow_only:!capitalEnabled,capital_enabled:capitalEnabled,touch_token_id:String(assist.token_id),touch_market_id:String(assist.market_id),
+      touch_condition_id:String(makerLeg.condition_id||""),touch_side:assist.side,maker_price:Number(assist.maker_price),best_bid:Number(assist.best_bid),best_ask:Number(assist.best_ask),
+      tick_size:Number(assist.tick_size||0.01),
+      execution_units:+units.toFixed(2),reserved_capital:+reservedCapital.toFixed(2),expected_profit:+totalProfit.toFixed(4),
+      bundle_payout_per_unit:Number(candidate.bundle_payout_per_unit),bundle_settlement_payout_per_unit:Number(candidate.bundle_settlement_payout_per_unit||candidate.bundle_payout_per_unit),
+      bundle_immediate_merge:Boolean(candidate.bundle_immediate_merge),bundle_conversion_candidate:Boolean(candidate.bundle_conversion_candidate),
+      bundle_conversion_terms_verified:Boolean(candidate.bundle_conversion_terms_verified),bundle_immediate_convert:Boolean(candidate.bundle_immediate_convert),
+      neg_risk_market_id:candidate.neg_risk_market_id||null,neg_risk_fee_bips:candidate.neg_risk_fee_bips,
+      neg_risk_metadata_fee_bips:candidate.neg_risk_metadata_fee_bips,neg_risk_question_count:candidate.neg_risk_question_count,
+      days_to_resolution:candidate.days_to_resolution,bundle_legs:(candidate.bundle_legs||[]).map(compactBundleMakerLeg)};
+    p.bundle_maker_quotes=Array.isArray(p.bundle_maker_quotes)?p.bundle_maker_quotes:[];p.bundle_maker_quotes.push(quote);
+    p.history.push({date:logDay(),action:capitalEnabled?"BUNDLE_MAKER_QUOTE":"BUNDLE_MAKER_SHADOW",question:quote.question,side:"BUNDLE",
+      detail:`${capitalEnabled?"Reserved bounded paper capacity for":"Watching with zero capital"} one resting ${quote.touch_side} bid at ${pct(quote.maker_price)} for ${quote.execution_units} units. A touch is accepted only if every remaining leg can be hedged immediately at exact verified live depth; otherwise the touched leg is graded at an immediate executable unwind.`});
+    cooldown.add(eventKey);staged++;if(capitalEnabled)capitalStaged++;else shadowStaged++;
+  }
+  return {active:active+staged,staged,shadowStaged,capitalStaged,candidates:(candidates||[]).length};
+}
+function recordBundleMakerOutcome(p,quote,status,pnl,deployedCapital,details={}){
+  p.bundle_maker_outcomes=Array.isArray(p.bundle_maker_outcomes)?p.bundle_maker_outcomes:[];
+  if(p.bundle_maker_outcomes.some(row=>row.quote_id===quote.id))return null;
+  const deployed=Math.max(0,Number(deployedCapital==null?quote.reserved_capital||0:deployedCapital)),row={quote_id:quote.id,event_key:quote.event_key,bundle_id:quote.bundle_id,
+    logic:quote.logic,owner_id:quote.owner_id,status,pnl:+Number(pnl||0).toFixed(4),shadow_only:Boolean(quote.shadow_only),
+    deployed_capital:+deployed.toFixed(2),return_on_reserved:+(deployed>0?Number(pnl||0)/deployed:0).toFixed(6),created_at:quote.created_at,
+    completed_at:cycleIso(),hours_to_outcome:+hoursSince(quote.created_at).toFixed(3),strategy_version:SUGGESTION_ENGINE_VERSION,
+    bundle_maker_strategy_version:BUNDLE_MAKER_STRATEGY_VERSION,build_version:BUILD_VERSION,...details};
+  p.bundle_maker_outcomes.push(row);p.bundle_maker_outcomes=p.bundle_maker_outcomes.slice(-BUNDLE_MAKER_OUTCOME_LIMIT);return row;
+}
+function bundleMakerPostTouchQuote(quote,books,reportedFees){
+  const units=Number(quote.execution_units),payout=Number(quote.bundle_payout_per_unit),legs=quote.bundle_legs||[];
+  if(!(units>0&&payout>0)||legs.length<2)return {actionable:false,status:"invalid-quote"};
+  const repriced=[];let total=0,feesVerified=true,depthVerified=true;
+  for(const leg of legs){
+    const expected=leg.fee_schedule,reported=reportedFees&&reportedFees.get(String(leg.condition_id||""));
+    if(!bundleFeeSchedulesMatch(expected,reported)){feesVerified=false;continue;}
+    if(String(leg.token_id)===String(quote.touch_token_id)){
+      const fee=expected&&expected.takerOnly===false?bundleFeePerShare(expected,Number(quote.maker_price)):0;
+      if(!Number.isFinite(fee)){feesVerified=false;continue;}
+      const entry=Number(quote.maker_price)+fee;total+=entry;repriced.push({...leg,entry_price:+entry.toFixed(6),current_price:+Number(quote.maker_price).toFixed(6),fee_per_share:+fee.toFixed(6)});
+    }else{
+      const execution=bundleExecutableLeg(books.get(String(leg.token_id||"")),units,expected);
+      if(!execution){depthVerified=false;continue;}
+      total+=execution.total_price;repriced.push({...leg,entry_price:+execution.total_price.toFixed(6),current_price:+execution.ask_price.toFixed(6),fee_per_share:+execution.fee_per_share.toFixed(6)});
+    }
+  }
+  const profit=payout-total,netReturn=total>0?profit/total:-Infinity,totalProfit=profit*units;
+  const efficiency=bundleCapitalEfficiency({net_edge:netReturn,days_to_resolution:quote.days_to_resolution,bundle_immediate_merge:quote.bundle_immediate_merge,bundle_immediate_convert:quote.bundle_immediate_convert});
+  const minimumDaily=bundleMinimumDailyReturn(quote),actionable=feesVerified&&depthVerified&&repriced.length===legs.length
+    &&profit>=NEG_RISK_MIN_NET_PROFIT&&netReturn>=NEG_RISK_MIN_NET_RETURN&&totalProfit>=BUNDLE_MIN_EXECUTION_PROFIT&&efficiency>=minimumDaily;
+  return {actionable,fees_verified:feesVerified,depth_verified:depthVerified,status:!feesVerified?"fee-unverified":(!depthVerified?"insufficient-hedge-depth":(actionable?"executable":"economics-failed")),
+    legs:repriced,cost:+total.toFixed(6),profit:+profit.toFixed(6),net_return:+netReturn.toFixed(6),total_profit:+totalProfit.toFixed(4),capital_efficiency:+efficiency.toFixed(8)};
+}
+function bundleMakerImmediateUnwind(quote,books,reportedFees){
+  const leg=(quote.bundle_legs||[]).find(row=>String(row.token_id)===String(quote.touch_token_id)),units=Number(quote.execution_units);
+  if(!leg||!(units>0))return {verified:false,pnl:-Number(quote.reserved_capital||0),status:"conservative-loss"};
+  const reported=reportedFees&&reportedFees.get(String(leg.condition_id||""));
+  if(!bundleFeeSchedulesMatch(leg.fee_schedule,reported))return {verified:false,pnl:-(units*Number(quote.maker_price)),status:"conservative-loss"};
+  const sale=bundleExecutableSaleLeg(books.get(String(leg.token_id||"")),units,leg.fee_schedule);
+  if(!sale)return {verified:false,pnl:-(units*Number(quote.maker_price)),status:"conservative-loss"};
+  const makerFee=leg.fee_schedule&&leg.fee_schedule.takerOnly===false?bundleFeePerShare(leg.fee_schedule,Number(quote.maker_price)):0;
+  return {verified:true,status:"immediate-unwind",pnl:+(units*(sale.net_price-Number(quote.maker_price)-makerFee)).toFixed(4),sale};
+}
+async function manageBundleMakerQuotes(st,{executeTrades=false,touchHistory={},booksOverride=null,reportedFeesOverride=null}={}){
+  const all=AGENTS.flatMap(agent=>(st.agents[agent.id].bundle_maker_quotes||[]).map(quote=>({agent,quote})));
+  if(!executeTrades)return {active:all.length,touched:0,locked:0,unwound:0,expired:0,shadowCompleted:0,capitalCompleted:0};
+  const ownedEvents=currentBundleEventKeys(st);
+  let books=booksOverride,reportedFees=reportedFeesOverride;
+  if(!books){try{books=await fetchBundleBooks(all.flatMap(({quote})=>(quote.bundle_legs||[]).map(leg=>leg.token_id)));}catch(e){books=new Map();}}
+  const conditionIds=all.flatMap(({quote})=>(quote.bundle_legs||[]).map(leg=>leg.condition_id));
+  if(!reportedFees){try{reportedFees=await fetchBundleFeeSchedules(conditionIds);}catch(e){reportedFees=new Map();}}
+  const activity={active:0,touched:0,locked:0,unwound:0,expired:0,shadowCompleted:0,capitalCompleted:0,byAgent:{}};
+  for(const agent of AGENTS){
+    const p=st.agents[agent.id],keep=[];activity.byAgent[agent.id]={completed:0,locked:0,unwound:0};
+    for(const quote of p.bundle_maker_quotes||[]){
+      if(ownedEvents.has(String(quote.event_key||""))){
+        recordBundleMakerOutcome(p,quote,"canceled-owned",0,0);
+        p.history.push({date:logDay(),action:"BUNDLE_MAKER_CANCEL",question:quote.question,side:"BUNDLE",
+          detail:"Canceled the resting observation because a complete protected position already owns this event; no fill or P&L was recorded."});
+        activity.expired++;activity.byAgent[agent.id].completed++;continue;
+      }
+      const age=hoursSince(quote.created_at),historyTouch=age>=RUN_INTERVAL_MS/3600000*0.8?bundleMakerTouchEvidence(quote,touchHistory):null;
+      const book=books.get(String(quote.touch_token_id||"")),liveAsk=Number(bundleBookAskLevels(book)[0]&&bundleBookAskLevels(book)[0].price);
+      const touchThreshold=Number(quote.maker_price)-Math.max(0.0005,Number(quote.tick_size||0.001)*0.5);
+      const touched=Boolean(historyTouch||(Number.isFinite(liveAsk)&&liveAsk<=touchThreshold));
+      if(!touched&&age<BUNDLE_MAKER_HORIZON_HOURS){keep.push(quote);activity.active++;continue;}
+      if(!touched&&!touchHistory.__available&&age<BUNDLE_MAKER_RETRY_HOURS){keep.push(quote);activity.active++;continue;}
+      if(!touched&&!touchHistory.__available){recordBundleMakerOutcome(p,quote,"expired-ungraded",0,0,{touch_source:null});activity.expired++;activity.byAgent[agent.id].completed++;
+        p.history.push({date:logDay(),action:"BUNDLE_MAKER_UNGRADED",question:quote.question,side:"BUNDLE",detail:`The resting-bid evidence window could not be reconstructed within ${BUNDLE_MAKER_RETRY_HOURS}h, so it expired without a return and cannot affect promotion.`});continue;}
+      if(!touched){recordBundleMakerOutcome(p,quote,"unfilled",0,quote.reserved_capital,{touch_source:null});activity.expired++;activity.byAgent[agent.id].completed++;
+        p.history.push({date:logDay(),action:"BUNDLE_MAKER_EXPIRE",question:quote.question,side:"BUNDLE",detail:`The ${BUNDLE_MAKER_HORIZON_HOURS}h resting-bid window expired without a verified touch; cash and P&L were unchanged.`});continue;}
+      activity.touched++;const hedge=bundleMakerPostTouchQuote(quote,books,reportedFees);
+      if(hedge.actionable){
+        let opened=null;
+        if(!quote.shadow_only){
+          const suggestion={...quote,quality:"bundle-arb",side:"BUNDLE",bundle_side:"BUNDLE",bundle_legs:hedge.legs,bundle_cost_per_unit:hedge.cost,
+            bundle_net_profit_per_unit:hedge.profit,net_edge:hedge.net_return,edge:hedge.net_return,execution_units:quote.execution_units,
+            execution_total_profit:hedge.total_profit,depth_verified:true,fees_verified:true,verification_status:"executable",friction:hedge.legs.reduce((sum,leg)=>sum+Number(leg.fee_per_share||0),0),
+            bundle_capital_efficiency:hedge.capital_efficiency,bundle_minimum_notional:BUNDLE_MAKER_MIN_NOTIONAL,
+            bundle_immediate_convert:false,rationale:"Maker-assisted protected bundle: one resting bid touched and every remaining leg was immediately repriced at exact live depth and verified fees."};
+          opened=openNegativeRiskBundle(p,agent,suggestion,Number(quote.reserved_capital),{mode:"Maker-assist"});
+        }
+        if(quote.shadow_only||opened){
+          const outcomeUnits=quote.shadow_only?Number(quote.execution_units):Number(opened.cost)/hedge.cost;
+          const outcomeProfit=outcomeUnits*hedge.profit,outcomeCapital=outcomeUnits*hedge.cost;
+          recordBundleMakerOutcome(p,quote,"hedged-lock",outcomeProfit,outcomeCapital,{touch_source:historyTouch?historyTouch.source:"live-book-cross"});
+          activity.locked++;activity.byAgent[agent.id].locked++;p.history.push({date:logDay(),action:quote.shadow_only?"BUNDLE_MAKER_SHADOW_LOCK":"BUNDLE_MAKER_LOCK",question:quote.question,side:"BUNDLE",
+            detail:`The resting bid touched and every remaining leg cleared exact live-depth hedging. ${quote.shadow_only?`Shadow result ${fmtUSD(outcomeProfit)}; portfolio cash unchanged.`:`Opened the complete protected bundle with modeled floor ${fmtUSD(outcomeProfit)}.`}`});
+        }else{keep.push(quote);activity.active++;continue;}
+      }else{
+        const unwind=bundleMakerImmediateUnwind(quote,books,reportedFees),deployed=Number(quote.execution_units)*Number(quote.maker_price);
+        recordBundleMakerOutcome(p,quote,unwind.status,unwind.pnl,deployed,{touch_source:historyTouch?historyTouch.source:"live-book-cross",hedge_status:hedge.status});
+        if(!quote.shadow_only){p.cash=+(p.cash+unwind.pnl).toFixed(2);p.closed.push({market_id:quote.touch_market_id,question:quote.question,side:quote.touch_side,
+          cost:+deployed.toFixed(2),value:+(deployed+unwind.pnl).toFixed(2),realized_pnl:+unwind.pnl.toFixed(2),opened_at:quote.created_at,closed_at:cycleIso(),
+          close_reason:`Maker-assisted hedge failed (${hedge.status}); immediate executable unwind`,signal_type:"bundle-maker-assist",build_version:BUILD_VERSION});}
+        activity.unwound++;activity.byAgent[agent.id].unwound++;p.history.push({date:logDay(),action:quote.shadow_only?"BUNDLE_MAKER_SHADOW_UNWIND":"BUNDLE_MAKER_UNWIND",question:quote.question,side:quote.touch_side,
+          detail:`The resting bid touched, but the complete hedge failed ${hedge.status}. The touched leg was ${unwind.verified?"graded at its exact executable bid":"conservatively graded as a full loss"} for ${fmtUSD(unwind.pnl)}${quote.shadow_only?"; portfolio cash unchanged":""}.`});
+      }
+      activity.byAgent[agent.id].completed++;if(quote.shadow_only)activity.shadowCompleted++;else activity.capitalCompleted++;
+    }
+    p.bundle_maker_quotes=keep;
+  }
+  return activity;
 }
 function peerMarketStats(st,selfId){
   const stats={};
@@ -4750,7 +4971,8 @@ function openNegativeRiskBundle(p,cfg,s,stake,decision){
       peak_price:+current.toFixed(4),gain_stops:{},stop_losses:{}};
   });
   const totalCost=+positions.reduce((sum,pos)=>sum+pos.cost,0).toFixed(2);
-  if(totalCost>p.cash||totalCost<BUNDLE_MIN_NOTIONAL)return null;
+  const minimumNotional=Math.max(BUNDLE_MAKER_MIN_NOTIONAL,Number(s.bundle_minimum_notional||BUNDLE_MIN_NOTIONAL));
+  if(totalCost>p.cash||totalCost<minimumNotional)return null;
   p.cash=+(p.cash-totalCost).toFixed(2);p.positions.push(...positions);
   p.history.push({date:logDay(),action:"OPEN",question:s.question,side:bundleSide,
     detail:`${decision?decision.mode+" mode — ":""}Opened complete ${legs.length}-leg ${bundleSide} bundle for ${fmtUSD(totalCost)} · ${units} bundle units · modeled ${s.bundle_immediate_convert?"immediate negative-risk conversion":(s.bundle_immediate_merge?"immediate merge":"settlement")} profit ${fmtUSD(units*Number(s.bundle_net_profit_per_unit))} after estimated costs · live prices required`});
@@ -5107,7 +5329,7 @@ async function runDailyCycle(){
       return {suggestions:(loadSuggestions().suggestions||[]).length,skipped:true,hour};
     }
     SNAP_TS=nowIso();
-    let markets=[],analysisMarkets=[],sugs=[],bundleSugs=[],shockSugs=[],makerAuditCandidates=[],bundleAudit=null,cache=loadMarketCache(),runMode="live",cacheAgeMs=0;
+    let markets=[],analysisMarkets=[],sugs=[],bundleSugs=[],bundleMakerCandidates=[],shockSugs=[],makerAuditCandidates=[],bundleAudit=null,cache=loadMarketCache(),runMode="live",cacheAgeMs=0;
     try{
       setStatus("loading the 500 most active eligible markets…",true);
       markets=await fetchMarkets(20,100,count=>setStatus(`loaded ${Math.min(count,ACTIVE_MARKET_FETCH_LIMIT).toLocaleString()} of 500 eligible active markets…`,true),ACTIVE_MARKET_FETCH_LIMIT);
@@ -5115,8 +5337,8 @@ async function runDailyCycle(){
       if(!analysisMarkets.length)throw new Error("No active markets returned");
       setStatus(`analyzing ${analysisMarkets.length.toLocaleString()} most-active markets…`,true);
       setStatus("checking complete live-priced event bundles…",true);
-      try{const bundleScan=await fetchNegativeRiskBundles();bundleSugs=bundleScan.candidates;bundleAudit=bundleScan.audit;}
-      catch(e){bundleSugs=[];bundleAudit={status:"unavailable",scanned_at:nowIso(),event_scan_limit:NEG_RISK_EVENT_SCAN_LIMIT,events_scanned:0,evaluated_structures:0,
+      try{const bundleScan=await fetchNegativeRiskBundles();bundleSugs=bundleScan.candidates;bundleMakerCandidates=bundleScan.maker_assist_candidates||[];bundleAudit=bundleScan.audit;}
+      catch(e){bundleSugs=[];bundleMakerCandidates=[];bundleAudit={status:"unavailable",scanned_at:nowIso(),event_scan_limit:NEG_RISK_EVENT_SCAN_LIMIT,events_scanned:0,evaluated_structures:0,
         conversion_candidates_scanned:0,conversion_structures:0,conversion_terms_verified:0,conversion_depth_verified:0,conversion_fee_verified:0,actionable_conversions:0,
         actionable_bundles:0,error:String(e&&e.message||e)};}
       setStatus("measuring reward-book competition…",true);
@@ -5193,12 +5415,15 @@ async function runDailyCycle(){
     const quoteMarketMap=Object.assign({},cachedById,freshById);
     const makerCooldownActivity=retireCooldownShadowQuotes(st);
     const allMakerQuotes=AGENTS.flatMap(agent=>st.agents[agent.id].maker_quotes||[]);
-    if(runMode==="live"&&allMakerQuotes.length)setStatus("verifying resting quote touches…",true);
-    const makerTouchHistory=runMode==="live"?await fetchMakerTouchHistory(allMakerQuotes,quoteMarketMap):{};
+    const allBundleMakerQuotes=AGENTS.flatMap(agent=>st.agents[agent.id].bundle_maker_quotes||[]);
+    if(runMode==="live"&&(allMakerQuotes.length||allBundleMakerQuotes.length))setStatus("verifying resting quote touches…",true);
+    const makerTouchHistory=runMode==="live"?await fetchMakerTouchHistory([...allMakerQuotes,...allBundleMakerQuotes],quoteMarketMap):{};
     const makerActivityByAgent={};
     AGENTS.forEach(agent=>{makerActivityByAgent[agent.id]=manageMakerQuotes(st.agents[agent.id],quoteMarketMap,
       {executeTrades:runMode==="live"&&executeTrades,touchHistory:makerTouchHistory});});
     const sharedMakerProfile=buildSharedMakerProfile(st);
+    const bundleMakerActivity=await manageBundleMakerQuotes(st,{executeTrades:runMode==="live"&&executeTrades,touchHistory:makerTouchHistory});
+    const sharedBundleMakerProfile=buildSharedBundleMakerProfile(st);
     if(runMode==="live"&&executeTrades)setStatus("checking protected bundle profit exits…",true);
     const bundleRecycleActivity=await recycleVerifiedBundleCapital(st,priceMap,{execute:bundleRecyclingCanExecute(runMode,executeTrades)});
     for(const cfg of AGENTS){
@@ -5212,6 +5437,11 @@ async function runDailyCycle(){
     const cycleSuggestions=prepareCycleSuggestions(sugs,runMode,entriesAllowed);
     const claimedMarkets=new Set();
     const claimedBundleEvents=currentBundleEventKeys(st);
+    const bundleMakerStage=stageBundleMakerQuotes(st,bundleMakerCandidates,sharedBundleMakerProfile,
+      {execute:runMode==="live"&&entriesAllowed,claimedEvents:claimedBundleEvents});
+    AGENTS.forEach(agent=>(st.agents[agent.id].bundle_maker_quotes||[]).forEach(quote=>{
+      const key=String(quote.event_key||"");if(key)claimedBundleEvents.add(key);
+    }));
     const claimedShockEvents=currentShockClaimKeys(st);
     const claimedResolutionWeekEvents=currentResolutionWeekEventKeys(st);
     const claimedProbationEvents=new Set(AGENTS.flatMap(agent=>[
@@ -5279,6 +5509,15 @@ async function runDailyCycle(){
         if(staged.staged||makerActivity.fills||makerActivity.locked||makerActivity.expired||(makerCooldownActivity.byAgent[cfg.id]||0)){
           p.lastDecision.allocationStatus=`${p.lastDecision.allocationStatus||""} Maker research: ${staged.shadowActive} zero-capital lock-or-exit observation${staged.shadowActive===1?"":"s"}, ${makerActivity.shadowCompleted||0} outcome${makerActivity.shadowCompleted===1?"":"s"} graded and ${makerCooldownActivity.byAgent[cfg.id]||0} inherited duplicate${(makerCooldownActivity.byAgent[cfg.id]||0)===1?"":"s"} retired this cycle; capital remains disabled after the chronological holdout failure, and displayed reward estimates are never credited as P&L.`.trim();
         }
+      }
+      const bundleMakerAgentActivity=bundleMakerActivity.byAgent&&bundleMakerActivity.byAgent[cfg.id]||{completed:0,locked:0,unwound:0};
+      const bundleMakerActive=(p.bundle_maker_quotes||[]).length;
+      p.lastDecision=Object.assign({},p.lastDecision,{bundleMakerProfile:sharedBundleMakerProfile,bundleMakerActive,
+        bundleMakerCompleted:bundleMakerAgentActivity.completed,bundleMakerLocked:bundleMakerAgentActivity.locked,
+        bundleMakerUnwound:bundleMakerAgentActivity.unwound,bundleMakerCandidates:bundleMakerStage.candidates,
+        bundleMakerStaged:(p.bundle_maker_quotes||[]).filter(row=>hoursSince(row.created_at)<0.1).length});
+      if(bundleMakerActive||bundleMakerAgentActivity.completed){
+        p.lastDecision.allocationStatus=`${p.lastDecision.allocationStatus||""} Protected maker-assist learner: ${sharedBundleMakerProfile.state}, ${sharedBundleMakerProfile.events}/${BUNDLE_MAKER_PROMOTION_EVENTS} independent outcomes, ${sharedBundleMakerProfile.locks}/${BUNDLE_MAKER_PROMOTION_LOCKS} protected locks, and ${(sharedBundleMakerProfile.lower*100).toFixed(2)}% lower 90% return bound. ${bundleMakerActive} one-hour quote${bundleMakerActive===1?"":"s"} active for this agent; capital is ${sharedBundleMakerProfile.capital_enabled?`bounded to ${(BUNDLE_MAKER_POSITION_PCT*100).toFixed(1)}% per event and ${(BUNDLE_MAKER_TOTAL_CAPITAL_PCT*100).toFixed(1)}% total`:`zero until the forward promotion gate clears`}.`.trim();
       }
     }
     const valueDecision=st.agents.value&&st.agents.value.lastDecision;
@@ -7194,6 +7433,11 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
       long:BUNDLE_EXIT_CAPTURE_LONG*100,extended:BUNDLE_EXIT_CAPTURE_EXTENDED*100},
     bundleExitMinimumRealizedProfit:BUNDLE_EXIT_MIN_REALIZED_PROFIT,
     bundleRanking:"net return per locked day, then raw executable edge",
+    bundleMakerStrategyVersion:BUNDLE_MAKER_STRATEGY_VERSION,bundleMakerShadowHours:BUNDLE_MAKER_HORIZON_HOURS,bundleMakerRetryHours:BUNDLE_MAKER_RETRY_HOURS,
+    bundleMakerMaxActive:BUNDLE_MAKER_MAX_ACTIVE,bundleMakerPromotionEvents:BUNDLE_MAKER_PROMOTION_EVENTS,
+    bundleMakerPromotionLocks:BUNDLE_MAKER_PROMOTION_LOCKS,bundleMakerPromotionLowerPct:BUNDLE_MAKER_PROMOTION_LOWER*100,
+    bundleMakerPaperPositionPct:BUNDLE_MAKER_POSITION_PCT*100,bundleMakerPaperTotalCapitalPct:BUNDLE_MAKER_TOTAL_CAPITAL_PCT*100,
+    bundleMakerOfflineFills:false,bundleMakerRequiresImmediateExactHedge:true,
     pairedMakerQuotes:"research-only-immediate-lock-or-exit",makerStrategyVersion:MAKER_STRATEGY_VERSION,
     makerShadowHorizonHours:MAKER_SHADOW_HORIZON_HOURS,makerLegacyQuoteExpiryHours:MAKER_QUOTE_EXPIRY_HOURS,makerMinimumLockMarginPct:MAKER_MIN_LOCK_MARGIN*100,
     makerTouchSource:"Polymarket CLOB batch price history",makerOutcomeLimit:MAKER_OUTCOME_LIMIT,makerMinimumCohortAttempts:MAKER_MIN_COHORT_ATTEMPTS,
@@ -7925,6 +8169,36 @@ function runEngineSelfTest(){
   const makerAssistCandidate=Object.assign({},zeroFeeBundleSuggestion,{days_to_resolution:2});
   const makerAssistTakerQuote=bundleQuoteAtUnits(makerAssistCandidate,makerAssistBooks,50);
   const makerAssistFixture=bundleMakerAssistQuote(makerAssistCandidate,makerAssistTakerQuote,makerAssistBooks);
+  const makerAssistVerifiedCandidate=Object.assign({},makerAssistCandidate,{bundle_legs:makerAssistTakerQuote.legs,maker_assist:makerAssistFixture});
+  const bundleMakerState=defaultState(),bundleMakerCash=bundleMakerState.agents.value.cash;
+  const initialBundleMakerProfile=buildSharedBundleMakerProfile(bundleMakerState);
+  const bundleMakerStage=stageBundleMakerQuotes(bundleMakerState,[makerAssistVerifiedCandidate],initialBundleMakerProfile,{execute:true,claimedEvents:new Set()});
+  const bundleMakerQuote=bundleMakerState.agents.value.bundle_maker_quotes[0];
+  const bundleMakerFees=new Map((bundleMakerQuote.bundle_legs||[]).map(leg=>[String(leg.condition_id),leg.fee_schedule]));
+  const bundleMakerHedge=bundleMakerPostTouchQuote(bundleMakerQuote,makerAssistBooks,bundleMakerFees);
+  const bundleMakerUnwind=bundleMakerImmediateUnwind(bundleMakerQuote,makerAssistBooks,bundleMakerFees);
+  const offlineBundleMakerBefore=JSON.stringify(bundleMakerState.agents.value);
+  manageBundleMakerQuotes(bundleMakerState,{executeTrades:false,touchHistory:{}});
+  const offlineBundleMakerUnchanged=JSON.stringify(bundleMakerState.agents.value)===offlineBundleMakerBefore;
+  const promotedBundleMakerState=defaultState();
+  promotedBundleMakerState.agents.value.bundle_maker_outcomes=Array.from({length:BUNDLE_MAKER_PROMOTION_EVENTS},(_,index)=>({
+    quote_id:`promoted-${index}`,event_key:`promoted-event-${index}`,bundle_id:`promoted-bundle-${index}`,logic:"fixture",owner_id:"value",
+    status:index<BUNDLE_MAKER_PROMOTION_LOCKS?"hedged-lock":"unfilled",pnl:index<BUNDLE_MAKER_PROMOTION_LOCKS?2:0,shadow_only:true,
+    deployed_capital:100,return_on_reserved:index<BUNDLE_MAKER_PROMOTION_LOCKS?0.02:0,created_at:hoursAgo(2),completed_at:hoursAgo(1),
+    strategy_version:SUGGESTION_ENGINE_VERSION,bundle_maker_strategy_version:BUNDLE_MAKER_STRATEGY_VERSION,build_version:BUILD_VERSION,
+  }));
+  const weakBundleMakerProfile=buildSharedBundleMakerProfile(promotedBundleMakerState);
+  promotedBundleMakerState.agents.value.bundle_maker_outcomes=Array.from({length:BUNDLE_MAKER_PROMOTION_EVENTS},(_,index)=>({
+    quote_id:`qualified-${index}`,event_key:`qualified-event-${index}`,bundle_id:`qualified-bundle-${index}`,logic:"fixture",owner_id:"value",
+    status:"hedged-lock",pnl:2,shadow_only:true,deployed_capital:100,return_on_reserved:0.02,created_at:hoursAgo(2),completed_at:hoursAgo(1),
+    strategy_version:SUGGESTION_ENGINE_VERSION,bundle_maker_strategy_version:BUNDLE_MAKER_STRATEGY_VERSION,build_version:BUILD_VERSION,
+  }));
+  const promotedBundleMakerProfile=buildSharedBundleMakerProfile(promotedBundleMakerState);
+  const duplicateBundleMakerState=defaultState();
+  duplicateBundleMakerState.agents.value.bundle_maker_outcomes=promotedBundleMakerState.agents.value.bundle_maker_outcomes
+    .map((row,index)=>({...row,quote_id:`duplicate-${index}`,event_key:"one-correlated-event"}));
+  const duplicateBundleMakerProfile=buildSharedBundleMakerProfile(duplicateBundleMakerState);
+  const compactedBundleMakerBook=compactPortfolioForSync(bundleMakerState.agents.value);
   const depthLimitedBundleBooks=new Map((zeroFeeBundleSuggestion.bundle_legs||[]).map((leg,index)=>[String(leg.token_id),
     {min_order_size:"5",asks:[{price:String(scalableBundlePrices[index]),size:String(index===2?120:500)}]}]));
   const depthLimitedBundleQuote=maximizeBundleExecution(zeroFeeBundleSuggestion,depthLimitedBundleBooks,bundleMinimumExecutionUnits(0.95));
@@ -8675,6 +8949,19 @@ function runEngineSelfTest(){
         &&makerAssistFixture.protected_cost===0.98&&makerAssistFixture.total_profit===1
         &&makerAssistFixture.execution_model==="one resting bid then full live-depth taker hedge"
         &&makerAssistFixture.capital_enabled===false),
+      makerAssistPersistsAsZeroCapitalQuote:bundleMakerStage.staged===1&&bundleMakerStage.shadowStaged===1
+        &&bundleMakerState.agents.value.cash===bundleMakerCash&&bundleMakerQuote.shadow_only,
+      makerAssistPostTouchRepricesEveryLeg:Boolean(bundleMakerHedge.actionable&&bundleMakerHedge.legs.length===3
+        &&bundleMakerHedge.cost===0.98&&bundleMakerHedge.total_profit===1),
+      makerAssistFailedHedgeUsesExecutableUnwind:Boolean(bundleMakerUnwind.verified&&bundleMakerUnwind.status==="immediate-unwind"
+        &&bundleMakerUnwind.pnl===-0.5),
+      offlineBundleMakerCannotInventFill:offlineBundleMakerUnchanged&&bundleMakerState.agents.value.bundle_maker_outcomes.length===0,
+      bundleMakerPromotionNeedsPositiveIndependentEvidence:!weakBundleMakerProfile.capital_enabled
+        &&promotedBundleMakerProfile.capital_enabled&&promotedBundleMakerProfile.events===BUNDLE_MAKER_PROMOTION_EVENTS
+        &&promotedBundleMakerProfile.locks===BUNDLE_MAKER_PROMOTION_EVENTS&&promotedBundleMakerProfile.lower>BUNDLE_MAKER_PROMOTION_LOWER
+        &&duplicateBundleMakerProfile.events===1&&!duplicateBundleMakerProfile.capital_enabled,
+      bundleMakerLearningSurvivesCompaction:compactedBundleMakerBook.bundle_maker_quotes.length===1
+        &&Array.isArray(compactedBundleMakerBook.bundle_maker_outcomes),
       liveRepricingRoundsUpToMinimumNotional:repricedBoundaryUnits===50.52&&repricedBoundaryUnits*0.99>=BUNDLE_MIN_NOTIONAL+0.009,
       repricedMinimumNotionalOpensAtomically:Boolean(repricedBoundaryOpen&&repricedBoundaryBook.positions.length===2
         &&repricedBoundaryOpen.cost>=BUNDLE_MIN_NOTIONAL),

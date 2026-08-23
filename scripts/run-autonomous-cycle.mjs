@@ -16,9 +16,11 @@ const MAX_STATE_BYTES = 900_000;
 const TRANSPORT_HISTORY_LIMIT = 24;
 const TRANSPORT_SNAPSHOT_LIMIT = 96;
 const TRANSPORT_MAKER_OUTCOME_LIMIT = 30;
+const TRANSPORT_BUNDLE_MAKER_OUTCOME_LIMIT = 30;
 const TRANSPORT_TARGET_BYTES = 850_000;
 const TRANSPORT_HISTORY_FLOOR = 12;
 const TRANSPORT_MAKER_OUTCOME_FLOOR = 12;
+const TRANSPORT_BUNDLE_MAKER_OUTCOME_FLOOR = 12;
 const TRANSPORT_SUGGESTION_FLOOR = 240;
 const TRANSPORT_SIGNAL_OUTCOME_RESERVE = 144;
 const TRANSPORT_SNAPSHOT_FALLBACKS = Object.freeze([72, 48, 24]);
@@ -85,6 +87,7 @@ function compactDecision(decision) {
   if (out.makerProfile && typeof out.makerProfile === "object") {
     out.makerProfile = { version: out.makerProfile.version, outcomes: out.makerProfile.outcomes, global: out.makerProfile.global };
   }
+  if (out.bundleMakerProfile && typeof out.bundleMakerProfile === "object") out.bundleMakerProfile = { ...out.bundleMakerProfile };
   if (out.learning && typeof out.learning === "object") {
     out.learning = { ...out.learning };
     delete out.learning.buckets;
@@ -109,6 +112,17 @@ function compactMakerOutcome(row) {
   };
 }
 
+function compactBundleMakerOutcome(row) {
+  if (!row || typeof row !== "object") return row;
+  return {
+    quote_id: row.quote_id, event_key: row.event_key, bundle_id: row.bundle_id, logic: row.logic, owner_id: row.owner_id,
+    status: row.status, pnl: row.pnl, shadow_only: row.shadow_only, deployed_capital: row.deployed_capital,
+    return_on_reserved: row.return_on_reserved, created_at: row.created_at, completed_at: row.completed_at,
+    hours_to_outcome: row.hours_to_outcome, strategy_version: row.strategy_version,
+    bundle_maker_strategy_version: row.bundle_maker_strategy_version, build_version: row.build_version,
+  };
+}
+
 export function compactRuntimeTransportSnapshot(snapshot) {
   if (!snapshot || typeof snapshot !== "object" || !snapshot.items) return snapshot;
   const out = { ...snapshot, items: { ...snapshot.items } };
@@ -124,6 +138,8 @@ export function compactRuntimeTransportSnapshot(snapshot) {
     portfolio.history = (portfolio.history || []).slice(-TRANSPORT_HISTORY_LIMIT).map(compactHistoryRow);
     portfolio.snapshots = sampleSnapshots(portfolio.snapshots, TRANSPORT_SNAPSHOT_LIMIT);
     portfolio.maker_outcomes = (portfolio.maker_outcomes || []).slice(-TRANSPORT_MAKER_OUTCOME_LIMIT).map(compactMakerOutcome);
+    portfolio.bundle_maker_quotes = (portfolio.bundle_maker_quotes || []).slice(-2);
+    portfolio.bundle_maker_outcomes = (portfolio.bundle_maker_outcomes || []).slice(-TRANSPORT_BUNDLE_MAKER_OUTCOME_LIMIT).map(compactBundleMakerOutcome);
     portfolio.lastDecision = compactDecision(portfolio.lastDecision);
   }
   suggestions.suggestions = (suggestions.suggestions || []).slice(0, 300).map(compactPublicSuggestion);
@@ -137,6 +153,7 @@ export function compactRuntimeTransportSnapshot(snapshot) {
     for (const portfolio of Object.values(state.agents || {})) {
       portfolio.history = (portfolio.history || []).slice(-TRANSPORT_HISTORY_FLOOR);
       portfolio.maker_outcomes = (portfolio.maker_outcomes || []).slice(-TRANSPORT_MAKER_OUTCOME_FLOOR);
+      portfolio.bundle_maker_outcomes = (portfolio.bundle_maker_outcomes || []).slice(-TRANSPORT_BUNDLE_MAKER_OUTCOME_FLOOR);
     }
     suggestions.suggestions = suggestions.suggestions.slice(0, TRANSPORT_SUGGESTION_FLOOR);
     bytes = writeItems();
