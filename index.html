@@ -2799,6 +2799,15 @@ function completeBundleAccountingFloor(group){
   const settlementFloor=units*payoutPerUnit;
   return settlementFloor+0.005>=cost?cost:0;
 }
+function completeBundleSecuredProfit(p){
+  return completeBundleGroups(p).reduce((total,group)=>{
+    const cost=group.reduce((sum,pos)=>sum+Number(pos.cost||0),0);
+    const payoutPerUnit=Math.min(...group.map(pos=>Number(pos.bundle_payout_per_unit||0)));
+    const units=Math.min(...group.map(pos=>Number(pos.shares||0)));
+    const profit=units*payoutPerUnit-cost;
+    return total+(Number.isFinite(profit)&&profit>0?profit:0);
+  },0);
+}
 function portfolioPositionValue(p){
   const positions=p&&Array.isArray(p.positions)?p.positions:[];
   let total=positions.reduce((sum,pos)=>sum+Number(pos.shares||0)*Number(pos.current_price||0),0);
@@ -5086,7 +5095,8 @@ function board(){
   const st=loadState();
   return rankBoardRows(AGENTS.map(c=>{const p=st.agents[c.id]||defaultPortfolio();const eq=equity(p);
     const baseline=Number(p.engine_baseline&&normalizedStrategyVersion(p.engine_baseline.version)===SUGGESTION_ENGINE_VERSION?p.engine_baseline.equity:eq);
-    return {c,p,eq,pnl:eq-STARTING_BALANCE,ret:(eq/STARTING_BALANCE-1)*100,enginePnl:eq-baseline,engineRet:baseline>0?(eq/baseline-1)*100:0,change24h:portfolioChange24h(p,eq)};})
+    return {c,p,eq,pnl:eq-STARTING_BALANCE,ret:(eq/STARTING_BALANCE-1)*100,enginePnl:eq-baseline,engineRet:baseline>0?(eq/baseline-1)*100:0,
+      securedProfit:completeBundleSecuredProfit(p),change24h:portfolioChange24h(p,eq)};})
   );
 }
 const MEDALS=["🥇","🥈","🥉"];
@@ -5100,6 +5110,7 @@ function renderOverview(){
   const engineAvg=b.reduce((s,r)=>s+r.engineRet,0)/b.length;
   const core=b.filter(r=>!r.c.aggressive),coreAvg=core.reduce((s,r)=>s+r.engineRet,0)/Math.max(1,core.length);
   const aggressive=b.filter(r=>r.c.aggressive),aggressiveAvg=aggressive.reduce((s,r)=>s+r.engineRet,0)/Math.max(1,aggressive.length);
+  const securedProfit=b.reduce((sum,row)=>sum+row.securedProfit,0);
   const sugCount=(loadSuggestions().suggestions||[]).length;
   const stats=[
     {ic:lead.c.emoji,label:"Leader",value:lead.c.name.split(" ")[0]},
@@ -5108,6 +5119,7 @@ function renderOverview(){
     {ic:"🧪",label:"Adaptive avg",value:fmtPct(engineAvg),cls:signClass(engineAvg)},
     {ic:"🧠",label:"Core adaptive avg",value:fmtPct(coreAvg),cls:signClass(coreAvg)},
     {ic:"⚡",label:"Aggressive adaptive",value:fmtPct(aggressiveAvg),cls:signClass(aggressiveAvg)},
+    {ic:"🔒",label:"Secured bundle profit",value:fmtUSD(securedProfit),cls:securedProfit>0?"pos-val":""},
     {ic:"💡",label:"Scored ideas",value:sugCount},
     {ic:"🏆",label:"Agents",value:AGENTS.length},
   ];
@@ -5273,7 +5285,7 @@ function renderLeaderboard(){
       <div class="lb-top"><span class="medal">${MEDALS[i]||""}</span><span class="lb-emoji">${r.c.emoji}</span>
         <div><div class="lb-name">${r.c.name}</div><div class="lb-blurb">${agentBlurb(r.c,st)}</div></div></div>
       <div class="lb-mid"><div class="lb-eq">${fmtUSD(r.eq)}</div><div><div class="lb-ret ${signClass(r.enginePnl)}">${fmtPct(r.engineRet)}</div><div class="small ${signClass(r.pnl)}">legacy/replay ${fmtPct(r.ret)}</div><div class="small ${signClass(r.change24h.pct)}">24h ${format24h(r.change24h)}</div></div></div>
-      <div class="lb-foot"><span class="muted small">${r.p.positions.length} open · ${r.p.closed.length} closed</span>${miniSpark(r.p.snapshots,r.c.color)}</div>
+      <div class="lb-foot"><span class="muted small">${r.p.positions.length} open · ${r.p.closed.length} closed${r.securedProfit>0?` · <span class="pos-val">${fmtUSD(r.securedProfit)} secured</span>`:""}</span>${miniSpark(r.p.snapshots,r.c.color)}</div>
     </div>`).join("");
   document.querySelectorAll("#leaderboard .lb-card").forEach(el=>{
     el.addEventListener("click",()=>{localStorage.setItem(VIEW_KEY,el.dataset.agent);renderPortfolioTab();showTab("portfolio");});
@@ -5689,7 +5701,7 @@ function renderAgentReports(){
       <p><b>Adaptation:</b> ${esc(decisionSummary(row.p))}</p>
       <p><b>Performance:</b> ${esc(dailyPerformanceExplanation(row))}</p>
       ${crash}
-      <p><b>Status:</b> ${open} open position${open===1?"":"s"} with ${fmtUSD(row.eq)} equity. ${esc(line)}</p>
+      <p><b>Status:</b> ${open} open position${open===1?"":"s"} with ${fmtUSD(row.eq)} marked equity.${row.securedProfit>0?` ${fmtUSD(row.securedProfit)} of additional settlement profit is secured by intact verified bundles and remains excluded from marked return until an exit, conversion, or settlement.`:""} ${esc(line)}</p>
       <p><b>${esc(plan)}</b></p>
     </article>`;
   }).join("");

@@ -142,6 +142,14 @@ Every probation position exits at the matching six-hour executable bid and keeps
 the 18% stop policy active. Normal directional sizing remains locked until the
 same cohort independently passes both the 24-hour and 72-hour promotion gates.
 
+An August 23 exact-fee settlement calibration independently checked 5,000
+resolved markets, 4,807 usable histories, and 7,854 observations across 1,400
+fixed side, category, price-band, and 1/3/7/14/30-day rules. Zero rules cleared
+even the event-clustered 95% training lower-bound gate. The three-day Sports NO
+target fell to -44.14% in validation and remained negative in holdout, so it
+cannot authorize capital. The reproducible result is stored in
+`research/settlement-calibration-exact-fee-5000-audit.json`.
+
 Build 124 retains Build 100's retirement of the old 3-6 day resolution-window
 capital permission. That audit clustered confidence by event but still averaged
 several correlated contracts inside each event, while production could choose
