@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 65 · cohort protected maker learner · build 135</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 65 · immediate protected maker conversion · build 136</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 135 active:</b> Maker-assisted protected bundles learn separately by structure and lock duration. A touched bid must be completed immediately at verified depth and fees, or graded at an executable unwind; offline cycles preserve learning but never invent fills. Only a cohort with 15 independent outcomes, four locks, and a lower 90% return bound above 0.5% can earn a tightly capped paper allocation. Profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 136 active:</b> Verified maker-assisted complete-NO fills now convert immediately through their exact negative-risk terms, realizing and recycling protected paper profit instead of waiting for settlement. Cohorts still require 15 independent outcomes, four locks, and a lower 90% return bound above 0.5%; offline cycles preserve learning but never invent fills. Profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 135 · Adaptive strategy 65 · Cohort-specific protected maker adaptation · Persistent protected maker-assist learner · Exact post-touch hedge-or-unwind grading · Zero-capital forward evidence before bounded paper promotion · Enforced inherited-quote research cooldown · Early evidence-weighted independent maker research · 24-hour shared event cooldown · Two-pass bounded live execution · Duration-aware atomic profit recycling · Feature-aware diversified maker research · Expanded independent-event executable search · Exact-fee complete-NO conversion · Evidence-first bounded snapshots · Six-hour bounded probation with matched executable exits · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Duration-aware, event-capped verified bundles · Scale-aware executable-profit floor · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 4 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 136 · Adaptive strategy 65 · Immediate protected maker conversion · Cohort-specific protected maker adaptation · Persistent protected maker-assist learner · Exact post-touch hedge-or-unwind grading · Zero-capital forward evidence before bounded paper promotion · Enforced inherited-quote research cooldown · Early evidence-weighted independent maker research · 24-hour shared event cooldown · Two-pass bounded live execution · Duration-aware atomic profit recycling · Feature-aware diversified maker research · Expanded independent-event executable search · Exact-fee complete-NO conversion · Evidence-first bounded snapshots · Six-hour bounded probation with matched executable exits · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Duration-aware, event-capped verified bundles · Scale-aware executable-profit floor · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 4 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 135;
+const BUILD_VERSION = 136;
 const AGENT_LEARNING_VERSION = 3;
 const SUGGESTION_ENGINE_VERSION = 65;
 const MAKER_STRATEGY_VERSION = 4;
@@ -4792,8 +4792,9 @@ async function manageBundleMakerQuotes(st,{executeTrades=false,touchHistory={},b
           const suggestion={...quote,quality:"bundle-arb",side:"BUNDLE",bundle_side:"BUNDLE",bundle_legs:hedge.legs,bundle_cost_per_unit:hedge.cost,
             bundle_net_profit_per_unit:hedge.profit,net_edge:hedge.net_return,edge:hedge.net_return,execution_units:quote.execution_units,
             execution_total_profit:hedge.total_profit,depth_verified:true,fees_verified:true,verification_status:"executable",friction:hedge.legs.reduce((sum,leg)=>sum+Number(leg.fee_per_share||0),0),
-            bundle_capital_efficiency:hedge.capital_efficiency,bundle_minimum_notional:BUNDLE_MAKER_MIN_NOTIONAL,
-            bundle_immediate_convert:false,rationale:"Maker-assisted protected bundle: one resting bid touched and every remaining leg was immediately repriced at exact live depth and verified fees."};
+            bundle_capital_efficiency:hedge.capital_efficiency,bundle_minimum_notional:BUNDLE_MAKER_MIN_NOTIONAL,bundle_logic:quote.logic||null,
+            bundle_immediate_convert:Boolean(quote.bundle_immediate_convert&&quote.bundle_conversion_terms_verified),
+            rationale:"Maker-assisted protected bundle: one resting bid touched and every remaining leg was immediately repriced at exact live depth and verified fees. Verified complete-NO conversion terms remain attached so collateral can be recycled immediately."};
           opened=openNegativeRiskBundle(p,agent,suggestion,Number(quote.reserved_capital),{mode:"Maker-assist"});
         }
         if(quote.shadow_only||opened){
@@ -8214,6 +8215,29 @@ function runEngineSelfTest(){
   const makerAssistTakerQuote=bundleQuoteAtUnits(makerAssistCandidate,makerAssistBooks,50);
   const makerAssistFixture=bundleMakerAssistQuote(makerAssistCandidate,makerAssistTakerQuote,makerAssistBooks);
   const makerAssistVerifiedCandidate=Object.assign({},makerAssistCandidate,{bundle_legs:makerAssistTakerQuote.legs,maker_assist:makerAssistFixture});
+  const immediateMakerBooks=new Map((convertibleNoBundleSuggestion.bundle_legs||[]).map(leg=>{
+    const ask=Number(leg.top_ask_price),bid=Math.max(0.001,ask-0.02);
+    return [String(leg.token_id),{tick_size:"0.01",min_order_size:"5",bids:[{price:String(bid),size:"100"}],asks:[{price:String(ask),size:"100"}]}];
+  }));
+  const immediateMakerTakerQuote=bundleQuoteAtUnits(convertibleNoBundleSuggestion,immediateMakerBooks,30);
+  const immediateMakerAssist=bundleMakerAssistQuote(convertibleNoBundleSuggestion,immediateMakerTakerQuote,immediateMakerBooks);
+  const immediateMakerCandidate=Object.assign({},convertibleNoBundleSuggestion,{bundle_legs:immediateMakerTakerQuote.legs,maker_assist:immediateMakerAssist});
+  const immediateMakerCohort=bundleMakerCohortKey(immediateMakerCandidate),immediateMakerProfileState=defaultState();
+  immediateMakerProfileState.agents.momentum.bundle_maker_outcomes=Array.from({length:BUNDLE_MAKER_COHORT_PROMOTION_EVENTS},(_,index)=>({
+    quote_id:`immediate-proof-${index}`,event_key:`immediate-proof-event-${index}`,bundle_id:`immediate-proof-bundle-${index}`,
+    logic:immediateMakerCandidate.bundle_logic,cohort_key:immediateMakerCohort,owner_id:"momentum",status:"hedged-lock",pnl:2,
+    shadow_only:true,deployed_capital:100,return_on_reserved:0.02,created_at:hoursAgo(2),completed_at:hoursAgo(1),
+    strategy_version:SUGGESTION_ENGINE_VERSION,bundle_maker_strategy_version:BUNDLE_MAKER_STRATEGY_VERSION,build_version:BUILD_VERSION,
+  }));
+  const immediateMakerProfile=buildSharedBundleMakerProfile(immediateMakerProfileState),immediateMakerCapitalState=defaultState();
+  const immediateMakerStage=stageBundleMakerQuotes(immediateMakerCapitalState,[immediateMakerCandidate],immediateMakerProfile,{execute:true,claimedEvents:new Set()});
+  const immediateMakerQuote=immediateMakerCapitalState.agents.momentum.bundle_maker_quotes[0],immediateMakerCashBefore=immediateMakerCapitalState.agents.momentum.cash;
+  const immediateMakerFees=new Map((immediateMakerQuote&&immediateMakerQuote.bundle_legs||[]).map(leg=>[String(leg.condition_id),leg.fee_schedule]));
+  const immediateMakerTouchedBooks=new Map([...immediateMakerBooks].map(([token,book])=>[token,String(token)===String(immediateMakerQuote&&immediateMakerQuote.touch_token_id)
+    ?Object.assign({},book,{asks:[{price:String(Number(immediateMakerQuote.maker_price)-Number(immediateMakerQuote.tick_size)),size:"100"}]})
+    :book]));
+  manageBundleMakerQuotes(immediateMakerCapitalState,{executeTrades:true,booksOverride:immediateMakerTouchedBooks,reportedFeesOverride:immediateMakerFees});
+  const immediateMakerPortfolio=immediateMakerCapitalState.agents.momentum,immediateMakerOutcome=immediateMakerPortfolio.bundle_maker_outcomes.at(-1);
   const bundleMakerState=defaultState(),bundleMakerCash=bundleMakerState.agents.value.cash;
   const initialBundleMakerProfile=buildSharedBundleMakerProfile(bundleMakerState);
   const bundleMakerStage=stageBundleMakerQuotes(bundleMakerState,[makerAssistVerifiedCandidate],initialBundleMakerProfile,{execute:true,claimedEvents:new Set()});
@@ -9009,6 +9033,11 @@ function runEngineSelfTest(){
         &&bundleMakerState.agents.value.cash===bundleMakerCash&&bundleMakerQuote.shadow_only,
       makerAssistPostTouchRepricesEveryLeg:Boolean(bundleMakerHedge.actionable&&bundleMakerHedge.legs.length===3
         &&bundleMakerHedge.cost===0.98&&bundleMakerHedge.total_profit===1),
+      makerAssistedCompleteNoConvertsImmediately:Boolean(immediateMakerAssist&&immediateMakerAssist.shadow_eligible
+        &&immediateMakerStage.capitalStaged===1&&immediateMakerOutcome&&immediateMakerOutcome.status==="hedged-lock"
+        &&immediateMakerPortfolio.cash>immediateMakerCashBefore&&immediateMakerPortfolio.positions.length===0
+        &&immediateMakerPortfolio.closed.length===3&&immediateMakerPortfolio.closed.every(pos=>pos.close_action==="CONVERT")
+        &&immediateMakerPortfolio.bundle_maker_quotes.length===0),
       makerAssistFailedHedgeUsesExecutableUnwind:Boolean(bundleMakerUnwind.verified&&bundleMakerUnwind.status==="immediate-unwind"
         &&bundleMakerUnwind.pnl===-0.5),
       offlineBundleMakerCannotInventFill:offlineBundleMakerUnchanged&&bundleMakerState.agents.value.bundle_maker_outcomes.length===0,
