@@ -26,7 +26,7 @@ jobs:
         env:
           ARENA_URL: https://polymarket-site-eta.vercel.app
         run: |
-          if curl --fail --silent --show-error "${ARENA_URL}/?search_preflight=${GITHUB_RUN_ID}" | grep -q 'BUNDLE_DEPTH_CANDIDATE_LIMIT=200'; then
+          if curl --fail --silent --show-error "${ARENA_URL}/?search_preflight=${GITHUB_RUN_ID}" | grep -q 'BUNDLE_DEPTH_CANDIDATE_LIMIT=300'; then
             echo "Expanded executable search is already live."
             exit 0
           fi
@@ -41,7 +41,7 @@ jobs:
           ARENA_URL: https://polymarket-site-eta.vercel.app
         run: |
           for attempt in $(seq 1 40); do
-            if curl --fail --silent --show-error "${ARENA_URL}/?search_wait=${GITHUB_RUN_ID}-${attempt}" | grep -q 'BUNDLE_DEPTH_CANDIDATE_LIMIT=200'; then
+            if curl --fail --silent --show-error "${ARENA_URL}/?search_wait=${GITHUB_RUN_ID}-${attempt}" | grep -q 'BUNDLE_DEPTH_CANDIDATE_LIMIT=300'; then
               echo "Expanded executable search is live."
               exit 0
             fi
