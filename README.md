@@ -23,7 +23,7 @@ Offline cycles can apply calibration already earned from live observations, but
 the evidence ledger is read-only: cached prices cannot grade pending signals,
 expire horizons, or create new observations.
 
-Build 145 targets five-minute slots with a serialized, self-chained GitHub Actions runtime.
+Build 146 targets five-minute slots with a serialized, self-chained GitHub Actions runtime.
 The mutable snapshot stays on the dedicated `runtime-state` branch, which is
 explicitly excluded from Vercel Git deployments through
 `git.deploymentEnabled`. This prevents high-frequency state commits from
@@ -154,6 +154,13 @@ modeled unwind loss to remain active for three hours. Weaker observations and ev
 capital-backed quote still expire after one hour. The policy uses protected-maker evidence
 version 5 so the longer-window outcomes cannot silently mix with earlier one-hour cohorts;
 offline cycles still cannot create touches, fills, outcomes, cash changes, or P&L.
+
+Build 146 adds sequential, direction-specific paper probation to the shock learner. A lane
+must have at least five independent current-strategy outcomes, a 5% mean, a positive median,
+a 60% win rate, and no outcome worse than -15%. It may then risk only 0.10% of equity per
+position and 0.50% total shock capital per agent. The opposite direction does not inherit
+the permission, and the existing 40-event positive-confidence gate remains required for full
+paper sizing. Cached offline snapshots cannot create or grade these entries.
 
 Build 136 also preserves verified complete-NO conversion metadata after a
 maker-assisted touch. Once that cohort earns paper promotion, buying the remaining

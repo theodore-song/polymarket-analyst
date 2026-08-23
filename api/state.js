@@ -308,6 +308,7 @@ export function compactSuggestion(s) {
     pilot_prior: s.pilot_prior,
     shock_move_1h: s.shock_move_1h, shock_prior_move_1h: s.shock_prior_move_1h, shock_move_3h: s.shock_move_3h,
     shock_observed_at: s.shock_observed_at, shock_strategy_version: s.shock_strategy_version,
+    shock_lane_position_pct: s.shock_lane_position_pct, shock_lane_total_capital_pct: s.shock_lane_total_capital_pct,
     drivers: s.drivers, rationale: s.rationale,
   };
 }
