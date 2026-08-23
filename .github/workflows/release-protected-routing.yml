@@ -1,0 +1,51 @@
+name: Release protected agent routing after Vercel quota reset
+
+on:
+  schedule:
+    - cron: "25 1-23/2 23 8 *"
+    - cron: "25 1-13/2 24 8 *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-protected-routing
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Trigger the deferred production deployment
+        env:
+          ARENA_URL: https://polymarket-site-eta.vercel.app
+        run: |
+          if curl --fail --silent --show-error "${ARENA_URL}/?routing_preflight=${GITHUB_RUN_ID}" | grep -q 'routesExclusiveNoPairToTailAlpha'; then
+            echo "Protected agent routing is already live."
+            exit 0
+          fi
+          printf 'Protected routing deployment retry from run %s at %s\n' "$GITHUB_RUN_ID" "$(date -u +%FT%TZ)" > .protected-routing-release-trigger
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .protected-routing-release-trigger
+          git commit -m "Retry protected agent routing deployment"
+          git push origin HEAD:main
+      - name: Verify the exact routing revision in production
+        env:
+          ARENA_URL: https://polymarket-site-eta.vercel.app
+        run: |
+          for attempt in $(seq 1 40); do
+            if curl --fail --silent --show-error "${ARENA_URL}/?routing_wait=${GITHUB_RUN_ID}-${attempt}" | grep -q 'routesExclusiveNoPairToTailAlpha'; then
+              echo "Protected agent routing is live."
+              exit 0
+            fi
+            sleep 30
+          done
+          echo "The Vercel quota has not admitted this revision yet; a later scheduled retry will continue."
+          exit 1

@@ -5,6 +5,7 @@ import { ALLOWED_RUNTIME_KEYS, compactRuntimeTransportSnapshot, validateRuntimeS
 const index = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const api = fs.readFileSync(new URL("../api/state.js", import.meta.url), "utf8");
 const workflow = fs.readFileSync(new URL("../.github/workflows/autonomous-cycle.yml", import.meta.url), "utf8");
+const routingReleaseWorkflow = fs.readFileSync(new URL("../.github/workflows/release-protected-routing.yml", import.meta.url), "utf8");
 const vercelConfig = JSON.parse(fs.readFileSync(new URL("../vercel.json", import.meta.url), "utf8"));
 const runner = fs.readFileSync(new URL("./run-autonomous-cycle.mjs", import.meta.url), "utf8");
 const resolutionAudit = JSON.parse(fs.readFileSync(new URL("../research/resolution-week-no-audit.json", import.meta.url), "utf8"));
@@ -72,6 +73,9 @@ assert.match(api, /searchParams\.set\("runtime", `\$\{Date\.now\(\)\}/);
 assert.match(workflow, /cron: "2,7,12,17,22,27,32,37,42,47,52,57 \* \* \* \*"/);
 assert.match(workflow, /contents: write/);
 assert.match(workflow, /EXPECTED_BUILD: "124"/);
+assert.match(routingReleaseWorkflow, /name: Release protected agent routing after Vercel quota reset/);
+assert.match(routingReleaseWorkflow, /routesExclusiveNoPairToTailAlpha/);
+assert.match(routingReleaseWorkflow, /cron: "25 1-23\/2 23 8 \*"/);
 assert.match(workflow, /actions: write/);
 assert.match(workflow, /cancel-in-progress: false/);
 assert.match(workflow, /next=\$\(\( \(now \/ 300 \+ 1\) \* 300 \+ 15 \)\)/);
