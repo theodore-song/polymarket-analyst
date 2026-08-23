@@ -91,7 +91,9 @@ function compactMakerOutcome(row) {
   if (!row || typeof row !== "object") return row;
   return {
     quote_id: row.quote_id, market_id: row.market_id, event_key: row.event_key, category: row.category,
-    spread: row.spread, spread_band: row.spread_band, reward_yield_band: row.reward_yield_band, status: row.status,
+    spread: row.spread, spread_band: row.spread_band, reward_yield_band: row.reward_yield_band,
+    price_balance_band: row.price_balance_band, day_move_band: row.day_move_band, margin_band: row.margin_band,
+    competition_band: row.competition_band, status: row.status,
     pnl: row.pnl, shadow_only: row.shadow_only, deployed_capital: row.deployed_capital, reserved_capital: row.reserved_capital,
     completed_at: row.completed_at, strategy_version: row.strategy_version, maker_strategy_version: row.maker_strategy_version,
   };

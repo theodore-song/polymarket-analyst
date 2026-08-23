@@ -23,7 +23,7 @@ Offline cycles can apply calibration already earned from live observations, but
 the evidence ledger is read-only: cached prices cannot grade pending signals,
 expire horizons, or create new observations.
 
-Build 127 targets five-minute slots with a serialized, self-chained GitHub Actions runtime.
+Build 128 targets five-minute slots with a serialized, self-chained GitHub Actions runtime.
 The mutable snapshot stays on the dedicated `runtime-state` branch, which is
 explicitly excluded from Vercel Git deployments through
 `git.deploymentEnabled`. This prevents high-frequency state commits from
@@ -70,7 +70,7 @@ Polymarket event key. Related Ethereum or Bitcoin contracts cannot create
 several simultaneous copies of one move, and outcomes from the same underlying
 three-hour shock window count as one learner event.
 
-Each Build 127 cycle also scans the 1,000 most-active Polymarket events for
+Each Build 128 cycle also scans the 1,000 most-active Polymarket events for
 complete negative-risk bundles and logically nested threshold or deadline
 pairs, plus same-market YES/NO complements whose equal shares have a fixed
 $1 redemption value. Polymarket's documented complete-set merge converts equal
@@ -131,7 +131,7 @@ The Suggestions view stores scan, depth, fee, actionable, and closest
 executable-margin counts so an empty lane is evidence rather than an ambiguous
 failure.
 
-Build 127 retains the directional learner's exact-fee policy, which replaced the blanket half-cent cost with
+Build 128 retains the directional learner's exact-fee policy, which replaced the blanket half-cent cost with
 the market's Gamma fee schedule at both the entry and future checkpoint, plus a
 separate half-cent round-trip slippage allowance. Fee-free markets pay only the
 slippage allowance; an unavailable fee schedule gets a conservative four-cent
@@ -164,7 +164,7 @@ target fell to -44.14% in validation and remained negative in holdout, so it
 cannot authorize capital. The reproducible result is stored in
 `research/settlement-calibration-exact-fee-5000-audit.json`.
 
-Build 127 retains Build 100's retirement of the old 3-6 day resolution-window
+Build 128 retains Build 100's retirement of the old 3-6 day resolution-window
 capital permission. That audit clustered confidence by event but still averaged
 several correlated contracts inside each event, while production could choose
 only one. The corrected replay chooses the highest-volume eligible contract per event and
@@ -284,7 +284,7 @@ evidence proves an edge.
 
 Run `npm run evaluate:sports-favorites` for the retired pregame favorite audit.
 Its 12-hour, 60%-75% cohort had positive point estimates but did not establish a
-reliable confidence bound, so Build 127 no longer allocates capital to that rule.
+reliable confidence bound, so Build 128 no longer allocates capital to that rule.
 
 Strategy 65 also tracks the exact-fee settlement calibration's three-day Sports
 NO cohort as a zero-capital forward lane. The corrected 5,000-market run
@@ -344,14 +344,21 @@ passed the chronological path screen at 25% of the present reward estimate, but
 both did so without an adverse historical touch; this prioritizes shadow
 research and does not authorize capital.
 
-Maker research version 3 lets all ten agents split distinct zero-capital shadow
+Maker research version 4 lets all ten agents split distinct zero-capital shadow
 quote pairs selected by the shared reward-book audit. Token histories are fetched
 in batches, so the learner no longer silently ignores quotes after the first ten
 markets. A live cycle must still verify each touch from public CLOB price history
 or a current book cross. After the first one-sided touch, the shadow engine now
 buys the complement only when the current executable ask locks a positive margin
 after modeled cost; otherwise it grades an immediate executable exit. It no
-longer waits with adverse one-sided shadow inventory.
+longer waits with adverse one-sided shadow inventory. Build 128 records seven
+reproducible setup cohorts for every completed observation: category, spread,
+reward yield, quote-price balance, recent movement, paired locked margin, and
+visible competition. Shadow selection adds a bounded novelty score so the ten
+agents rotate toward under-sampled configurations instead of repeatedly measuring
+one dominant setup. A mature losing cohort vetoes risk; promotion would require
+every matching cohort to clear its independent-event confidence and locked-fill
+requirements, as well as a separately approved chronological backtest.
 
 The August 21 expanded audit loaded both token histories for all 500 requested
 markets, formed 7,335 observations, and tested 6,048 wait and immediate-hedge

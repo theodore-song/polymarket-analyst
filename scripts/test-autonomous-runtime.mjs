@@ -16,13 +16,13 @@ const settlementCalibrationAudit = JSON.parse(fs.readFileSync(new URL("../resear
 const sportsEvaluator = fs.readFileSync(new URL("./evaluate-sports-favorites.mjs", import.meta.url), "utf8");
 const build = Number(index.match(/const BUILD_VERSION = (\d+);/)?.[1]);
 
-assert.equal(build, 127);
+assert.equal(build, 128);
 assert.equal(vercelConfig.git?.deploymentEnabled?.["runtime-state"], false);
 assert.equal(settlementCalibrationAudit.requested_markets, 5000);
 assert.equal(settlementCalibrationAudit.train_passed, 0);
 assert.equal(settlementCalibrationAudit.validation_selected, 0);
 assert.equal(settlementCalibrationAudit.holdout_passed, 0);
-assert.match(index, /Adaptive strategy 65 · expanded executable search · build 127/);
+assert.match(index, /Adaptive strategy 65 · feature-aware maker research · build 128/);
 assert.deepEqual([...ALLOWED_RUNTIME_KEYS].sort(), ["pma_agents_v2", "pma_suggestions_v5"]);
 assert.match(index, /function collectPublicRuntimeItems\(\)/);
 assert.match(index, /const PUBLIC_RUNTIME_KEYS=Object\.freeze\(\[AGENTS_KEY,SUG_KEY\]\)/);
@@ -72,7 +72,7 @@ assert.match(api, /Buffer\.from\(file\.content/);
 assert.match(api, /searchParams\.set\("runtime", `\$\{Date\.now\(\)\}/);
 assert.match(workflow, /cron: "2,7,12,17,22,27,32,37,42,47,52,57 \* \* \* \*"/);
 assert.match(workflow, /contents: write/);
-assert.match(workflow, /EXPECTED_BUILD: "127"/);
+assert.match(workflow, /EXPECTED_BUILD: "128"/);
 assert.equal((workflow.match(/if: always\(\)/g) || []).length, 2);
 assert.match(routingReleaseWorkflow, /name: Release expanded executable search after Vercel quota reset/);
 assert.match(routingReleaseWorkflow, /BUNDLE_DEPTH_CANDIDATE_LIMIT=200/);
@@ -265,7 +265,8 @@ for (const [index, portfolio] of Object.values(transportState.agents).entries())
   portfolio.positions = [{ market_id: `position-${index}`, value: 1000 }];
   portfolio.history = Array.from({ length: 80 }, (_, row) => ({ date: "2026-08-22", action: "WATCH", question: "q".repeat(180), detail: "d".repeat(500 + row) }));
   portfolio.snapshots = Array.from({ length: 240 }, (_, row) => ({ timestamp: new Date(1_700_000_000_000 + row * 300_000).toISOString(), equity: 10000 + row }));
-  portfolio.maker_outcomes = Array.from({ length: 45 }, (_, row) => ({ quote_id: `${index}-${row}`, pnl: row / 100 }));
+  portfolio.maker_outcomes = Array.from({ length: 45 }, (_, row) => ({ quote_id: `${index}-${row}`, pnl: row / 100,
+    price_balance_band: "balanced", day_move_band: "calm", margin_band: "thick", competition_band: "high" }));
 }
 transportState.signal_ledger = {
   pending: Array.from({ length: 50 }, (_, index) => ({ key: `pending-${index}`, event_key: `event-${index}` })),
@@ -287,6 +288,10 @@ assert.equal(transportedState.agents.value.snapshots.length, 96);
 assert.equal(transportedState.agents.value.snapshots[0].timestamp, transportState.agents.value.snapshots[0].timestamp);
 assert.equal(transportedState.agents.value.snapshots.at(-1).timestamp, transportState.agents.value.snapshots.at(-1).timestamp);
 assert.equal(transportedState.agents.value.maker_outcomes.length, 30);
+assert.equal(transportedState.agents.value.maker_outcomes[0].price_balance_band, "balanced");
+assert.equal(transportedState.agents.value.maker_outcomes[0].day_move_band, "calm");
+assert.equal(transportedState.agents.value.maker_outcomes[0].margin_band, "thick");
+assert.equal(transportedState.agents.value.maker_outcomes[0].competition_band, "high");
 assert.equal(JSON.parse(transportOutput.items.pma_suggestions_v5).suggestions.length, 300);
 assert.equal(transportOutput.summary.signal_ledger.pending_retained, 50);
 assert.equal(transportOutput.summary.signal_ledger.outcomes_retained, 144);
