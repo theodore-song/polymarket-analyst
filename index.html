@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 65 · settlement-gap-safe maker pilots · build 139</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 65 · direction-specific shock learning · build 140</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 139 active:</b> Protected maker pilots require at least 12 hours before scheduled resolution, preventing ended and near-settlement books from entering the fill learner. The $0.25 bounded-pilot floor still requires exact depth and fees, duration-adjusted return, a 3% current-unwind cap, and lock profit at least as large as unwind loss. Superseded quotes retire before touch checks. Profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 140 active:</b> Shock fades now learn buy-NO and buy-YES outcomes independently, so one direction cannot borrow confidence from the other. Existing forward observations remain intact, and each lane must clear its own confidence gate before paper capital. Protected maker pilots still require a 12-hour resolution buffer and exact depth, fees, and hedge-or-unwind checks. Profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 139 · Adaptive strategy 65 · 12-hour protected-maker resolution buffer · Automatic superseded-quote retirement · Pilot-calibrated protected maker floor · Explicit maker rejection diagnostics · Risk-budgeted maker fill priority · Immediate protected maker conversion · Cohort-specific protected maker adaptation · Persistent protected maker-assist learner · Exact post-touch hedge-or-unwind grading · Zero-capital forward evidence before bounded paper promotion · Enforced inherited-quote research cooldown · Early evidence-weighted independent maker research · 24-hour shared event cooldown · Two-pass bounded live execution · Duration-aware atomic profit recycling · Feature-aware diversified maker research · Expanded independent-event executable search · Exact-fee complete-NO conversion · Evidence-first bounded snapshots · Six-hour bounded probation with matched executable exits · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Duration-aware, event-capped verified bundles · Scale-aware executable-profit floor · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 4 · Agent learning 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 140 · Adaptive strategy 65 · Direction-specific shock-fade confidence gates · Existing forward evidence preserved · 12-hour protected-maker resolution buffer · Automatic superseded-quote retirement · Pilot-calibrated protected maker floor · Explicit maker rejection diagnostics · Risk-budgeted maker fill priority · Immediate protected maker conversion · Cohort-specific protected maker adaptation · Persistent protected maker-assist learner · Exact post-touch hedge-or-unwind grading · Zero-capital forward evidence before bounded paper promotion · Enforced inherited-quote research cooldown · Early evidence-weighted independent maker research · 24-hour shared event cooldown · Two-pass bounded live execution · Duration-aware atomic profit recycling · Feature-aware diversified maker research · Expanded independent-event executable search · Exact-fee complete-NO conversion · Evidence-first bounded snapshots · Six-hour bounded probation with matched executable exits · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Duration-aware, event-capped verified bundles · Scale-aware executable-profit floor · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 4 · Agent learning 3 · Shock direction lanes 1 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 139;
+const BUILD_VERSION = 140;
 const AGENT_LEARNING_VERSION = 3;
 const SUGGESTION_ENGINE_VERSION = 65;
 const MAKER_STRATEGY_VERSION = 4;
@@ -3567,30 +3567,38 @@ async function fetchShockFadeSuggestions(markets){
   return eligible.map(m=>shockFadeSuggestion(m,SHOCK_FADE_HISTORY_CACHE.history[String(m.clob_token_ids[0])]||[],observedAt)).filter(Boolean)
     .sort((a,b)=>Math.abs(b.shock_move_3h)-Math.abs(a.shock_move_3h));
 }
-function shockFadePilotProfile(p){
+function shockFadePilotProfile(p,side=null){
+  const normalizedSide=side==="YES"||side==="NO"?side:null;
   const grouped=new Map();
-  (p&&p.shock_fade_outcomes||[]).filter(outcome=>Number(outcome.shock_strategy_version||0)===SHOCK_FADE_STRATEGY_VERSION).forEach((outcome,index)=>{
+  (p&&p.shock_fade_outcomes||[]).filter(outcome=>Number(outcome.shock_strategy_version||0)===SHOCK_FADE_STRATEGY_VERSION
+    &&(!normalizedSide||outcome.side===normalizedSide)).forEach((outcome,index)=>{
     const key=shockFadeEvidenceKey(outcome,index,"shock"),rows=grouped.get(key)||[];
     rows.push(clamp(Number(outcome.net_return||0),-1,2));grouped.set(key,rows);
   });
-  (p&&p.closed||[]).filter(trade=>(trade.signal_type||"")==="shock-fade-pilot"&&Number(trade.shock_strategy_version||0)===SHOCK_FADE_STRATEGY_VERSION).forEach((trade,index)=>{
+  (p&&p.closed||[]).filter(trade=>(trade.signal_type||"")==="shock-fade-pilot"&&Number(trade.shock_strategy_version||0)===SHOCK_FADE_STRATEGY_VERSION
+    &&(!normalizedSide||trade.side===normalizedSide)).forEach((trade,index)=>{
     const key=shockFadeEvidenceKey(trade,index,"shock-capital"),basis=Math.max(1,Number(trade.original_cost||trade.cost||0)),rows=grouped.get(key)||[];
     rows.push(clamp(Number(trade.realized_pnl||0)/basis,-1,2));grouped.set(key,rows);
   });
   const returns=[...grouped.values()].map(rows=>rows.reduce((sum,value)=>sum+value,0)/rows.length),events=returns.length;
   const mean=events?returns.reduce((sum,value)=>sum+value,0)/events:0,variance=events>1?returns.reduce((sum,value)=>sum+(value-mean)**2,0)/(events-1):0;
   const margin=1.645*Math.sqrt(variance/Math.max(1,events)),lower=mean-margin,upper=mean+margin;
-  const pnl=(p&&p.closed||[]).filter(trade=>(trade.signal_type||"")==="shock-fade-pilot"&&Number(trade.shock_strategy_version||0)===SHOCK_FADE_STRATEGY_VERSION).reduce((sum,trade)=>sum+Number(trade.realized_pnl||0),0);
+  const pnl=(p&&p.closed||[]).filter(trade=>(trade.signal_type||"")==="shock-fade-pilot"&&Number(trade.shock_strategy_version||0)===SHOCK_FADE_STRATEGY_VERSION
+    &&(!normalizedSide||trade.side===normalizedSide)).reduce((sum,trade)=>sum+Number(trade.realized_pnl||0),0);
   const demoted=(events>=SHOCK_FADE_VERDICT_EVENTS&&(mean<=-0.02||upper<=0))||pnl<=-Math.max(1,Number(p&&p.starting_balance||STARTING_BALANCE))*0.03;
   const qualified=!demoted&&events>=SHOCK_FADE_QUALIFICATION_EVENTS&&lower>0.01;
   const promoted=qualified&&events>=SHOCK_FADE_PROMOTION_EVENTS&&lower>0.015;
   const allowed=!demoted&&(SHOCK_FADE_BACKTEST_APPROVED||qualified);
-  return {state:demoted?"demoted":(promoted?"forward-promoted":(qualified?"forward-qualified":"shadow-only")),allowed,qualified,promoted,demoted,events,mean:+mean.toFixed(4),lower:+lower.toFixed(4),upper:+upper.toFixed(4),
-    pnl:+pnl.toFixed(2),shadow_pnl_per_100:+(mean*100).toFixed(2),active_shadows:(p&&p.shock_fade_shadows||[]).length,
+  return {side:normalizedSide,state:demoted?"demoted":(promoted?"forward-promoted":(qualified?"forward-qualified":"shadow-only")),allowed,qualified,promoted,demoted,events,mean:+mean.toFixed(4),lower:+lower.toFixed(4),upper:+upper.toFixed(4),
+    pnl:+pnl.toFixed(2),shadow_pnl_per_100:+(mean*100).toFixed(2),active_shadows:(p&&p.shock_fade_shadows||[]).filter(row=>!normalizedSide||row.side===normalizedSide).length,
     expired_ungraded:Number(p&&p.shock_fade_expired_ungraded||0),position_pct:allowed?(promoted?SHOCK_FADE_PROMOTED_POSITION_PCT:SHOCK_FADE_INITIAL_POSITION_PCT):0};
 }
+function shockFadeSideProfile(profile,side){
+  return profile&&profile.cohorts&&profile.cohorts[side]||profile;
+}
 function applyShockFadeForwardPromotion(s,p,profileOverride=null){
-  if(!s||(s.signal_type||"")!=="shock-fade-shadow")return s;const profile=profileOverride||shockFadePilotProfile(p);if(!profile.allowed)return s;
+  if(!s||(s.signal_type||"")!=="shock-fade-shadow")return s;
+  const profile=profileOverride?shockFadeSideProfile(profileOverride,s.side):shockFadePilotProfile(p,s.side);if(!profile.allowed)return s;
   return Object.assign({},s,{quality:"shock-fade-pilot",signal_type:"shock-fade-pilot",trade_ready:true,entry_candidate:true,audited_observation_only:false,
     adaptive_promotion:profile.promoted,watch_only:false,rationale:profile.promoted
       ?`Forward size promotion: ${profile.events} independent Strategy ${SHOCK_FADE_STRATEGY_VERSION} events produced a ${(profile.mean*100).toFixed(2)}% mean and ${(profile.lower*100).toFixed(2)}% 90% lower bound after executable costs. Paper size increases to 1.5% with a 5% total cap. ${s.rationale||""}`
@@ -3662,7 +3670,8 @@ function sharedShockFadePilotProfile(st){
     shock_fade_shadows:portfolios.flatMap(p=>p.shock_fade_shadows||[]),
     closed:portfolios.flatMap(p=>p.closed||[]),
     shock_fade_expired_ungraded:portfolios.reduce((sum,p)=>sum+Number(p.shock_fade_expired_ungraded||0),0)};
-  return Object.assign(shockFadePilotProfile(combined),{scope:"shared-adopters",adopters:portfolios.length});
+  return Object.assign(shockFadePilotProfile(combined),{scope:"shared-adopters",adopters:portfolios.length,
+    cohorts:{YES:shockFadePilotProfile(combined,"YES"),NO:shockFadePilotProfile(combined,"NO")}});
 }
 function resolutionWeekNoPilotProfile(p){
   const grouped=new Map();
@@ -5135,10 +5144,14 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
       market_learning_score:resolutionProfile.mean,market_learning_confidence:Math.min(1,resolutionProfile.events/RESOLUTION_WEEK_NO_PROMOTION_EVENTS),learning_state:resolutionProfile.state,
       market_learning_state:resolutionProfile.state,historical_prior_score:0,historical_prior_confidence:0,historical_prior_features:["recent-resolution-week-no"],
       historical_requires_promotion:false,learning_multiplier:1,learning_exploration:false,learning_allowed:resolutionProfile.allowed});
-    if(s.signal_type==="shock-fade-pilot")return Object.assign({},s,{peer_conviction:Number(s.conviction||0),peer_boost:0,learning_score:shockProfile.mean,learning_confidence:Math.min(1,shockProfile.events/SHOCK_FADE_PROMOTION_EVENTS),
-      market_learning_score:shockProfile.mean,market_learning_confidence:Math.min(1,shockProfile.events/SHOCK_FADE_PROMOTION_EVENTS),learning_state:shockProfile.state,
-      market_learning_state:shockProfile.state,historical_prior_score:0,historical_prior_confidence:0,historical_prior_features:["forward-shock-fade"],
-      historical_requires_promotion:false,learning_multiplier:1,learning_exploration:false,learning_allowed:shockProfile.allowed});
+    if(s.signal_type==="shock-fade-pilot"){
+      const lane=shockFadeSideProfile(shockProfile,s.side);
+      return Object.assign({},s,{peer_conviction:Number(s.conviction||0),peer_boost:0,learning_score:lane.mean,learning_confidence:Math.min(1,lane.events/SHOCK_FADE_PROMOTION_EVENTS),
+        market_learning_score:lane.mean,market_learning_confidence:Math.min(1,lane.events/SHOCK_FADE_PROMOTION_EVENTS),learning_state:lane.state,
+        market_learning_state:lane.state,historical_prior_score:0,historical_prior_confidence:0,historical_prior_features:[`forward-shock-fade-${String(s.side||"").toLowerCase()}`],
+        historical_requires_promotion:false,learning_multiplier:1,learning_exploration:false,learning_allowed:lane.allowed,
+        shock_lane_position_pct:lane.position_pct,shock_lane_promoted:lane.promoted,shock_lane_state:lane.state});
+    }
     const peerAdjusted=peerAdjustedSuggestion(s,peerStats),learning=learnedOpportunity(cfg,p,peerAdjusted,learningProfile,d.marketLearning);
     return Object.assign({},peerAdjusted,{learning_score:learning.score,learning_confidence:learning.confidence,
       market_learning_score:learning.market_score,market_learning_confidence:learning.market_confidence,
@@ -5170,7 +5183,7 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
       return true;
     }
     if(s.signal_type==="shock-fade-pilot"){
-      if(!shockProfile.allowed)return reject("shock_learning");
+      if(!shockFadeSideProfile(shockProfile,s.side).allowed)return reject("shock_learning");
       if(shockFadeClaimKeys(s).some(key=>heldShockClaims.has(key)))return reject("event_overlap");
       if(Number(s.conviction||0)<d.minConv)return reject("confidence");
       if(hasPosition(p,s.market_id))return reject("already_held");
@@ -5242,7 +5255,7 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
     let frac;
     if(s.adaptive_probation){frac=Math.min(d.maxFrac,DIRECTIONAL_PROBATION_POSITION_PCT);}
     else if(s.signal_type==="sports-contest-no-pilot"){frac=Math.min(d.maxFrac,Number(pilotProfile.position_pct||0));}
-    else if(s.signal_type==="shock-fade-pilot"){frac=Math.min(d.maxFrac,Number(shockProfile.position_pct||0));}
+    else if(s.signal_type==="shock-fade-pilot"){frac=Math.min(d.maxFrac,Number(s.shock_lane_position_pct||shockFadeSideProfile(shockProfile,s.side).position_pct||0));}
     else if(s.signal_type==="resolution-week-no-pilot"){frac=Math.min(d.maxFrac,Number(resolutionProfile.position_pct||0));}
     else if(cfg.flat){frac=d.maxFrac;}
     else{const base=(s.peer_conviction/100)*Math.min(1,effectiveEntryEdge(s)/EDGE_SCALE);frac=Math.min(d.maxFrac,cfg.kelly*base);}
@@ -5308,7 +5321,7 @@ function openPositions(p,cfg,rankedSugs,focus,decision,avoidMarketIds,peerStats=
       :s.signal_type==="sports-contest-no-pilot"
       ?`${decision?decision.mode+" mode — ":""}Bounded sports-contest exploration bought ${shares} NO '${s.question.slice(0,40)}' @ modeled ${pct(entry)} for ${fmtUSD(cost)} (${pct(Number(s.market_price||entry))} midpoint + ${((entry-Number(s.market_price||entry))*100).toFixed(2)}c exact-fee execution cost) · one position for contest ${s.event_key||s.market_id} · learner state ${pilotProfile.state} · ${(Number(s.hours_to_start)||0).toFixed(1)}h before start`
       :s.signal_type==="shock-fade-pilot"
-      ?`${decision?decision.mode+" mode — ":""}${shockProfile.promoted?"Forward-promoted":"Forward-qualified"} ${SHOCK_FADE_EXIT_HOURS}-hour shock fade bought ${shares} ${s.side} '${s.question.slice(0,40)}' @ executable modeled ${pct(entry)} for ${fmtUSD(cost)} after a ${(Number(s.shock_move_3h||0)*100).toFixed(2)}-point move · learner state ${shockProfile.state} · fixed executable exit target in ${SHOCK_FADE_EXIT_HOURS}h`
+      ?`${decision?decision.mode+" mode — ":""}${s.shock_lane_promoted?"Forward-promoted":"Forward-qualified"} ${SHOCK_FADE_EXIT_HOURS}-hour shock fade bought ${shares} ${s.side} '${s.question.slice(0,40)}' @ executable modeled ${pct(entry)} for ${fmtUSD(cost)} after a ${(Number(s.shock_move_3h||0)*100).toFixed(2)}-point move · ${s.side} lane state ${s.shock_lane_state||shockFadeSideProfile(shockProfile,s.side).state} · fixed executable exit target in ${SHOCK_FADE_EXIT_HOURS}h`
       :s.signal_type==="resolution-week-no-pilot"
       ?`${decision?decision.mode+" mode — ":""}${resolutionProfile.promoted?"Forward-promoted":"Bounded current-regime"} ${s.target_horizon_days||7}-day resolution pilot bought ${shares} NO '${s.question.slice(0,40)}' @ executable modeled ${pct(entry)} for ${fmtUSD(cost)} · one owner for event ${s.event_key||s.market_id} · hold to verified settlement · shared state ${resolutionProfile.state}`
       :`${decision?decision.mode+" mode — ":""}Bought ${shares} ${s.side} '${s.question.slice(0,40)}' @ ${pct(entry)} for ${fmtUSD(cost)} · max binary loss budget ${(riskBudgetPct*100).toFixed(1)}% · signal margin ${((Math.abs(s.net_edge!=null?s.net_edge:s.edge))*100).toFixed(1)}c · learned weight ${Number(s.learning_multiplier||1).toFixed(2)}x (${s.learning_state||"observing"}/${s.market_learning_state||"observing"})${(s.historical_prior_features||[]).length?` · history prior ${(s.historical_prior_features||[]).join("+")}`:""} · evidence ${Math.round((s.evidence_score||0)*100)}${s.peer_note?` (${s.peer_note})`:""}`;
@@ -5650,7 +5663,8 @@ async function runDailyCycle(){
       adopter.lastDecision=Object.assign({},adopter.lastDecision,{shockSharedLearning:true,shockShadowActive:shockStage.active,shockShadowStaged:shockStage.staged,
         shockShadowCandidates:shockStage.candidates,shockShadowCompleted:shockShadowActivity.completed,shockShadowExpired:shockShadowActivity.expired,
         shockFadePilot:shockProfile});
-      adopter.lastDecision.allocationStatus=`${adopter.lastDecision.allocationStatus||""} Shared shock strategy ${SHOCK_FADE_STRATEGY_VERSION}: ${shockStage.active} zero-capital observation${shockStage.active===1?"":"s"} active, ${shockShadowActivity.completed} ${SHOCK_FADE_EXIT_HOURS}-hour outcome${shockShadowActivity.completed===1?"":"s"} graded this cycle, ${shockProfile.events}/${SHOCK_FADE_QUALIFICATION_EVENTS} events needed for 1% capital and ${SHOCK_FADE_PROMOTION_EVENTS} for 1.5%; current cap ${(shockProfile.position_pct*100).toFixed(2)}%.`.trim();
+      const noLane=shockProfile.cohorts.NO,yesLane=shockProfile.cohorts.YES;
+      adopter.lastDecision.allocationStatus=`${adopter.lastDecision.allocationStatus||""} Shared shock strategy ${SHOCK_FADE_STRATEGY_VERSION}: ${shockStage.active} zero-capital observation${shockStage.active===1?"":"s"} active and ${shockShadowActivity.completed} graded this cycle. Directional gates are independent: buy-NO ${noLane.events} events, ${(noLane.mean*100).toFixed(2)}% mean, ${(noLane.lower*100).toFixed(2)}% lower bound, ${(noLane.position_pct*100).toFixed(2)}% cap; buy-YES ${yesLane.events} events, ${(yesLane.mean*100).toFixed(2)}% mean, ${(yesLane.lower*100).toFixed(2)}% lower bound, ${(yesLane.position_pct*100).toFixed(2)}% cap. Each lane needs ${SHOCK_FADE_QUALIFICATION_EVENTS} events and a lower bound above 1% before capital.`.trim();
     });
     const resolutionStage=stageResolutionWeekNoShadows(resolutionShadowPortfolio,cycleSuggestions,{execute:runMode==="live"&&entriesAllowed,usedEventKeys:claimedResolutionWeekEvents});
     const resolutionProfile=sharedResolutionWeekNoPilotProfile(st);
@@ -5862,7 +5876,7 @@ function decisionSummary(p){
   const makerStats=d.makerProfile&&d.makerProfile.global;
   const maker=d.makerQuotes!=null?` Maker research: ${d.makerShadowActive||0} zero-capital lock-or-exit observations active; ${d.makerFills||0} verified touches and ${d.makerShadowCompleted||0} outcomes completed this cycle.${makerStats?` Event-clustered ledger: ${makerStats.attempts} attempts / ${makerStats.events} events, ${makerStats.locked} locked pairs, ${makerStats.adverse} immediate adverse exits, ${makerStats.unfilled} unfilled, and ${fmtUSD(makerStats.shadow_pnl)} simulated shadow net.`:""} Capital is disabled because neither the 6,048-rule chronological maker audit nor the reward stress test produced a validated holdout winner. Hypothetical rewards are excluded.`:"";
   const sportsPilot=d.sportsFavoritePilot?` Sports contest NO learner: ${d.sportsFavoritePilot.state}, ${d.sportsFavoritePilot.active_shadows||0} zero-capital observations active and ${d.sportsFavoritePilot.events} independent settled contests, ${d.sportsFavoritePilot.events?`${(d.sportsFavoritePilot.mean*100).toFixed(2)}% mean with ${d.sportsFavoritePilot.lower>=0?"+":""}${(d.sportsFavoritePilot.lower*100).toFixed(2)}% to ${d.sportsFavoritePilot.upper>=0?"+":""}${(d.sportsFavoritePilot.upper*100).toFixed(2)}% 90% interval; `:""}${fmtUSD(d.sportsFavoritePilot.shadow_pnl_per_100||0)} simulated per-$100 net and ${fmtUSD(d.sportsFavoritePilot.pnl)} realized capital P&L. Current per-position cap ${(d.sportsFavoritePilot.position_pct*100).toFixed(2)}%; capital begins only after 20 independent outcomes clear the positive lower-bound gate, and 40 stronger outcomes can raise it to 1%.`:"";
-  const shockPilot=d.shockFadePilot?` Shared shock strategy ${SHOCK_FADE_STRATEGY_VERSION}: ${d.shockFadePilot.state}, ${d.shockFadePilot.active_shadows||0} ${SHOCK_FADE_EXIT_HOURS}-hour observations active and ${d.shockFadePilot.events} deduplicated forward events complete across five adopters. Mean ${(d.shockFadePilot.mean*100).toFixed(2)}%; 90% interval ${(d.shockFadePilot.lower*100).toFixed(2)}% to ${(d.shockFadePilot.upper*100).toFixed(2)}%; ${d.shockFadePilot.expired_ungraded||0} missed windows were discarded. Position cap ${(d.shockFadePilot.position_pct*100).toFixed(2)}%, total cap ${SHOCK_FADE_TOTAL_CAPITAL_PCT*100}%; ${SHOCK_FADE_QUALIFICATION_EVENTS} positive events can qualify 1% capital and ${SHOCK_FADE_PROMOTION_EVENTS} stronger events can raise size to ${SHOCK_FADE_PROMOTED_POSITION_PCT*100}%.`:"";
+  const shockPilot=d.shockFadePilot?(()=>{const noLane=shockFadeSideProfile(d.shockFadePilot,"NO"),yesLane=shockFadeSideProfile(d.shockFadePilot,"YES");return ` Shared shock strategy ${SHOCK_FADE_STRATEGY_VERSION}: ${d.shockFadePilot.active_shadows||0} ${SHOCK_FADE_EXIT_HOURS}-hour observations active and ${d.shockFadePilot.events} deduplicated forward events complete across five adopters. Buy-NO lane: ${noLane.events} events, ${(noLane.mean*100).toFixed(2)}% mean, ${(noLane.lower*100).toFixed(2)}% to ${(noLane.upper*100).toFixed(2)}% 90% interval, ${(noLane.position_pct*100).toFixed(2)}% cap. Buy-YES lane: ${yesLane.events} events, ${(yesLane.mean*100).toFixed(2)}% mean, ${(yesLane.lower*100).toFixed(2)}% to ${(yesLane.upper*100).toFixed(2)}% interval, ${(yesLane.position_pct*100).toFixed(2)}% cap. Each direction must independently reach ${SHOCK_FADE_QUALIFICATION_EVENTS} events with a lower bound above 1%; ${d.shockFadePilot.expired_ungraded||0} missed windows were discarded.`;})():"";
   const resolutionWeek=d.resolutionWeekNoPilot?` Corrected 4-day NO learner: ${d.resolutionWeekNoPilot.state}, ${d.resolutionWeekNoPilot.events} shared settled events, ${(d.resolutionWeekNoPilot.mean*100).toFixed(2)}% mean and ${(d.resolutionWeekNoPilot.lower*100).toFixed(2)}% lower 90% bound. Position cap ${(d.resolutionWeekNoPilot.position_pct*100).toFixed(2)}%; capital remains zero until 40 independent outcomes clear the forward confidence gate.`:"";
   return `${d.mode} mode: ${d.reason}${emotion} Limits now: ${d.maxNew} new trade${d.maxNew===1?"":"s"}, max ${(d.maxFrac*100).toFixed(1)}% per position${d.minConv?`, conviction ${d.minConv}+`:""}.${learning}${calibration}${maker}${sportsPilot}${shockPilot}${resolutionWeek}${exposure}${allocation}${candidates}${blockers}`;
 }
@@ -7590,7 +7604,8 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
       maxNewPerAgentCycle:SHOCK_FADE_MAX_NEW_PER_AGENT_CYCLE,modeledAuditCostCents:2,
       exactThreeHourHistory:true,acceleratingFinalHour:true,oppositeSide:true,executableEntryAndExit:true,missedWindowsExpire:true,
       backtestApproved:SHOCK_FADE_BACKTEST_APPROVED,capitalAdaptsFromForwardEvidence:true,forwardEvidenceSharedAcrossAdopters:true,eventDeduplicatedAcrossAdopters:true,
-      activeUnderlyingRiskDeduplicated:true,simultaneousUnderlyingEvidenceClustered:true},
+      activeUnderlyingRiskDeduplicated:true,simultaneousUnderlyingEvidenceClustered:true,directionSpecificConfidenceGates:true,
+      promotionCohorts:["buy-NO-after-upward-YES-shock","buy-YES-after-downward-YES-shock"]},
     resolutionWeekNoPilot:{strategyVersion:RESOLUTION_WEEK_NO_STRATEGY_VERSION,entryBand:[RESOLUTION_WEEK_NO_MIN_ENTRY,RESOLUTION_WEEK_NO_MAX_ENTRY],
       resolutionWindows:RESOLUTION_WEEK_NO_WINDOWS.map(window=>[window.min,window.max]),validatedHorizonDays:RESOLUTION_WEEK_NO_WINDOWS.map(window=>window.days),initialPositionPct:RESOLUTION_WEEK_NO_POSITION_PCT*100,
       promotedPositionPct:RESOLUTION_WEEK_NO_PROMOTED_POSITION_PCT*100,totalCapitalPct:RESOLUTION_WEEK_NO_TOTAL_CAPITAL_PCT*100,
@@ -7754,7 +7769,7 @@ function runEngineSelfTest(){
   const initialShadowStage=stageShockFadeShadows(initialShockBook,[shockSuggestion]);
   const qualifiedShockEvidenceBook=defaultPortfolio();
   for(let i=0;i<SHOCK_FADE_QUALIFICATION_EVENTS;i++)qualifiedShockEvidenceBook.shock_fade_outcomes.push({shock_strategy_version:SHOCK_FADE_STRATEGY_VERSION,
-    event_key:`qualified-shock-event-${i}`,market_id:`qualified-shock-${i}`,net_return:0.08,pnl_per_100:8});
+    side:"NO",event_key:`qualified-shock-event-${i}`,market_id:`qualified-shock-${i}`,net_return:0.08,pnl_per_100:8});
   const qualifiedShockProfile=shockFadePilotProfile(qualifiedShockEvidenceBook);
   const qualifiedShockSuggestion=applyShockFadeForwardPromotion(shockSuggestion,qualifiedShockEvidenceBook);
   const qualifiedShockDecision=Object.assign(adaptiveDecision(shockAgent,defaultPortfolio(),1,AGENTS.length,STARTING_BALANCE,buildSignalCalibration(defaultSignalLedger())),
@@ -7793,16 +7808,16 @@ function runEngineSelfTest(){
   markToMarket(unsafeShockCapitalBook,{"shock-up":market({id:"shock-up",question:"Will Ethereum reach $2,600 this month?",category:"Crypto",
     yes_price:0.75,no_price:0.25,best_bid:0.745,best_ask:0.755,days_to_resolution:10})},shockAgent,{policyExits:true,executeTrades:true});
   const promotedShockBook=defaultPortfolio();
-  for(let i=0;i<SHOCK_FADE_PROMOTION_EVENTS;i++)promotedShockBook.shock_fade_outcomes.push({shock_strategy_version:SHOCK_FADE_STRATEGY_VERSION,event_key:`winning-shock-event-${i}`,market_id:`winning-shock-${i}`,net_return:0.08,pnl_per_100:8});
+  for(let i=0;i<SHOCK_FADE_PROMOTION_EVENTS;i++)promotedShockBook.shock_fade_outcomes.push({shock_strategy_version:SHOCK_FADE_STRATEGY_VERSION,side:"NO",event_key:`winning-shock-event-${i}`,market_id:`winning-shock-${i}`,net_return:0.08,pnl_per_100:8});
   const promotedShockProfile=shockFadePilotProfile(promotedShockBook),promotedShockSuggestion=applyShockFadeForwardPromotion(shockSuggestion,promotedShockBook);
   const promotedShockDecision=adaptiveDecision(shockAgent,promotedShockBook,1,AGENTS.length,STARTING_BALANCE,buildSignalCalibration(defaultSignalLedger()));
   openPositions(promotedShockBook,shockAgent,rankSuggestionsForAgent(shockAgent,[promotedShockSuggestion]),"All",promotedShockDecision,new Set(),{});
   const losingShockBook=defaultPortfolio();
-  for(let i=0;i<SHOCK_FADE_VERDICT_EVENTS;i++)losingShockBook.shock_fade_outcomes.push({shock_strategy_version:SHOCK_FADE_STRATEGY_VERSION,event_key:`losing-shock-event-${i}`,market_id:`losing-shock-${i}`,net_return:-0.10,pnl_per_100:-10});
+  for(let i=0;i<SHOCK_FADE_VERDICT_EVENTS;i++)losingShockBook.shock_fade_outcomes.push({shock_strategy_version:SHOCK_FADE_STRATEGY_VERSION,side:"NO",event_key:`losing-shock-event-${i}`,market_id:`losing-shock-${i}`,net_return:-0.10,pnl_per_100:-10});
   const losingShockProfile=shockFadePilotProfile(losingShockBook),demotedShockSuggestion=applyShockFadeForwardPromotion(shockSuggestion,losingShockBook);
   const sharedPositiveShockState=defaultState(),shockAdopterIds=[...SHOCK_FADE_ADOPTER_IDS];
   for(let i=0;i<SHOCK_FADE_PROMOTION_EVENTS;i++)sharedPositiveShockState.agents[shockAdopterIds[i%shockAdopterIds.length]].shock_fade_outcomes.push({
-    shock_strategy_version:SHOCK_FADE_STRATEGY_VERSION,event_key:`shared-winning-shock-${i}`,market_id:`shared-winning-market-${i}`,net_return:0.08,pnl_per_100:8});
+    shock_strategy_version:SHOCK_FADE_STRATEGY_VERSION,side:"NO",event_key:`shared-winning-shock-${i}`,market_id:`shared-winning-market-${i}`,net_return:0.08,pnl_per_100:8});
   const sharedPositiveShockProfile=sharedShockFadePilotProfile(sharedPositiveShockState);
   const sharedPositiveShockSuggestion=applyShockFadeForwardPromotion(shockSuggestion,sharedPositiveShockState.agents.catalyst,sharedPositiveShockProfile);
   const sharedPositiveOpenBook=defaultPortfolio(),sharedPositiveDecision=Object.assign(
@@ -7811,8 +7826,18 @@ function runEngineSelfTest(){
   openPositions(sharedPositiveOpenBook,catalystShockAgent,rankSuggestionsForAgent(catalystShockAgent,[sharedPositiveShockSuggestion]),"All",sharedPositiveDecision,new Set(),{});
   const sharedLosingShockState=defaultState();
   for(let i=0;i<SHOCK_FADE_VERDICT_EVENTS;i++)sharedLosingShockState.agents[shockAdopterIds[i%shockAdopterIds.length]].shock_fade_outcomes.push({
-    shock_strategy_version:SHOCK_FADE_STRATEGY_VERSION,event_key:`shared-losing-shock-${i}`,market_id:`shared-losing-market-${i}`,net_return:-0.10,pnl_per_100:-10});
+    shock_strategy_version:SHOCK_FADE_STRATEGY_VERSION,side:"NO",event_key:`shared-losing-shock-${i}`,market_id:`shared-losing-market-${i}`,net_return:-0.10,pnl_per_100:-10});
   const sharedLosingShockProfile=sharedShockFadePilotProfile(sharedLosingShockState);
+  const sideSplitShockState=defaultState();
+  for(let i=0;i<SHOCK_FADE_QUALIFICATION_EVENTS;i++){
+    sideSplitShockState.agents[shockAdopterIds[i%shockAdopterIds.length]].shock_fade_outcomes.push({shock_strategy_version:SHOCK_FADE_STRATEGY_VERSION,
+      side:"NO",event_key:`side-no-${i}`,market_id:`side-no-market-${i}`,net_return:0.08,pnl_per_100:8});
+    sideSplitShockState.agents[shockAdopterIds[(i+1)%shockAdopterIds.length]].shock_fade_outcomes.push({shock_strategy_version:SHOCK_FADE_STRATEGY_VERSION,
+      side:"YES",event_key:`side-yes-${i}`,market_id:`side-yes-market-${i}`,net_return:-0.10,pnl_per_100:-10});
+  }
+  const sideSplitShockProfile=sharedShockFadePilotProfile(sideSplitShockState);
+  const sideSplitNoSuggestion=applyShockFadeForwardPromotion(shockSuggestion,sideSplitShockState.agents.catalyst,sideSplitShockProfile);
+  const sideSplitYesSuggestion=applyShockFadeForwardPromotion(downwardShock,sideSplitShockState.agents.catalyst,sideSplitShockProfile);
   const duplicateShockState=defaultState();
   duplicateShockState.agents.catalyst.shock_fade_outcomes.push({shock_strategy_version:SHOCK_FADE_STRATEGY_VERSION,event_key:"shared-duplicate",market_id:"duplicate-a",net_return:0.08});
   duplicateShockState.agents.reversal.shock_fade_outcomes.push({shock_strategy_version:SHOCK_FADE_STRATEGY_VERSION,event_key:"shared-duplicate",market_id:"duplicate-b",net_return:0.02});
@@ -8962,6 +8987,9 @@ function runEngineSelfTest(){
         &&sharedPositiveOpenBook.positions[0].cost<=STARTING_BALANCE*SHOCK_FADE_PROMOTED_POSITION_PCT+0.01,
       sharedLossesDisableEveryAdopter:sharedLosingShockProfile.demoted&&!sharedLosingShockProfile.allowed
         &&shockAdopterIds.every(id=>!applyShockFadeForwardPromotion(shockSuggestion,sharedLosingShockState.agents[id],sharedLosingShockProfile).trade_ready),
+      directionsHaveIndependentConfidenceGates:sideSplitShockProfile.cohorts.NO.qualified&&sideSplitShockProfile.cohorts.NO.allowed
+        &&sideSplitShockProfile.cohorts.YES.demoted&&!sideSplitShockProfile.cohorts.YES.allowed,
+      winningDirectionDoesNotInheritOtherLaneLosses:sideSplitNoSuggestion.trade_ready&&!sideSplitYesSuggestion.trade_ready,
       sharedEventsAreDeduplicatedAndVersioned:duplicateShockProfile.events===1&&duplicateShockProfile.mean===0.05,
       simultaneousUnderlyingMovesCountOnce:correlatedEvidenceProfile.events===1,
       capitalCloseFeedsSharedLearner:sharedCapitalShockProfile.events===1&&sharedCapitalShockProfile.pnl===timedShockCapitalBook.closed[0].realized_pnl,
