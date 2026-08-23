@@ -872,7 +872,7 @@ async function refreshTradeEmailStatus(){
    Five core and five aggressive strategies share the same live suggestion pool. */
 const AGENTS = [
   {id:"value", name:"Value Hunter", emoji:"🎯", color:"#7c8cff", kind:"strategy",
-   blurb:"Runs the arena's non-directional book: mergeable same-market YES/NO complete sets, complete negative-risk bundles, and paired resting bids in calm reward-scoring markets. Equal YES/NO fills below $1 are merged immediately back to collateral, while longer-lived verified bundles are prioritized by return per locked day and capped by underlying event. Unmatched maker inventory is unwound after 24 hours.",
+   blurb:"Runs the arena's settlement-complete book: verified full-event YES or NO sets whose minimum payout exceeds their exact live cost, plus paired resting-bid research in calm reward-scoring markets. Longer-lived bundles are ranked by return per locked day and capped by underlying event; unmatched maker inventory is unwound after 24 hours.",
    rank:(s)=>[...s].sort((a,b)=>{
      const bundleOrder=Number(b.quality==="bundle-arb")-Number(a.quality==="bundle-arb");
      if(bundleOrder)return bundleOrder;
@@ -881,7 +881,7 @@ const AGENTS = [
    }),
    maxNew:4, maxFrac:0.055, minConv:58, kelly:0.24, targetExposure:0.62, drawdownExposure:0.42},
   {id:"momentum", name:"Momentum Chaser", emoji:"🚀", color:"#34d399", kind:"strategy",
-   blurb:"Chases markets where attention and price are accelerating together. It prioritizes true positive-edge entries, then uses tightly sized trend probes when one-day and one-week price direction agree, spreads are narrow, and enough time remains before settlement.",
+   blurb:"Owns exact negative-risk conversions: when every NO leg can be bought below the adapter's verified collateral payout, it opens the full set and converts it immediately instead of locking capital. Outside that protected lane, it observes markets where attention and price accelerate together and only trades directional momentum after event-clustered evidence passes.",
    rank:(s)=>[...s].sort((a,b)=>(b.volume_24hr*(b.conviction+20)*Math.max(.4,Math.abs(b.net_edge||b.edge||0)*18))-(a.volume_24hr*(a.conviction+20)*Math.max(.4,Math.abs(a.net_edge||a.edge||0)*18))),
    maxNew:5, maxFrac:0.06, minConv:57, kelly:0.30, targetExposure:0.72, drawdownExposure:0.50},
   {id:"favorite", name:"Favorite Backer", emoji:"🛡️", color:"#38d2e6", kind:"strategy",
@@ -914,11 +914,11 @@ const AGENTS = [
        -(Math.abs(Number(a.shock_move_3h||0))*120+Number(a.signal_confidence||0)*45+effectiveEntryEdge(a)*180+a.conviction))),
    maxNew:6, maxFrac:0.08, minConv:54, kelly:0.42, maxPositions:18, maxCategoryPct:0.40, maxCycleDrawdown:8, targetExposure:0.80, drawdownExposure:0.65},
   {id:"breakout", name:"Breakout Velocity", emoji:"▲", color:"#00d5b5", kind:"strategy", aggressive:true,
-   blurb:"A high-tempo breakout strategy that follows confirmed price direction when momentum, fresh volume, tight spreads, and positive modeled edge line up. It builds positions quickly and keeps less idle cash so strong moves can drive the portfolio, knowing failed breakouts will create sharper drawdowns.",
+   blurb:"Owns instant binary-complement merges: it buys equal YES and NO shares only when both live asks and exact taker fees total less than $1, then merges them immediately back to collateral. Its directional breakout lane remains gated until confirmed momentum, fresh volume, tight spreads, and forward evidence jointly prove positive post-cost expectancy.",
    rank:(s)=>[...s].sort((a,b)=>(Number(b.momentum_strength||0)*65+Math.log10(Number(b.volume_24hr||0)+1)*9+effectiveEntryEdge(b)*130+b.conviction)-(Number(a.momentum_strength||0)*65+Math.log10(Number(a.volume_24hr||0)+1)*9+effectiveEntryEdge(a)*130+a.conviction)),
    maxNew:8, maxFrac:0.075, minConv:50, kelly:0.44, maxPositions:22, maxCategoryPct:0.40, maxCycleDrawdown:8, targetExposure:0.88, drawdownExposure:0.72},
   {id:"tailalpha", name:"Tail Risk Alpha", emoji:"✦", color:"#ffd166", kind:"strategy", aggressive:true,
-   blurb:"An asymmetric-upside strategy focused on cheaper contracts with confirmed direction and room to reprice. It accepts a low hit rate and volatile results in exchange for larger potential payoffs, but still requires evidence, liquidity, and time to resolution.",
+   blurb:"Owns negative-risk exclusive NO pairs. Two distinct outcomes in the same verified event cannot both resolve YES, so at least one NO pays $1; if neither selected outcome wins, both can pay. It enters only when atomic live depth and exact fees leave a positive guaranteed floor, while its directional tail lane remains evidence-gated.",
    rank:(s)=>[...s].filter(x=>Number(x.entry_price||1)<=0.42).sort((a,b)=>(effectiveEntryEdge(b)*220+Number(b.evidence_score||0)*42+b.conviction-Number(b.entry_price||0)*35)-(effectiveEntryEdge(a)*220+Number(a.evidence_score||0)*42+a.conviction-Number(a.entry_price||0)*35)),
    maxNew:6, maxFrac:0.07, minConv:54, kelly:0.38, allocationFrac:0.065, maxPositions:18, maxCategoryPct:0.40, maxCycleDrawdown:8, targetExposure:0.72, drawdownExposure:0.58},
   {id:"conviction", name:"Conviction Max", emoji:"◆", color:"#b58cff", kind:"strategy", aggressive:true,
@@ -4481,7 +4481,12 @@ function agentObservesSuggestion(cfg,s){
   return false;
 }
 function bundleAgentOwnerId(s){
-  return ["threshold-dominance","deadline-dominance"].includes(String(s&&s.bundle_logic||""))?"diversifier":"value";
+  const logic=String(s&&s.bundle_logic||"");
+  if(s&&s.bundle_immediate_convert)return "momentum";
+  if(s&&s.bundle_immediate_merge)return "breakout";
+  if(logic==="neg-risk-exclusive-no-pair")return "tailalpha";
+  if(["threshold-dominance","deadline-dominance"].includes(logic))return "diversifier";
+  return "value";
 }
 function agentAcceptsSuggestion(cfg,s){
   const quality=s.quality||"watch",edge=effectiveEntryEdge(s),evidence=Number(s.evidence_score||0);
@@ -4514,7 +4519,11 @@ function agentAcceptsSuggestion(cfg,s){
   return quality==="confirmed"&&edge>=MIN_ENTRY_EDGE;
 }
 function rankSuggestionsForAgent(cfg,suggestions){
-  const ranked=cfg.rank(suggestions||[]);if(!SHOCK_FADE_ADOPTER_IDS.has(cfg.id)&&!RESOLUTION_WEEK_NO_ADOPTER_IDS.has(cfg.id))return ranked;
+  const source=suggestions||[],ownedBundles=source.filter(s=>s.trade_ready&&s.quality==="bundle-arb"&&bundleAgentOwnerId(s)===cfg.id)
+    .sort(compareBundleOpportunities);
+  const ownedIds=new Set(ownedBundles.map(s=>String(s.bundle_id||s.market_id||"")));
+  const ranked=[...ownedBundles,...cfg.rank(source).filter(s=>!ownedIds.has(String(s.bundle_id||s.market_id||"")))];
+  if(!SHOCK_FADE_ADOPTER_IDS.has(cfg.id)&&!RESOLUTION_WEEK_NO_ADOPTER_IDS.has(cfg.id))return ranked;
   const rankedIds=new Set(ranked.map(s=>`${s.signal_type||""}:${s.market_id||""}:${s.side||""}`));
   const adaptive=(suggestions||[]).filter(s=>s.trade_ready&&((SHOCK_FADE_ADOPTER_IDS.has(cfg.id)&&s.signal_type==="shock-fade-pilot")
       ||(RESOLUTION_WEEK_NO_ADOPTER_IDS.has(cfg.id)&&s.signal_type==="resolution-week-no-pilot"))
@@ -7621,12 +7630,12 @@ function runEngineSelfTest(){
   const mismatchedExclusivePairRejected=negativeRiskExclusivePairSuggestion(Object.assign({},exclusivePairEvent,{id:"exclusive-mismatch",markets:exclusivePairEvent.markets.map((row,index)=>Object.assign({},row,{negRiskMarketID:index===1?"0xwrong-pair":"0xexclusive-pair"}))}))===null;
   const executableExclusivePair=Object.assign({},exclusivePairSuggestion,{depth_verified:true,fees_verified:true,fee_model:"verified-zero-fee",
     execution_model:"fixture-vwap",verification_status:"executable",execution_units:100,bundle_capital_efficiency:BUNDLE_MIN_DAILY_RETURN*2});
-  const exclusivePairBook=defaultPortfolio(),exclusivePairOpen=openNegativeRiskBundle(exclusivePairBook,agentById("value"),executableExclusivePair,100,{mode:"Fixture"});
+  const exclusivePairBook=defaultPortfolio(),exclusivePairOpen=openNegativeRiskBundle(exclusivePairBook,agentById("tailalpha"),executableExclusivePair,100,{mode:"Fixture"});
   const exclusivePairUnits=exclusivePairBook.positions[0]&&exclusivePairBook.positions[0].shares;
   markToMarket(exclusivePairBook,{
     "exclusive-a":market({id:"exclusive-a",yes_price:1,no_price:0,closed:true,accepting_orders:false}),
     "exclusive-b":market({id:"exclusive-b",yes_price:0,no_price:1,closed:true,accepting_orders:false}),
-  },agentById("value"),{policyExits:true,executeTrades:true});
+  },agentById("tailalpha"),{policyExits:true,executeTrades:true});
   const binaryComplementSuggestion=binaryComplementBundleSuggestions({id:"binary-test",title:"Binary test",slug:"binary-test",endDate:"2026-09-01T00:00:00Z",markets:[
     {id:"binary-market",question:"Will binary pass?",outcomes:'["Yes","No"]',outcomePrices:'["0.5","0.5"]',clobTokenIds:'["binary-yes","binary-no"]',
       bestBid:0.49,bestAsk:0.50,feesEnabled:false,liquidityNum:30000,volumeNum:100000,volume24hr:10000,acceptingOrders:true},
@@ -7640,7 +7649,7 @@ function runEngineSelfTest(){
     bundle_capital_efficiency:+bundleCapitalEfficiency(Object.assign({},binaryComplementSuggestion,{net_edge:binaryComplementQuote.net_return})).toFixed(8),
     depth_verified:true,fees_verified:true,trade_ready:true,entry_candidate:true,watch_only:false,opportunity_actionable:true,
     verification_status:"executable",execution_units:100,execution_notional:+binaryComplementQuote.notional.toFixed(2)});
-  const binaryMergeBook=defaultPortfolio(),binaryMergeOpen=openNegativeRiskBundle(binaryMergeBook,AGENTS.find(agent=>agent.id==="value"),
+  const binaryMergeBook=defaultPortfolio(),binaryMergeOpen=openNegativeRiskBundle(binaryMergeBook,agentById("breakout"),
     binaryExecutableSuggestion,binaryComplementQuote.notional,{mode:"Fixture"});
   const compactedBinarySuggestion=compactSuggestionForSync(binaryExecutableSuggestion);
   const yesBundleSuggestion=negativeRiskBundleSuggestion({id:"bundle-yes-test",title:"Three-way YES result",slug:"bundle-yes-test",negRisk:true,enableNegRisk:true,markets:[
@@ -7672,7 +7681,7 @@ function runEngineSelfTest(){
     bundle_capital_efficiency:+bundleCapitalEfficiency(Object.assign({},convertibleNoBundleSuggestion,{net_edge:convertibleNoQuote.net_return})).toFixed(8),
     depth_verified:true,fees_verified:true,trade_ready:true,entry_candidate:true,watch_only:false,opportunity_actionable:true,
     verification_status:"executable",execution_units:100,execution_notional:+convertibleNoQuote.notional.toFixed(2)});
-  const conversionBook=defaultPortfolio(),conversionOpen=openNegativeRiskBundle(conversionBook,AGENTS.find(agent=>agent.id==="value"),
+  const conversionBook=defaultPortfolio(),conversionOpen=openNegativeRiskBundle(conversionBook,agentById("momentum"),
     executableNoConversion,convertibleNoQuote.notional,{mode:"Fixture"});
   const mismatchedConversionMetadata=negativeRiskBundleSuggestion({id:"bundle-no-mismatch",title:"Mismatched conversion metadata",negRisk:true,enableNegRisk:true,
     negRiskMarketID:"0xneg-risk-market",negRiskFeeBips:25,markets:[
@@ -8323,8 +8332,11 @@ function runEngineSelfTest(){
       retainsUnprofitableExclusiveNoPairForTelemetry:Boolean(unprofitableExclusivePairAudited
         &&!unprofitableExclusivePairAudited.trade_ready&&unprofitableExclusivePairAudited.bundle_net_profit_per_unit<0),
       rejectsMismatchedNegativeRiskPair:mismatchedExclusivePairRejected,
-      routesExclusiveNoPairToValue:agentAcceptsSuggestion(agentById("value"),executableExclusivePair)
-        &&!agentAcceptsSuggestion(agentById("diversifier"),executableExclusivePair),
+      routesExclusiveNoPairToTailAlpha:agentAcceptsSuggestion(agentById("tailalpha"),executableExclusivePair)
+        &&!agentAcceptsSuggestion(agentById("value"),executableExclusivePair),
+      ownedProtectedBundlesBypassDirectionalRankFilter:rankSuggestionsForAgent(agentById("tailalpha"),[
+        Object.assign({},executableExclusivePair,{entry_price:0.49}),
+      ])[0].bundle_id===executableExclusivePair.bundle_id,
       exclusiveNoPairSettlesAtGuaranteedFloor:Boolean(exclusivePairOpen&&exclusivePairUnits===100
         &&exclusivePairBook.positions.length===0&&exclusivePairBook.closed.length===2&&exclusivePairBook.cash===10020),
       discoversExecutableBinaryComplements:Boolean(binaryComplementSuggestion&&binaryComplementSuggestion.bundle_logic==="binary-complement"
@@ -8340,8 +8352,12 @@ function runEngineSelfTest(){
         &&binaryReserveOrder.filter(row=>row.bundle_logic==="binary-complement").length===BINARY_COMPLEMENT_DEPTH_RESERVE,
       reservesExactConversionDepthChecks:binaryReserveOrder.length===BUNDLE_DEPTH_CANDIDATE_LIMIT
         &&binaryReserveOrder.filter(row=>row.bundle_conversion_candidate).length===NEG_RISK_CONVERSION_DEPTH_RESERVE,
-      routesCompleteSetsToValue:agentAcceptsSuggestion(agentById("value"),convertibleNoBundleSuggestion)
-        &&!agentAcceptsSuggestion(agentById("diversifier"),convertibleNoBundleSuggestion),
+      routesSettlementCompleteSetsToValue:agentAcceptsSuggestion(agentById("value"),bundleSuggestion)
+        &&!agentAcceptsSuggestion(agentById("momentum"),bundleSuggestion),
+      routesExactConversionsToMomentum:agentAcceptsSuggestion(agentById("momentum"),convertibleNoBundleSuggestion)
+        &&!agentAcceptsSuggestion(agentById("value"),convertibleNoBundleSuggestion),
+      routesBinaryMergesToBreakout:agentAcceptsSuggestion(agentById("breakout"),binaryExecutableSuggestion)
+        &&!agentAcceptsSuggestion(agentById("value"),binaryExecutableSuggestion),
       routesDominanceSpreadsToDiversifier:agentAcceptsSuggestion(agentById("diversifier"),dominanceSuggestion)
         &&!agentAcceptsSuggestion(agentById("value"),dominanceSuggestion),
       bundleResearchOwnershipMatchesCapital:agentObservesSuggestion(agentById("diversifier"),dominanceSuggestion)

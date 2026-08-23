@@ -124,7 +124,6 @@ assert.match(index, /const exclusivePair=negativeRiskExclusivePairSuggestion\(ev
 assert.match(index, /discoversExclusiveNoPair:/);
 assert.match(index, /rejectsUnprofitableExclusiveNoPair:/);
 assert.match(index, /rejectsMismatchedNegativeRiskPair:/);
-assert.match(index, /routesExclusiveNoPairToValue:/);
 assert.match(index, /exclusiveNoPairSettlesAtGuaranteedFloor:/);
 assert.match(index, /exclusive_pair_structures:exclusivePairs\.length/);
 assert.match(index, /Exclusive NO pairs:/);
@@ -145,7 +144,11 @@ assert.match(api, /neg_risk_market_id: s\.neg_risk_market_id, neg_risk_fee_bips:
 assert.match(index, /reservesBinaryComplementDepthChecks:/);
 assert.match(index, /reservesExactConversionDepthChecks:/);
 assert.match(index, /function bundleAgentOwnerId\(s\)/);
-assert.match(index, /routesCompleteSetsToValue:/);
+assert.match(index, /routesSettlementCompleteSetsToValue:/);
+assert.match(index, /routesExactConversionsToMomentum:/);
+assert.match(index, /routesBinaryMergesToBreakout:/);
+assert.match(index, /routesExclusiveNoPairToTailAlpha:/);
+assert.match(index, /ownedProtectedBundlesBypassDirectionalRankFilter:/);
 assert.match(index, /routesDominanceSpreadsToDiversifier:/);
 assert.match(index, /bundleResearchOwnershipMatchesCapital:/);
 assert.match(index, /function currentBundleEventKeys\(st\)/);
