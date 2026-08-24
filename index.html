@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 65 · policy-aware research · build 157</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 65 · expanded protected search · build 158</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 157 active:</b> Protected maker research cooldowns now belong to the policy generation that produced the observation. Superseded and administrative outcomes cannot block current research, current-policy no-fills can be retried after two hours, and verified locks or adverse fills retain a full 24-hour event cooldown. Repeated attempts still collapse to one event in the learner, so faster research cannot inflate independent evidence.</div>
+  <div class="live-build-banner"><b>Build 158 active:</b> The protected opportunity engine now live-depth-tests 500 of the best complete-set, conversion, exclusivity, dominance, and binary-complement structures per cycle instead of 300. The public agent universe remains the requested top 500 active markets. Search breadth increased without lowering profit, duration, fee, fill, unwind, evidence, or capital gates.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 157 · Adaptive strategy 65 · Policy-aware protected maker research cooldowns · Risk-normalized protected maker evidence · Evidence-scaled protected maker capital · Verified-depth protected maker sizing · Four-block market-disjoint causal audit · Directional capital lock · Protected arbitrage capital only · Strategy 5 capital retirement · Strategy 6 shadow-only research · Executable legacy exits · Exact fee-adjusted entry and exit · One owner per event · Forward evidence scaling and automatic demotion · Six-hour reward-qualified maker evidence · 75%-haircut modeled reward diagnostics · No modeled reward credited to returns · Direction-specific shock gates · Duration-adaptive protected evidence windows · Fill-competitiveness protected quote gate · History-confirmed protected quote repricing · Four-lane protected maker research · 20-event diversified candidate queue · Direction-specific protected-bundle cohorts · 300-structure protected depth shortlist · Automatic superseded-quote retirement · Pilot-calibrated protected maker floor · Explicit maker rejection diagnostics · Risk-budgeted maker fill priority · Immediate protected maker conversion · Cohort-specific protected maker adaptation · Persistent protected maker-assist learner · Exact post-touch hedge-or-unwind grading · Enforced current-policy quote cooldown · Early evidence-weighted independent maker research · Outcome-aware shared event cooldown · Two-pass bounded live execution · Duration-aware atomic profit recycling · Feature-aware diversified maker research · Expanded independent-event executable search · Exact-fee complete-NO conversion · Evidence-first bounded snapshots · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Duration-aware, event-capped verified bundles · Scale-aware executable-profit floor · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 6 · Agent learning 3 · Shock direction lanes 4 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 158 · Adaptive strategy 65 · 500-structure protected depth shortlist · Policy-aware protected maker research cooldowns · Risk-normalized protected maker evidence · Evidence-scaled protected maker capital · Verified-depth protected maker sizing · Four-block market-disjoint causal audit · Directional capital lock · Protected arbitrage capital only · Strategy 5 capital retirement · Strategy 6 shadow-only research · Executable legacy exits · Exact fee-adjusted entry and exit · One owner per event · Forward evidence scaling and automatic demotion · Six-hour reward-qualified maker evidence · 75%-haircut modeled reward diagnostics · No modeled reward credited to returns · Direction-specific shock gates · Duration-adaptive protected evidence windows · Fill-competitiveness protected quote gate · History-confirmed protected quote repricing · Four-lane protected maker research · 20-event diversified candidate queue · Direction-specific protected-bundle cohorts · Automatic superseded-quote retirement · Pilot-calibrated protected maker floor · Explicit maker rejection diagnostics · Risk-budgeted maker fill priority · Immediate protected maker conversion · Cohort-specific protected maker adaptation · Persistent protected maker-assist learner · Exact post-touch hedge-or-unwind grading · Enforced current-policy quote cooldown · Early evidence-weighted independent maker research · Outcome-aware shared event cooldown · Two-pass bounded live execution · Duration-aware atomic profit recycling · Feature-aware diversified maker research · Expanded independent-event executable search · Exact-fee complete-NO conversion · Evidence-first bounded snapshots · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Duration-aware, event-capped verified bundles · Scale-aware executable-profit floor · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 6 · Agent learning 3 · Shock direction lanes 4 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 157;
+const BUILD_VERSION = 158;
 const AGENT_LEARNING_VERSION = 3;
 const SUGGESTION_ENGINE_VERSION = 65;
 const MAKER_STRATEGY_VERSION = 5;
@@ -1915,7 +1915,7 @@ const NEG_RISK_MIN_LIQUIDITY=1000;
 const NEG_RISK_MIN_NET_PROFIT=0.001;
 const NEG_RISK_MIN_NET_RETURN=0.0015;
 const BUNDLE_BOOK_BATCH_SIZE=200;
-const BUNDLE_DEPTH_CANDIDATE_LIMIT=300;
+const BUNDLE_DEPTH_CANDIDATE_LIMIT=500;
 const BINARY_COMPLEMENT_DEPTH_RESERVE=40;
 const NEG_RISK_CONVERSION_DEPTH_RESERVE=40;
 const NEG_RISK_POLYGON_RPC="https://polygon.drpc.org";
@@ -8903,7 +8903,7 @@ function runEngineSelfTest(){
     Object.assign({},dominanceSuggestion,{bundle_id:"dominance:event-b:a:b",bundle_event_id:"event-b",net_edge:0.02,days_to_resolution:5}),
   ],3);
   const binaryReserveOrder=bundleVerificationShortlist([
-    ...Array.from({length:220},(_,index)=>Object.assign({},dominanceSuggestion,{bundle_id:`dominance:general-${index}:a:b`,bundle_event_id:`general-${index}`,net_edge:0.10-index/1000,days_to_resolution:5})),
+    ...Array.from({length:420},(_,index)=>Object.assign({},dominanceSuggestion,{bundle_id:`dominance:general-${index}:a:b`,bundle_event_id:`general-${index}`,net_edge:0.10-index/1000,days_to_resolution:5})),
     ...Array.from({length:60},(_,index)=>Object.assign({},binaryComplementSuggestion,{bundle_id:`binary:reserved-${index}:market`,bundle_event_id:`reserved-${index}`,net_edge:-0.01-index/1000})),
     ...Array.from({length:60},(_,index)=>Object.assign({},convertibleNoBundleSuggestion,{bundle_id:`bundle:conversion-${index}:no`,bundle_event_id:`conversion-${index}`,net_edge:-0.02-index/1000})),
   ]);
@@ -9520,6 +9520,7 @@ function runEngineSelfTest(){
         {market_id:"market-b",side:"NO",shares:10,bundle_immediate_merge:true},
       ]),
       immediateMergeMetadataSurvivesSync:compactedBinarySuggestion.bundle_immediate_merge===true,
+      protectedDepthSearchCoversFiveHundredStructures:BUNDLE_DEPTH_CANDIDATE_LIMIT===500&&binaryReserveOrder.length===500,
       reservesBinaryComplementDepthChecks:binaryReserveOrder.length===BUNDLE_DEPTH_CANDIDATE_LIMIT
         &&binaryReserveOrder.filter(row=>row.bundle_logic==="binary-complement").length===BINARY_COMPLEMENT_DEPTH_RESERVE,
       reservesExactConversionDepthChecks:binaryReserveOrder.length===BUNDLE_DEPTH_CANDIDATE_LIMIT
