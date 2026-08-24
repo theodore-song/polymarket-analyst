@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 65 · cost-capped 72h reversion · build 149</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 65 · live 72h allocation fix · build 150</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 149 active:</b> The five aggressive agents share a new 72-hour mean-reversion pilot that fades 4-point moves only when the exact fee-adjusted entry clears the two-cent execution budget. It starts at 0.25% paper size with a 1% lane cap, one owner per event, and automatically scales or shuts down from independent forward results. The frozen audit was positive at two cents but failed at 2.5 cents, so this is a bounded pilot, not a profit guarantee.</div>
+  <div class="live-build-banner"><b>Build 150 active:</b> The cost-capped 72-hour pilot now publishes its trade-ready signals and can place its intended 0.25% paper position even when an agent is below its starting balance. Contracts still pass the path-dependent settlement filter, exact fee budget, one-owner-per-event rule, and 1% lane cap before entry. Forward results automatically scale or shut down the lane; profits are not guaranteed.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 149 · Adaptive strategy 65 · Cost-capped 72-hour mean-reversion pilot · Exact fee-adjusted entry and exit · Paper-only 0.25% initial entries · 1% initial lane cap per agent · One owner per event · Forward evidence scaling and early shutdown · Six-hour reward-qualified maker evidence · 75%-haircut modeled reward diagnostics · No modeled reward credited to returns · Direction-specific shock gates · Duration-adaptive protected evidence windows · Fill-competitiveness protected quote gate · History-confirmed protected quote repricing · Four-lane protected maker research · 20-event diversified candidate queue · Direction-specific protected-bundle cohorts · 300-structure protected depth shortlist · Automatic superseded-quote retirement · Pilot-calibrated protected maker floor · Explicit maker rejection diagnostics · Risk-budgeted maker fill priority · Immediate protected maker conversion · Cohort-specific protected maker adaptation · Persistent protected maker-assist learner · Exact post-touch hedge-or-unwind grading · Enforced inherited-quote research cooldown · Early evidence-weighted independent maker research · 24-hour shared event cooldown · Two-pass bounded live execution · Duration-aware atomic profit recycling · Feature-aware diversified maker research · Expanded independent-event executable search · Exact-fee complete-NO conversion · Evidence-first bounded snapshots · Six-hour bounded probation with matched executable exits · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Duration-aware, event-capped verified bundles · Scale-aware executable-profit floor · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 6 · Agent learning 3 · Shock direction lanes 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 150 · Adaptive strategy 65 · Live 72-hour allocation fix · Cost-capped mean-reversion pilot · Exact fee-adjusted entry and exit · Paper-only 0.25% initial entries · 1% initial lane cap per agent · One owner per event · Forward evidence scaling and early shutdown · Six-hour reward-qualified maker evidence · 75%-haircut modeled reward diagnostics · No modeled reward credited to returns · Direction-specific shock gates · Duration-adaptive protected evidence windows · Fill-competitiveness protected quote gate · History-confirmed protected quote repricing · Four-lane protected maker research · 20-event diversified candidate queue · Direction-specific protected-bundle cohorts · 300-structure protected depth shortlist · Automatic superseded-quote retirement · Pilot-calibrated protected maker floor · Explicit maker rejection diagnostics · Risk-budgeted maker fill priority · Immediate protected maker conversion · Cohort-specific protected maker adaptation · Persistent protected maker-assist learner · Exact post-touch hedge-or-unwind grading · Enforced inherited-quote research cooldown · Early evidence-weighted independent maker research · 24-hour shared event cooldown · Two-pass bounded live execution · Duration-aware atomic profit recycling · Feature-aware diversified maker research · Expanded independent-event executable search · Exact-fee complete-NO conversion · Evidence-first bounded snapshots · Six-hour bounded probation with matched executable exits · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Duration-aware, event-capped verified bundles · Scale-aware executable-profit floor · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 6 · Agent learning 3 · Shock direction lanes 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 149;
+const BUILD_VERSION = 150;
 const AGENT_LEARNING_VERSION = 3;
 const SUGGESTION_ENGINE_VERSION = 65;
 const MAKER_STRATEGY_VERSION = 5;
@@ -1994,7 +1994,7 @@ const SHOCK_FADE_PROBATION_MAX_LOSS=0.15;
 const SHOCK_FADE_PROBATION_MIN_JACKKNIFE_MEAN=0;
 const SHOCK_FADE_PROBATION_POSITION_PCT=0.0025;
 const SHOCK_FADE_PROBATION_TOTAL_CAPITAL_PCT=0.01;
-const SHOCK_FADE_PROBATION_MIN_NOTIONAL=25;
+const SHOCK_FADE_PROBATION_MIN_NOTIONAL=10;
 const SHOCK_FADE_MAX_NEW_PER_AGENT_CYCLE=1;
 const SHOCK_FADE_VERDICT_EVENTS=12;
 const SHOCK_FADE_QUALIFICATION_EVENTS=30;
@@ -3569,7 +3569,7 @@ function shockFadeSuggestion(m,points,observedAt=Date.now()/1000){
     price_change_1h:+move1.toFixed(4),price_change_1d:m.price_change_1d,price_change_1w:m.price_change_1w,
     shock_move_1h:+move1.toFixed(4),shock_prior_move_1h:+priorMove1.toFixed(4),shock_move_3h:+moveWindow.toFixed(4),shock_observed_at:new Date(now*1000).toISOString(),
     momentum_strength:+clamp(Math.abs(moveWindow)/0.16,0,1).toFixed(3),signal_strength:0.74,signal_confidence:0.66,signal_type:"shock-fade-shadow",
-    trade_ready:false,entry_candidate:false,audited_observation_only:true,adaptive_promotion:false,watch_only:true,jump_risk:true,requires_live:true,
+    trade_ready:false,entry_candidate:false,audited_observation_only:true,adaptive_promotion:false,watch_only:true,jump_risk:false,requires_live:true,
     shock_strategy_version:SHOCK_FADE_STRATEGY_VERSION,days_to_resolution:m.days_to_resolution,
     pilot_prior:{observations:25849,markets:615,events:183,train_events:72,validation_events:26,holdout_events:22,
       train_lower_90_at_two_cents:0.06052,validation_lower_90_at_two_cents:0.02228,holdout_lower_90_at_two_cents:0.0495,
@@ -5658,7 +5658,9 @@ async function runDailyCycle(){
     const marketLearning=buildSignalCalibration(st.signal_ledger);
     const marketLearningByAgent=Object.fromEntries(AGENTS.map(agent=>[agent.id,buildSignalCalibration(st.signal_ledger,agent.id)]));
     if(runMode==="live"){
-      sugs=sugs.map(s=>applyAgentSpecificPromotions(s,marketLearningByAgent));
+      const publicShockProfile=sharedShockFadePilotProfile(st);
+      sugs=sugs.map(s=>applyAgentSpecificPromotions(s,marketLearningByAgent))
+        .map(s=>applyShockFadeForwardPromotion(s,st.agents.reversal,publicShockProfile));
       saveSuggestions(sugs,markets.length,analysisMarkets.length,bundleAudit);
       saveMarketCache(analysisMarkets,sugs,priceMap);
     }
@@ -7919,6 +7921,11 @@ function runEngineSelfTest(){
   const initialShockBook=defaultPortfolio(),initialShockProfile=shockFadePilotProfile(initialShockBook),initialShockSuggestion=applyShockFadeForwardPromotion(shockSuggestion,initialShockBook);
   const initialShockDecision=adaptiveDecision(shockAgent,initialShockBook,1,AGENTS.length,STARTING_BALANCE,buildSignalCalibration(defaultSignalLedger()));
   openPositions(initialShockBook,shockAgent,rankSuggestionsForAgent(shockAgent,[initialShockSuggestion]),"All",initialShockDecision,new Set(),{});
+  const belowStartingShockBook=defaultPortfolio();belowStartingShockBook.cash=9800;
+  const belowStartingShockDecision=Object.assign(adaptiveDecision(shockAgent,belowStartingShockBook,1,AGENTS.length,STARTING_BALANCE,buildSignalCalibration(defaultSignalLedger())),
+    {shockFadePilot:initialShockProfile});
+  openPositions(belowStartingShockBook,shockAgent,rankSuggestionsForAgent(shockAgent,[initialShockSuggestion]),"All",belowStartingShockDecision,new Set(),{});
+  const publicInitialShock=compactPublicSuggestionsForSync({suggestions:[initialShockSuggestion]}).suggestions[0];
   const initialShadowStage=stageShockFadeShadows(initialShockBook,[shockSuggestion]);
   const probationShockEvidence=[-0.0923,0.1392,-0.0194,0.023,0.6667],probationShockBook=defaultPortfolio();
   probationShockEvidence.forEach((netReturn,index)=>probationShockBook.shock_fade_outcomes.push({shock_strategy_version:SHOCK_FADE_STRATEGY_VERSION,
@@ -9162,10 +9169,17 @@ function runEngineSelfTest(){
       rejectsExactNumericRange:rangeShock===null,
       requiresCompleteExitRunway:shortWindowShock===null,
       preservesDatedLevelWithRunway:Boolean(fixedDateShock&&fixedDateShock.side==="NO"),
-      startsWatchOnly:Boolean(shockSuggestion&&!shockSuggestion.trade_ready&&shockSuggestion.audited_observation_only&&shockSuggestion.requires_live),
+      safeContractStartsWatchOnlyWithoutStaleJumpRisk:Boolean(shockSuggestion&&!shockSuggestion.trade_ready&&shockSuggestion.audited_observation_only
+        &&shockSuggestion.requires_live&&!shockSuggestion.jump_risk),
       boundedAuditStartsQuarterPercentPilot:initialShockProfile.allowed&&initialShockProfile.backtest_pilot&&!initialShockProfile.qualified
         &&initialShockSuggestion.trade_ready&&initialShockProfile.position_pct===SHOCK_FADE_BACKTEST_POSITION_PCT
-        &&initialShockBook.positions.length===1&&initialShockBook.positions[0].cost<=STARTING_BALANCE*SHOCK_FADE_BACKTEST_POSITION_PCT+0.01,
+        &&initialShockBook.positions.length===1&&initialShockBook.positions[0].cost>=SHOCK_FADE_PROBATION_MIN_NOTIONAL-0.01
+        &&initialShockBook.positions[0].cost<=STARTING_BALANCE*SHOCK_FADE_BACKTEST_POSITION_PCT+0.01,
+      belowStartingBalanceStillOpensProportionalPilot:belowStartingShockBook.positions.length===1
+        &&belowStartingShockBook.positions[0].cost>=SHOCK_FADE_PROBATION_MIN_NOTIONAL-0.01
+        &&belowStartingShockBook.positions[0].cost<=9800*SHOCK_FADE_BACKTEST_POSITION_PCT+0.01,
+      sharedSuggestionsExposePromotedPilot:Boolean(publicInitialShock&&publicInitialShock.trade_ready&&publicInitialShock.entry_candidate
+        &&publicInitialShock.signal_type==="shock-fade-pilot"&&!publicInitialShock.watch_only),
       fiveBalancedPositiveEventsStartTinyProbation:probationShockProfile.allowed&&probationShockProfile.probation&&!probationShockProfile.qualified
         &&probationShockProfile.position_pct===SHOCK_FADE_PROBATION_POSITION_PCT
         &&probationShockProfile.jackknife_min_mean>SHOCK_FADE_PROBATION_MIN_JACKKNIFE_MEAN
@@ -9174,7 +9188,8 @@ function runEngineSelfTest(){
         &&probationShockCost<=STARTING_BALANCE*SHOCK_FADE_PROBATION_POSITION_PCT+0.01,
       probationSizingSurvivesCloudCompaction:compactedProbationShockSuggestion.shock_lane_position_pct===SHOCK_FADE_PROBATION_POSITION_PCT
         &&compactedProbationShockSuggestion.shock_lane_total_capital_pct===SHOCK_FADE_PROBATION_TOTAL_CAPITAL_PCT,
-      probationCapIncludesOppositeDirection:probationCapBook.positions.length===1&&probationCapBook.cash===STARTING_BALANCE-90,
+      probationCapIncludesOppositeDirection:probationCapBook.positions.length===2
+        &&probationCapBook.positions.reduce((sum,pos)=>sum+Number(pos.cost||0),0)<=STARTING_BALANCE*SHOCK_FADE_PROBATION_TOTAL_CAPITAL_PCT+0.01,
       singleLargeDownsideBlocksEarlyProbation:!unsafeProbationShockProfile.allowed&&!unsafeProbationShockProfile.probation
         &&unsafeProbationShockProfile.worst===-0.2,
       oneOutlierCannotCreateProbation:!fragileProbationShockProfile.allowed&&!fragileProbationShockProfile.probation

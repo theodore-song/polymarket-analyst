@@ -193,6 +193,12 @@ the rule passed the two-cent expected-return audit but failed at 2.5 cents and h
 holdout median. Five early adverse events can shut it down; 30 and 60 independent positive
 forward events are required before size can rise to 0.5% and 0.75% respectively.
 
+Build 150 fixes the live allocation path discovered in the first production cycle. A strategy
+contract that already passed the path-dependent settlement filter no longer carries the stale
+`jump_risk` display flag, promoted signals remain visible in the shared Suggestions payload,
+and the pilot's paper minimum no longer prevents a 0.25% entry merely because an agent's equity
+is below its original $10,000 balance.
+
 Build 136 also preserves verified complete-NO conversion metadata after a
 maker-assisted touch. Once that cohort earns paper promotion, buying the remaining
 legs at exact verified depth immediately converts the complete NO set through the
