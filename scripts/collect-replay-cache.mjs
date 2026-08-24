@@ -6,6 +6,7 @@ const GAMMA = "https://gamma-api.polymarket.com";
 const CLOB = "https://clob.polymarket.com";
 const ACTIVE_LIMIT = Math.max(0, Math.min(5000, Number(process.env.REPLAY_ACTIVE_MARKETS || 500)));
 const CLOSED_LIMIT = Math.max(0, Math.min(5000, Number(process.env.REPLAY_CLOSED_MARKETS || 1000)));
+const CLOSED_SKIP = Math.max(0, Math.min(20000, Number(process.env.REPLAY_CLOSED_SKIP || 0)));
 const CONCURRENCY = Math.max(1, Math.min(16, Number(process.env.REPLAY_CONCURRENCY || 10)));
 const OUTPUT = resolve(process.env.REPLAY_CACHE || "research/cache/adaptive-observations-v1.json");
 
@@ -100,9 +101,10 @@ async function fetchActiveMarkets(limit) {
   return markets;
 }
 
-async function fetchClosedMarkets(limit) {
+async function fetchClosedMarkets(limit, skip = 0) {
   const markets = [];
   const seen = new Set();
+  let skipped = 0;
   let cursor = "";
   while (markets.length < limit) {
     const params = new URLSearchParams({ closed: "true", order: "closedTime", ascending: "false", limit: "100", include_tag: "true" });
@@ -114,6 +116,10 @@ async function fetchClosedMarkets(limit) {
       const market = marketFromRaw(raw, "closed");
       if (!market || seen.has(market.id)) continue;
       seen.add(market.id);
+      if (skipped < skip) {
+        skipped++;
+        continue;
+      }
       markets.push(market);
       if (markets.length >= limit) break;
     }
@@ -148,7 +154,7 @@ async function fetchHistories(markets) {
 }
 
 const startedAt = Date.now();
-const [activeMarkets, closedMarkets] = await Promise.all([fetchActiveMarkets(ACTIVE_LIMIT), fetchClosedMarkets(CLOSED_LIMIT)]);
+const [activeMarkets, closedMarkets] = await Promise.all([fetchActiveMarkets(ACTIVE_LIMIT), fetchClosedMarkets(CLOSED_LIMIT, CLOSED_SKIP)]);
 const markets = [...activeMarkets, ...closedMarkets];
 const fetched = await fetchHistories(markets);
 const histories = markets.map((market) => {
@@ -160,7 +166,7 @@ const rows = histories.flatMap((result) => result.rows);
 const payload = {
   schema: "poly-arena-offline-replay-v1",
   generatedAt: new Date().toISOString(),
-  requestedMarkets: { active: ACTIVE_LIMIT, closed: CLOSED_LIMIT },
+  requestedMarkets: { active: ACTIVE_LIMIT, closed: CLOSED_LIMIT, closedSkip: CLOSED_SKIP },
   fetchedMarkets: markets.length,
   universeMarkets: { active: activeMarkets.length, closed: closedMarkets.length },
   historiesWithData: histories.filter((result) => result.points).length,

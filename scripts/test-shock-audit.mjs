@@ -6,6 +6,7 @@ const independent = JSON.parse(fs.readFileSync(new URL("../research/shock-strate
 const strategy4 = JSON.parse(fs.readFileSync(new URL("../research/shock-strategy-4-audit.json", import.meta.url), "utf8"));
 const strategy4Independent = JSON.parse(fs.readFileSync(new URL("../research/shock-strategy-4-independent-audit.json", import.meta.url), "utf8"));
 const strategy5 = JSON.parse(fs.readFileSync(new URL("../research/offline-replay-v1-audit.json", import.meta.url), "utf8"));
+const crossEra = JSON.parse(fs.readFileSync(new URL("../research/offline-replay-10000-audit.json", import.meta.url), "utf8"));
 const index = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const candidate = report.candidates.find(row => row.rule.id === "fade_h12_w3_m0.08_accelerating_v1_All_All");
 
@@ -75,10 +76,18 @@ assert.ok(strategy5.closest_rule.two_cent_results.validation.lower_90 > 0);
 assert.ok(strategy5.closest_rule.two_cent_results.holdout.lower_90 > 0);
 assert.ok(strategy5.closest_rule.two_cent_results.holdout.median < 0);
 assert.match(strategy5.closest_rule.stress_result, /Fails.*2\.5 cents/);
-assert.match(index, /const SHOCK_FADE_STRATEGY_VERSION = 5/);
-assert.match(index, /const SHOCK_FADE_BACKTEST_APPROVED=true/);
+assert.equal(crossEra.capital_approved, false);
+assert.equal(crossEra.methodology.requested_resolved_markets, 10000);
+assert.equal(crossEra.deployed_strategy_5.rule, "fade_72h_0.04-1_all_All_any");
+assert.ok(crossEra.deployed_strategy_5.older_block.train.lower_90_pct < 0);
+assert.ok(crossEra.deployed_strategy_5.older_block.validation.lower_90_pct < 0);
+assert.ok(crossEra.deployed_strategy_5.older_block.holdout.lower_90_pct < 0);
+assert.equal(crossEra.cross_checked_older_winners.every(row => row.verdict === "rejected"), true);
+assert.match(index, /const SHOCK_FADE_STRATEGY_VERSION = 6/);
+assert.match(index, /const SHOCK_FADE_BACKTEST_APPROVED=false/);
 assert.match(index, /const SHOCK_FADE_BACKTEST_POSITION_PCT=0\.0025/);
 assert.match(index, /const SHOCK_FADE_QUALIFICATION_EVENTS=30/);
 assert.match(index, /const SHOCK_FADE_PROMOTION_EVENTS=60/);
+assert.match(index, /Expanded 10,000-market audit retired Strategy/);
 
 console.log("shock audit artifact verified");

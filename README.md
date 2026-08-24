@@ -204,6 +204,15 @@ matching direction has paper-capital permission. Those zero-capital records were
 Build 150 and still claimed otherwise trade-ready events. Legacy strategy shadows are preserved,
 and a direction that loses capital permission continues to use zero-capital forward observation.
 
+Build 152 withdraws that bounded approval after a larger cross-era audit. The latest 5,000
+resolved-market archive made the 72-hour fade look profitable, but a separate older 5,000-market
+block produced negative medians and negative event-clustered lower bounds in train, validation,
+and holdout at a three-cent round-trip cost. Other rules selected from the older block failed the
+latest block, so no directional rule cleared both periods. Strategy 6 therefore opens no new
+capital positions, retires Strategy 5 holdings at the next executable bid, and continues
+zero-capital observations. A direction can requalify only after 30 independent forward outcomes
+produce a lower confidence bound above 1%; the five-event probation shortcut is disabled.
+
 Build 136 also preserves verified complete-NO conversion metadata after a
 maker-assisted touch. Once that cohort earns paper promotion, buying the remaining
 legs at exact verified depth immediately converts the complete NO set through the

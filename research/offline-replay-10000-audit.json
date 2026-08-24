@@ -1,0 +1,87 @@
+{
+  "schema": "poly-arena-cross-era-audit-v1",
+  "generated_at": "2026-08-24T15:45:00.000Z",
+  "decision": "retire-strategy-5-capital",
+  "capital_approved": false,
+  "methodology": {
+    "requested_resolved_markets": 10000,
+    "archive_blocks": [
+      {
+        "name": "latest-resolved-5000",
+        "skip": 0,
+        "usable_markets": 2393,
+        "events": 395
+      },
+      {
+        "name": "older-resolved-5000",
+        "skip": 5000,
+        "usable_markets": 2085,
+        "events": 378
+      }
+    ],
+    "split": "Chronological 60/20/20 by whole Polymarket event inside each archive block; no event crosses partitions.",
+    "modeled_round_trip_cost_cents": 3,
+    "selection": "A rule must have a positive event median, positive event-clustered 90% lower bound, and positive leave-one-event-out mean in train, validation, and holdout in both archive blocks.",
+    "fill_caveat": "Historical midpoint series do not reconstruct full order books or guarantee fills."
+  },
+  "deployed_strategy_5": {
+    "rule": "fade_72h_0.04-1_all_All_any",
+    "horizon_hours": 72,
+    "latest_block": {
+      "train": { "events": 143, "mean_pct": 14.26, "median_pct": -6.10, "lower_90_pct": 2.73 },
+      "validation": { "events": 41, "mean_pct": 16.16, "median_pct": 6.82, "lower_90_pct": 4.55 },
+      "holdout": { "events": 58, "mean_pct": 78.16, "median_pct": 113.28, "lower_90_pct": 61.39 }
+    },
+    "older_block": {
+      "train": { "events": 170, "mean_pct": -0.36, "median_pct": -7.79, "lower_90_pct": -6.16 },
+      "validation": { "events": 62, "mean_pct": -6.22, "median_pct": -10.47, "lower_90_pct": -16.91 },
+      "holdout": { "events": 56, "mean_pct": 24.43, "median_pct": -10.42, "lower_90_pct": -9.39 }
+    },
+    "verdict": "Failed the older train, validation, and holdout gates. Strategy 5 may not open new capital positions."
+  },
+  "rejected_regime_specific_candidate": {
+    "rule": "fade_168h_0.04-1_all_Sports_same",
+    "horizon_hours": 72,
+    "latest_block_passed": true,
+    "older_block": {
+      "train": { "events": 162, "median_pct": -6.51, "lower_90_pct": 1.36 },
+      "validation": { "events": 61, "median_pct": -4.95, "lower_90_pct": -5.87 },
+      "holdout": { "events": 58, "median_pct": -3.85, "lower_90_pct": 7.52 }
+    },
+    "verdict": "Rejected because the latest-period edge did not persist in the older independent block."
+  },
+  "cross_checked_older_winners": [
+    {
+      "rule": "shock_fade_3h_0.08_mid_All",
+      "horizon_hours": 72,
+      "latest_holdout": { "events": 16, "median_pct": -3.92, "lower_90_pct": -11.29 },
+      "verdict": "rejected"
+    },
+    {
+      "rule": "shock_fade_3h_0.06_mid_All",
+      "horizon_hours": 72,
+      "latest_holdout": { "events": 16, "median_pct": -3.92, "lower_90_pct": -10.92 },
+      "verdict": "rejected"
+    },
+    {
+      "rule": "fade_6h_0.04-1_all_All_opposite",
+      "horizon_hours": 6,
+      "latest_validation": { "events": 27, "median_pct": -6.00, "lower_90_pct": -5.70 },
+      "latest_holdout": { "events": 26, "median_pct": -6.64, "lower_90_pct": -10.29 },
+      "verdict": "rejected"
+    },
+    {
+      "rule": "fade_6h_0.04-1_mid_All_opposite",
+      "horizon_hours": 6,
+      "latest_validation": { "events": 25, "median_pct": -3.95, "lower_90_pct": -2.63 },
+      "latest_holdout": { "events": 21, "median_pct": -6.38, "lower_90_pct": -5.87 },
+      "verdict": "rejected"
+    }
+  ],
+  "strategy_6_policy": {
+    "new_capital": "disabled",
+    "existing_strategy_5_capital": "exit at the next executable bid",
+    "research": "continue zero-capital observations",
+    "forward_requalification": "At least 30 independent Strategy 6 events in one direction with an event-clustered 90% lower bound above 1%; five-event probation is disabled."
+  }
+}
