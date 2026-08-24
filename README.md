@@ -222,6 +222,7 @@ Zero-capital observations continue, while executable fee-adjusted protected bund
 only strategy family permitted to deploy paper capital.
 
 Build 154 fixes a protected maker sizing bottleneck discovered in the live opportunity audit.
+Build 155 continuously sizes each promoted protected-maker cohort from its own independent event count and lower confidence bound. It starts proven cohorts at 0.5% per event and 2% total, caps them at 1% per event and 4% total, and automatically returns a cohort to zero capital whenever it no longer clears the promotion floor. Allocation evidence and quote sizing survive shared and offline state compaction.
 Previously, the engine tried the minimum $50 bundle size and refused to scale unless the
 all-taker bundle was already profitable, even though maker assistance exists specifically to
 turn an unprofitable taker leg into a protected resting bid. The sizing search now scales while
