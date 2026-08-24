@@ -221,6 +221,16 @@ capital therefore remains locked even when the smaller live calibration table lo
 Zero-capital observations continue, while executable fee-adjusted protected bundles remain the
 only strategy family permitted to deploy paper capital.
 
+Build 154 fixes a protected maker sizing bottleneck discovered in the live opportunity audit.
+Previously, the engine tried the minimum $50 bundle size and refused to scale unless the
+all-taker bundle was already profitable, even though maker assistance exists specifically to
+turn an unprofitable taker leg into a protected resting bid. The sizing search now scales while
+the resting leg has full executable unwind depth and every other leg has full hedge depth,
+bounded by the existing $1,000 verified-notional cap. Exact fees, unit return, daily capital
+efficiency, settlement buffer, fill competitiveness, and lock-profit-to-unwind-risk checks all
+remain mandatory. These structures still collect zero-capital evidence until their independent
+logic-and-duration cohort passes the existing forward promotion gate.
+
 Build 136 also preserves verified complete-NO conversion metadata after a
 maker-assisted touch. Once that cohort earns paper promotion, buying the remaining
 legs at exact verified depth immediately converts the complete NO set through the

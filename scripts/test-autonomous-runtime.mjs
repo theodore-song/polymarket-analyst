@@ -16,13 +16,13 @@ const settlementCalibrationAudit = JSON.parse(fs.readFileSync(new URL("../resear
 const sportsEvaluator = fs.readFileSync(new URL("./evaluate-sports-favorites.mjs", import.meta.url), "utf8");
 const build = Number(index.match(/const BUILD_VERSION = (\d+);/)?.[1]);
 
-assert.equal(build, 153);
+assert.equal(build, 154);
 assert.equal(vercelConfig.git?.deploymentEnabled?.["runtime-state"], false);
 assert.equal(settlementCalibrationAudit.requested_markets, 5000);
 assert.equal(settlementCalibrationAudit.train_passed, 0);
 assert.equal(settlementCalibrationAudit.validation_selected, 0);
 assert.equal(settlementCalibrationAudit.holdout_passed, 0);
-assert.match(index, /Adaptive strategy 65 · market-disjoint audit · build 153/);
+assert.match(index, /Adaptive strategy 65 · protected sizing fix · build 154/);
 assert.match(index, /function shockFadeSideProfile\(profile,side\)/);
 assert.match(index, /directionsHaveIndependentConfidenceGates:/);
 assert.match(index, /winningDirectionDoesNotInheritOtherLaneLosses:/);
@@ -68,6 +68,8 @@ assert.match(index, /directional_capital_approved:DIRECTIONAL_ADAPTIVE_OFFLINE_A
 assert.match(index, /offlineAuditBlocksSixHourProbation:/);
 assert.match(index, /disabledProbationMetadataStaysWatchOnly:/);
 assert.match(index, /disabledProbationCannotOpenCapital:/);
+assert.match(index, /makerAssistScalesBeyondUnprofitableTakerMinimum:/);
+assert.match(index, /scale_eligible:structuralEconomicSafe&&resolutionSafe&&riskSafe&&fillCompetitive/);
 assert.match(index, /updateSignalLedger\(st,\[\.\.\.analysisMarkets,\.\.\.supplemental\],sugs,\{liveEvidence:runMode==="live"\}\)/);
 assert.match(index, /offlineEvidenceCapabilityIsReadOnly:/);
 assert.match(index, /claimedProbationEvents/);
@@ -87,7 +89,7 @@ assert.match(api, /Buffer\.from\(file\.content/);
 assert.match(api, /searchParams\.set\("runtime", `\$\{Date\.now\(\)\}/);
 assert.match(workflow, /cron: "2,7,12,17,22,27,32,37,42,47,52,57 \* \* \* \*"/);
 assert.match(workflow, /contents: write/);
-assert.match(workflow, /EXPECTED_BUILD: "153"/);
+assert.match(workflow, /EXPECTED_BUILD: "154"/);
 assert.equal((workflow.match(/if: always\(\)/g) || []).length, 2);
 assert.match(routingReleaseWorkflow, /name: Release expanded executable search after Vercel quota reset/);
 assert.match(routingReleaseWorkflow, /BUNDLE_DEPTH_CANDIDATE_LIMIT=300/);

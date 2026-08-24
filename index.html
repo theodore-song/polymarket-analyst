@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 65 · market-disjoint audit · build 153</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 65 · protected sizing fix · build 154</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 153 active:</b> A causal adaptive selector was tested across three development archives and a fourth market-disjoint final archive with the live -18% stop and staged profit-taking. The final holdout gained 4.57% on average, but its median was -2.08% and confidence floor was -3.72%, so directional capital stays locked. Agents continue zero-capital learning and deploy only into executable, fee-adjusted protected opportunities.</div>
+  <div class="live-build-banner"><b>Build 154 active:</b> Protected maker candidates now scale against verified hedge and unwind depth even when the all-taker version is unprofitable. This repairs the minimum-size bottleneck that rejected economically valid maker structures on absolute profit. Directional capital remains locked; maker capital still requires independent cohort promotion, exact fees, positive duration-adjusted return, and an immediate hedge-or-unwind path.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 153 · Adaptive strategy 65 · Four-block market-disjoint causal audit · Directional capital lock · Protected arbitrage capital only · Strategy 5 capital retirement · Strategy 6 shadow-only research · Executable legacy exits · Exact fee-adjusted entry and exit · One owner per event · Forward evidence scaling and early shutdown · Six-hour reward-qualified maker evidence · 75%-haircut modeled reward diagnostics · No modeled reward credited to returns · Direction-specific shock gates · Duration-adaptive protected evidence windows · Fill-competitiveness protected quote gate · History-confirmed protected quote repricing · Four-lane protected maker research · 20-event diversified candidate queue · Direction-specific protected-bundle cohorts · 300-structure protected depth shortlist · Automatic superseded-quote retirement · Pilot-calibrated protected maker floor · Explicit maker rejection diagnostics · Risk-budgeted maker fill priority · Immediate protected maker conversion · Cohort-specific protected maker adaptation · Persistent protected maker-assist learner · Exact post-touch hedge-or-unwind grading · Enforced inherited-quote research cooldown · Early evidence-weighted independent maker research · 24-hour shared event cooldown · Two-pass bounded live execution · Duration-aware atomic profit recycling · Feature-aware diversified maker research · Expanded independent-event executable search · Exact-fee complete-NO conversion · Evidence-first bounded snapshots · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Duration-aware, event-capped verified bundles · Scale-aware executable-profit floor · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 6 · Agent learning 3 · Shock direction lanes 4 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 154 · Adaptive strategy 65 · Verified-depth protected maker sizing · Four-block market-disjoint causal audit · Directional capital lock · Protected arbitrage capital only · Strategy 5 capital retirement · Strategy 6 shadow-only research · Executable legacy exits · Exact fee-adjusted entry and exit · One owner per event · Forward evidence scaling and early shutdown · Six-hour reward-qualified maker evidence · 75%-haircut modeled reward diagnostics · No modeled reward credited to returns · Direction-specific shock gates · Duration-adaptive protected evidence windows · Fill-competitiveness protected quote gate · History-confirmed protected quote repricing · Four-lane protected maker research · 20-event diversified candidate queue · Direction-specific protected-bundle cohorts · 300-structure protected depth shortlist · Automatic superseded-quote retirement · Pilot-calibrated protected maker floor · Explicit maker rejection diagnostics · Risk-budgeted maker fill priority · Immediate protected maker conversion · Cohort-specific protected maker adaptation · Persistent protected maker-assist learner · Exact post-touch hedge-or-unwind grading · Enforced inherited-quote research cooldown · Early evidence-weighted independent maker research · 24-hour shared event cooldown · Two-pass bounded live execution · Duration-aware atomic profit recycling · Feature-aware diversified maker research · Expanded independent-event executable search · Exact-fee complete-NO conversion · Evidence-first bounded snapshots · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Duration-aware, event-capped verified bundles · Scale-aware executable-profit floor · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 6 · Agent learning 3 · Shock direction lanes 4 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 153;
+const BUILD_VERSION = 154;
 const AGENT_LEARNING_VERSION = 3;
 const SUGGESTION_ENGINE_VERSION = 65;
 const MAKER_STRATEGY_VERSION = 5;
@@ -1553,14 +1553,18 @@ function maximizeBundleExecution(candidate,books,minimumUnits){
   let best=bundleQuoteAtUnits(candidate,books,minimumUnits);if(!best.depth_verified)return best;
   const repricedMinimum=bundleMinimumExecutionUnits(best.cost,minimumUnits);
   if(repricedMinimum>best.units)best=bundleQuoteAtUnits(candidate,books,repricedMinimum);
-  if(!bundleQuoteIsActionable(best))return best;
+  const supportsExecution=quote=>{
+    if(bundleQuoteIsActionable(quote))return true;
+    const assist=bundleMakerAssistQuote(candidate,quote,books);return Boolean(assist&&assist.scale_eligible);
+  };
+  if(!supportsExecution(best))return best;
   const maximumUnits=Math.max(best.units,Math.floor((BUNDLE_MAX_VERIFIED_NOTIONAL/Math.max(best.cost,0.01))*100)/100);
-  const maximumQuote=bundleQuoteAtUnits(candidate,books,maximumUnits);if(bundleQuoteIsActionable(maximumQuote))return maximumQuote;
+  const maximumQuote=bundleQuoteAtUnits(candidate,books,maximumUnits);if(supportsExecution(maximumQuote))return maximumQuote;
   let low=best.units,high=maximumUnits;
   for(let attempt=0;attempt<18&&high-low>=0.02;attempt++){
     const midpoint=Math.floor(((low+high)/2)*100)/100;if(midpoint<=low)break;
     const quote=bundleQuoteAtUnits(candidate,books,midpoint);
-    if(bundleQuoteIsActionable(quote)){best=quote;low=midpoint;}else high=midpoint;
+    if(supportsExecution(quote)){best=quote;low=midpoint;}else high=midpoint;
   }
   return best;
 }
@@ -1593,7 +1597,8 @@ function bundleMakerAssistQuote(candidate,quote,books){
       const unitProfitSafe=profit>=NEG_RISK_MIN_NET_PROFIT,returnSafe=netReturn>=NEG_RISK_MIN_NET_RETURN;
       const totalProfitSafe=totalProfit>=BUNDLE_MAKER_MIN_EXECUTION_PROFIT;
       const capitalEfficiencySafe=capitalEfficiency>=bundleMinimumDailyReturn(candidate);
-      const economicSafe=unitProfitSafe&&returnSafe&&totalProfitSafe&&capitalEfficiencySafe&&feeConfigValid;
+      const structuralEconomicSafe=unitProfitSafe&&returnSafe&&capitalEfficiencySafe&&feeConfigValid;
+      const economicSafe=structuralEconomicSafe&&totalProfitSafe;
       const resolutionHours=Number(candidate.days_to_resolution)*24;
       const resolutionSafe=Number.isFinite(resolutionHours)&&resolutionHours>=BUNDLE_MAKER_MIN_RESOLUTION_HOURS;
       const riskSafe=Boolean(executableSale)&&unwindPct<=BUNDLE_MAKER_MAX_CURRENT_UNWIND_PCT+1e-9
@@ -1624,6 +1629,7 @@ function bundleMakerAssistQuote(candidate,quote,books){
         minimum_total_profit:BUNDLE_MAKER_MIN_EXECUTION_PROFIT,minimum_resolution_hours:BUNDLE_MAKER_MIN_RESOLUTION_HOURS,
         resolution_hours:Number.isFinite(resolutionHours)?+resolutionHours.toFixed(3):null,economics_safe:economicSafe,resolution_safe:resolutionSafe,
         risk_safe:riskSafe,rejection_reasons:rejectionReasons,
+        scale_eligible:structuralEconomicSafe&&resolutionSafe&&riskSafe&&fillCompetitive,
         protective_eligible:economicSafe&&resolutionSafe&&riskSafe,shadow_eligible:economicSafe&&resolutionSafe&&riskSafe&&fillCompetitive,
         capital_enabled:false,quote_policy:"risk-budgeted-fill-priority",
         execution_model:"highest protected resting bid then exact live-depth taker hedge"};
@@ -8542,6 +8548,8 @@ function runEngineSelfTest(){
   const makerAssistCandidate=Object.assign({},zeroFeeBundleSuggestion,{days_to_resolution:2});
   const makerAssistTakerQuote=bundleQuoteAtUnits(makerAssistCandidate,makerAssistBooks,50);
   const makerAssistFixture=bundleMakerAssistQuote(makerAssistCandidate,makerAssistTakerQuote,makerAssistBooks);
+  const scaledMakerAssistQuote=maximizeBundleExecution(makerAssistCandidate,makerAssistBooks,50);
+  const scaledMakerAssist=bundleMakerAssistQuote(makerAssistCandidate,scaledMakerAssistQuote,makerAssistBooks);
   const makerAssistVerifiedCandidate=Object.assign({},makerAssistCandidate,{bundle_legs:makerAssistTakerQuote.legs,maker_assist:makerAssistFixture});
   const extendedHorizonAssist=Object.assign({},makerAssistFixture,{spread_position:0.2,current_unwind_pct:0.01,lock_to_unwind_ratio:3});
   const extendedHorizonCandidate=Object.assign({},makerAssistVerifiedCandidate,{bundle_id:"bundle:extended-horizon:yes",bundle_event_id:"extended-horizon",
@@ -9458,6 +9466,11 @@ function runEngineSelfTest(){
         &&makerAssistFixture.protected_cost===0.98&&makerAssistFixture.total_profit===1
         &&makerAssistFixture.execution_model==="highest protected resting bid then exact live-depth taker hedge"
         &&makerAssistFixture.capital_enabled===false),
+      makerAssistScalesBeyondUnprofitableTakerMinimum:Boolean(makerAssistTakerQuote.net_return<0
+        &&scaledMakerAssistQuote.units>makerAssistTakerQuote.units&&scaledMakerAssistQuote.units<=100
+        &&scaledMakerAssist&&scaledMakerAssist.shadow_eligible&&scaledMakerAssist.total_profit>makerAssistFixture.total_profit
+        &&scaledMakerAssist.current_unwind_pct<=BUNDLE_MAKER_MAX_CURRENT_UNWIND_PCT
+        &&scaledMakerAssist.lock_to_unwind_ratio>=BUNDLE_MAKER_MIN_LOCK_TO_UNWIND_RATIO),
       makerAssistRejectsUnfillableBottomOfWideSpread:Boolean(deepMakerAssist&&deepMakerAssist.protective_eligible
         &&!deepMakerAssist.shadow_eligible&&!deepMakerAssist.fill_competitive&&deepMakerAssist.bid_improvement_ticks===1
         &&deepMakerAssist.spread_position<BUNDLE_MAKER_MIN_SPREAD_POSITION
