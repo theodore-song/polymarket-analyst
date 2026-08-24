@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 65 · live 72h allocation fix · build 150</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 65 · live 72h migration fix · build 151</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 150 active:</b> The cost-capped 72-hour pilot now publishes its trade-ready signals and can place its intended 0.25% paper position even when an agent is below its starting balance. Contracts still pass the path-dependent settlement filter, exact fee budget, one-owner-per-event rule, and 1% lane cap before entry. Forward results automatically scale or shut down the lane; profits are not guaranteed.</div>
+  <div class="live-build-banner"><b>Build 151 active:</b> The cost-capped 72-hour pilot retires obsolete zero-capital Strategy 5 shadows as soon as their direction has paper-capital permission, freeing those events for bounded positions. Trade-ready signals remain visible and 0.25% entries work below the starting balance. Path-dependent settlement, exact fee, one-owner-per-event, and 1% lane-cap gates remain enforced.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 150 · Adaptive strategy 65 · Live 72-hour allocation fix · Cost-capped mean-reversion pilot · Exact fee-adjusted entry and exit · Paper-only 0.25% initial entries · 1% initial lane cap per agent · One owner per event · Forward evidence scaling and early shutdown · Six-hour reward-qualified maker evidence · 75%-haircut modeled reward diagnostics · No modeled reward credited to returns · Direction-specific shock gates · Duration-adaptive protected evidence windows · Fill-competitiveness protected quote gate · History-confirmed protected quote repricing · Four-lane protected maker research · 20-event diversified candidate queue · Direction-specific protected-bundle cohorts · 300-structure protected depth shortlist · Automatic superseded-quote retirement · Pilot-calibrated protected maker floor · Explicit maker rejection diagnostics · Risk-budgeted maker fill priority · Immediate protected maker conversion · Cohort-specific protected maker adaptation · Persistent protected maker-assist learner · Exact post-touch hedge-or-unwind grading · Enforced inherited-quote research cooldown · Early evidence-weighted independent maker research · 24-hour shared event cooldown · Two-pass bounded live execution · Duration-aware atomic profit recycling · Feature-aware diversified maker research · Expanded independent-event executable search · Exact-fee complete-NO conversion · Evidence-first bounded snapshots · Six-hour bounded probation with matched executable exits · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Duration-aware, event-capped verified bundles · Scale-aware executable-profit floor · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 6 · Agent learning 3 · Shock direction lanes 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 151 · Adaptive strategy 65 · Live 72-hour migration fix · Capital-eligible shadow retirement · Cost-capped mean-reversion pilot · Exact fee-adjusted entry and exit · Paper-only 0.25% initial entries · 1% initial lane cap per agent · One owner per event · Forward evidence scaling and early shutdown · Six-hour reward-qualified maker evidence · 75%-haircut modeled reward diagnostics · No modeled reward credited to returns · Direction-specific shock gates · Duration-adaptive protected evidence windows · Fill-competitiveness protected quote gate · History-confirmed protected quote repricing · Four-lane protected maker research · 20-event diversified candidate queue · Direction-specific protected-bundle cohorts · 300-structure protected depth shortlist · Automatic superseded-quote retirement · Pilot-calibrated protected maker floor · Explicit maker rejection diagnostics · Risk-budgeted maker fill priority · Immediate protected maker conversion · Cohort-specific protected maker adaptation · Persistent protected maker-assist learner · Exact post-touch hedge-or-unwind grading · Enforced inherited-quote research cooldown · Early evidence-weighted independent maker research · 24-hour shared event cooldown · Two-pass bounded live execution · Duration-aware atomic profit recycling · Feature-aware diversified maker research · Expanded independent-event executable search · Exact-fee complete-NO conversion · Evidence-first bounded snapshots · Six-hour bounded probation with matched executable exits · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Duration-aware, event-capped verified bundles · Scale-aware executable-profit floor · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 6 · Agent learning 3 · Shock direction lanes 3 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 150;
+const BUILD_VERSION = 151;
 const AGENT_LEARNING_VERSION = 3;
 const SUGGESTION_ENGINE_VERSION = 65;
 const MAKER_STRATEGY_VERSION = 5;
@@ -3725,6 +3725,23 @@ function sharedShockFadePilotProfile(st){
   return Object.assign(shockFadePilotProfile(combined),{scope:"shared-adopters",adopters:portfolios.length,
     cohorts:{YES:shockFadePilotProfile(combined,"YES"),NO:shockFadePilotProfile(combined,"NO")}});
 }
+function retireCapitalEligibleShockShadows(st,profile){
+  const byAgent={};let total=0;
+  SHOCK_FADE_ADOPTER_IDS.forEach(id=>{
+    const p=st&&st.agents&&st.agents[id];if(!p)return;
+    const keep=[];let retired=0;
+    (p.shock_fade_shadows||[]).forEach(row=>{
+      const current=Number(row.shock_strategy_version||0)===SHOCK_FADE_STRATEGY_VERSION;
+      const lane=shockFadeSideProfile(profile,row.side);
+      if(current&&lane&&lane.allowed){
+        retired++;total++;p.history.push({date:logDay(),action:"SHOCK_SHADOW_RETIRE",question:row.question,side:row.side,
+          detail:`Retired a zero-capital Strategy ${SHOCK_FADE_STRATEGY_VERSION} observation because the ${row.side} lane now has bounded paper permission; this event may compete for a live 0.25% pilot position at a fresh executable price`});
+      }else keep.push(row);
+    });
+    p.shock_fade_shadows=keep;byAgent[id]=retired;
+  });
+  return {total,byAgent};
+}
 function resolutionWeekNoPilotProfile(p){
   const grouped=new Map();
   (p&&p.resolution_week_no_outcomes||[]).filter(outcome=>Number(outcome.resolution_week_strategy_version||0)===RESOLUTION_WEEK_NO_STRATEGY_VERSION)
@@ -5696,6 +5713,7 @@ async function runDailyCycle(){
     }
     if(executeTrades)reduceStrategyOverlap(st);
     const sharedShockProfile=sharedShockFadePilotProfile(st);
+    const shockShadowRetirement=retireCapitalEligibleShockShadows(st,sharedShockProfile);
     const sharedResolutionWeekProfile=sharedResolutionWeekNoPilotProfile(st);
     const entriesAllowed=runMode==="live"||cachePolicy.entriesAllowed;
     const cycleSuggestions=prepareCycleSuggestions(sugs,runMode,entriesAllowed);
@@ -5751,7 +5769,8 @@ async function runDailyCycle(){
       if(SHOCK_FADE_ADOPTER_IDS.has(cfg.id)){
         (p.positions||[]).filter(row=>row.signal_type==="shock-fade-pilot"&&Number(row.shock_strategy_version||0)===SHOCK_FADE_STRATEGY_VERSION)
           .forEach(row=>shockFadeClaimKeys(row).forEach(key=>claimedShockEvents.add(key)));
-        p.lastDecision=Object.assign({},p.lastDecision,{shockFadePilot:sharedShockProfile});
+        p.lastDecision=Object.assign({},p.lastDecision,{shockFadePilot:sharedShockProfile,
+          shockCapitalEligibleShadowsRetired:shockShadowRetirement.byAgent[cfg.id]||0});
       }
       if(cfg.id==="favorite"){
         const shadowStage=stageSportsFavoriteShadows(p,cycleSuggestions,{execute:runMode==="live"&&entriesAllowed});
@@ -5804,6 +5823,7 @@ async function runDailyCycle(){
       const adopter=st.agents[id];if(!adopter||!adopter.lastDecision)return;
       adopter.lastDecision=Object.assign({},adopter.lastDecision,{shockSharedLearning:true,shockShadowActive:shockStage.active,shockShadowStaged:shockStage.staged,
         shockShadowCandidates:shockStage.candidates,shockShadowCompleted:shockShadowActivity.completed,shockShadowExpired:shockShadowActivity.expired,
+        shockCapitalEligibleShadowsRetired:shockShadowRetirement.byAgent[id]||0,
         shockFadePilot:shockProfile});
       const noLane=shockProfile.cohorts.NO,yesLane=shockProfile.cohorts.YES;
       adopter.lastDecision.allocationStatus=`${adopter.lastDecision.allocationStatus||""} Shared shock strategy ${SHOCK_FADE_STRATEGY_VERSION}: ${shockStage.active} zero-capital observation${shockStage.active===1?"":"s"} active and ${shockShadowActivity.completed} graded this cycle. Directional gates are independent: buy-NO ${noLane.events} events, ${(noLane.mean*100).toFixed(2)}% mean, ${(noLane.lower*100).toFixed(2)}% lower bound, ${(noLane.position_pct*100).toFixed(2)}% cap; buy-YES ${yesLane.events} events, ${(yesLane.mean*100).toFixed(2)}% mean, ${(yesLane.lower*100).toFixed(2)}% lower bound, ${(yesLane.position_pct*100).toFixed(2)}% cap. Each lane needs ${SHOCK_FADE_QUALIFICATION_EVENTS} events and a lower bound above 1% before capital.`.trim();
@@ -7926,6 +7946,17 @@ function runEngineSelfTest(){
     {shockFadePilot:initialShockProfile});
   openPositions(belowStartingShockBook,shockAgent,rankSuggestionsForAgent(shockAgent,[initialShockSuggestion]),"All",belowStartingShockDecision,new Set(),{});
   const publicInitialShock=compactPublicSuggestionsForSync({suggestions:[initialShockSuggestion]}).suggestions[0];
+  const shockRetirementState=defaultState();
+  shockRetirementState.agents.reversal.shock_fade_shadows.push(
+    {id:"current-shadow",market_id:"current-shadow",event_key:"current-shadow-event",question:"Current Strategy 5 shadow",side:"NO",shock_strategy_version:SHOCK_FADE_STRATEGY_VERSION},
+    {id:"legacy-shadow",market_id:"legacy-shadow",event_key:"legacy-shadow-event",question:"Legacy Strategy 4 shadow",side:"NO",shock_strategy_version:SHOCK_FADE_STRATEGY_VERSION-1});
+  const shockRetirement=retireCapitalEligibleShockShadows(shockRetirementState,sharedShockFadePilotProfile(shockRetirementState));
+  const demotedShadowState=defaultState();
+  for(let i=0;i<SHOCK_FADE_PROBATION_MIN_EVENTS;i++)demotedShadowState.agents.reversal.shock_fade_outcomes.push({
+    shock_strategy_version:SHOCK_FADE_STRATEGY_VERSION,side:"NO",event_key:`demoted-shadow-event-${i}`,market_id:`demoted-shadow-${i}`,net_return:-0.10,pnl_per_100:-10});
+  demotedShadowState.agents.reversal.shock_fade_shadows.push({id:"demoted-current-shadow",market_id:"demoted-current-shadow",
+    event_key:"demoted-current-shadow-event",question:"Demoted Strategy 5 shadow",side:"NO",shock_strategy_version:SHOCK_FADE_STRATEGY_VERSION});
+  const demotedShadowRetirement=retireCapitalEligibleShockShadows(demotedShadowState,sharedShockFadePilotProfile(demotedShadowState));
   const initialShadowStage=stageShockFadeShadows(initialShockBook,[shockSuggestion]);
   const probationShockEvidence=[-0.0923,0.1392,-0.0194,0.023,0.6667],probationShockBook=defaultPortfolio();
   probationShockEvidence.forEach((netReturn,index)=>probationShockBook.shock_fade_outcomes.push({shock_strategy_version:SHOCK_FADE_STRATEGY_VERSION,
@@ -9180,6 +9211,11 @@ function runEngineSelfTest(){
         &&belowStartingShockBook.positions[0].cost<=9800*SHOCK_FADE_BACKTEST_POSITION_PCT+0.01,
       sharedSuggestionsExposePromotedPilot:Boolean(publicInitialShock&&publicInitialShock.trade_ready&&publicInitialShock.entry_candidate
         &&publicInitialShock.signal_type==="shock-fade-pilot"&&!publicInitialShock.watch_only),
+      capitalEligibleCurrentShadowIsRetired:shockRetirement.total===1
+        &&shockRetirementState.agents.reversal.shock_fade_shadows.length===1
+        &&shockRetirementState.agents.reversal.shock_fade_shadows[0].id==="legacy-shadow",
+      demotedDirectionKeepsZeroCapitalShadow:demotedShadowRetirement.total===0
+        &&demotedShadowState.agents.reversal.shock_fade_shadows.length===1,
       fiveBalancedPositiveEventsStartTinyProbation:probationShockProfile.allowed&&probationShockProfile.probation&&!probationShockProfile.qualified
         &&probationShockProfile.position_pct===SHOCK_FADE_PROBATION_POSITION_PCT
         &&probationShockProfile.jackknife_min_mean>SHOCK_FADE_PROBATION_MIN_JACKKNIFE_MEAN

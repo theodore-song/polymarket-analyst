@@ -199,6 +199,11 @@ contract that already passed the path-dependent settlement filter no longer carr
 and the pilot's paper minimum no longer prevents a 0.25% entry merely because an agent's equity
 is below its original $10,000 balance.
 
+Build 151 completes that live migration by retiring active Strategy 5 shadow records when the
+matching direction has paper-capital permission. Those zero-capital records were created before
+Build 150 and still claimed otherwise trade-ready events. Legacy strategy shadows are preserved,
+and a direction that loses capital permission continues to use zero-capital forward observation.
+
 Build 136 also preserves verified complete-NO conversion metadata after a
 maker-assisted touch. Once that cohort earns paper promotion, buying the remaining
 legs at exact verified depth immediately converts the complete NO set through the
