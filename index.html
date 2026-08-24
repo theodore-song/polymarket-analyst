@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 65 · evidence-scaled capital · build 155</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 65 · risk-normalized evidence · build 156</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 155 active:</b> Protected maker capital now adapts continuously after promotion. A proven logic-and-duration cohort starts at 0.5% per event and can grow toward 1.0% only as both its independent event count and lower confidence bound strengthen; its total lane cap grows from 2% toward 4%. Any cohort that loses its confidence floor is automatically demoted to zero. The complete learner and allocation survive shared and offline restarts.</div>
+  <div class="live-build-banner"><b>Build 156 active:</b> Protected maker wins and losses now use the same pre-touch protected reserve as their return denominator. Earlier adverse observations divided losses by only the touched leg while successful locks used the complete bundle, overstating downside in the adaptive learner. The corrected policy starts a clean evidence generation, retains exact dollar P&amp;L, records actual touched capital separately, and preserves touch and hedge diagnostics across shared and offline restarts.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 155 · Adaptive strategy 65 · Evidence-scaled protected maker capital · Verified-depth protected maker sizing · Four-block market-disjoint causal audit · Directional capital lock · Protected arbitrage capital only · Strategy 5 capital retirement · Strategy 6 shadow-only research · Executable legacy exits · Exact fee-adjusted entry and exit · One owner per event · Forward evidence scaling and automatic demotion · Six-hour reward-qualified maker evidence · 75%-haircut modeled reward diagnostics · No modeled reward credited to returns · Direction-specific shock gates · Duration-adaptive protected evidence windows · Fill-competitiveness protected quote gate · History-confirmed protected quote repricing · Four-lane protected maker research · 20-event diversified candidate queue · Direction-specific protected-bundle cohorts · 300-structure protected depth shortlist · Automatic superseded-quote retirement · Pilot-calibrated protected maker floor · Explicit maker rejection diagnostics · Risk-budgeted maker fill priority · Immediate protected maker conversion · Cohort-specific protected maker adaptation · Persistent protected maker-assist learner · Exact post-touch hedge-or-unwind grading · Enforced inherited-quote research cooldown · Early evidence-weighted independent maker research · 24-hour shared event cooldown · Two-pass bounded live execution · Duration-aware atomic profit recycling · Feature-aware diversified maker research · Expanded independent-event executable search · Exact-fee complete-NO conversion · Evidence-first bounded snapshots · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Duration-aware, event-capped verified bundles · Scale-aware executable-profit floor · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 6 · Agent learning 3 · Shock direction lanes 4 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 156 · Adaptive strategy 65 · Risk-normalized protected maker evidence · Evidence-scaled protected maker capital · Verified-depth protected maker sizing · Four-block market-disjoint causal audit · Directional capital lock · Protected arbitrage capital only · Strategy 5 capital retirement · Strategy 6 shadow-only research · Executable legacy exits · Exact fee-adjusted entry and exit · One owner per event · Forward evidence scaling and automatic demotion · Six-hour reward-qualified maker evidence · 75%-haircut modeled reward diagnostics · No modeled reward credited to returns · Direction-specific shock gates · Duration-adaptive protected evidence windows · Fill-competitiveness protected quote gate · History-confirmed protected quote repricing · Four-lane protected maker research · 20-event diversified candidate queue · Direction-specific protected-bundle cohorts · 300-structure protected depth shortlist · Automatic superseded-quote retirement · Pilot-calibrated protected maker floor · Explicit maker rejection diagnostics · Risk-budgeted maker fill priority · Immediate protected maker conversion · Cohort-specific protected maker adaptation · Persistent protected maker-assist learner · Exact post-touch hedge-or-unwind grading · Enforced inherited-quote research cooldown · Early evidence-weighted independent maker research · 24-hour shared event cooldown · Two-pass bounded live execution · Duration-aware atomic profit recycling · Feature-aware diversified maker research · Expanded independent-event executable search · Exact-fee complete-NO conversion · Evidence-first bounded snapshots · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Duration-aware, event-capped verified bundles · Scale-aware executable-profit floor · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 6 · Agent learning 3 · Shock direction lanes 4 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,11 +774,11 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 155;
+const BUILD_VERSION = 156;
 const AGENT_LEARNING_VERSION = 3;
 const SUGGESTION_ENGINE_VERSION = 65;
 const MAKER_STRATEGY_VERSION = 5;
-const BUNDLE_MAKER_STRATEGY_VERSION = 5;
+const BUNDLE_MAKER_STRATEGY_VERSION = 6;
 const SHOCK_FADE_STRATEGY_VERSION = 6;
 const RESOLUTION_WEEK_NO_STRATEGY_VERSION = 3;
 const SPORTS_CONTEST_NO_STRATEGY_VERSION = 1;
@@ -2523,12 +2523,13 @@ function compactMakerOutcomeForPublic(row){
 function compactBundleMakerOutcomeForPublic(row){
   if(!row||typeof row!=="object")return row;
   return {quote_id:row.quote_id,event_key:row.event_key,bundle_id:row.bundle_id,logic:row.logic,cohort_key:row.cohort_key,owner_id:row.owner_id,
-    status:row.status,pnl:row.pnl,shadow_only:row.shadow_only,deployed_capital:row.deployed_capital,
+    status:row.status,pnl:row.pnl,shadow_only:row.shadow_only,deployed_capital:row.deployed_capital,reserved_capital:row.reserved_capital,
     adaptive_position_pct:row.adaptive_position_pct,adaptive_total_capital_pct:row.adaptive_total_capital_pct,
     evidence_multiplier:row.evidence_multiplier,event_strength:row.event_strength,confidence_strength:row.confidence_strength,
     maker_price:row.maker_price,best_bid:row.best_bid,best_ask:row.best_ask,bid_improvement_ticks:row.bid_improvement_ticks,spread_position:row.spread_position,
     current_unwind_loss:row.current_unwind_loss,current_unwind_pct:row.current_unwind_pct,lock_to_unwind_ratio:row.lock_to_unwind_ratio,quote_policy:row.quote_policy,
-    return_on_reserved:row.return_on_reserved,created_at:row.created_at,completed_at:row.completed_at,
+    return_on_reserved:row.return_on_reserved,touch_source:row.touch_source,hedge_status:row.hedge_status,
+    created_at:row.created_at,completed_at:row.completed_at,
     hours_to_outcome:row.hours_to_outcome,strategy_version:row.strategy_version,
     bundle_maker_strategy_version:row.bundle_maker_strategy_version,build_version:row.build_version};
 }
@@ -4965,9 +4966,12 @@ function refreshBundleMakerQuote(quote,candidate){
 function recordBundleMakerOutcome(p,quote,status,pnl,deployedCapital,details={}){
   p.bundle_maker_outcomes=Array.isArray(p.bundle_maker_outcomes)?p.bundle_maker_outcomes:[];
   if(p.bundle_maker_outcomes.some(row=>row.quote_id===quote.id))return null;
-  const deployed=Math.max(0,Number(deployedCapital==null?quote.reserved_capital||0:deployedCapital)),row={quote_id:quote.id,event_key:quote.event_key,bundle_id:quote.bundle_id,
+  const deployed=Math.max(0,Number(deployedCapital==null?quote.reserved_capital||0:deployedCapital));
+  const reserved=Math.max(0,Number(quote.reserved_capital||deployed));
+  const row={quote_id:quote.id,event_key:quote.event_key,bundle_id:quote.bundle_id,
     logic:quote.logic,cohort_key:bundleMakerCohortKey(quote),owner_id:quote.owner_id,status,pnl:+Number(pnl||0).toFixed(4),shadow_only:Boolean(quote.shadow_only),
-    deployed_capital:+deployed.toFixed(2),return_on_reserved:+(deployed>0?Number(pnl||0)/deployed:0).toFixed(6),created_at:quote.created_at,
+    deployed_capital:+deployed.toFixed(2),reserved_capital:+reserved.toFixed(2),
+    return_on_reserved:+(reserved>0?Number(pnl||0)/reserved:0).toFixed(6),created_at:quote.created_at,
     completed_at:cycleIso(),hours_to_outcome:+hoursSince(quote.created_at).toFixed(3),strategy_version:Number(quote.strategy_version||SUGGESTION_ENGINE_VERSION),
     bundle_maker_strategy_version:Number(quote.bundle_maker_strategy_version||BUNDLE_MAKER_STRATEGY_VERSION),build_version:Number(quote.build_version||BUILD_VERSION),
     adaptive_position_pct:Number(quote.adaptive_position_pct||0),adaptive_total_capital_pct:Number(quote.adaptive_total_capital_pct||0),
@@ -7795,6 +7799,7 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
     bundleMakerPaperPositionPct:BUNDLE_MAKER_POSITION_PCT*100,bundleMakerPaperTotalCapitalPct:BUNDLE_MAKER_TOTAL_CAPITAL_PCT*100,
     bundleMakerMaximumPaperPositionPct:BUNDLE_MAKER_MAX_POSITION_PCT*100,bundleMakerMaximumPaperTotalCapitalPct:BUNDLE_MAKER_MAX_TOTAL_CAPITAL_PCT*100,
     bundleMakerCapitalScaling:"minimum of independent-event strength and lower-confidence-bound strength",
+    bundleMakerReturnDenominator:"pre-touch protected reserved capital",bundleMakerTouchedCapitalTrackedSeparately:true,
     bundleMakerOfflineFills:false,bundleMakerRequiresImmediateExactHedge:true,
     pairedMakerQuotes:"research-only-immediate-lock-or-exit",makerStrategyVersion:MAKER_STRATEGY_VERSION,
     makerShadowHorizonHours:MAKER_SHADOW_HORIZON_HOURS,makerRewardShadowHorizonHours:MAKER_REWARD_SHADOW_HORIZON_HOURS,
@@ -8673,6 +8678,12 @@ function runEngineSelfTest(){
   const bundleMakerFees=new Map((bundleMakerQuote.bundle_legs||[]).map(leg=>[String(leg.condition_id),leg.fee_schedule]));
   const bundleMakerHedge=bundleMakerPostTouchQuote(bundleMakerQuote,makerAssistBooks,bundleMakerFees);
   const bundleMakerUnwind=bundleMakerImmediateUnwind(bundleMakerQuote,makerAssistBooks,bundleMakerFees);
+  const normalizedOutcomeState=defaultState(),normalizedOutcomeQuote=Object.assign({},bundleMakerQuote,{
+    id:"risk-normalized-outcome",event_key:"risk-normalized-event",reserved_capital:50,
+  });
+  const normalizedOutcome=recordBundleMakerOutcome(normalizedOutcomeState.agents.value,normalizedOutcomeQuote,"immediate-unwind",-5,10,
+    {touch_source:"fixture-book-cross",hedge_status:"fixture-hedge-failed"});
+  const compactedNormalizedOutcome=compactBundleMakerOutcomeForPublic(normalizedOutcome);
   const adaptiveBundleMakerQuote=JSON.parse(JSON.stringify(bundleMakerQuote)),adaptiveCreatedAt=hoursAgo(0.25);
   adaptiveBundleMakerQuote.created_at=adaptiveCreatedAt;adaptiveBundleMakerQuote.quote_updated_at=adaptiveCreatedAt;
   const adaptiveAssist=Object.assign({},makerAssistFixture,{maker_price:+(Number(makerAssistFixture.maker_price)+Number(makerAssistFixture.tick_size)).toFixed(6),
@@ -9600,6 +9611,10 @@ function runEngineSelfTest(){
         &&immediateMakerPortfolio.bundle_maker_quotes.length===0),
       makerAssistFailedHedgeUsesExecutableUnwind:Boolean(bundleMakerUnwind.verified&&bundleMakerUnwind.status==="immediate-unwind"
         &&bundleMakerUnwind.pnl===-0.5),
+      makerOutcomeUsesProtectedReserveDenominator:Boolean(normalizedOutcome.deployed_capital===10&&normalizedOutcome.reserved_capital===50
+        &&normalizedOutcome.return_on_reserved===-0.1),
+      makerOutcomeAuditSurvivesSharedCompaction:Boolean(compactedNormalizedOutcome.reserved_capital===50
+        &&compactedNormalizedOutcome.touch_source==="fixture-book-cross"&&compactedNormalizedOutcome.hedge_status==="fixture-hedge-failed"),
       offlineBundleMakerCannotInventFill:offlineBundleMakerUnchanged&&bundleMakerState.agents.value.bundle_maker_outcomes.length===0,
       emptyBundleMakerEvidenceStartsNeutral:initialBundleMakerProfile.events===0&&initialBundleMakerProfile.lower===0&&initialBundleMakerProfile.upper===0,
       legacyBundleMakerPolicyCannotContaminateCurrentEvidence:legacyBundleMakerOutcome.bundle_maker_strategy_version===1
