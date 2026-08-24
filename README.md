@@ -182,8 +182,16 @@ six-hour observations from 500 active and 1,000 resolved markets; subsequent tar
 replay locally in roughly a tenth of a second. Events are kept whole across chronological
 train, validation, and holdout partitions, and the simulator permits only one non-overlapping
 position per event. The first 2,560-rule audit found no capital-safe rule at a three-cent
-round-trip stress. Its closest 72-hour fade also failed at 2.5 cents, so it remains disabled
-rather than being used to manufacture exposure.
+round-trip stress. Its closest 72-hour fade also failed at 2.5 cents, so full sizing remains
+disabled and only the tightly bounded paper pilot below may use it.
+
+Build 149 turns the closest frozen rule into a deliberately tiny paper-only learning lane,
+not a full promotion. Strategy 5 fades a 4-point or larger 72-hour move, pays the executable
+ask plus exact entry fee and slippage, permits one owner per event, and exits after 72 hours
+at a fee-adjusted executable price. It starts at 0.25% of equity with a 1% lane cap because
+the rule passed the two-cent expected-return audit but failed at 2.5 cents and had a negative
+holdout median. Five early adverse events can shut it down; 30 and 60 independent positive
+forward events are required before size can rise to 0.5% and 0.75% respectively.
 
 Build 136 also preserves verified complete-NO conversion metadata after a
 maker-assisted touch. Once that cohort earns paper promotion, buying the remaining

@@ -1,7 +1,7 @@
 {
   "generated_at": "2026-08-24T14:35:26.038Z",
   "status": "research-only",
-  "capital_approved": false,
+  "capital_approved": "bounded-paper-pilot-only",
   "universe": {
     "requested_markets": 1500,
     "usable_markets": 615,
@@ -32,6 +32,6 @@
       "holdout": {"trades": 66, "events": 22, "event_mean": 0.26669, "median": -0.04962, "lower_90": 0.04950, "win_rate": 0.34848, "worst_event": -0.39592}
     },
     "stress_result": "Fails the training gate at 2.5 cents and 3 cents per share",
-    "decision": "Do not authorize capital. The expected-value result is thin, loses on most holdout events, and is not robust to modestly higher execution cost."
+    "decision": "Authorize only a 0.25%-of-equity, fee-aware paper pilot with a 1% lane cap. Scale from independent forward evidence or disable after early adverse evidence; do not use for real money."
   }
 }

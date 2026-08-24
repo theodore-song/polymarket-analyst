@@ -5,6 +5,7 @@ const report = JSON.parse(fs.readFileSync(new URL("../research/shock-strategy-3-
 const independent = JSON.parse(fs.readFileSync(new URL("../research/shock-strategy-3-independent-audit.json", import.meta.url), "utf8"));
 const strategy4 = JSON.parse(fs.readFileSync(new URL("../research/shock-strategy-4-audit.json", import.meta.url), "utf8"));
 const strategy4Independent = JSON.parse(fs.readFileSync(new URL("../research/shock-strategy-4-independent-audit.json", import.meta.url), "utf8"));
+const strategy5 = JSON.parse(fs.readFileSync(new URL("../research/offline-replay-v1-audit.json", import.meta.url), "utf8"));
 const index = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const candidate = report.candidates.find(row => row.rule.id === "fade_h12_w3_m0.08_accelerating_v1_All_All");
 
@@ -67,8 +68,17 @@ assert.equal(primarySurvivors.filter(row => {
     && untouched[partition].eventMean > 0 && untouched[partition].lower > 0);
 }).length, 0, "A Strategy 4 refinement unexpectedly passed every independent partition");
 
-assert.match(index, /const SHOCK_FADE_BACKTEST_APPROVED=false/);
-assert.match(index, /const SHOCK_FADE_QUALIFICATION_EVENTS=40/);
-assert.match(index, /const SHOCK_FADE_PROMOTION_EVENTS=80/);
+assert.equal(strategy5.capital_approved, "bounded-paper-pilot-only");
+assert.equal(strategy5.closest_rule.id, "fade_72h_0.04-1_all_All_any");
+assert.ok(strategy5.closest_rule.two_cent_results.train.lower_90 > 0);
+assert.ok(strategy5.closest_rule.two_cent_results.validation.lower_90 > 0);
+assert.ok(strategy5.closest_rule.two_cent_results.holdout.lower_90 > 0);
+assert.ok(strategy5.closest_rule.two_cent_results.holdout.median < 0);
+assert.match(strategy5.closest_rule.stress_result, /Fails.*2\.5 cents/);
+assert.match(index, /const SHOCK_FADE_STRATEGY_VERSION = 5/);
+assert.match(index, /const SHOCK_FADE_BACKTEST_APPROVED=true/);
+assert.match(index, /const SHOCK_FADE_BACKTEST_POSITION_PCT=0\.0025/);
+assert.match(index, /const SHOCK_FADE_QUALIFICATION_EVENTS=30/);
+assert.match(index, /const SHOCK_FADE_PROMOTION_EVENTS=60/);
 
 console.log("shock audit artifact verified");

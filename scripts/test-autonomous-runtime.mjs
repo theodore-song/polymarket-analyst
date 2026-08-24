@@ -16,13 +16,13 @@ const settlementCalibrationAudit = JSON.parse(fs.readFileSync(new URL("../resear
 const sportsEvaluator = fs.readFileSync(new URL("./evaluate-sports-favorites.mjs", import.meta.url), "utf8");
 const build = Number(index.match(/const BUILD_VERSION = (\d+);/)?.[1]);
 
-assert.equal(build, 148);
+assert.equal(build, 149);
 assert.equal(vercelConfig.git?.deploymentEnabled?.["runtime-state"], false);
 assert.equal(settlementCalibrationAudit.requested_markets, 5000);
 assert.equal(settlementCalibrationAudit.train_passed, 0);
 assert.equal(settlementCalibrationAudit.validation_selected, 0);
 assert.equal(settlementCalibrationAudit.holdout_passed, 0);
-assert.match(index, /Adaptive strategy 65 · stable shock probation · build 148/);
+assert.match(index, /Adaptive strategy 65 · cost-capped 72h reversion · build 149/);
 assert.match(index, /function shockFadeSideProfile\(profile,side\)/);
 assert.match(index, /directionsHaveIndependentConfidenceGates:/);
 assert.match(index, /winningDirectionDoesNotInheritOtherLaneLosses:/);
@@ -85,7 +85,7 @@ assert.match(api, /Buffer\.from\(file\.content/);
 assert.match(api, /searchParams\.set\("runtime", `\$\{Date\.now\(\)\}/);
 assert.match(workflow, /cron: "2,7,12,17,22,27,32,37,42,47,52,57 \* \* \* \*"/);
 assert.match(workflow, /contents: write/);
-assert.match(workflow, /EXPECTED_BUILD: "148"/);
+assert.match(workflow, /EXPECTED_BUILD: "149"/);
 assert.equal((workflow.match(/if: always\(\)/g) || []).length, 2);
 assert.match(routingReleaseWorkflow, /name: Release expanded executable search after Vercel quota reset/);
 assert.match(routingReleaseWorkflow, /BUNDLE_DEPTH_CANDIDATE_LIMIT=300/);
