@@ -9023,7 +9023,7 @@ function runEngineSelfTest(){
       offlineAuditBlocksSixHourProbation:!probationSuggestion.trade_ready&&!probationSuggestion.adaptive_probation
         &&!probationOpportunity.allowed&&!probationOpportunity.probation_proof_met,
       disabledProbationCannotOpenCapital:probationOpenBook.positions.length===0,
-      disabledProbationMetadataStaysWatchOnly:probationCompacted.adaptive_probation===false
+      disabledProbationMetadataStaysWatchOnly:!probationCompacted.adaptive_probation
         &&probationCompacted.probation_exit_hours==null,
       disabledProbationBooksStayEmpty:earlyProbationBook.positions.length===0&&timedProbationBook.positions.length===0,
       sixHourEvidenceCannotGrantFullPromotion:!probationSuggestion.adaptive_promotion
