@@ -23,7 +23,7 @@ Offline cycles can apply calibration already earned from live observations, but
 the evidence ledger is read-only: cached prices cannot grade pending signals,
 expire horizons, or create new observations.
 
-Build 146 targets five-minute slots with a serialized, self-chained GitHub Actions runtime.
+Build 147 targets five-minute slots with a serialized, self-chained GitHub Actions runtime.
 The mutable snapshot stays on the dedicated `runtime-state` branch, which is
 explicitly excluded from Vercel Git deployments through
 `git.deploymentEnabled`. This prevents high-frequency state commits from
@@ -161,6 +161,14 @@ a 60% win rate, and no outcome worse than -15%. It may then risk only 0.10% of e
 position and 0.50% total shock capital per agent. The opposite direction does not inherit
 the permission, and the existing 40-event positive-confidence gate remains required for full
 paper sizing. Cached offline snapshots cannot create or grade these entries.
+
+Build 147 adds a separate six-hour evidence window for reward-qualified paired maker
+observations after the current 30-day stress audit found that six hours was the only tested
+short horizon with a path-stable candidate at a 75% reward haircut. Reward estimates,
+quote duration, and reward share now survive the bounded cross-device snapshot, allowing the
+shared learner to report inventory-only and reward-adjusted evidence separately. Estimated
+rewards remain diagnostic: they never change cash, equity, or reported returns, and maker
+capital remains locked until independent forward events and actual payout verification pass.
 
 Build 136 also preserves verified complete-NO conversion metadata after a
 maker-assisted touch. Once that cohort earns paper promotion, buying the remaining
