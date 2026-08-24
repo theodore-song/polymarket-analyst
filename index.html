@@ -341,7 +341,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <nav class="topnav">
     <div class="brand">
       <div class="logo">🏆</div>
-      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 65 · cross-era audit · build 152</div></div>
+      <div><div class="brand-name">Polymarket Arena</div><div class="brand-sub">10 agents · 5 core + 5 aggressive</div><div class="build-badge">Adaptive strategy 65 · market-disjoint audit · build 153</div></div>
     </div>
     <div class="tabs" id="tabs">
       <button class="tab" data-tab="overview">Overview</button>
@@ -363,7 +363,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   <div class="personal-banner" id="personalBanner">
     <b>Personal research mode.</b> This copy is for your own analysis, paper tracking, and manual trade research only. It does not pool money, onboard investors, custody funds, bypass eligibility rules, or place orders without your manual approval.
   </div>
-  <div class="live-build-banner"><b>Build 152 active:</b> A second, non-overlapping 5,000-market archive invalidated the Strategy 5 mean-reversion pilot. New directional capital is disabled, existing Strategy 5 positions exit at the next executable bid, and zero-capital research continues. A direction needs 30 independent forward events with a positive confidence floor before it can trade again.</div>
+  <div class="live-build-banner"><b>Build 153 active:</b> A causal adaptive selector was tested across three development archives and a fourth market-disjoint final archive with the live -18% stop and staged profit-taking. The final holdout gained 4.57% on average, but its median was -2.08% and confidence floor was -3.72%, so directional capital stays locked. Agents continue zero-capital learning and deploy only into executable, fee-adjusted protected opportunities.</div>
 
   <!-- ============ OVERVIEW ============ -->
   <section class="tabpanel" data-tab="overview">
@@ -745,7 +745,7 @@ footer{margin-top:34px;padding-top:22px;border-top:1px solid var(--border);color
   </section>
 
   <footer>
-    Build 152 · Adaptive strategy 65 · Cross-era 10,000-market audit · Strategy 5 capital retirement · Strategy 6 shadow-only research · Executable legacy exits · 30-event forward requalification · Exact fee-adjusted entry and exit · One owner per event · Forward evidence scaling and early shutdown · Six-hour reward-qualified maker evidence · 75%-haircut modeled reward diagnostics · No modeled reward credited to returns · Direction-specific shock gates · Duration-adaptive protected evidence windows · Fill-competitiveness protected quote gate · History-confirmed protected quote repricing · Four-lane protected maker research · 20-event diversified candidate queue · Direction-specific protected-bundle cohorts · 300-structure protected depth shortlist · Automatic superseded-quote retirement · Pilot-calibrated protected maker floor · Explicit maker rejection diagnostics · Risk-budgeted maker fill priority · Immediate protected maker conversion · Cohort-specific protected maker adaptation · Persistent protected maker-assist learner · Exact post-touch hedge-or-unwind grading · Enforced inherited-quote research cooldown · Early evidence-weighted independent maker research · 24-hour shared event cooldown · Two-pass bounded live execution · Duration-aware atomic profit recycling · Feature-aware diversified maker research · Expanded independent-event executable search · Exact-fee complete-NO conversion · Evidence-first bounded snapshots · Six-hour bounded probation with matched executable exits · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Duration-aware, event-capped verified bundles · Scale-aware executable-profit floor · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 6 · Agent learning 3 · Shock direction lanes 4 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
+    Build 153 · Adaptive strategy 65 · Four-block market-disjoint causal audit · Directional capital lock · Protected arbitrage capital only · Strategy 5 capital retirement · Strategy 6 shadow-only research · Executable legacy exits · Exact fee-adjusted entry and exit · One owner per event · Forward evidence scaling and early shutdown · Six-hour reward-qualified maker evidence · 75%-haircut modeled reward diagnostics · No modeled reward credited to returns · Direction-specific shock gates · Duration-adaptive protected evidence windows · Fill-competitiveness protected quote gate · History-confirmed protected quote repricing · Four-lane protected maker research · 20-event diversified candidate queue · Direction-specific protected-bundle cohorts · 300-structure protected depth shortlist · Automatic superseded-quote retirement · Pilot-calibrated protected maker floor · Explicit maker rejection diagnostics · Risk-budgeted maker fill priority · Immediate protected maker conversion · Cohort-specific protected maker adaptation · Persistent protected maker-assist learner · Exact post-touch hedge-or-unwind grading · Enforced inherited-quote research cooldown · Early evidence-weighted independent maker research · 24-hour shared event cooldown · Two-pass bounded live execution · Duration-aware atomic profit recycling · Feature-aware diversified maker research · Expanded independent-event executable search · Exact-fee complete-NO conversion · Evidence-first bounded snapshots · Serialized self-chained five-minute slots with cron recovery · Oldest-first bounded learning transport · Restart-safe offline runtime · Exact-fee directional learning · Duration-aware, event-capped verified bundles · Scale-aware executable-profit floor · Conservative intact-bundle accounting · Contest-deduplicated sports shadow research · Corrected one-decision-per-event settlement audit · Autonomous runtime 2 · Offline runtime 3 · Maker research 6 · Agent learning 3 · Shock direction lanes 4 · Paper trading only · Live prices from Polymarket's public Gamma and CLOB APIs · Not financial advice ·
     <a class="market-link" href="https://github.com/theodore-song/polymarket-analyst" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
@@ -774,7 +774,7 @@ const POLITICS_TREND_MIN_HOLD_HOURS = 72;
 const EXIT_CONFIRM_HOURS = 6;
 const AGENTS_KEY = "pma_agents_v2";
 const SUG_KEY = "pma_suggestions_v5";
-const BUILD_VERSION = 152;
+const BUILD_VERSION = 153;
 const AGENT_LEARNING_VERSION = 3;
 const SUGGESTION_ENGINE_VERSION = 65;
 const MAKER_STRATEGY_VERSION = 5;
@@ -956,6 +956,7 @@ const DIRECTIONAL_PROBATION_MIN_LOWER_BOUND = 0.01;
 const DIRECTIONAL_PROBATION_POSITION_PCT = 0.005;
 const DIRECTIONAL_PROBATION_TOTAL_CAPITAL_PCT = 0.01;
 const DIRECTIONAL_PROBATION_MAX_NEW_PER_AGENT_CYCLE = 1;
+const DIRECTIONAL_ADAPTIVE_OFFLINE_APPROVED = false;
 const SIGNAL_EVAL_TOLERANCE_HOURS = 6;
 const SIGNAL_EVAL_HOURS = SIGNAL_EVAL_HORIZONS[0];
 const SIGNAL_LEDGER_PENDING_LIMIT = 600;
@@ -3573,7 +3574,7 @@ function shockFadeSuggestion(m,points,observedAt=Date.now()/1000){
     shock_strategy_version:SHOCK_FADE_STRATEGY_VERSION,days_to_resolution:m.days_to_resolution,
     pilot_prior:{requested_resolved_markets:10000,usable_markets:4478,events:773,modeled_cost_cents:3,
       latest_archive_passed:true,older_archive_passed:false,strictly_promoted:false,bounded_paper_pilot:false},
-    drivers:["4%+ seventy-two-hour move","contract survives the full holding window","no path barrier or exact numeric range","8–92% opposite-side entry","exact entry fee","72-hour executable exit","three-cent cross-era audit","zero-capital research"],
+    drivers:["4%+ seventy-two-hour move","contract survives the full holding window","no path barrier or exact numeric range","8–92% opposite-side entry","exact entry fee","72-hour executable exit","three-cent market-disjoint audit","zero-capital research"],
     rationale:`Strategy ${SHOCK_FADE_STRATEGY_VERSION} research observation: YES moved ${(moveWindow*100).toFixed(2)} points over ${SHOCK_FADE_SIGNAL_WINDOW_HOURS} hours. The prior capital rule failed a second, non-overlapping 5,000-market archive at three cents of modeled round-trip cost, so this ${side} idea is watch-only. It records an executable fee-adjusted ${SHOCK_FADE_EXIT_HOURS}-hour outcome without changing cash. A direction must produce ${SHOCK_FADE_QUALIFICATION_EVENTS} independent forward events with a positive confidence floor before capital can return.`};
 }
 async function fetchShockFadeSuggestions(markets){
@@ -3883,6 +3884,7 @@ function historicalOpportunityPrior(s){
     requiredPromotionFeatures:[...new Set(rows.flatMap(row=>row.requiredPromotionFeatures||[]))],features:rows.map(row=>row.feature)};
 }
 function historicalPromotionMet(historical,calibrationModel){
+  if(!DIRECTIONAL_ADAPTIVE_OFFLINE_APPROVED)return false;
   const buckets=calibrationModel&&calibrationModel.buckets||{};
   return !historical.requiresPromotion||historical.requiredPromotionFeatures.every(key=>SIGNAL_PROMOTION_HORIZONS.every(horizon=>{
     const row=buckets[`${key}|horizon:${horizon}`];
@@ -3890,6 +3892,7 @@ function historicalPromotionMet(historical,calibrationModel){
   }));
 }
 function historicalProbationMet(historical,calibrationModel){
+  if(!DIRECTIONAL_ADAPTIVE_OFFLINE_APPROVED)return false;
   const buckets=calibrationModel&&calibrationModel.buckets||{};
   if(!historical.requiresPromotion)return false;
   return historical.requiredPromotionFeatures.every(key=>{
@@ -7761,7 +7764,8 @@ window.PMA_ENGINE_DIAGNOSTICS=Object.freeze({
     directionalProbation:{horizonHours:DIRECTIONAL_PROBATION_HORIZON_HOURS,minIndependentEvents:DIRECTIONAL_PROBATION_MIN_EVENTS,
       minimumLowerBoundPct:DIRECTIONAL_PROBATION_MIN_LOWER_BOUND*100,positionPct:DIRECTIONAL_PROBATION_POSITION_PCT*100,
       totalCapitalPct:DIRECTIONAL_PROBATION_TOTAL_CAPITAL_PCT*100,maxNewPerAgentCycle:DIRECTIONAL_PROBATION_MAX_NEW_PER_AGENT_CYCLE,
-      eventDeduplicatedAcrossAgents:true,fullSizingStillRequiresHorizons:SIGNAL_PROMOTION_HORIZONS},
+      eventDeduplicatedAcrossAgents:true,fullSizingStillRequiresHorizons:SIGNAL_PROMOTION_HORIZONS,
+      capitalApproved:DIRECTIONAL_ADAPTIVE_OFFLINE_APPROVED,audit:"four-block-market-disjoint-causal-v1"},
     favoriteTrendReplayHardBlock:true,
     sportsFavoritePilot:{name:"sports-contest-NO-forward-shadow",strategyVersion:SPORTS_CONTEST_NO_STRATEGY_VERSION,entryBand:[SPORTS_FAVORITE_MIN_ENTRY,SPORTS_FAVORITE_MAX_ENTRY],targetLeadHours:SPORTS_FAVORITE_TARGET_LEAD_HOURS,
       leadToleranceHours:SPORTS_FAVORITE_LEAD_TOLERANCE_HOURS,pilotPositionPct:SPORTS_FAVORITE_PILOT_POSITION_PCT*100,
@@ -8229,10 +8233,8 @@ function runEngineSelfTest(){
     learning:buildAdaptiveProfile(defaultPortfolio()),marketLearning:probationProfile};
   const openProbationBook=()=>{const book=defaultPortfolio();openPositions(book,agentById("diversifier"),[probationSuggestion],"All",probationDecision,new Set(),{});return book;};
   const probationOpenBook=openProbationBook(),probationCompacted=compactSuggestionForSync(probationSuggestion);
-  const earlyProbationBook=openProbationBook();earlyProbationBook.positions[0].opened_at=hoursAgo(5);
-  markToMarket(earlyProbationBook,{"probation-market":market({id:"probation-market",yes_price:0.46,no_price:0.54,best_bid:0.455,best_ask:0.465})},agentById("diversifier"),{policyExits:true,executeTrades:true});
-  const timedProbationBook=openProbationBook();timedProbationBook.positions[0].opened_at=hoursAgo(7);
-  markToMarket(timedProbationBook,{"probation-market":market({id:"probation-market",yes_price:0.46,no_price:0.54,best_bid:0.455,best_ask:0.465})},agentById("diversifier"),{policyExits:true,executeTrades:true});
+  const earlyProbationBook=openProbationBook();
+  const timedProbationBook=openProbationBook();
   const favoriteTrendCandidate=Object.assign({},trend,{market_id:"favorite-trend-replay-block",entry_candidate:true,entry_price:0.62,
     category:"Politics",side:"YES",signal_type:"trend",quality:"confirmed"});
   const blockedFavoriteTrendPromotion=applyAdaptiveMarketPromotion(favoriteTrendCandidate,stablePositiveProfile);
@@ -9017,17 +9019,13 @@ function runEngineSelfTest(){
       oldCalibrationReportDoesNotInventZeroCounts:oldCountReport.includes("counts unavailable")
         &&!oldCountReport.includes("across 0 event clusters"),
       broadTrendStartsObservationOnly:!trend.trade_ready&&trend.entry_candidate&&trend.audited_observation_only,
-      recentProofCanUnlockTrend:promotedTrendSuggestion.trade_ready&&promotedTrendSuggestion.adaptive_promotion,
-      sixHourEvidenceStartsBoundedProbation:probationSuggestion.trade_ready&&probationSuggestion.adaptive_probation
-        &&!probationSuggestion.adaptive_promotion&&probationSuggestion.probation_exit_hours===DIRECTIONAL_PROBATION_HORIZON_HOURS
-        &&probationOpportunity.allowed&&probationOpportunity.probation_proof_met,
-      probationUsesHalfPercentPaperCap:probationOpenBook.positions.length===1&&probationOpenBook.positions[0].adaptive_probation
-        &&probationOpenBook.positions[0].cost<=STARTING_BALANCE*DIRECTIONAL_PROBATION_POSITION_PCT+0.01,
-      probationMetadataSurvivesOfflineCompaction:probationCompacted.adaptive_probation===true
-        &&probationCompacted.probation_exit_hours===DIRECTIONAL_PROBATION_HORIZON_HOURS,
-      probationWaitsForMatchingHorizon:earlyProbationBook.positions.length===1&&earlyProbationBook.closed.length===0,
-      probationExitsAtExecutableSixHourPrice:timedProbationBook.positions.length===0&&timedProbationBook.closed.length===1
-        &&timedProbationBook.closed[0].close_reason.includes("adaptive-probation exit"),
+      offlineAuditBlocksRecentTrendPromotion:!promotedTrendSuggestion.trade_ready&&!promotedTrendSuggestion.adaptive_promotion,
+      offlineAuditBlocksSixHourProbation:!probationSuggestion.trade_ready&&!probationSuggestion.adaptive_probation
+        &&!probationOpportunity.allowed&&!probationOpportunity.probation_proof_met,
+      disabledProbationCannotOpenCapital:probationOpenBook.positions.length===0,
+      disabledProbationMetadataStaysWatchOnly:probationCompacted.adaptive_probation===false
+        &&probationCompacted.probation_exit_hours==null,
+      disabledProbationBooksStayEmpty:earlyProbationBook.positions.length===0&&timedProbationBook.positions.length===0,
       sixHourEvidenceCannotGrantFullPromotion:!probationSuggestion.adaptive_promotion
         &&calibratedOpportunity(probationCandidate,probationProfile).state==="observing",
       replayLosingFavoriteTrendCannotPromote:!blockedFavoriteTrendPromotion.trade_ready
@@ -9046,13 +9044,12 @@ function runEngineSelfTest(){
         &&momentumScopedProfile.pending===1&&valueScopedProfile.samples===0&&valueScopedProfile.pending===1,
       calibrationReportsQueueComposition:momentumScopedProfile.pending_global===2&&momentumScopedProfile.pending_legacy===0
         &&momentumScopedProfile.pending_scoped===2&&momentumScopedProfile.pending_agent_scoped===1&&momentumScopedProfile.pending_unassigned===0,
-      agentCanPromoteWithoutPromotingPeers:momentumPreparedSuggestion.trade_ready&&!valuePreparedSuggestion.trade_ready,
-      aggregatePromotionNamesEligibleAgent:agentScopedAggregate.trade_ready
-        &&agentScopedAggregate.promoted_for_agents.length===1&&agentScopedAggregate.promoted_for_agents[0]==="momentum",
+      offlineAuditBlocksAgentScopedPromotion:!momentumPreparedSuggestion.trade_ready&&!valuePreparedSuggestion.trade_ready,
+      aggregatePromotionRemainsWatchOnly:!agentScopedAggregate.trade_ready&&!agentScopedAggregate.promoted_for_agents,
       strategyScopesSurviveCompaction:compactedScopedState.signal_ledger.pending[0].eligible_agent_ids[0]==="momentum"
         &&compactedScopedState.signal_ledger.outcomes[0].eligible_agent_ids[0]==="momentum"
-        &&compactedScopedSuggestion.promoted_for_agents[0]==="momentum",
-      offlineCacheRebuildsAgentPromotion:offlineScopedMomentum.trade_ready&&!offlineScopedValue.trade_ready,
+        &&!compactedScopedSuggestion.promoted_for_agents,
+      offlineCacheCannotBypassAudit:!offlineScopedMomentum.trade_ready&&!offlineScopedValue.trade_ready,
       offlineEvidenceCapabilityIsReadOnly:JSON.stringify(offlineEvidenceState.signal_ledger)===offlineEvidenceBefore,
       losingCohortDemotesOnlyEligibleAgent:losingValueState.state==="demoted"&&!losingValueState.allowed
         &&unrelatedMomentumProfile.samples===0&&unrelatedMomentumProfile.current_samples===0,
@@ -9062,8 +9059,8 @@ function runEngineSelfTest(){
         &&buildSignalCalibration(explicitEmptyScopedLedger,"value").samples===0,
       historicalPriorBlocksReversal:!priorReversal.allowed&&priorReversal.blocked_by==="historical",
       reversalRemainsBlockedForExplorer:!explorerReversal.allowed&&explorerReversal.blocked_by==="historical",
-      recentProofCanUnlockReversal:promotedReversal.allowed&&promotedReversal.market_state==="promoted"&&promotedReversalSuggestion.trade_ready,
-      promotedReversalOpensBoundedPosition:promotedOpenBook.positions.length===1&&promotedOpenBook.positions[0].cost<=300,
+      offlineAuditBlocksRecentReversal:!promotedReversal.allowed&&promotedReversal.market_state==="promoted"&&!promotedReversalSuggestion.trade_ready,
+      blockedReversalCannotOpenPosition:promotedOpenBook.positions.length===0,
       hardBlockedCryptoCannotSelfPromote:!blockedCryptoPromotion.trade_ready,
       enduranceReplacesReversal:agentAcceptsSuggestion(AGENTS.find(a=>a.id==="reversal"),trend)&&!agentAcceptsSuggestion(AGENTS.find(a=>a.id==="reversal"),reversal),
       historicalPriorSizesRisk:!priorCryptoLongshot.blocked&&priorCryptoLongshot.multiplier<1&&priorCryptoLongshot.features.length===2,
@@ -9071,7 +9068,7 @@ function runEngineSelfTest(){
       historicalPriorBlocksCryptoTrend:!priorCryptoTrend.allowed&&priorCryptoTrend.blocked_by==="historical",
       historicalPriorBlocksUnprovenPoliticsTrend:priorPoliticsTrend.blocked&&priorPoliticsTrend.requiresPromotion,
       blocksShortDatedNo:!shortNoPrior.allowed&&shortNoPrior.blocked_by==="historical",
-      recentProofCanUnlockShortDatedNo:promotedShortNo.allowed&&promotedShortNo.market_state==="promoted",
+      offlineAuditBlocksShortDatedNo:!promotedShortNo.allowed&&promotedShortNo.market_state==="promoted",
       blocksLongDatedNoWithoutProof:longNoPrior.blocked&&longNoPrior.requiresPromotion,
       observesConfirmedSignalsWithoutTrading:observationLedgerState.signal_ledger.pending.length===1
         &&observationLedgerState.signal_ledger.pending[0].trade_ready_at_observation===false
@@ -9607,7 +9604,8 @@ function runEngineSelfTest(){
 }
 window.PMA_AUTOMATION=Object.freeze({
   status:()=>{const st=loadState();return {build:BUILD_VERSION,strategy:SUGGESTION_ENGINE_VERSION,running:CYCLE_RUNNING,
-    seeded:Boolean(st.seeded),last_cycle_hour:st.last_cycle_hour||null,suggestion_count:(loadSuggestions().suggestions||[]).length};},
+    seeded:Boolean(st.seeded),last_cycle_hour:st.last_cycle_hour||null,suggestion_count:(loadSuggestions().suggestions||[]).length,
+    directional_capital_approved:DIRECTIONAL_ADAPTIVE_OFFLINE_APPROVED};},
   runCycle:async()=>{const result=await runDailyCycle();renderAll();return result;},
   exportShared:()=>buildPublicRuntimeSnapshot(),
   importShared:(snapshot)=>{const applied=applyPublicRuntimeSnapshot(snapshot);if(applied)renderAll();return applied;},

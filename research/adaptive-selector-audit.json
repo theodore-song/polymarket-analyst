@@ -1,0 +1,2471 @@
+{
+  "schema": "poly-arena-adaptive-selector-v1",
+  "generatedAt": "2026-08-24T17:30:38.550Z",
+  "methodology": {
+    "caches": [
+      "/Users/theodore/Documents/Codex/2026-07-05/hey/work/polymarket-analyst/research/cache/adaptive-observations-older-5000.json",
+      "/Users/theodore/Documents/Codex/2026-07-05/hey/work/polymarket-analyst/research/cache/adaptive-observations-5500.json",
+      "/Users/theodore/Documents/Codex/2026-07-05/hey/work/polymarket-analyst/research/cache/adaptive-observations-third-5000.json"
+    ],
+    "costCentsPerShareRoundTrip": 3,
+    "eventSplit": "Chronological 60/20/20 by whole Polymarket event inside each market-disjoint block.",
+    "causalLearning": "An expert score uses only zero-capital outcomes whose fixed exit time occurred before the candidate entry.",
+    "capitalEventPolicy": "At most one selected capital trade per Polymarket event for the full replay, matching the live event-claim invariant.",
+    "riskPolicy": "Check the observed six-hour path for the live -18% full stop, then sell 25% of original size at +15%, +30%, and +50%; exit any remainder at the expert horizon.",
+    "expertUniverse": "Fixed before validation: All-category all/mid directional rules across three move ranges plus shock rules; 6h, 24h, and 72h exits.",
+    "policySelection": "Choose among 32 fixed dual-window consensus policies using 3 development validations only; reveal development holdouts and the market-disjoint final block afterward.",
+    "caveat": "The market blocks are market-disjoint after event de-duplication but overlap in calendar time. Historical midpoint series do not reconstruct full books or guarantee fills."
+  },
+  "rules": 196,
+  "policies": 32,
+  "chosenPolicy": {
+    "windowEvents": 80,
+    "shortWindowEvents": 20,
+    "minimumEvents": 20,
+    "minimumConsensusLookbacks": 2,
+    "minimumEntry": 0.3,
+    "maximumEntry": 0.7,
+    "minimumLower": 0
+  },
+  "validationPassedAllDevelopmentBlocks": false,
+  "holdoutPassedAllDevelopmentBlocks": false,
+  "finalHoldoutPassed": false,
+  "capitalApproved": false,
+  "blocks": [
+    {
+      "cache": "/Users/theodore/Documents/Codex/2026-07-05/hey/work/polymarket-analyst/research/cache/adaptive-observations-older-5000.json",
+      "rows": 49503,
+      "markets": 2085,
+      "events": 378,
+      "experts": 588,
+      "splitEvents": {
+        "train": 226,
+        "validation": 76,
+        "holdout": 76
+      },
+      "validation": {
+        "trades": 34,
+        "markets": 34,
+        "events": 34,
+        "activeTrades": 0,
+        "closedTrades": 34,
+        "mean": 0.06206,
+        "eventMean": 0.06206,
+        "median": -0.02226,
+        "lower": 0.00447,
+        "upper": 0.11966,
+        "winRate": 0.47059,
+        "worstEvent": -0.22727,
+        "jackknifeMean": 0.04447
+      },
+      "validationTopExperts": [
+        {
+          "expertId": "fade_3h_0.04-1_all_All_any@6h",
+          "trades": 6
+        },
+        {
+          "expertId": "fade_3h_0.04-1_mid_All_opposite@24h",
+          "trades": 5
+        },
+        {
+          "expertId": "fade_3h_0.04-1_mid_All_opposite@6h",
+          "trades": 4
+        },
+        {
+          "expertId": "fade_3h_0.04-1_all_All_same@24h",
+          "trades": 3
+        },
+        {
+          "expertId": "fade_6h_0.04-1_all_All_same@24h",
+          "trades": 3
+        },
+        {
+          "expertId": "fade_6h_0.04-1_all_All_any@24h",
+          "trades": 2
+        },
+        {
+          "expertId": "fade_24h_0.04-1_all_All_same@24h",
+          "trades": 2
+        },
+        {
+          "expertId": "fade_6h_0.04-1_all_All_same@6h",
+          "trades": 1
+        },
+        {
+          "expertId": "shock_fade_3h_0.12_mid_All@24h",
+          "trades": 1
+        },
+        {
+          "expertId": "shock_fade_3h_0.08_all_All@24h",
+          "trades": 1
+        }
+      ],
+      "holdout": {
+        "trades": 45,
+        "markets": 45,
+        "events": 45,
+        "activeTrades": 0,
+        "closedTrades": 45,
+        "mean": 0.14015,
+        "eventMean": 0.14015,
+        "median": 0.12681,
+        "lower": 0.05608,
+        "upper": 0.22423,
+        "winRate": 0.64444,
+        "worstEvent": -1,
+        "jackknifeMean": 0.122
+      },
+      "holdoutTopExperts": [
+        {
+          "expertId": "fade_6h_0.04-1_all_All_any@6h",
+          "trades": 6
+        },
+        {
+          "expertId": "fade_3h_0.04-1_all_All_any@6h",
+          "trades": 6
+        },
+        {
+          "expertId": "fade_3h_0.04-1_mid_All_opposite@24h",
+          "trades": 4
+        },
+        {
+          "expertId": "fade_3h_0.04-1_all_All_same@24h",
+          "trades": 4
+        },
+        {
+          "expertId": "fade_6h_0.04-1_all_All_same@6h",
+          "trades": 3
+        },
+        {
+          "expertId": "fade_6h_0.04-1_all_All_same@24h",
+          "trades": 3
+        },
+        {
+          "expertId": "fade_3h_0.04-1_all_All_same@6h",
+          "trades": 3
+        },
+        {
+          "expertId": "fade_3h_0.04-1_all_All_opposite@24h",
+          "trades": 3
+        },
+        {
+          "expertId": "shock_fade_3h_0.12_mid_All@6h",
+          "trades": 2
+        },
+        {
+          "expertId": "shock_fade_3h_0.12_mid_All@24h",
+          "trades": 2
+        }
+      ]
+    },
+    {
+      "cache": "/Users/theodore/Documents/Codex/2026-07-05/hey/work/polymarket-analyst/research/cache/adaptive-observations-5500.json",
+      "rows": 62231,
+      "markets": 2393,
+      "events": 395,
+      "experts": 588,
+      "splitEvents": {
+        "train": 237,
+        "validation": 79,
+        "holdout": 79
+      },
+      "validation": {
+        "trades": 41,
+        "markets": 41,
+        "events": 41,
+        "activeTrades": 0,
+        "closedTrades": 41,
+        "mean": 0.004,
+        "eventMean": 0.004,
+        "median": -0.05683,
+        "lower": -0.02643,
+        "upper": 0.03444,
+        "winRate": 0.46341,
+        "worstEvent": -0.22727,
+        "jackknifeMean": -0.00807
+      },
+      "validationTopExperts": [
+        {
+          "expertId": "shock_fade_3h_0.04_all_All@24h",
+          "trades": 13
+        },
+        {
+          "expertId": "fade_3h_0.04-1_all_All_any@24h",
+          "trades": 12
+        },
+        {
+          "expertId": "fade_6h_0.04-1_all_All_same@24h",
+          "trades": 5
+        },
+        {
+          "expertId": "fade_3h_0.04-1_all_All_any@6h",
+          "trades": 2
+        },
+        {
+          "expertId": "fade_72h_0.04-1_all_All_any@72h",
+          "trades": 1
+        },
+        {
+          "expertId": "shock_fade_3h_0.08_mid_All@6h",
+          "trades": 1
+        },
+        {
+          "expertId": "shock_fade_3h_0.12_mid_All@6h",
+          "trades": 1
+        },
+        {
+          "expertId": "shock_fade_3h_0.08_all_All@24h",
+          "trades": 1
+        },
+        {
+          "expertId": "shock_fade_3h_0.12_all_All@24h",
+          "trades": 1
+        },
+        {
+          "expertId": "fade_6h_0.04-1_all_All_any@6h",
+          "trades": 1
+        }
+      ],
+      "holdout": {
+        "trades": 40,
+        "markets": 40,
+        "events": 40,
+        "activeTrades": 0,
+        "closedTrades": 40,
+        "mean": 0.01489,
+        "eventMean": 0.01489,
+        "median": -0.06,
+        "lower": -0.03122,
+        "upper": 0.06101,
+        "winRate": 0.325,
+        "worstEvent": -0.14773,
+        "jackknifeMean": -0.0037
+      },
+      "holdoutTopExperts": [
+        {
+          "expertId": "shock_fade_3h_0.04_all_All@24h",
+          "trades": 8
+        },
+        {
+          "expertId": "fade_168h_0.04-1_all_All_any@24h",
+          "trades": 5
+        },
+        {
+          "expertId": "fade_24h_0.04-1_all_All_same@24h",
+          "trades": 5
+        },
+        {
+          "expertId": "fade_72h_0.04-1_all_All_any@24h",
+          "trades": 4
+        },
+        {
+          "expertId": "fade_3h_0.04-1_all_All_any@24h",
+          "trades": 4
+        },
+        {
+          "expertId": "fade_6h_0.04-1_all_All_same@24h",
+          "trades": 4
+        },
+        {
+          "expertId": "fade_3h_0.04-1_all_All_same@24h",
+          "trades": 3
+        },
+        {
+          "expertId": "fade_72h_0.04-1_all_All_any@6h",
+          "trades": 2
+        },
+        {
+          "expertId": "fade_6h_0.04-1_all_All_any@6h",
+          "trades": 2
+        },
+        {
+          "expertId": "fade_6h_0.04-1_all_All_any@24h",
+          "trades": 1
+        }
+      ]
+    },
+    {
+      "cache": "/Users/theodore/Documents/Codex/2026-07-05/hey/work/polymarket-analyst/research/cache/adaptive-observations-third-5000.json",
+      "rows": 54242,
+      "markets": 2338,
+      "events": 440,
+      "experts": 588,
+      "splitEvents": {
+        "train": 264,
+        "validation": 88,
+        "holdout": 88
+      },
+      "validation": {
+        "trades": 42,
+        "markets": 42,
+        "events": 42,
+        "activeTrades": 0,
+        "closedTrades": 42,
+        "mean": 0.01022,
+        "eventMean": 0.01022,
+        "median": -0.01307,
+        "lower": -0.03078,
+        "upper": 0.05122,
+        "winRate": 0.42857,
+        "worstEvent": -0.29032,
+        "jackknifeMean": -0.00421
+      },
+      "validationTopExperts": [
+        {
+          "expertId": "fade_3h_0.04-1_all_All_same@24h",
+          "trades": 8
+        },
+        {
+          "expertId": "fade_6h_0.04-1_all_All_same@24h",
+          "trades": 7
+        },
+        {
+          "expertId": "fade_3h_0.04-1_all_All_same@6h",
+          "trades": 5
+        },
+        {
+          "expertId": "fade_6h_0.04-1_all_All_any@24h",
+          "trades": 5
+        },
+        {
+          "expertId": "fade_6h_0.04-1_all_All_same@6h",
+          "trades": 4
+        },
+        {
+          "expertId": "fade_6h_0.04-1_mid_All_any@24h",
+          "trades": 3
+        },
+        {
+          "expertId": "fade_72h_0.04-1_all_All_any@24h",
+          "trades": 2
+        },
+        {
+          "expertId": "shock_fade_3h_0.12_mid_All@24h",
+          "trades": 2
+        },
+        {
+          "expertId": "follow_3h_0.04-1_all_All_opposite@24h",
+          "trades": 1
+        },
+        {
+          "expertId": "fade_6h_0.04-1_all_All_any@6h",
+          "trades": 1
+        }
+      ],
+      "holdout": {
+        "trades": 35,
+        "markets": 35,
+        "events": 35,
+        "activeTrades": 0,
+        "closedTrades": 35,
+        "mean": 0.0081,
+        "eventMean": 0.0081,
+        "median": -0.0366,
+        "lower": -0.0646,
+        "upper": 0.08081,
+        "winRate": 0.42857,
+        "worstEvent": -0.92683,
+        "jackknifeMean": -0.01279
+      },
+      "holdoutTopExperts": [
+        {
+          "expertId": "fade_24h_0.04-1_all_All_same@24h",
+          "trades": 7
+        },
+        {
+          "expertId": "fade_3h_0.04-1_all_All_same@6h",
+          "trades": 4
+        },
+        {
+          "expertId": "fade_6h_0.04-1_all_All_any@6h",
+          "trades": 3
+        },
+        {
+          "expertId": "fade_6h_0.04-1_all_All_same@24h",
+          "trades": 3
+        },
+        {
+          "expertId": "fade_6h_0.04-1_all_All_any@24h",
+          "trades": 3
+        },
+        {
+          "expertId": "fade_72h_0.04-1_all_All_same@24h",
+          "trades": 3
+        },
+        {
+          "expertId": "fade_24h_0.04-1_all_All_any@24h",
+          "trades": 2
+        },
+        {
+          "expertId": "shock_fade_3h_0.12_mid_All@24h",
+          "trades": 2
+        },
+        {
+          "expertId": "fade_3h_0.04-1_all_All_same@24h",
+          "trades": 2
+        },
+        {
+          "expertId": "fade_24h_0.04-1_all_All_same@6h",
+          "trades": 1
+        }
+      ]
+    }
+  ],
+  "finalBlock": {
+    "cache": "/Users/theodore/Documents/Codex/2026-07-05/hey/work/polymarket-analyst/research/cache/adaptive-observations-fourth-5000.json",
+    "rows": 43768,
+    "markets": 2006,
+    "events": 371,
+    "removedOverlappingEvents": 56,
+    "splitEvents": {
+      "train": 222,
+      "validation": 74,
+      "holdout": 75
+    },
+    "experts": 588,
+    "holdout": {
+      "trades": 39,
+      "markets": 39,
+      "events": 39,
+      "activeTrades": 0,
+      "closedTrades": 39,
+      "mean": 0.04567,
+      "eventMean": 0.04567,
+      "median": -0.02083,
+      "lower": -0.03723,
+      "upper": 0.12858,
+      "winRate": 0.4359,
+      "worstEvent": -0.95238,
+      "jackknifeMean": 0.02615
+    },
+    "holdoutPassed": false,
+    "holdoutTopExperts": [
+      {
+        "expertId": "fade_3h_0.04-1_all_All_any@6h",
+        "trades": 5
+      },
+      {
+        "expertId": "fade_3h_0.04-1_all_All_any@24h",
+        "trades": 4
+      },
+      {
+        "expertId": "fade_6h_0.04-1_all_All_same@24h",
+        "trades": 4
+      },
+      {
+        "expertId": "fade_6h_0.04-1_all_All_any@6h",
+        "trades": 4
+      },
+      {
+        "expertId": "fade_6h_0.04-1_all_All_any@24h",
+        "trades": 3
+      },
+      {
+        "expertId": "fade_3h_0.04-1_all_All_same@24h",
+        "trades": 3
+      },
+      {
+        "expertId": "fade_3h_0.04-1_all_All_same@6h",
+        "trades": 3
+      },
+      {
+        "expertId": "fade_6h_0.04-1_all_All_same@6h",
+        "trades": 2
+      },
+      {
+        "expertId": "shock_fade_3h_0.08_mid_All@24h",
+        "trades": 2
+      },
+      {
+        "expertId": "fade_24h_0.04-1_mid_All_opposite@24h",
+        "trades": 2
+      }
+    ]
+  },
+  "validationPolicies": [
+    {
+      "policy": {
+        "windowEvents": 80,
+        "shortWindowEvents": 20,
+        "minimumEvents": 20,
+        "minimumConsensusLookbacks": 2,
+        "minimumEntry": 0.3,
+        "maximumEntry": 0.7,
+        "minimumLower": 0
+      },
+      "eligible": true,
+      "robust": false,
+      "floor": -0.03078,
+      "eventFloor": 34,
+      "blocks": [
+        {
+          "trades": 34,
+          "markets": 34,
+          "events": 34,
+          "activeTrades": 0,
+          "closedTrades": 34,
+          "mean": 0.06206,
+          "eventMean": 0.06206,
+          "median": -0.02226,
+          "lower": 0.00447,
+          "upper": 0.11966,
+          "winRate": 0.47059,
+          "worstEvent": -0.22727,
+          "jackknifeMean": 0.04447
+        },
+        {
+          "trades": 41,
+          "markets": 41,
+          "events": 41,
+          "activeTrades": 0,
+          "closedTrades": 41,
+          "mean": 0.004,
+          "eventMean": 0.004,
+          "median": -0.05683,
+          "lower": -0.02643,
+          "upper": 0.03444,
+          "winRate": 0.46341,
+          "worstEvent": -0.22727,
+          "jackknifeMean": -0.00807
+        },
+        {
+          "trades": 42,
+          "markets": 42,
+          "events": 42,
+          "activeTrades": 0,
+          "closedTrades": 42,
+          "mean": 0.01022,
+          "eventMean": 0.01022,
+          "median": -0.01307,
+          "lower": -0.03078,
+          "upper": 0.05122,
+          "winRate": 0.42857,
+          "worstEvent": -0.29032,
+          "jackknifeMean": -0.00421
+        }
+      ]
+    },
+    {
+      "policy": {
+        "windowEvents": 80,
+        "shortWindowEvents": 20,
+        "minimumEvents": 20,
+        "minimumConsensusLookbacks": 2,
+        "minimumEntry": 0.3,
+        "maximumEntry": 0.7,
+        "minimumLower": 0.01
+      },
+      "eligible": true,
+      "robust": false,
+      "floor": -0.03566,
+      "eventFloor": 32,
+      "blocks": [
+        {
+          "trades": 32,
+          "markets": 32,
+          "events": 32,
+          "activeTrades": 0,
+          "closedTrades": 32,
+          "mean": 0.06329,
+          "eventMean": 0.06329,
+          "median": -0.02226,
+          "lower": 0.00173,
+          "upper": 0.12485,
+          "winRate": 0.46875,
+          "worstEvent": -0.22727,
+          "jackknifeMean": 0.0446
+        },
+        {
+          "trades": 40,
+          "markets": 40,
+          "events": 40,
+          "activeTrades": 0,
+          "closedTrades": 40,
+          "mean": 0.00299,
+          "eventMean": 0.00299,
+          "median": -0.05841,
+          "lower": -0.02817,
+          "upper": 0.03415,
+          "winRate": 0.45,
+          "worstEvent": -0.22727,
+          "jackknifeMean": -0.00942
+        },
+        {
+          "trades": 40,
+          "markets": 40,
+          "events": 40,
+          "activeTrades": 0,
+          "closedTrades": 40,
+          "mean": 0.00716,
+          "eventMean": 0.00716,
+          "median": -0.02068,
+          "lower": -0.03566,
+          "upper": 0.04998,
+          "winRate": 0.4,
+          "worstEvent": -0.29032,
+          "jackknifeMean": -0.00808
+        }
+      ]
+    },
+    {
+      "policy": {
+        "windowEvents": 80,
+        "shortWindowEvents": 40,
+        "minimumEvents": 20,
+        "minimumConsensusLookbacks": 2,
+        "minimumEntry": 0.3,
+        "maximumEntry": 0.7,
+        "minimumLower": 0.01
+      },
+      "eligible": true,
+      "robust": false,
+      "floor": -0.0439,
+      "eventFloor": 36,
+      "blocks": [
+        {
+          "trades": 36,
+          "markets": 36,
+          "events": 36,
+          "activeTrades": 0,
+          "closedTrades": 36,
+          "mean": 0.02378,
+          "eventMean": 0.02378,
+          "median": -0.06,
+          "lower": -0.0439,
+          "upper": 0.09146,
+          "winRate": 0.36111,
+          "worstEvent": -0.66667,
+          "jackknifeMean": 0.00609
+        },
+        {
+          "trades": 47,
+          "markets": 47,
+          "events": 47,
+          "activeTrades": 0,
+          "closedTrades": 47,
+          "mean": 0.0066,
+          "eventMean": 0.0066,
+          "median": -0.06,
+          "lower": -0.02459,
+          "upper": 0.03779,
+          "winRate": 0.42553,
+          "worstEvent": -0.22727,
+          "jackknifeMean": -0.00384
+        },
+        {
+          "trades": 43,
+          "markets": 43,
+          "events": 43,
+          "activeTrades": 0,
+          "closedTrades": 43,
+          "mean": 0.01596,
+          "eventMean": 0.01596,
+          "median": -0.00591,
+          "lower": -0.04213,
+          "upper": 0.07404,
+          "winRate": 0.46512,
+          "worstEvent": -0.81395,
+          "jackknifeMean": 0.00201
+        }
+      ]
+    },
+    {
+      "policy": {
+        "windowEvents": 40,
+        "shortWindowEvents": 40,
+        "minimumEvents": 20,
+        "minimumConsensusLookbacks": 2,
+        "minimumEntry": 0.3,
+        "maximumEntry": 0.7,
+        "minimumLower": 0.01
+      },
+      "eligible": true,
+      "robust": false,
+      "floor": -0.04744,
+      "eventFloor": 47,
+      "blocks": [
+        {
+          "trades": 49,
+          "markets": 49,
+          "events": 49,
+          "activeTrades": 0,
+          "closedTrades": 49,
+          "mean": 0.00557,
+          "eventMean": 0.00557,
+          "median": -0.05941,
+          "lower": -0.04744,
+          "upper": 0.05858,
+          "winRate": 0.38776,
+          "worstEvent": -0.67742,
+          "jackknifeMean": -0.00771
+        },
+        {
+          "trades": 53,
+          "markets": 53,
+          "events": 53,
+          "activeTrades": 0,
+          "closedTrades": 53,
+          "mean": 0.03676,
+          "eventMean": 0.03676,
+          "median": 0.02174,
+          "lower": 0.00419,
+          "upper": 0.06934,
+          "winRate": 0.60377,
+          "worstEvent": -0.22727,
+          "jackknifeMean": 0.02366
+        },
+        {
+          "trades": 47,
+          "markets": 47,
+          "events": 47,
+          "activeTrades": 0,
+          "closedTrades": 47,
+          "mean": 0.03314,
+          "eventMean": 0.03314,
+          "median": 0,
+          "lower": -0.02217,
+          "upper": 0.08845,
+          "winRate": 0.48936,
+          "worstEvent": -0.44286,
+          "jackknifeMean": 0.01462
+        }
+      ]
+    },
+    {
+      "policy": {
+        "windowEvents": 40,
+        "shortWindowEvents": 20,
+        "minimumEvents": 20,
+        "minimumConsensusLookbacks": 2,
+        "minimumEntry": 0.3,
+        "maximumEntry": 0.7,
+        "minimumLower": 0.01
+      },
+      "eligible": true,
+      "robust": false,
+      "floor": -0.04784,
+      "eventFloor": 36,
+      "blocks": [
+        {
+          "trades": 36,
+          "markets": 36,
+          "events": 36,
+          "activeTrades": 0,
+          "closedTrades": 36,
+          "mean": 0.02996,
+          "eventMean": 0.02996,
+          "median": -0.05267,
+          "lower": -0.02353,
+          "upper": 0.08345,
+          "winRate": 0.44444,
+          "worstEvent": -0.22727,
+          "jackknifeMean": 0.01245
+        },
+        {
+          "trades": 45,
+          "markets": 45,
+          "events": 45,
+          "activeTrades": 0,
+          "closedTrades": 45,
+          "mean": 0.02641,
+          "eventMean": 0.02641,
+          "median": 0.02174,
+          "lower": -0.01077,
+          "upper": 0.06359,
+          "winRate": 0.53333,
+          "worstEvent": -0.22727,
+          "jackknifeMean": 0.01068
+        },
+        {
+          "trades": 44,
+          "markets": 44,
+          "events": 44,
+          "activeTrades": 0,
+          "closedTrades": 44,
+          "mean": 0.0056,
+          "eventMean": 0.0056,
+          "median": -0.02565,
+          "lower": -0.04784,
+          "upper": 0.05903,
+          "winRate": 0.43182,
+          "worstEvent": -0.44286,
+          "jackknifeMean": -0.01486
+        }
+      ]
+    },
+    {
+      "policy": {
+        "windowEvents": 40,
+        "shortWindowEvents": 20,
+        "minimumEvents": 20,
+        "minimumConsensusLookbacks": 2,
+        "minimumEntry": 0.3,
+        "maximumEntry": 0.7,
+        "minimumLower": 0
+      },
+      "eligible": true,
+      "robust": false,
+      "floor": -0.05351,
+      "eventFloor": 39,
+      "blocks": [
+        {
+          "trades": 39,
+          "markets": 39,
+          "events": 39,
+          "activeTrades": 0,
+          "closedTrades": 39,
+          "mean": 0.01257,
+          "eventMean": 0.01257,
+          "median": -0.05941,
+          "lower": -0.03565,
+          "upper": 0.06079,
+          "winRate": 0.35897,
+          "worstEvent": -0.22727,
+          "jackknifeMean": -0.00402
+        },
+        {
+          "trades": 47,
+          "markets": 47,
+          "events": 47,
+          "activeTrades": 0,
+          "closedTrades": 47,
+          "mean": 0.0274,
+          "eventMean": 0.0274,
+          "median": 0.02174,
+          "lower": -0.0082,
+          "upper": 0.063,
+          "winRate": 0.55319,
+          "worstEvent": -0.22727,
+          "jackknifeMean": 0.01238
+        },
+        {
+          "trades": 46,
+          "markets": 46,
+          "events": 46,
+          "activeTrades": 0,
+          "closedTrades": 46,
+          "mean": 0.00288,
+          "eventMean": 0.00288,
+          "median": -0.02565,
+          "lower": -0.05351,
+          "upper": 0.05926,
+          "winRate": 0.43478,
+          "worstEvent": -0.51765,
+          "jackknifeMean": -0.01673
+        }
+      ]
+    },
+    {
+      "policy": {
+        "windowEvents": 40,
+        "shortWindowEvents": 20,
+        "minimumEvents": 20,
+        "minimumConsensusLookbacks": 3,
+        "minimumEntry": 0.3,
+        "maximumEntry": 0.7,
+        "minimumLower": 0
+      },
+      "eligible": true,
+      "robust": false,
+      "floor": -0.06566,
+      "eventFloor": 13,
+      "blocks": [
+        {
+          "trades": 13,
+          "markets": 13,
+          "events": 13,
+          "activeTrades": 0,
+          "closedTrades": 13,
+          "mean": -0.00157,
+          "eventMean": -0.00157,
+          "median": -0.05505,
+          "lower": -0.06566,
+          "upper": 0.06252,
+          "winRate": 0.30769,
+          "worstEvent": -0.14844,
+          "jackknifeMean": -0.02551
+        },
+        {
+          "trades": 29,
+          "markets": 29,
+          "events": 29,
+          "activeTrades": 0,
+          "closedTrades": 29,
+          "mean": 0.0255,
+          "eventMean": 0.0255,
+          "median": 0.02174,
+          "lower": -0.00544,
+          "upper": 0.05644,
+          "winRate": 0.65517,
+          "worstEvent": -0.06,
+          "jackknifeMean": 0.01047
+        },
+        {
+          "trades": 27,
+          "markets": 27,
+          "events": 27,
+          "activeTrades": 0,
+          "closedTrades": 27,
+          "mean": 0.00287,
+          "eventMean": 0.00287,
+          "median": -0.01515,
+          "lower": -0.05876,
+          "upper": 0.0645,
+          "winRate": 0.44444,
+          "worstEvent": -0.26136,
+          "jackknifeMean": -0.03077
+        }
+      ]
+    },
+    {
+      "policy": {
+        "windowEvents": 40,
+        "shortWindowEvents": 40,
+        "minimumEvents": 20,
+        "minimumConsensusLookbacks": 2,
+        "minimumEntry": 0.15,
+        "maximumEntry": 0.85,
+        "minimumLower": 0.01
+      },
+      "eligible": true,
+      "robust": false,
+      "floor": -0.06997,
+      "eventFloor": 51,
+      "blocks": [
+        {
+          "trades": 51,
+          "markets": 51,
+          "events": 51,
+          "activeTrades": 0,
+          "closedTrades": 51,
+          "mean": 0.02016,
+          "eventMean": 0.02016,
+          "median": -0.05941,
+          "lower": -0.06997,
+          "upper": 0.11029,
+          "winRate": 0.39216,
+          "worstEvent": -1,
+          "jackknifeMean": -0.01944
+        },
+        {
+          "trades": 55,
+          "markets": 55,
+          "events": 55,
+          "activeTrades": 0,
+          "closedTrades": 55,
+          "mean": -0.00528,
+          "eventMean": -0.00528,
+          "median": 0.02174,
+          "lower": -0.0536,
+          "upper": 0.04305,
+          "winRate": 0.58182,
+          "worstEvent": -1,
+          "jackknifeMean": -0.01868
+        },
+        {
+          "trades": 54,
+          "markets": 54,
+          "events": 54,
+          "activeTrades": 0,
+          "closedTrades": 54,
+          "mean": 0.03645,
+          "eventMean": 0.03645,
+          "median": -0.02565,
+          "lower": -0.03543,
+          "upper": 0.10832,
+          "winRate": 0.44444,
+          "worstEvent": -1,
+          "jackknifeMean": 0.0157
+        }
+      ]
+    },
+    {
+      "policy": {
+        "windowEvents": 80,
+        "shortWindowEvents": 40,
+        "minimumEvents": 20,
+        "minimumConsensusLookbacks": 2,
+        "minimumEntry": 0.3,
+        "maximumEntry": 0.7,
+        "minimumLower": 0
+      },
+      "eligible": true,
+      "robust": false,
+      "floor": -0.07601,
+      "eventFloor": 41,
+      "blocks": [
+        {
+          "trades": 41,
+          "markets": 41,
+          "events": 41,
+          "activeTrades": 0,
+          "closedTrades": 41,
+          "mean": -0.00624,
+          "eventMean": -0.00624,
+          "median": -0.06,
+          "lower": -0.07601,
+          "upper": 0.06353,
+          "winRate": 0.34146,
+          "worstEvent": -0.93333,
+          "jackknifeMean": -0.02246
+        },
+        {
+          "trades": 48,
+          "markets": 48,
+          "events": 48,
+          "activeTrades": 0,
+          "closedTrades": 48,
+          "mean": 0.00521,
+          "eventMean": 0.00521,
+          "median": -0.06,
+          "lower": -0.0254,
+          "upper": 0.03583,
+          "winRate": 0.41667,
+          "worstEvent": -0.22727,
+          "jackknifeMean": -0.00504
+        },
+        {
+          "trades": 43,
+          "markets": 43,
+          "events": 43,
+          "activeTrades": 0,
+          "closedTrades": 43,
+          "mean": 0.01596,
+          "eventMean": 0.01596,
+          "median": -0.00591,
+          "lower": -0.04213,
+          "upper": 0.07404,
+          "winRate": 0.46512,
+          "worstEvent": -0.81395,
+          "jackknifeMean": 0.00201
+        }
+      ]
+    },
+    {
+      "policy": {
+        "windowEvents": 40,
+        "shortWindowEvents": 20,
+        "minimumEvents": 20,
+        "minimumConsensusLookbacks": 3,
+        "minimumEntry": 0.3,
+        "maximumEntry": 0.7,
+        "minimumLower": 0.01
+      },
+      "eligible": true,
+      "robust": false,
+      "floor": -0.07833,
+      "eventFloor": 12,
+      "blocks": [
+        {
+          "trades": 12,
+          "markets": 12,
+          "events": 12,
+          "activeTrades": 0,
+          "closedTrades": 12,
+          "mean": -0.01052,
+          "eventMean": -0.01052,
+          "median": -0.05752,
+          "lower": -0.07833,
+          "upper": 0.05729,
+          "winRate": 0.25,
+          "worstEvent": -0.14844,
+          "jackknifeMean": -0.03745
+        },
+        {
+          "trades": 27,
+          "markets": 27,
+          "events": 27,
+          "activeTrades": 0,
+          "closedTrades": 27,
+          "mean": 0.02796,
+          "eventMean": 0.02796,
+          "median": 0.02174,
+          "lower": -0.00486,
+          "upper": 0.06078,
+          "winRate": 0.66667,
+          "worstEvent": -0.06,
+          "jackknifeMean": 0.01188
+        },
+        {
+          "trades": 24,
+          "markets": 24,
+          "events": 24,
+          "activeTrades": 0,
+          "closedTrades": 24,
+          "mean": 0.00161,
+          "eventMean": 0.00161,
+          "median": -0.02565,
+          "lower": -0.06742,
+          "upper": 0.07064,
+          "winRate": 0.375,
+          "worstEvent": -0.26136,
+          "jackknifeMean": -0.03647
+        }
+      ]
+    },
+    {
+      "policy": {
+        "windowEvents": 40,
+        "shortWindowEvents": 40,
+        "minimumEvents": 20,
+        "minimumConsensusLookbacks": 2,
+        "minimumEntry": 0.15,
+        "maximumEntry": 0.85,
+        "minimumLower": 0
+      },
+      "eligible": true,
+      "robust": false,
+      "floor": -0.07853,
+      "eventFloor": 54,
+      "blocks": [
+        {
+          "trades": 54,
+          "markets": 54,
+          "events": 54,
+          "activeTrades": 0,
+          "closedTrades": 54,
+          "mean": 0.007,
+          "eventMean": 0.007,
+          "median": -0.0597,
+          "lower": -0.07853,
+          "upper": 0.09252,
+          "winRate": 0.38889,
+          "worstEvent": -0.93333,
+          "jackknifeMean": -0.03061
+        },
+        {
+          "trades": 55,
+          "markets": 55,
+          "events": 55,
+          "activeTrades": 0,
+          "closedTrades": 55,
+          "mean": -0.00528,
+          "eventMean": -0.00528,
+          "median": 0.02174,
+          "lower": -0.0536,
+          "upper": 0.04305,
+          "winRate": 0.58182,
+          "worstEvent": -1,
+          "jackknifeMean": -0.01868
+        },
+        {
+          "trades": 55,
+          "markets": 55,
+          "events": 55,
+          "activeTrades": 0,
+          "closedTrades": 55,
+          "mean": 0.03593,
+          "eventMean": 0.03593,
+          "median": -0.03614,
+          "lower": -0.03443,
+          "upper": 0.10629,
+          "winRate": 0.43636,
+          "worstEvent": -1,
+          "jackknifeMean": 0.01555
+        }
+      ]
+    },
+    {
+      "policy": {
+        "windowEvents": 40,
+        "shortWindowEvents": 40,
+        "minimumEvents": 20,
+        "minimumConsensusLookbacks": 2,
+        "minimumEntry": 0.3,
+        "maximumEntry": 0.7,
+        "minimumLower": 0
+      },
+      "eligible": true,
+      "robust": false,
+      "floor": -0.08505,
+      "eventFloor": 49,
+      "blocks": [
+        {
+          "trades": 53,
+          "markets": 53,
+          "events": 53,
+          "activeTrades": 0,
+          "closedTrades": 53,
+          "mean": -0.02955,
+          "eventMean": -0.02955,
+          "median": -0.06,
+          "lower": -0.08505,
+          "upper": 0.02595,
+          "winRate": 0.35849,
+          "worstEvent": -0.93333,
+          "jackknifeMean": -0.04248
+        },
+        {
+          "trades": 54,
+          "markets": 54,
+          "events": 54,
+          "activeTrades": 0,
+          "closedTrades": 54,
+          "mean": 0.02396,
+          "eventMean": 0.02396,
+          "median": 0.02174,
+          "lower": -0.01432,
+          "upper": 0.06224,
+          "winRate": 0.59259,
+          "worstEvent": -0.65476,
+          "jackknifeMean": 0.01086
+        },
+        {
+          "trades": 49,
+          "markets": 49,
+          "events": 49,
+          "activeTrades": 0,
+          "closedTrades": 49,
+          "mean": 0.02139,
+          "eventMean": 0.02139,
+          "median": -0.01099,
+          "lower": -0.03445,
+          "upper": 0.07723,
+          "winRate": 0.46939,
+          "worstEvent": -0.51765,
+          "jackknifeMean": 0.0034
+        }
+      ]
+    },
+    {
+      "policy": {
+        "windowEvents": 40,
+        "shortWindowEvents": 20,
+        "minimumEvents": 20,
+        "minimumConsensusLookbacks": 2,
+        "minimumEntry": 0.15,
+        "maximumEntry": 0.85,
+        "minimumLower": 0.01
+      },
+      "eligible": true,
+      "robust": false,
+      "floor": -0.08661,
+      "eventFloor": 39,
+      "blocks": [
+        {
+          "trades": 39,
+          "markets": 39,
+          "events": 39,
+          "activeTrades": 0,
+          "closedTrades": 39,
+          "mean": 0.0037,
+          "eventMean": 0.0037,
+          "median": -0.06667,
+          "lower": -0.07121,
+          "upper": 0.07861,
+          "winRate": 0.4359,
+          "worstEvent": -1,
+          "jackknifeMean": -0.01312
+        },
+        {
+          "trades": 48,
+          "markets": 48,
+          "events": 48,
+          "activeTrades": 0,
+          "closedTrades": 48,
+          "mean": -0.00101,
+          "eventMean": -0.00101,
+          "median": -0.00019,
+          "lower": -0.04741,
+          "upper": 0.04539,
+          "winRate": 0.5,
+          "worstEvent": -0.81395,
+          "jackknifeMean": -0.01632
+        },
+        {
+          "trades": 50,
+          "markets": 50,
+          "events": 50,
+          "activeTrades": 0,
+          "closedTrades": 50,
+          "mean": -0.01322,
+          "eventMean": -0.01322,
+          "median": -0.04453,
+          "lower": -0.08661,
+          "upper": 0.06018,
+          "winRate": 0.42,
+          "worstEvent": -1,
+          "jackknifeMean": -0.03155
+        }
+      ]
+    },
+    {
+      "policy": {
+        "windowEvents": 40,
+        "shortWindowEvents": 20,
+        "minimumEvents": 20,
+        "minimumConsensusLookbacks": 2,
+        "minimumEntry": 0.15,
+        "maximumEntry": 0.85,
+        "minimumLower": 0
+      },
+      "eligible": true,
+      "robust": false,
+      "floor": -0.0885,
+      "eventFloor": 42,
+      "blocks": [
+        {
+          "trades": 42,
+          "markets": 42,
+          "events": 42,
+          "activeTrades": 0,
+          "closedTrades": 42,
+          "mean": 0.02601,
+          "eventMean": 0.02601,
+          "median": -0.05673,
+          "lower": -0.03059,
+          "upper": 0.0826,
+          "winRate": 0.40476,
+          "worstEvent": -0.45455,
+          "jackknifeMean": 0.01096
+        },
+        {
+          "trades": 50,
+          "markets": 50,
+          "events": 50,
+          "activeTrades": 0,
+          "closedTrades": 50,
+          "mean": 0.00102,
+          "eventMean": 0.00102,
+          "median": 0.01636,
+          "lower": -0.04357,
+          "upper": 0.04561,
+          "winRate": 0.52,
+          "worstEvent": -0.81395,
+          "jackknifeMean": -0.01362
+        },
+        {
+          "trades": 52,
+          "markets": 52,
+          "events": 52,
+          "activeTrades": 0,
+          "closedTrades": 52,
+          "mean": -0.0149,
+          "eventMean": -0.0149,
+          "median": -0.0438,
+          "lower": -0.0885,
+          "upper": 0.0587,
+          "winRate": 0.42308,
+          "worstEvent": -1,
+          "jackknifeMean": -0.03255
+        }
+      ]
+    },
+    {
+      "policy": {
+        "windowEvents": 80,
+        "shortWindowEvents": 20,
+        "minimumEvents": 20,
+        "minimumConsensusLookbacks": 2,
+        "minimumEntry": 0.15,
+        "maximumEntry": 0.85,
+        "minimumLower": 0
+      },
+      "eligible": true,
+      "robust": false,
+      "floor": -0.08986,
+      "eventFloor": 39,
+      "blocks": [
+        {
+          "trades": 39,
+          "markets": 39,
+          "events": 39,
+          "activeTrades": 0,
+          "closedTrades": 39,
+          "mean": 0.01204,
+          "eventMean": 0.01204,
+          "median": -0.03101,
+          "lower": -0.08986,
+          "upper": 0.11393,
+          "winRate": 0.46154,
+          "worstEvent": -1,
+          "jackknifeMean": -0.02245
+        },
+        {
+          "trades": 45,
+          "markets": 45,
+          "events": 45,
+          "activeTrades": 0,
+          "closedTrades": 45,
+          "mean": -0.00706,
+          "eventMean": -0.00706,
+          "median": -0.05683,
+          "lower": -0.05931,
+          "upper": 0.04519,
+          "winRate": 0.46667,
+          "worstEvent": -1,
+          "jackknifeMean": -0.02133
+        },
+        {
+          "trades": 48,
+          "markets": 48,
+          "events": 48,
+          "activeTrades": 0,
+          "closedTrades": 48,
+          "mean": 0.04305,
+          "eventMean": 0.04305,
+          "median": 0.01087,
+          "lower": -0.0248,
+          "upper": 0.11091,
+          "winRate": 0.5,
+          "worstEvent": -1,
+          "jackknifeMean": 0.02653
+        }
+      ]
+    },
+    {
+      "policy": {
+        "windowEvents": 40,
+        "shortWindowEvents": 40,
+        "minimumEvents": 20,
+        "minimumConsensusLookbacks": 3,
+        "minimumEntry": 0.3,
+        "maximumEntry": 0.7,
+        "minimumLower": 0
+      },
+      "eligible": true,
+      "robust": false,
+      "floor": -0.09249,
+      "eventFloor": 20,
+      "blocks": [
+        {
+          "trades": 20,
+          "markets": 20,
+          "events": 20,
+          "activeTrades": 0,
+          "closedTrades": 20,
+          "mean": -0.0376,
+          "eventMean": -0.0376,
+          "median": -0.07782,
+          "lower": -0.09249,
+          "upper": 0.01729,
+          "winRate": 0.3,
+          "worstEvent": -0.21347,
+          "jackknifeMean": -0.05462
+        },
+        {
+          "trades": 37,
+          "markets": 37,
+          "events": 37,
+          "activeTrades": 0,
+          "closedTrades": 37,
+          "mean": 0.0174,
+          "eventMean": 0.0174,
+          "median": 0.02174,
+          "lower": -0.00835,
+          "upper": 0.04315,
+          "winRate": 0.59459,
+          "worstEvent": -0.06,
+          "jackknifeMean": 0.00549
+        },
+        {
+          "trades": 33,
+          "markets": 33,
+          "events": 33,
+          "activeTrades": 0,
+          "closedTrades": 33,
+          "mean": 0.0452,
+          "eventMean": 0.0452,
+          "median": 0.01667,
+          "lower": -0.02196,
+          "upper": 0.11236,
+          "winRate": 0.51515,
+          "worstEvent": -0.44286,
+          "jackknifeMean": 0.01919
+        }
+      ]
+    },
+    {
+      "policy": {
+        "windowEvents": 80,
+        "shortWindowEvents": 20,
+        "minimumEvents": 20,
+        "minimumConsensusLookbacks": 2,
+        "minimumEntry": 0.15,
+        "maximumEntry": 0.85,
+        "minimumLower": 0.01
+      },
+      "eligible": true,
+      "robust": false,
+      "floor": -0.09538,
+      "eventFloor": 37,
+      "blocks": [
+        {
+          "trades": 37,
+          "markets": 37,
+          "events": 37,
+          "activeTrades": 0,
+          "closedTrades": 37,
+          "mean": 0.01173,
+          "eventMean": 0.01173,
+          "median": -0.03101,
+          "lower": -0.09538,
+          "upper": 0.11884,
+          "winRate": 0.45946,
+          "worstEvent": -1,
+          "jackknifeMean": -0.02468
+        },
+        {
+          "trades": 44,
+          "markets": 44,
+          "events": 44,
+          "activeTrades": 0,
+          "closedTrades": 44,
+          "mean": -0.00823,
+          "eventMean": -0.00823,
+          "median": -0.05841,
+          "lower": -0.06165,
+          "upper": 0.04519,
+          "winRate": 0.45455,
+          "worstEvent": -1,
+          "jackknifeMean": -0.02286
+        },
+        {
+          "trades": 47,
+          "markets": 47,
+          "events": 47,
+          "activeTrades": 0,
+          "closedTrades": 47,
+          "mean": 0.03691,
+          "eventMean": 0.03691,
+          "median": -0.01515,
+          "lower": -0.03282,
+          "upper": 0.10663,
+          "winRate": 0.46809,
+          "worstEvent": -1,
+          "jackknifeMean": 0.01989
+        }
+      ]
+    },
+    {
+      "policy": {
+        "windowEvents": 40,
+        "shortWindowEvents": 40,
+        "minimumEvents": 20,
+        "minimumConsensusLookbacks": 3,
+        "minimumEntry": 0.3,
+        "maximumEntry": 0.7,
+        "minimumLower": 0.01
+      },
+      "eligible": true,
+      "robust": false,
+      "floor": -0.10105,
+      "eventFloor": 18,
+      "blocks": [
+        {
+          "trades": 18,
+          "markets": 18,
+          "events": 18,
+          "activeTrades": 0,
+          "closedTrades": 18,
+          "mean": -0.04176,
+          "eventMean": -0.04176,
+          "median": -0.07782,
+          "lower": -0.10105,
+          "upper": 0.01753,
+          "winRate": 0.27778,
+          "worstEvent": -0.21347,
+          "jackknifeMean": -0.06102
+        },
+        {
+          "trades": 36,
+          "markets": 36,
+          "events": 36,
+          "activeTrades": 0,
+          "closedTrades": 36,
+          "mean": 0.01955,
+          "eventMean": 0.01955,
+          "median": 0.02174,
+          "lower": -0.00668,
+          "upper": 0.04577,
+          "winRate": 0.61111,
+          "worstEvent": -0.06,
+          "jackknifeMean": 0.00736
+        },
+        {
+          "trades": 31,
+          "markets": 31,
+          "events": 31,
+          "activeTrades": 0,
+          "closedTrades": 31,
+          "mean": 0.04425,
+          "eventMean": 0.04425,
+          "median": 0.01667,
+          "lower": -0.02647,
+          "upper": 0.11498,
+          "winRate": 0.51613,
+          "worstEvent": -0.44286,
+          "jackknifeMean": 0.01648
+        }
+      ]
+    },
+    {
+      "policy": {
+        "windowEvents": 80,
+        "shortWindowEvents": 40,
+        "minimumEvents": 20,
+        "minimumConsensusLookbacks": 2,
+        "minimumEntry": 0.15,
+        "maximumEntry": 0.85,
+        "minimumLower": 0.01
+      },
+      "eligible": true,
+      "robust": false,
+      "floor": -0.12149,
+      "eventFloor": 40,
+      "blocks": [
+        {
+          "trades": 40,
+          "markets": 40,
+          "events": 40,
+          "activeTrades": 0,
+          "closedTrades": 40,
+          "mean": -0.02082,
+          "eventMean": -0.02082,
+          "median": -0.06896,
+          "lower": -0.12149,
+          "upper": 0.07986,
+          "winRate": 0.35,
+          "worstEvent": -1,
+          "jackknifeMean": -0.05526
+        },
+        {
+          "trades": 49,
+          "markets": 49,
+          "events": 49,
+          "activeTrades": 0,
+          "closedTrades": 49,
+          "mean": -0.01138,
+          "eventMean": -0.01138,
+          "median": -0.06,
+          "lower": -0.05945,
+          "upper": 0.03668,
+          "winRate": 0.42857,
+          "worstEvent": -1,
+          "jackknifeMean": -0.02455
+        },
+        {
+          "trades": 50,
+          "markets": 50,
+          "events": 50,
+          "activeTrades": 0,
+          "closedTrades": 50,
+          "mean": 0.00354,
+          "eventMean": 0.00354,
+          "median": -0.02565,
+          "lower": -0.06533,
+          "upper": 0.07241,
+          "winRate": 0.46,
+          "worstEvent": -1,
+          "jackknifeMean": -0.01073
+        }
+      ]
+    },
+    {
+      "policy": {
+        "windowEvents": 80,
+        "shortWindowEvents": 40,
+        "minimumEvents": 20,
+        "minimumConsensusLookbacks": 2,
+        "minimumEntry": 0.15,
+        "maximumEntry": 0.85,
+        "minimumLower": 0
+      },
+      "eligible": true,
+      "robust": false,
+      "floor": -0.14007,
+      "eventFloor": 45,
+      "blocks": [
+        {
+          "trades": 45,
+          "markets": 45,
+          "events": 45,
+          "activeTrades": 0,
+          "closedTrades": 45,
+          "mean": -0.04513,
+          "eventMean": -0.04513,
+          "median": -0.06,
+          "lower": -0.14007,
+          "upper": 0.04982,
+          "winRate": 0.33333,
+          "worstEvent": -1,
+          "jackknifeMean": -0.07621
+        },
+        {
+          "trades": 50,
+          "markets": 50,
+          "events": 50,
+          "activeTrades": 0,
+          "closedTrades": 50,
+          "mean": -0.01235,
+          "eventMean": -0.01235,
+          "median": -0.06,
+          "lower": -0.05948,
+          "upper": 0.03477,
+          "winRate": 0.42,
+          "worstEvent": -1,
+          "jackknifeMean": -0.02527
+        },
+        {
+          "trades": 51,
+          "markets": 51,
+          "events": 51,
+          "activeTrades": 0,
+          "closedTrades": 51,
+          "mean": -0.00691,
+          "eventMean": -0.00691,
+          "median": -0.03614,
+          "lower": -0.07657,
+          "upper": 0.06275,
+          "winRate": 0.45098,
+          "worstEvent": -1,
+          "jackknifeMean": -0.02111
+        }
+      ]
+    },
+    {
+      "policy": {
+        "windowEvents": 40,
+        "shortWindowEvents": 40,
+        "minimumEvents": 20,
+        "minimumConsensusLookbacks": 3,
+        "minimumEntry": 0.15,
+        "maximumEntry": 0.85,
+        "minimumLower": 0
+      },
+      "eligible": true,
+      "robust": false,
+      "floor": -0.14855,
+      "eventFloor": 24,
+      "blocks": [
+        {
+          "trades": 24,
+          "markets": 24,
+          "events": 24,
+          "activeTrades": 0,
+          "closedTrades": 24,
+          "mean": 0.01404,
+          "eventMean": 0.01404,
+          "median": -0.07209,
+          "lower": -0.14855,
+          "upper": 0.17664,
+          "winRate": 0.29167,
+          "worstEvent": -0.81579,
+          "jackknifeMean": -0.0723
+        },
+        {
+          "trades": 38,
+          "markets": 38,
+          "events": 38,
+          "activeTrades": 0,
+          "closedTrades": 38,
+          "mean": 0.01964,
+          "eventMean": 0.01964,
+          "median": 0.02174,
+          "lower": -0.0057,
+          "upper": 0.04497,
+          "winRate": 0.60526,
+          "worstEvent": -0.06,
+          "jackknifeMean": 0.00811
+        },
+        {
+          "trades": 42,
+          "markets": 42,
+          "events": 42,
+          "activeTrades": 0,
+          "closedTrades": 42,
+          "mean": 0.05968,
+          "eventMean": 0.05968,
+          "median": 0.02223,
+          "lower": -0.04071,
+          "upper": 0.16006,
+          "winRate": 0.52381,
+          "worstEvent": -1,
+          "jackknifeMean": 0.03342
+        }
+      ]
+    },
+    {
+      "policy": {
+        "windowEvents": 40,
+        "shortWindowEvents": 20,
+        "minimumEvents": 20,
+        "minimumConsensusLookbacks": 3,
+        "minimumEntry": 0.15,
+        "maximumEntry": 0.85,
+        "minimumLower": 0
+      },
+      "eligible": true,
+      "robust": false,
+      "floor": -0.16155,
+      "eventFloor": 16,
+      "blocks": [
+        {
+          "trades": 16,
+          "markets": 16,
+          "events": 16,
+          "activeTrades": 0,
+          "closedTrades": 16,
+          "mean": -0.04704,
+          "eventMean": -0.04704,
+          "median": -0.05316,
+          "lower": -0.16155,
+          "upper": 0.06746,
+          "winRate": 0.375,
+          "worstEvent": -0.81579,
+          "jackknifeMean": -0.07018
+        },
+        {
+          "trades": 30,
+          "markets": 30,
+          "events": 30,
+          "activeTrades": 0,
+          "closedTrades": 30,
+          "mean": 0.01738,
+          "eventMean": 0.01738,
+          "median": 0.02174,
+          "lower": -0.01535,
+          "upper": 0.05012,
+          "winRate": 0.63333,
+          "worstEvent": -0.21795,
+          "jackknifeMean": 0.0026
+        },
+        {
+          "trades": 37,
+          "markets": 37,
+          "events": 37,
+          "activeTrades": 0,
+          "closedTrades": 37,
+          "mean": 0.06233,
+          "eventMean": 0.06233,
+          "median": -0.01515,
+          "lower": -0.0298,
+          "upper": 0.15446,
+          "winRate": 0.48649,
+          "worstEvent": -1,
+          "jackknifeMean": 0.03969
+        }
+      ]
+    },
+    {
+      "policy": {
+        "windowEvents": 40,
+        "shortWindowEvents": 40,
+        "minimumEvents": 20,
+        "minimumConsensusLookbacks": 3,
+        "minimumEntry": 0.15,
+        "maximumEntry": 0.85,
+        "minimumLower": 0.01
+      },
+      "eligible": true,
+      "robust": false,
+      "floor": -0.16202,
+      "eventFloor": 22,
+      "blocks": [
+        {
+          "trades": 22,
+          "markets": 22,
+          "events": 22,
+          "activeTrades": 0,
+          "closedTrades": 22,
+          "mean": 0.01534,
+          "eventMean": 0.01534,
+          "median": -0.07209,
+          "lower": -0.16202,
+          "upper": 0.19269,
+          "winRate": 0.27273,
+          "worstEvent": -0.81579,
+          "jackknifeMean": -0.07917
+        },
+        {
+          "trades": 37,
+          "markets": 37,
+          "events": 37,
+          "activeTrades": 0,
+          "closedTrades": 37,
+          "mean": 0.02179,
+          "eventMean": 0.02179,
+          "median": 0.02174,
+          "lower": -0.00398,
+          "upper": 0.04756,
+          "winRate": 0.62162,
+          "worstEvent": -0.06,
+          "jackknifeMean": 0.01
+        },
+        {
+          "trades": 40,
+          "markets": 40,
+          "events": 40,
+          "activeTrades": 0,
+          "closedTrades": 40,
+          "mean": 0.05967,
+          "eventMean": 0.05967,
+          "median": 0.02223,
+          "lower": -0.04546,
+          "upper": 0.1648,
+          "winRate": 0.525,
+          "worstEvent": -1,
+          "jackknifeMean": 0.03206
+        }
+      ]
+    },
+    {
+      "policy": {
+        "windowEvents": 40,
+        "shortWindowEvents": 20,
+        "minimumEvents": 20,
+        "minimumConsensusLookbacks": 3,
+        "minimumEntry": 0.15,
+        "maximumEntry": 0.85,
+        "minimumLower": 0.01
+      },
+      "eligible": true,
+      "robust": false,
+      "floor": -0.17833,
+      "eventFloor": 15,
+      "blocks": [
+        {
+          "trades": 15,
+          "markets": 15,
+          "events": 15,
+          "activeTrades": 0,
+          "closedTrades": 15,
+          "mean": -0.05724,
+          "eventMean": -0.05724,
+          "median": -0.05505,
+          "lower": -0.17833,
+          "upper": 0.06385,
+          "winRate": 0.33333,
+          "worstEvent": -0.81579,
+          "jackknifeMean": -0.08276
+        },
+        {
+          "trades": 28,
+          "markets": 28,
+          "events": 28,
+          "activeTrades": 0,
+          "closedTrades": 28,
+          "mean": 0.01918,
+          "eventMean": 0.01918,
+          "median": 0.02174,
+          "lower": -0.01559,
+          "upper": 0.05395,
+          "winRate": 0.64286,
+          "worstEvent": -0.21795,
+          "jackknifeMean": 0.00337
+        },
+        {
+          "trades": 32,
+          "markets": 32,
+          "events": 32,
+          "activeTrades": 0,
+          "closedTrades": 32,
+          "mean": 0.05007,
+          "eventMean": 0.05007,
+          "median": -0.02565,
+          "lower": -0.04818,
+          "upper": 0.14832,
+          "winRate": 0.46875,
+          "worstEvent": -1,
+          "jackknifeMean": 0.02338
+        }
+      ]
+    },
+    {
+      "policy": {
+        "windowEvents": 80,
+        "shortWindowEvents": 20,
+        "minimumEvents": 20,
+        "minimumConsensusLookbacks": 3,
+        "minimumEntry": 0.3,
+        "maximumEntry": 0.7,
+        "minimumLower": 0
+      },
+      "eligible": false,
+      "robust": false,
+      "floor": -0.1736,
+      "eventFloor": 3,
+      "blocks": [
+        {
+          "trades": 3,
+          "markets": 3,
+          "events": 3,
+          "activeTrades": 0,
+          "closedTrades": 3,
+          "mean": 0.01808,
+          "eventMean": 0.01808,
+          "median": -0.07812,
+          "lower": -0.1736,
+          "upper": 0.20975,
+          "winRate": 0.33333,
+          "worstEvent": -0.11765,
+          "jackknifeMean": -0.09789
+        },
+        {
+          "trades": 21,
+          "markets": 21,
+          "events": 21,
+          "activeTrades": 0,
+          "closedTrades": 21,
+          "mean": -0.01349,
+          "eventMean": -0.01349,
+          "median": 0.02174,
+          "lower": -0.02971,
+          "upper": 0.00273,
+          "winRate": 0.52381,
+          "worstEvent": -0.06,
+          "jackknifeMean": -0.01639
+        },
+        {
+          "trades": 16,
+          "markets": 16,
+          "events": 16,
+          "activeTrades": 0,
+          "closedTrades": 16,
+          "mean": -0.02388,
+          "eventMean": -0.02388,
+          "median": -0.04807,
+          "lower": -0.07691,
+          "upper": 0.02914,
+          "winRate": 0.3125,
+          "worstEvent": -0.26136,
+          "jackknifeMean": -0.04825
+        }
+      ]
+    },
+    {
+      "policy": {
+        "windowEvents": 80,
+        "shortWindowEvents": 20,
+        "minimumEvents": 20,
+        "minimumConsensusLookbacks": 3,
+        "minimumEntry": 0.3,
+        "maximumEntry": 0.7,
+        "minimumLower": 0.01
+      },
+      "eligible": false,
+      "robust": false,
+      "floor": -0.1736,
+      "eventFloor": 3,
+      "blocks": [
+        {
+          "trades": 3,
+          "markets": 3,
+          "events": 3,
+          "activeTrades": 0,
+          "closedTrades": 3,
+          "mean": 0.01808,
+          "eventMean": 0.01808,
+          "median": -0.07812,
+          "lower": -0.1736,
+          "upper": 0.20975,
+          "winRate": 0.33333,
+          "worstEvent": -0.11765,
+          "jackknifeMean": -0.09789
+        },
+        {
+          "trades": 20,
+          "markets": 20,
+          "events": 20,
+          "activeTrades": 0,
+          "closedTrades": 20,
+          "mean": -0.01116,
+          "eventMean": -0.01116,
+          "median": 0.02174,
+          "lower": -0.02773,
+          "upper": 0.00541,
+          "winRate": 0.55,
+          "worstEvent": -0.06,
+          "jackknifeMean": -0.01409
+        },
+        {
+          "trades": 13,
+          "markets": 13,
+          "events": 13,
+          "activeTrades": 0,
+          "closedTrades": 13,
+          "mean": -0.06327,
+          "eventMean": -0.06327,
+          "median": -0.075,
+          "lower": -0.10129,
+          "upper": -0.02524,
+          "winRate": 0.15385,
+          "worstEvent": -0.26136,
+          "jackknifeMean": -0.0753
+        }
+      ]
+    },
+    {
+      "policy": {
+        "windowEvents": 80,
+        "shortWindowEvents": 40,
+        "minimumEvents": 20,
+        "minimumConsensusLookbacks": 3,
+        "minimumEntry": 0.3,
+        "maximumEntry": 0.7,
+        "minimumLower": 0
+      },
+      "eligible": false,
+      "robust": false,
+      "floor": -0.1736,
+      "eventFloor": 3,
+      "blocks": [
+        {
+          "trades": 3,
+          "markets": 3,
+          "events": 3,
+          "activeTrades": 0,
+          "closedTrades": 3,
+          "mean": 0.01808,
+          "eventMean": 0.01808,
+          "median": -0.07812,
+          "lower": -0.1736,
+          "upper": 0.20975,
+          "winRate": 0.33333,
+          "worstEvent": -0.11765,
+          "jackknifeMean": -0.09789
+        },
+        {
+          "trades": 27,
+          "markets": 27,
+          "events": 27,
+          "activeTrades": 0,
+          "closedTrades": 27,
+          "mean": -0.02315,
+          "eventMean": -0.02315,
+          "median": -0.06,
+          "lower": -0.03703,
+          "upper": -0.00928,
+          "winRate": 0.40741,
+          "worstEvent": -0.06,
+          "jackknifeMean": -0.02575
+        },
+        {
+          "trades": 24,
+          "markets": 24,
+          "events": 24,
+          "activeTrades": 0,
+          "closedTrades": 24,
+          "mean": 0.06699,
+          "eventMean": 0.06699,
+          "median": 0.02223,
+          "lower": -0.00014,
+          "upper": 0.13411,
+          "winRate": 0.54167,
+          "worstEvent": -0.26136,
+          "jackknifeMean": 0.04373
+        }
+      ]
+    },
+    {
+      "policy": {
+        "windowEvents": 80,
+        "shortWindowEvents": 40,
+        "minimumEvents": 20,
+        "minimumConsensusLookbacks": 3,
+        "minimumEntry": 0.3,
+        "maximumEntry": 0.7,
+        "minimumLower": 0.01
+      },
+      "eligible": false,
+      "robust": false,
+      "floor": -0.1736,
+      "eventFloor": 3,
+      "blocks": [
+        {
+          "trades": 3,
+          "markets": 3,
+          "events": 3,
+          "activeTrades": 0,
+          "closedTrades": 3,
+          "mean": 0.01808,
+          "eventMean": 0.01808,
+          "median": -0.07812,
+          "lower": -0.1736,
+          "upper": 0.20975,
+          "winRate": 0.33333,
+          "worstEvent": -0.11765,
+          "jackknifeMean": -0.09789
+        },
+        {
+          "trades": 26,
+          "markets": 26,
+          "events": 26,
+          "activeTrades": 0,
+          "closedTrades": 26,
+          "mean": -0.02173,
+          "eventMean": -0.02173,
+          "median": -0.05525,
+          "lower": -0.03595,
+          "upper": -0.00752,
+          "winRate": 0.42308,
+          "worstEvent": -0.06,
+          "jackknifeMean": -0.02438
+        },
+        {
+          "trades": 20,
+          "markets": 20,
+          "events": 20,
+          "activeTrades": 0,
+          "closedTrades": 20,
+          "mean": 0.06759,
+          "eventMean": 0.06759,
+          "median": 0.01136,
+          "lower": -0.01131,
+          "upper": 0.14649,
+          "winRate": 0.5,
+          "worstEvent": -0.26136,
+          "jackknifeMean": 0.03948
+        }
+      ]
+    },
+    {
+      "policy": {
+        "windowEvents": 80,
+        "shortWindowEvents": 40,
+        "minimumEvents": 20,
+        "minimumConsensusLookbacks": 3,
+        "minimumEntry": 0.15,
+        "maximumEntry": 0.85,
+        "minimumLower": 0
+      },
+      "eligible": false,
+      "robust": false,
+      "floor": -0.4057,
+      "eventFloor": 7,
+      "blocks": [
+        {
+          "trades": 7,
+          "markets": 7,
+          "events": 7,
+          "activeTrades": 0,
+          "closedTrades": 7,
+          "mean": 0.15484,
+          "eventMean": 0.15484,
+          "median": -0.07812,
+          "lower": -0.4057,
+          "upper": 0.71538,
+          "winRate": 0.42857,
+          "worstEvent": -0.81579,
+          "jackknifeMean": -0.15268
+        },
+        {
+          "trades": 27,
+          "markets": 27,
+          "events": 27,
+          "activeTrades": 0,
+          "closedTrades": 27,
+          "mean": -0.02315,
+          "eventMean": -0.02315,
+          "median": -0.06,
+          "lower": -0.03703,
+          "upper": -0.00928,
+          "winRate": 0.40741,
+          "worstEvent": -0.06,
+          "jackknifeMean": -0.02575
+        },
+        {
+          "trades": 30,
+          "markets": 30,
+          "events": 30,
+          "activeTrades": 0,
+          "closedTrades": 30,
+          "mean": 0.075,
+          "eventMean": 0.075,
+          "median": 0.03945,
+          "lower": -0.02108,
+          "upper": 0.17108,
+          "winRate": 0.6,
+          "worstEvent": -1,
+          "jackknifeMean": 0.05334
+        }
+      ]
+    },
+    {
+      "policy": {
+        "windowEvents": 80,
+        "shortWindowEvents": 40,
+        "minimumEvents": 20,
+        "minimumConsensusLookbacks": 3,
+        "minimumEntry": 0.15,
+        "maximumEntry": 0.85,
+        "minimumLower": 0.01
+      },
+      "eligible": false,
+      "robust": false,
+      "floor": -0.4057,
+      "eventFloor": 7,
+      "blocks": [
+        {
+          "trades": 7,
+          "markets": 7,
+          "events": 7,
+          "activeTrades": 0,
+          "closedTrades": 7,
+          "mean": 0.15484,
+          "eventMean": 0.15484,
+          "median": -0.07812,
+          "lower": -0.4057,
+          "upper": 0.71538,
+          "winRate": 0.42857,
+          "worstEvent": -0.81579,
+          "jackknifeMean": -0.15268
+        },
+        {
+          "trades": 26,
+          "markets": 26,
+          "events": 26,
+          "activeTrades": 0,
+          "closedTrades": 26,
+          "mean": -0.02173,
+          "eventMean": -0.02173,
+          "median": -0.05525,
+          "lower": -0.03595,
+          "upper": -0.00752,
+          "winRate": 0.42308,
+          "worstEvent": -0.06,
+          "jackknifeMean": -0.02438
+        },
+        {
+          "trades": 25,
+          "markets": 25,
+          "events": 25,
+          "activeTrades": 0,
+          "closedTrades": 25,
+          "mean": 0.07197,
+          "eventMean": 0.07197,
+          "median": 0.02273,
+          "lower": -0.04255,
+          "upper": 0.18649,
+          "winRate": 0.56,
+          "worstEvent": -1,
+          "jackknifeMean": 0.04567
+        }
+      ]
+    },
+    {
+      "policy": {
+        "windowEvents": 80,
+        "shortWindowEvents": 20,
+        "minimumEvents": 20,
+        "minimumConsensusLookbacks": 3,
+        "minimumEntry": 0.15,
+        "maximumEntry": 0.85,
+        "minimumLower": 0
+      },
+      "eligible": false,
+      "robust": false,
+      "floor": -0.43835,
+      "eventFloor": 6,
+      "blocks": [
+        {
+          "trades": 6,
+          "markets": 6,
+          "events": 6,
+          "activeTrades": 0,
+          "closedTrades": 6,
+          "mean": -0.15268,
+          "eventMean": -0.15268,
+          "median": -0.09789,
+          "lower": -0.43835,
+          "upper": 0.13298,
+          "winRate": 0.33333,
+          "worstEvent": -0.81579,
+          "jackknifeMean": -0.24322
+        },
+        {
+          "trades": 21,
+          "markets": 21,
+          "events": 21,
+          "activeTrades": 0,
+          "closedTrades": 21,
+          "mean": -0.01349,
+          "eventMean": -0.01349,
+          "median": 0.02174,
+          "lower": -0.02971,
+          "upper": 0.00273,
+          "winRate": 0.52381,
+          "worstEvent": -0.06,
+          "jackknifeMean": -0.01639
+        },
+        {
+          "trades": 21,
+          "markets": 21,
+          "events": 21,
+          "activeTrades": 0,
+          "closedTrades": 21,
+          "mean": -0.0347,
+          "eventMean": -0.0347,
+          "median": -0.075,
+          "lower": -0.14305,
+          "upper": 0.07365,
+          "winRate": 0.38095,
+          "worstEvent": -1,
+          "jackknifeMean": -0.06627
+        }
+      ]
+    },
+    {
+      "policy": {
+        "windowEvents": 80,
+        "shortWindowEvents": 20,
+        "minimumEvents": 20,
+        "minimumConsensusLookbacks": 3,
+        "minimumEntry": 0.15,
+        "maximumEntry": 0.85,
+        "minimumLower": 0.01
+      },
+      "eligible": false,
+      "robust": false,
+      "floor": -0.43835,
+      "eventFloor": 6,
+      "blocks": [
+        {
+          "trades": 6,
+          "markets": 6,
+          "events": 6,
+          "activeTrades": 0,
+          "closedTrades": 6,
+          "mean": -0.15268,
+          "eventMean": -0.15268,
+          "median": -0.09789,
+          "lower": -0.43835,
+          "upper": 0.13298,
+          "winRate": 0.33333,
+          "worstEvent": -0.81579,
+          "jackknifeMean": -0.24322
+        },
+        {
+          "trades": 20,
+          "markets": 20,
+          "events": 20,
+          "activeTrades": 0,
+          "closedTrades": 20,
+          "mean": -0.01116,
+          "eventMean": -0.01116,
+          "median": 0.02174,
+          "lower": -0.02773,
+          "upper": 0.00541,
+          "winRate": 0.55,
+          "worstEvent": -0.06,
+          "jackknifeMean": -0.01409
+        },
+        {
+          "trades": 18,
+          "markets": 18,
+          "events": 18,
+          "activeTrades": 0,
+          "closedTrades": 18,
+          "mean": -0.06495,
+          "eventMean": -0.06495,
+          "median": -0.08612,
+          "lower": -0.18568,
+          "upper": 0.05578,
+          "winRate": 0.27778,
+          "worstEvent": -1,
+          "jackknifeMean": -0.10387
+        }
+      ]
+    }
+  ]
+}
