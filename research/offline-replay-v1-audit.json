@@ -1,0 +1,37 @@
+{
+  "generated_at": "2026-08-24T14:35:26.038Z",
+  "status": "research-only",
+  "capital_approved": false,
+  "universe": {
+    "requested_markets": 1500,
+    "usable_markets": 615,
+    "active_markets": 216,
+    "closed_markets": 399,
+    "events": 183,
+    "observations": 25849
+  },
+  "methodology": {
+    "event_split": "Chronological 60/20/20 by whole Polymarket event",
+    "execution": "One non-overlapping position per event; no re-entry before the holding period ends",
+    "selection": "Positive event-clustered 90% lower bound, positive event median, and positive leave-one-event-out mean in training and validation",
+    "holdout": "Untouched until after training and validation selection",
+    "cost_model": "Fixed round-trip cents per share; historical order-book depth and fills are unavailable"
+  },
+  "full_grid": {
+    "rules": 2560,
+    "horizons_hours": [6, 12, 24, 72],
+    "two_cent_holdout_passes": 0,
+    "three_cent_validation_passes": 0
+  },
+  "closest_rule": {
+    "id": "fade_72h_0.04-1_all_All_any",
+    "definition": "Fade an absolute 72-hour YES-price move of at least 4 percentage points and exit after 72 hours",
+    "two_cent_results": {
+      "train": {"trades": 227, "events": 72, "event_mean": 0.15554, "median": 0.00392, "lower_90": 0.06052},
+      "validation": {"trades": 89, "events": 26, "event_mean": 0.17471, "median": 0.03632, "lower_90": 0.02228},
+      "holdout": {"trades": 66, "events": 22, "event_mean": 0.26669, "median": -0.04962, "lower_90": 0.04950, "win_rate": 0.34848, "worst_event": -0.39592}
+    },
+    "stress_result": "Fails the training gate at 2.5 cents and 3 cents per share",
+    "decision": "Do not authorize capital. The expected-value result is thin, loses on most holdout events, and is not robust to modestly higher execution cost."
+  }
+}

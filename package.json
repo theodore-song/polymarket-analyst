@@ -13,8 +13,11 @@
     "evaluate:settlement-calibration": "node scripts/evaluate-settlement-calibration.mjs",
     "evaluate:calibration-model": "node scripts/evaluate-calibration-model.mjs",
     "evaluate:sports-favorites": "node scripts/evaluate-sports-favorites.mjs",
+    "replay:collect": "node scripts/collect-replay-cache.mjs",
+    "replay:run": "node scripts/replay-strategies.mjs",
     "test:server-state": "node scripts/test-server-state.mjs",
     "test:shock-audit": "node scripts/test-shock-audit.mjs",
+    "test:offline-replay": "node scripts/test-offline-replay.mjs",
     "test:offline-runtime": "node scripts/test-offline-runtime.mjs",
     "test:autonomous-runtime": "node scripts/test-autonomous-runtime.mjs"
   },

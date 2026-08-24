@@ -177,6 +177,14 @@ winner is removed, so its bounded paper size rises from 0.10% to 0.25% per posit
 1% total lane cap. The buy-YES cohort remains locked, and any failed sequential gate returns
 the affected direction to zero capital; full sizing still requires 40 independent events.
 
+Offline strategy research now uses a cache-once replay harness. One collection pass stores
+six-hour observations from 500 active and 1,000 resolved markets; subsequent targeted rules
+replay locally in roughly a tenth of a second. Events are kept whole across chronological
+train, validation, and holdout partitions, and the simulator permits only one non-overlapping
+position per event. The first 2,560-rule audit found no capital-safe rule at a three-cent
+round-trip stress. Its closest 72-hour fade also failed at 2.5 cents, so it remains disabled
+rather than being used to manufacture exposure.
+
 Build 136 also preserves verified complete-NO conversion metadata after a
 maker-assisted touch. Once that cohort earns paper promotion, buying the remaining
 legs at exact verified depth immediately converts the complete NO set through the
